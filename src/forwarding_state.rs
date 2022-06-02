@@ -19,7 +19,7 @@
 //! containing the state, and providing some helper functions to extract certain information about
 //! the state.
 
-use crate::{Network, NetworkDevice, NetworkError, Prefix, RouterId};
+use crate::{Network, NetworkError, Prefix, RouterId};
 use log::*;
 use std::collections::{HashMap, HashSet};
 use std::iter::{repeat, Peekable};
@@ -46,6 +46,8 @@ pub struct ForwardingState {
     /// router knows no route ot the prefix, and the value is Some(usize) with usize being the index
     /// to the `RouterId`.
     state: Vec<Option<RouterId>>,
+    /// Flattened 2-dimensional vector of the reversed forwarding state.
+    reversed: Vec<Vec<RouterId>>,
     /// Lookup for the Prefix
     pub(self) prefixes: HashMap<Prefix, usize>,
     /// lookup to tell which routers are external
@@ -92,10 +94,14 @@ impl ForwardingState {
         // initialize state
         let mut state: Vec<Option<RouterId>> =
             repeat(None).take(num_prefixes * num_devices).collect();
-        for rid in 0..num_devices as u32 {
-            if let NetworkDevice::InternalRouter(r) = net.get_device(rid.into()) {
-                for (p, pid) in prefixes.iter() {
-                    state[get_idx(rid as usize, *pid, num_prefixes)] = r.get_next_hop(*p);
+        let mut reversed: Vec<Vec<RouterId>> =
+            repeat(vec![]).take(num_prefixes * num_devices).collect();
+        for rid in net.get_routers() {
+            let r = net.get_device(rid).unwrap_internal();
+            for (p, pid) in prefixes.iter() {
+                if let Some(nh) = r.get_next_hop(*p) {
+                    state[get_idx(rid.index(), *pid, num_prefixes)] = Some(nh);
+                    reversed[get_idx(nh.index(), *pid, num_prefixes)].push(rid);
                 }
             }
         }
@@ -116,6 +122,7 @@ impl ForwardingState {
             num_prefixes,
             num_devices,
             state,
+            reversed,
             prefixes,
             external_routers,
             cache,
@@ -238,6 +245,24 @@ impl ForwardingState {
             Ok(None)
         }
     }
+
+    /// Get the set of nodes that have a next hop to `rotuer` for `prefix`.
+    pub fn get_prev_hop(
+        &self,
+        router: RouterId,
+        prefix: Prefix,
+    ) -> Result<&[RouterId], NetworkError> {
+        if router.index() >= self.num_devices {
+            return Err(NetworkError::DeviceNotFound(router));
+        }
+        let pid = self.prefixes.get(&prefix);
+        Ok(if let Some(pid) = pid {
+            let data_idx = get_idx(router.index(), *pid, self.num_prefixes);
+            self.reversed.get(data_idx).unwrap().as_slice()
+        } else {
+            &[]
+        })
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -331,6 +356,7 @@ mod test {
             num_prefixes: 1,
             num_devices: 6,
             state: vec![Some(r0), Some(r0), Some(r1), Some(r1), Some(r2), None],
+            reversed: vec![vec![r1], vec![r2, r3], vec![r4], vec![], vec![]],
             prefixes: maplit::hashmap![Prefix(0) => 0, ],
             external_routers: maplit::hashset![r0, r5],
             cache: vec![None, None, None, None, None, None],
@@ -351,12 +377,14 @@ mod test {
         let r0 = 0.into();
         let r1 = 1.into();
         let r2 = 2.into();
+        let r3 = 3.into();
         let r4 = 4.into();
         let r5 = 5.into();
         let mut state = ForwardingState {
             num_prefixes: 1,
             num_devices: 6,
             state: vec![Some(r0), Some(r0), Some(r1), Some(r1), Some(r2), None],
+            reversed: vec![vec![r1], vec![r2, r3], vec![r4], vec![], vec![]],
             prefixes: maplit::hashmap![Prefix(0) => 0, ],
             external_routers: maplit::hashset![r0, r5],
             cache: vec![None, None, None, None, None, None],
@@ -373,7 +401,7 @@ mod test {
     #[test]
     fn test_forwarding_loop_2() {
         let r0: RouterId = 0.into();
-        //let r1: RouterId = 1.into();
+        let r1: RouterId = 1.into();
         let r2: RouterId = 2.into();
         let r3: RouterId = 3.into();
         let r4: RouterId = 4.into();
@@ -382,6 +410,7 @@ mod test {
             num_prefixes: 1,
             num_devices: 6,
             state: vec![Some(r0), Some(r0), Some(r3), Some(r4), Some(r3), None],
+            reversed: vec![vec![r1], vec![], vec![], vec![r2, r4], vec![r3], vec![]],
             prefixes: maplit::hashmap![Prefix(0) => 0, ],
             external_routers: maplit::hashset![r0, r5],
             cache: vec![None, None, None, None, None, None],
@@ -430,6 +459,7 @@ mod test {
             num_prefixes: 1,
             num_devices: 6,
             state: vec![Some(r0), Some(r2), Some(r3), Some(r4), Some(r2), None],
+            reversed: vec![vec![], vec![], vec![r1, r4], vec![r2], vec![r3], vec![]],
             prefixes: maplit::hashmap![Prefix(0) => 0, ],
             external_routers: maplit::hashset![r0, r5],
             cache: vec![None, None, None, None, None, None],
