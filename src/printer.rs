@@ -1,5 +1,5 @@
-// Snowcap: Synthesizing Network-Wide Configuration Updates
-// Copyright (C) 2021  Tibor Schneider
+// NetSim: BGP Network Simulator written in Rust
+// Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
