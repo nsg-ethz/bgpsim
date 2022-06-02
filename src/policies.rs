@@ -394,8 +394,7 @@ impl PathCondition {
                 // convert all elements in v, and then combine the outer AND expression into one
                 // large AND expression
                 v.into_iter()
-                    .map(|e| e.into_cnf_recursive().into_iter())
-                    .flatten()
+                    .flat_map(|e| e.into_cnf_recursive().into_iter())
                     .collect()
             }
             Self::Or(v) => {
@@ -500,8 +499,7 @@ impl PathConditionCNF {
     pub fn new(e: Vec<(Vec<PathCondition>, Vec<PathCondition>)>) -> Self {
         let is_cnf = e
             .iter()
-            .map(|(t, f)| t.iter().chain(f.iter()))
-            .flatten()
+            .flat_map(|(t, f)| t.iter().chain(f.iter()))
             .all(|c| matches!(c, PathCondition::Node(_) | PathCondition::Edge(_, _)));
         Self { e, is_cnf }
     }

@@ -46,9 +46,9 @@ fn simple_matches() {
     let map = RouteMap::new(10, Deny, vec![Match::NextHop(0.into())], vec![]);
     let mut entry = default_entry.clone();
     entry.route.next_hop = 0.into();
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.next_hop = 1.into();
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on Prefix, exact
     let map = RouteMap::new(
@@ -59,9 +59,9 @@ fn simple_matches() {
     );
     let mut entry = default_entry.clone();
     entry.route.prefix = Prefix(0);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.prefix = Prefix(1);
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on Prefix with range
     let map = RouteMap::new(
@@ -72,11 +72,11 @@ fn simple_matches() {
     );
     let mut entry = default_entry.clone();
     entry.route.prefix = Prefix(0);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.prefix = Prefix(9);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.prefix = Prefix(10);
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on Prefix with exclusive_range
     let map = RouteMap::new(
@@ -87,11 +87,11 @@ fn simple_matches() {
     );
     let mut entry = default_entry.clone();
     entry.route.prefix = Prefix(0);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.prefix = Prefix(9);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.prefix = Prefix(10);
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on AsPath to contain 0
     let map = RouteMap::new(
@@ -102,11 +102,11 @@ fn simple_matches() {
     );
     let mut entry = default_entry.clone();
     entry.route.as_path = vec![AsId(0)];
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.as_path = vec![AsId(1), AsId(0), AsId(2)];
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.as_path = vec![AsId(1), AsId(2)];
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on AsPath length to be equal
     let map = RouteMap::new(
@@ -117,9 +117,9 @@ fn simple_matches() {
     );
     let mut entry = default_entry.clone();
     entry.route.as_path = vec![AsId(0)];
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.as_path = vec![AsId(1), AsId(2)];
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on AsPath length to be in range
     let map = RouteMap::new(
@@ -130,32 +130,32 @@ fn simple_matches() {
     );
     let mut entry = default_entry.clone();
     entry.route.as_path = vec![AsId(0), AsId(1)];
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.as_path = vec![AsId(0), AsId(1), AsId(2), AsId(3)];
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.as_path = vec![];
-    assert_eq!(map.apply(entry.clone()).0, false);
+    assert!(!map.apply(entry.clone()).0);
     entry.route.as_path = vec![AsId(0), AsId(1), AsId(2), AsId(3), AsId(4)];
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on Neighbor
     let map = RouteMap::new(10, Deny, vec![Match::Neighbor(0.into())], vec![]);
     let mut entry = default_entry.clone();
     entry.from_id = 0.into();
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.from_id = 1.into();
     entry.to_id = Some(0.into());
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.to_id = None;
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on communits, not set
     let map = RouteMap::new(10, Deny, vec![Match::Community(None)], vec![]);
     let mut entry = default_entry.clone();
     entry.route.community = None;
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.community = Some(0);
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on Community, exact
     let map = RouteMap::new(
@@ -166,11 +166,11 @@ fn simple_matches() {
     );
     let mut entry = default_entry.clone();
     entry.route.community = Some(0);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.community = Some(1);
-    assert_eq!(map.apply(entry.clone()).0, false);
+    assert!(!map.apply(entry.clone()).0);
     entry.route.community = None;
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on Community with range
     let map = RouteMap::new(
@@ -181,13 +181,13 @@ fn simple_matches() {
     );
     let mut entry = default_entry.clone();
     entry.route.community = Some(0);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.community = Some(9);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.community = Some(10);
-    assert_eq!(map.apply(entry.clone()).0, false);
+    assert!(!map.apply(entry.clone()).0);
     entry.route.community = None;
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Match on Community with exclusive_range
     let map = RouteMap::new(
@@ -198,13 +198,13 @@ fn simple_matches() {
     );
     let mut entry = default_entry;
     entry.route.community = Some(0);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.community = Some(9);
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.community = Some(10);
-    assert_eq!(map.apply(entry.clone()).0, false);
+    assert!(!map.apply(entry.clone()).0);
     entry.route.community = None;
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 }
 
 #[test]
@@ -234,23 +234,23 @@ fn complex_matches() {
     let mut entry = default_entry.clone();
     entry.route.next_hop = 0.into();
     entry.from_id = 0.into();
-    assert_eq!(map.apply(entry.clone()).0, true);
+    assert!(map.apply(entry.clone()).0);
     entry.route.next_hop = 0.into();
     entry.from_id = 1.into();
-    assert_eq!(map.apply(entry.clone()).0, false);
+    assert!(!map.apply(entry.clone()).0);
     entry.route.next_hop = 1.into();
     entry.from_id = 0.into();
-    assert_eq!(map.apply(entry.clone()).0, false);
+    assert!(!map.apply(entry.clone()).0);
     entry.route.next_hop = 1.into();
     entry.from_id = 1.into();
-    assert_eq!(map.apply(entry).0, false);
+    assert!(!map.apply(entry).0);
 
     // Empty And Clause
     let map = RouteMap::new(10, Deny, vec![], vec![]);
     let mut entry = default_entry;
     entry.route.next_hop = 0.into();
     entry.from_id = 0.into();
-    assert_eq!(map.apply(entry).0, true);
+    assert!(map.apply(entry).0);
 }
 
 #[test]
