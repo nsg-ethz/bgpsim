@@ -451,7 +451,7 @@ fn test_forwarding_state_carousel_gadget() {
                     net.get_device(*router)
                         .unwrap_internal()
                         .get_next_hop(*prefix),
-                    state.get_next_hop(*router, *prefix).unwrap(),
+                    state.get_next_hop(*router, *prefix),
                     "Invalid next-hop at {} for prefix {}",
                     net.get_router_name(*router).unwrap(),
                     prefix.0
