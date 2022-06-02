@@ -41,8 +41,6 @@ pub struct ForwardingState {
     state: HashMap<(RouterId, Prefix), RouterId>,
     /// The reversed forwarding state.
     reversed: HashMap<(RouterId, Prefix), Vec<RouterId>>,
-    /// lookup to tell which routers are external
-    external_routers: HashSet<RouterId>,
     /// Cache storing the result from the last computation. The outer most vector is the corresponds
     /// to the router id, and the next is the prefix. Then, if `cache[r, p]` is `None`, we have not
     /// yet computed the result there, But if `cache[r, p]` is true, then it will store the result
@@ -71,6 +69,11 @@ impl ForwardingState {
             let r = net.get_device(rid).unwrap_internal();
             for prefix in net.get_known_prefixes() {
                 if let Some(nh) = r.get_next_hop(*prefix) {
+                    if nh == rid {
+                        // in this case, the router points at itself, which means a black hole (at
+                        // least for internal routers)
+                        continue;
+                    }
                     state.insert((rid, *prefix), nh);
                     reversed.entry((rid, *prefix)).or_default().push(rid);
                 }
@@ -79,10 +82,9 @@ impl ForwardingState {
 
         // collect the external routers, and chagne the forwarding state such that we remember which
         // prefix they know a route to.
-        let external_routers: HashSet<RouterId> = net.get_external_routers().into_iter().collect();
-        for r in external_routers.iter() {
-            for p in net.get_device(*r).unwrap_external().advertised_prefixes() {
-                state.insert((*r, p), *r);
+        for r in net.get_external_routers() {
+            for p in net.get_device(r).unwrap_external().advertised_prefixes() {
+                state.insert((r, p), r);
             }
         }
 
@@ -92,7 +94,6 @@ impl ForwardingState {
         Self {
             state,
             reversed,
-            external_routers,
             cache,
         }
     }
@@ -126,10 +127,8 @@ impl ForwardingState {
                 break (CacheResult::ForwardingLoop, path.len());
             }
 
-            // check if the current_node (before next_node) is internal
-            let is_external = self.external_routers.contains(&current_node);
-
             // get the next node and handle the errors
+            let old_node = current_node;
             current_node = match self.state.get(&(current_node, prefix)) {
                 Some(nh) => *nh,
                 None => {
@@ -139,7 +138,7 @@ impl ForwardingState {
 
             // if the previous node was external, and we are still here, this means that the
             // external router knows a route to the outside. Return the correct route
-            if is_external {
+            if old_node == current_node {
                 break (CacheResult::ValidPath, path.len());
             }
         };
@@ -264,7 +263,6 @@ mod test {
         let mut state = ForwardingState {
             state: hashmap![(r0, p) => r0, (r1, p) => r0, (r2, p) => r1, (r3, p) => r1, (r4, p) => r2],
             reversed: hashmap![(r0, p) => vec![r1], (r1, p) => vec![r2, r3], (r2, p) => vec![r4]],
-            external_routers: maplit::hashset![r0, r5],
             cache: hashmap![],
         };
         assert_eq!(state.get_route(r0, Prefix(0)), Ok(vec![r0]));
@@ -290,7 +288,6 @@ mod test {
         let mut state = ForwardingState {
             state: hashmap![(r0, p) => r0, (r1, p) => r0, (r2, p) => r1, (r3, p) => r1, (r4, p) => r2],
             reversed: hashmap![(r0, p) => vec![r1], (r1, p) => vec![r2, r3], (r2, p) => vec![r4]],
-            external_routers: maplit::hashset![r0, r5],
             cache: hashmap![],
         };
         assert_eq!(state.get_route(r4, Prefix(0)), Ok(vec![r4, r2, r1, r0]));
@@ -320,7 +317,6 @@ mod test {
         let mut state = ForwardingState {
             state: hashmap![(r0, p) => r0, (r1, p) => r0, (r2, p) => r3, (r3, p) => r4, (r4, p) => r3],
             reversed: hashmap![(r0, p) => vec![r1], (r3, p) => vec![r2, r4], (r4, p) => vec![r3]],
-            external_routers: maplit::hashset![r0, r5],
             cache: hashmap![],
         };
         assert_eq!(
@@ -394,7 +390,6 @@ mod test {
         let mut state = ForwardingState {
             state: hashmap![(r0, p) => r0, (r1, p) => r2, (r2, p) => r3, (r3, p) => r4, (r4, p) => r2],
             reversed: hashmap![(r2, p) => vec![r1, r4], (r3, p) => vec![r2], (r4, p) => vec![r3]],
-            external_routers: maplit::hashset![r0, r5],
             cache: hashmap![],
         };
         assert_eq!(
