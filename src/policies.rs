@@ -1,0 +1,1060 @@
+// Snowcap: Synthesizing Network-Wide Configuration Updates
+// Copyright (C) 2021  Tibor Schneider
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+//! # Hard Policies
+//!
+//! _Disclaimer_: This code is partially taken from [Snowcap](snowcap.ethz.ch).
+//!
+//! Propositional variables are types of conditions which can be evaluated on the current state (or
+//! when considering the current and last state) of the network (i.e., forwarding state). The
+//! following conditions are possible:
+//!
+//! - $\mathbf{V}_{(r, p, c)}$ (Valid path / Reachability): Router $r$ is able to reach prefix $p$
+//!   without encountering any black hole, or forwarding loop. Aitionally, the path condition $c$
+//!   must hold, if it is provided.
+//! - $\mathbf{I}_{(r, p)}$ (Isolation): Router $r$ is not able to reach prefix $p$, there exists
+//!   a black hole on the path.
+//! - $\mathbf{V}_{(r, p, c)}^+$ (Reliability): Router $r$ is able to reach prefix $p$ in the case
+//!   where a single link fails. This condition is checked by simulating a link failure at every
+//!   link in the network. The path condition $c$ (if given) must hold on every chosen path for all
+//!   possible link failures.
+//! - $\mathbf{T}_{(r, p, c)}$ (Transient behavior): During convergence to reach the current state,
+//!   every possible path, that router $r$ might choose to reach $p$ does satisfy the path condition
+//!   $c$. Note, that this condition cannot check, that during convergence, no forwarding loop or
+//!   black hole may appear. Only the path can be checked.
+//!
+//! ## Path Condition
+//!
+//! The path condition is a condition on the path. This is an expression, which can contain boolean
+//! operators $\land$ (and), $\lor$ (or) and $\neg$ (not). In addition, the expression may contain
+//! router $r \in \mathcal{V}$, which needs to be reached in the path, an edge $e \in \mathcal{V}
+//! \times \mathcal{V}$, or a positional condition. This positional constraint can be expressed as
+//! a sequence of the alphabet $\lbrace \ast, ?\rbrace \cup \mathcal{V}$. Here, $?$ means any single
+//! router, and $\ast$ means a sequence of any length (can be of length zero) of any router. This
+//! can be used to express more complex conditions on the path. As an example, the positional
+//! condition $[\ast, a, ?, b, c, \ast]$ means that the path must first reach $a$, then visit any
+//! other node, then $b$ must be traversed, immediately followed by $c$. This always matches on the
+//! entire path, and not just on a small part of it.
+
+use crate::{ForwardingState, Network, NetworkError, Prefix, RouterId};
+
+use std::collections::VecDeque;
+use thiserror::Error;
+
+use itertools::iproduct;
+use std::fmt;
+
+/// Condition that can be checked for either being true or false.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum Condition {
+    /// Condition that a router can reach a prefix, with optional conditions to the path that is
+    /// taken.
+    Reachable(RouterId, Prefix, Option<PathCondition>),
+    /// Condition that the rotuer cannot reach the prefix, which means that there exists a black
+    /// hole somewhere in between the path.
+    NotReachable(RouterId, Prefix),
+}
+
+impl fmt::Display for Condition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Reachable(r, p, Some(c)) => {
+                write!(
+                    f,
+                    "Reachability(r{}, prefix {}, condition {})",
+                    r.index(),
+                    p.0,
+                    c
+                )
+            }
+            Self::Reachable(r, p, None) => {
+                write!(f, "Reachability(r{}, prefix {})", r.index(), p.0)
+            }
+            Self::NotReachable(r, p) => write!(f, "Isolation(r{}, prefix {})", r.index(), p.0),
+        }
+    }
+}
+
+impl Condition {
+    /// Return the string representation of the condition, with router names inserted.
+    pub fn repr_with_name(&self, net: &Network) -> String {
+        match self {
+            Self::Reachable(r, p, Some(c)) => format!(
+                "Reachability({}, prefix {}, condition {})",
+                net.get_router_name(*r).unwrap(),
+                p.0,
+                c.repr_with_name(net)
+            ),
+            Self::Reachable(r, p, None) => {
+                format!(
+                    "Reachability({}, prefix {})",
+                    net.get_router_name(*r).unwrap(),
+                    p.0
+                )
+            }
+            Self::NotReachable(r, p) => {
+                format!(
+                    "Isolation({}, prefix {})",
+                    net.get_router_name(*r).unwrap(),
+                    p.0
+                )
+            }
+        }
+    }
+
+    /// Check the the condition, returning a policy error if it is violated.
+    ///
+    /// **Warning**: reliability or transient condition is not checked here, but will just return
+    /// `Ok`.
+    pub fn check(&self, fw_state: &mut ForwardingState) -> Result<(), PolicyError> {
+        match self {
+            Self::Reachable(r, p, c) => match fw_state.get_route(*r, *p) {
+                Ok(path) => match c {
+                    None => Ok(()),
+                    Some(c) => c.check(&path, *p),
+                },
+                Err(NetworkError::ForwardingLoop(path)) => Err(PolicyError::ForwardingLoop {
+                    path: prepare_loop_path(path),
+                    prefix: *p,
+                }),
+                Err(NetworkError::ForwardingBlackHole(path)) => Err(PolicyError::BlackHole {
+                    router: *path.last().unwrap(),
+                    prefix: *p,
+                }),
+                Err(e) => panic!("Unrecoverable error detected: {}", e),
+            },
+            Self::NotReachable(r, p) => match fw_state.get_route(*r, *p) {
+                Err(NetworkError::ForwardingBlackHole(_)) => Ok(()),
+                Err(NetworkError::ForwardingLoop(_)) => Ok(()),
+                Err(e) => panic!("Unrecoverable error detected: {}", e),
+                Ok(path) => Err(PolicyError::UnallowedPathExists {
+                    router: *r,
+                    prefix: *p,
+                    path,
+                }),
+            },
+        }
+    }
+    /// Returns the router id of the condition
+    pub fn router_id(&self) -> RouterId {
+        match self {
+            Condition::Reachable(r, _, _) => *r,
+            Condition::NotReachable(r, _) => *r,
+        }
+    }
+
+    /// Returns the prefix of the condition
+    pub fn prefix(&self) -> Prefix {
+        match self {
+            Condition::Reachable(_, p, _) => *p,
+            Condition::NotReachable(_, p) => *p,
+        }
+    }
+}
+
+/// Condition on the path, which may be either to require that the path passes through a specirif
+/// node, or that the path traverses a specific edge.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum PathCondition {
+    /// Condition that a specific node must be traversed by the path
+    Node(RouterId),
+    /// Condition that a specific edge must be traversed by the path
+    Edge(RouterId, RouterId),
+    /// Set of conditions, combined with a logical and
+    And(Vec<PathCondition>),
+    /// Set of conditions, combined with a logical or
+    Or(Vec<PathCondition>),
+    /// inverted condition.
+    Not(Box<PathCondition>),
+    /// Condition for expressing positional waypointing. The vector represents a sequence of
+    /// waypoints, including placeholders. It is not possible to express logical OR or AND inside
+    /// this positional expression. However, by combining multiple positional expressions, a similar
+    /// expressiveness can be achieved.
+    Positional(Vec<Waypoint>),
+}
+
+impl fmt::Display for PathCondition {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Node(r) => write!(f, "r{}", r.index()),
+            Self::Edge(a, b) => write!(f, "[r{} -> r{}]", a.index(), b.index()),
+            Self::And(v) => {
+                write!(f, "(")?;
+                let mut i = v.iter();
+                if let Some(c) = i.next() {
+                    write!(f, "{}", c)?;
+                } else {
+                    write!(f, "true")?;
+                }
+                for c in i {
+                    write!(f, " && {}", c)?;
+                }
+                write!(f, ")")
+            }
+            Self::Or(v) => {
+                write!(f, "(")?;
+                let mut i = v.iter();
+                if let Some(c) = i.next() {
+                    write!(f, "{}", c)?;
+                } else {
+                    write!(f, "false")?;
+                }
+                for c in i {
+                    write!(f, " || {}", c)?;
+                }
+                write!(f, ")")
+            }
+            Self::Not(c) => write!(f, "!{}", c),
+            Self::Positional(v) => {
+                write!(f, "[")?;
+                let mut i = v.iter();
+                if let Some(w) = i.next() {
+                    write!(f, "{}", w)?;
+                }
+                for w in i {
+                    write!(f, " -> {}", w)?;
+                }
+                write!(f, "]")
+            }
+        }
+    }
+}
+
+impl PathCondition {
+    /// Return the string representation of the path condition, with router names inserted.
+    pub fn repr_with_name(&self, net: &Network) -> String {
+        match self {
+            Self::Node(r) => net.get_router_name(*r).unwrap().to_string(),
+            Self::Edge(a, b) => format!(
+                "[{} -> {}]",
+                net.get_router_name(*a).unwrap(),
+                net.get_router_name(*b).unwrap()
+            ),
+            Self::And(v) => {
+                let mut result = String::from("(");
+                let mut i = v.iter();
+                if let Some(c) = i.next() {
+                    result.push_str(&c.repr_with_name(net));
+                } else {
+                    result.push_str("true");
+                }
+                for c in i {
+                    result.push_str(" && ");
+                    result.push_str(&c.repr_with_name(net));
+                }
+                result.push(')');
+                result
+            }
+            Self::Or(v) => {
+                let mut result = String::from("(");
+                let mut i = v.iter();
+                if let Some(c) = i.next() {
+                    result.push_str(&c.repr_with_name(net));
+                } else {
+                    result.push_str("false");
+                }
+                for c in i {
+                    result.push_str(" || ");
+                    result.push_str(&c.repr_with_name(net));
+                }
+                result.push(')');
+                result
+            }
+            Self::Not(c) => format!("!{}", c.repr_with_name(net)),
+            Self::Positional(v) => {
+                let mut result = String::from("[");
+                let mut i = v.iter();
+                if let Some(w) = i.next() {
+                    result.push_str(&w.repr_with_name(net));
+                }
+                for w in i {
+                    result.push_str(" -> ");
+                    result.push_str(&w.repr_with_name(net));
+                }
+                result.push(']');
+                result
+            }
+        }
+    }
+
+    /// Returns wether the path condition is satisfied
+    pub fn check(&self, path: &[RouterId], prefix: Prefix) -> Result<(), PolicyError> {
+        if match self {
+            Self::And(v) => v.iter().all(|c| c.check(path, prefix).is_ok()),
+            Self::Or(v) => v.iter().any(|c| c.check(path, prefix).is_ok()),
+            Self::Not(c) => c.check(path, prefix).is_err(),
+            Self::Node(v) => path.iter().any(|x| x == v),
+            Self::Edge(x, y) => {
+                let mut iter_path = path.iter().peekable();
+                let mut found = false;
+                while let (Some(a), Some(b)) = (iter_path.next(), iter_path.peek()) {
+                    if x == a && y == *b {
+                        found = true;
+                    }
+                }
+                found
+            }
+            Self::Positional(v) => {
+                // algorithm to check if the positional condition matches the path
+                let mut p = path.iter();
+                let mut v = v.iter();
+                'alg: loop {
+                    match v.next() {
+                        Some(Waypoint::Any) => {
+                            // ? operator. Advance the p iterator, and check that it is not none
+                            if p.next().is_none() {
+                                break 'alg false;
+                            }
+                        }
+                        Some(Waypoint::Fix(n)) => {
+                            // The current node must be correct.
+                            if p.next() != Some(n) {
+                                break 'alg false;
+                            }
+                        }
+                        Some(Waypoint::Star) => {
+                            // The star operator is dependent on what comes next. Hence, we match
+                            // again on the following waypoint
+                            'star: loop {
+                                match v.next() {
+                                    Some(Waypoint::Any) => {
+                                        // again, do the same thing as in the main 'alg loop. But we
+                                        // remain in the star search. Notice, that `*?` = `?*`
+                                        if p.next().is_none() {
+                                            break 'alg false;
+                                        }
+                                    }
+                                    Some(Waypoint::Star) => {
+                                        // do nothing, because `**` = `*`
+                                    }
+                                    Some(Waypoint::Fix(n)) => {
+                                        // advance the path until we reach the node. If we reach the
+                                        // node, then break out of the star loop. If we don't reach
+                                        // the node, then break out of the alg loop with false!
+                                        for u in &mut p {
+                                            if u == n {
+                                                break 'star;
+                                            }
+                                        }
+                                        // node was not found!
+                                        break 'alg false;
+                                    }
+                                    None => {
+                                        // No next waypoint found. This means, that the remaining
+                                        // path does not matter. Break out with true
+                                        break 'alg true;
+                                    }
+                                }
+                            }
+                        }
+                        None => {
+                            // If there is no other waypoint, then the path must be empty!
+                            break 'alg p.next().is_none();
+                        }
+                    }
+                }
+            }
+        } {
+            // check was successful
+            Ok(())
+        } else {
+            // check unsuccessful
+            Err(PolicyError::PathCondition {
+                path: path.to_owned(),
+                condition: self.clone(),
+                prefix,
+            })
+        }
+    }
+
+    /// Private function for doing the recursive cnf conversion. The return has the following form:
+    /// The first array represents the expressions combined with a logical AND. each of these
+    /// elements represent a logical OR. The first array are regular elements, and the second array
+    /// contains the negated elements.
+    fn into_cnf_recursive(self) -> Vec<(Vec<Self>, Vec<Self>)> {
+        match self {
+            Self::Node(a) => vec![(vec![Self::Node(a)], vec![])],
+            Self::Edge(a, b) => vec![(vec![Self::Edge(a, b)], vec![])],
+            Self::Positional(v) => vec![(vec![Self::Positional(v)], vec![])],
+            Self::And(v) => {
+                // convert all elements in v, and then combine the outer AND expression into one
+                // large AND expression
+                v.into_iter()
+                    .map(|e| e.into_cnf_recursive().into_iter())
+                    .flatten()
+                    .collect()
+            }
+            Self::Or(v) => {
+                // convert all elements in v. Then, combine them by generating the product of all
+                // possible combinations of elements in the AND, and or them together into a bigger
+                // AND (generates a huge amount of elements!)
+                // This is done all in pairs
+                let mut v_iter = v.into_iter();
+                // If the vector is empty, we prepare a vector with one empty OR expression
+                let mut x = v_iter
+                    .next()
+                    .map(|e| e.into_cnf_recursive())
+                    .unwrap_or_else(|| vec![(vec![], vec![])]);
+                // then, iterate over all remaining elements, and generate the combination
+                for e in v_iter {
+                    // generate cnf of e
+                    let e = e.into_cnf_recursive();
+                    // combine x and e into x
+                    x = iproduct!(x.into_iter(), e.into_iter())
+                        .map(|((mut xt, mut xf), (mut et, mut ef))| {
+                            xt.append(&mut et);
+                            xf.append(&mut ef);
+                            (xt, xf)
+                        })
+                        .collect()
+                }
+                x
+            }
+            Self::Not(e) => match *e {
+                Self::Node(a) => vec![(vec![], vec![Self::Node(a)])],
+                Self::Edge(a, b) => vec![(vec![], vec![Self::Edge(a, b)])],
+                Self::Positional(v) => vec![(vec![], vec![Self::Positional(v)])],
+                // Doube negation
+                Self::Not(e) => e.into_cnf_recursive(),
+                // Morgan's Law: !(x & y) = !x | !y
+                Self::And(v) => Self::Or(v.into_iter().map(|e| Self::Not(Box::new(e))).collect())
+                    .into_cnf_recursive(),
+                // Morgan's Law: !(x | y) = !x & !y
+                Self::Or(v) => Self::And(v.into_iter().map(|e| Self::Not(Box::new(e))).collect())
+                    .into_cnf_recursive(),
+            },
+        }
+    }
+}
+
+impl From<PathCondition> for PathConditionCNF {
+    fn from(val: PathCondition) -> Self {
+        PathConditionCNF::new(val.into_cnf_recursive())
+    }
+}
+
+/// Part of the positional waypointing argument
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Copy)]
+pub enum Waypoint {
+    /// The next node is always allowed, no matter what it is. This is equivalent to the regular
+    /// expression `.` (UNIX style)
+    Any,
+    /// A sequence of undefined length is allowed (including length 0). This is equivalent to the
+    /// regular expression `.*` (UNIX style)
+    Star,
+    /// At the current position, the path must contain the given node.
+    Fix(RouterId),
+}
+
+impl fmt::Display for Waypoint {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            Self::Any => write!(f, "?"),
+            Self::Star => write!(f, "..."),
+            Self::Fix(r) => write!(f, "r{}", r.index()),
+        }
+    }
+}
+
+impl Waypoint {
+    /// Return a string representation of the waypoint, where the router name is inserted.
+    pub fn repr_with_name(&self, net: &Network) -> String {
+        String::from(match self {
+            Self::Any => "?",
+            Self::Star => "...",
+            Self::Fix(r) => net.get_router_name(*r).unwrap(),
+        })
+    }
+}
+
+/// Path Condition, expressed in Conjunctive Normal Form (CNF), which is a product of sums, or in
+/// other words, an AND of ORs.
+/// There might be cases, where the PathCondition cannot fully be expressed as a CNF. This is the
+/// case if positional requirements are used (like requiring the path * A * B *). In this case,
+/// is_cnf is set to false.
+#[derive(Clone, Debug, PartialEq, Eq, Hash)]
+pub struct PathConditionCNF {
+    /// Expression in the CNF form. The first vector contains all groups, which are finally combined
+    /// with a logical AND. Every group consists of two vectors, the first containing the non-
+    /// negated parts, and the second contains the negated parts, which are finally OR-ed together.
+    pub e: Vec<(Vec<PathCondition>, Vec<PathCondition>)>,
+    pub(super) is_cnf: bool,
+}
+
+impl PathConditionCNF {
+    /// Generate a new PathCondition in Conjunctive Normal Form (CNF).
+    pub fn new(e: Vec<(Vec<PathCondition>, Vec<PathCondition>)>) -> Self {
+        let is_cnf = e
+            .iter()
+            .map(|(t, f)| t.iter().chain(f.iter()))
+            .flatten()
+            .all(|c| matches!(c, PathCondition::Node(_) | PathCondition::Edge(_, _)));
+        Self { e, is_cnf }
+    }
+
+    /// Returns true if the path condition is a valid cnf, and does not contain any positional path
+    /// requirements
+    pub fn is_cnf(&self) -> bool {
+        self.is_cnf
+    }
+
+    /// Return the string representation of the path condition, with router names inserted.
+    pub fn repr_with_name(&self, net: &Network) -> String {
+        let cond: PathCondition = self.clone().into();
+        cond.repr_with_name(net)
+    }
+
+    /// Returns wether the path condition is satisfied
+    pub fn check(&self, path: &[RouterId], prefix: Prefix) -> Result<(), PolicyError> {
+        // define the function for checking each ANDed element of the CNF formula
+        fn cnf_or(
+            vt: &[PathCondition],
+            vf: &[PathCondition],
+            path: &[RouterId],
+            prefix: Prefix,
+        ) -> bool {
+            vt.iter().any(|c| c.check(path, prefix).is_ok())
+                || vf.iter().any(|c| c.check(path, prefix).is_err())
+        }
+
+        if self.e.iter().all(|(vt, vf)| cnf_or(vt, vf, path, prefix)) {
+            Ok(())
+        } else {
+            // check unsuccessful
+            Err(PolicyError::PathCondition {
+                path: path.to_owned(),
+                condition: self.clone().into(),
+                prefix,
+            })
+        }
+    }
+}
+
+impl From<PathConditionCNF> for PathCondition {
+    fn from(val: PathConditionCNF) -> Self {
+        PathCondition::And(
+            val.e
+                .into_iter()
+                .map(|(vt, vf)| {
+                    PathCondition::Or(
+                        // first, convert the vf vector into a vector of Not(...)
+                        // Then, chain the vt vector onto it, and generate a large OR expression
+                        vf.into_iter()
+                            .map(|e| PathCondition::Not(Box::new(e)))
+                            .chain(vt.into_iter())
+                            .collect(),
+                    )
+                })
+                .collect(),
+        )
+    }
+}
+
+impl fmt::Display for PathConditionCNF {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let c: PathCondition = self.clone().into();
+        c.fmt(f)
+    }
+}
+
+/// # Hard Policy Error
+/// This indicates which policy resulted in the policy failing.
+#[derive(Debug, Error, PartialEq, Eq, Hash, Clone)]
+pub enum PolicyError {
+    /// Forwarding Black Hole occured
+    #[error("Black Hole at router {router:?} for {prefix:?}")]
+    BlackHole {
+        /// The router where the black hole exists.
+        router: RouterId,
+        /// The prefix for which the black hole exists.
+        prefix: Prefix,
+    },
+
+    /// Forwarding Loop occured
+    #[error("Forwarding Loop {path:?} for {prefix:?}")]
+    ForwardingLoop {
+        /// The loop, only containing the relevant routers.
+        path: Vec<RouterId>,
+        /// The prefix for which the forwarding loop exists.
+        prefix: Prefix,
+    },
+
+    /// PathRequirement was not satisfied
+    #[error("Invalid Path for {prefix:?}: path: {path:?} condition: {condition}")]
+    PathCondition {
+        /// The actual path taken in the network
+        path: Vec<RouterId>,
+        /// The expected path
+        condition: PathCondition,
+        /// the prefix for which the wrong path exists.
+        prefix: Prefix,
+    },
+
+    /// A route is present, where it should be dropped somewhere
+    #[error("Router {router:?} should not be able to reach {prefix:?} but the following path is valid: {path:?}")]
+    UnallowedPathExists {
+        /// The router who should not be able to reach the prefix
+        router: RouterId,
+        /// The prefix which should not be reached
+        prefix: Prefix,
+        /// the path with which the router can reach the prefix
+        path: Vec<RouterId>,
+    },
+
+    /// No Convergence
+    #[error("Network did not converge")]
+    NoConvergence,
+}
+
+impl PolicyError {
+    /// Get a string representing the policy error, where all router names are inserted.
+    pub fn repr_with_name(&self, net: &Network) -> String {
+        match self {
+            PolicyError::BlackHole { router, prefix } => format!(
+                "Black hole for prefix {} at router {}",
+                prefix.0,
+                net.get_router_name(*router).unwrap(),
+            ),
+            PolicyError::ForwardingLoop { path, prefix } => format!(
+                "Forwarding loop for prefix {}: {} -> {}",
+                prefix.0,
+                path.iter()
+                    .map(|r| net.get_router_name(*r).unwrap())
+                    .collect::<Vec<&str>>()
+                    .join(" -> "),
+                net.get_router_name(*path.first().unwrap()).unwrap(),
+            ),
+            PolicyError::PathCondition {
+                path,
+                condition,
+                prefix,
+            } => format!(
+                "Path condition invalidated for prefix {}: path: {}, condition: {}",
+                prefix.0,
+                path.iter()
+                    .map(|r| net.get_router_name(*r).unwrap())
+                    .collect::<Vec<&str>>()
+                    .join(" -> "),
+                condition.repr_with_name(net)
+            ),
+            PolicyError::UnallowedPathExists {
+                router,
+                prefix,
+                path,
+            } => format!(
+                "Router {} can reach unallowed prefix {} via path [{}]",
+                net.get_router_name(*router).unwrap(),
+                prefix.0,
+                path.iter()
+                    .map(|r| net.get_router_name(*r).unwrap())
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
+            PolicyError::NoConvergence => String::from("No Convergence"),
+        }
+    }
+}
+
+/// Extracts only the loop from the path.
+/// The last node in the path must already exist previously in the path. If no loop exists in the
+/// path, then an unrecoverable error occurs.
+///
+/// TODO: this is inefficient. We should not collect into a VecDeque, rotate and collect back, but
+/// we should push only the elements that are needed in the correct order, without allocating a
+/// VecDeque.
+fn prepare_loop_path(path: Vec<RouterId>) -> Vec<RouterId> {
+    let len = path.len();
+    let loop_router = path[len - 1];
+    let mut first_loop_router: Option<usize> = None;
+    for (i, r) in path.iter().enumerate().take(len - 1) {
+        if *r == loop_router {
+            first_loop_router = Some(i);
+            break;
+        }
+    }
+    let first_loop_router =
+        first_loop_router.unwrap_or_else(|| panic!("Loop-Free path given: {:?}", path));
+    let mut loop_unordered: VecDeque<RouterId> =
+        path.into_iter().skip(first_loop_router + 1).collect();
+
+    // order the loop, such that the smallest router ID starts the loop
+    let lowest_pos = loop_unordered
+        .iter()
+        .enumerate()
+        .min_by(|a, b| a.1.cmp(b.1))
+        .map(|(i, _)| i)
+        .expect("Loop is empty");
+
+    loop_unordered.rotate_left(lowest_pos);
+    loop_unordered.into_iter().collect()
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    use rand::prelude::*;
+
+    use super::PathCondition::*;
+    use super::Waypoint::*;
+
+    #[test]
+    fn path_condition_node() {
+        let c = Node(0.into());
+        assert!(c.check(&[1.into(), 0.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[2.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_condition_edge() {
+        let c = Edge(0.into(), 1.into());
+        assert!(c
+            .check(&[2.into(), 0.into(), 1.into(), 3.into()], Prefix(0))
+            .is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[1.into(), 0.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_err());
+        assert!(c.check(&[1.into()], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_condition_not() {
+        let c = Not(Box::new(Node(0.into())));
+        assert!(c.check(&[1.into(), 0.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_err());
+        assert!(c.check(&[2.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix(0)).is_ok());
+    }
+
+    #[test]
+    fn path_condition_or() {
+        let c = Or(vec![Node(0.into()), Node(1.into())]);
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[2.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[3.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[], Prefix(0)).is_err());
+        let c = Or(vec![]);
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_condition_and() {
+        let c = And(vec![Node(0.into()), Node(1.into())]);
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[2.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[3.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[], Prefix(0)).is_err());
+        let c = And(vec![]);
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix(0)).is_ok());
+    }
+
+    fn test_cnf_equivalence(c: PathCondition, n: usize, num_devices: usize) {
+        let c_cnf: PathConditionCNF = c.clone().into();
+        let c_rev: PathCondition = c_cnf.clone().into();
+        let mut rng = rand::thread_rng();
+        for _ in 0..n {
+            let mut path: Vec<RouterId> = (0..num_devices).map(|x| (x as u32).into()).collect();
+            path.shuffle(&mut rng);
+            let path: Vec<RouterId> = path.into_iter().take(rng.next_u32() as usize).collect();
+            assert_eq!(
+                c.check(&path, Prefix(0)).is_ok(),
+                c_cnf.check(&path, Prefix(0)).is_ok()
+            );
+            assert_eq!(
+                c.check(&path, Prefix(0)).is_ok(),
+                c_rev.check(&path, Prefix(0)).is_ok()
+            );
+        }
+    }
+
+    #[test]
+    fn path_condition_to_cnf_simple() {
+        let r0: RouterId = 0.into();
+        let r1: RouterId = 1.into();
+        test_cnf_equivalence(Node(r0), 1000, 10);
+        test_cnf_equivalence(Edge(r0, r1), 1000, 10);
+        test_cnf_equivalence(Not(Box::new(Node(r0))), 1000, 10);
+        test_cnf_equivalence(And(vec![Node(r0), Node(r1)]), 1000, 10);
+        test_cnf_equivalence(Or(vec![Node(r0), Node(r1)]), 1000, 10);
+    }
+
+    #[test]
+    fn path_condition_to_cnf_complex() {
+        let r0: RouterId = 0.into();
+        let r1: RouterId = 1.into();
+        let r2: RouterId = 2.into();
+        test_cnf_equivalence(
+            And(vec![Not(Box::new(Node(r0))), Not(Box::new(Node(r1)))]),
+            1000,
+            10,
+        );
+        test_cnf_equivalence(
+            Or(vec![Not(Box::new(Node(r0))), Not(Box::new(Node(r1)))]),
+            1000,
+            10,
+        );
+        test_cnf_equivalence(
+            Or(vec![
+                And(vec![Node(r0), Node(r1)]),
+                And(vec![Edge(r0, r1), Node(r2)]),
+                Not(Box::new(Node(r2))),
+            ]),
+            1000,
+            10,
+        );
+        test_cnf_equivalence(
+            Or(vec![
+                And(vec![Node(r0), Node(r1)]),
+                And(vec![Not(Box::new(Edge(r0, r1))), Node(r2)]),
+                Not(Box::new(Node(r2))),
+            ]),
+            1000,
+            10,
+        );
+        test_cnf_equivalence(
+            Or(vec![
+                And(vec![
+                    Node(r0),
+                    Or(vec![Node(r2), Not(Box::new(Edge(r0, r1)))]),
+                ]),
+                And(vec![Not(Box::new(Edge(r0, r1))), Node(r2)]),
+                Not(Box::new(Node(r2))),
+            ]),
+            1000,
+            10,
+        );
+        test_cnf_equivalence(
+            Not(Box::new(Or(vec![
+                And(vec![
+                    Node(r0),
+                    Or(vec![Node(r2), Not(Box::new(Edge(r0, r1)))]),
+                ]),
+                And(vec![Not(Box::new(Edge(r0, r1))), Node(r2)]),
+                Not(Box::new(Node(r2))),
+            ]))),
+            1000,
+            10,
+        );
+    }
+
+    #[test]
+    fn path_positional_single_any() {
+        let c = Positional(vec![Any]);
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_positional_single_star() {
+        let c = Positional(vec![Star]);
+        assert!(c.check(&[], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+    }
+
+    #[test]
+    fn path_positional_single_fix() {
+        let c = Positional(vec![Fix(0.into())]);
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_positional_star_any() {
+        let c = Positional(vec![Star, Any]);
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        let c = Positional(vec![Any, Star]);
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+    }
+
+    #[test]
+    fn path_positional_star_star() {
+        let c = Positional(vec![Star, Star]);
+        assert!(c.check(&[], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+    }
+
+    #[test]
+    fn path_positional_any_any() {
+        let c = Positional(vec![Any, Any]);
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_positional_star_fix() {
+        let c = Positional(vec![Star, Fix(0.into())]);
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[1.into(), 0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[2.into(), 1.into(), 0.into()], Prefix(0)).is_ok());
+        assert!(c
+            .check(&[2.into(), 1.into(), 0.into(), 3.into()], Prefix(0))
+            .is_err());
+        assert!(c.check(&[2.into(), 1.into(), 3.into()], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_positional_fix_star() {
+        let c = Positional(vec![Fix(0.into()), Star]);
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .is_err());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_positional_star_fix_star() {
+        let c = Positional(vec![Star, Fix(0.into()), Star]);
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .is_ok());
+        assert!(c
+            .check(
+                &[3.into(), 4.into(), 0.into(), 1.into(), 2.into()],
+                Prefix(0)
+            )
+            .is_ok());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_positional_star_fix_fix_star() {
+        let c = Positional(vec![Star, Fix(0.into()), Fix(1.into()), Star]);
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .is_ok());
+        assert!(c
+            .check(
+                &[3.into(), 4.into(), 0.into(), 1.into(), 2.into()],
+                Prefix(0)
+            )
+            .is_ok());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix(0))
+            .is_err());
+        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_positional_star_fix_any_fix_star() {
+        let c = Positional(vec![Star, Fix(0.into()), Any, Fix(1.into()), Star]);
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .is_err());
+        assert!(c
+            .check(
+                &[3.into(), 4.into(), 0.into(), 1.into(), 2.into()],
+                Prefix(0)
+            )
+            .is_err());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix(0))
+            .is_ok());
+        assert!(c
+            .check(
+                &[3.into(), 0.into(), 2.into(), 1.into(), 3.into()],
+                Prefix(0)
+            )
+            .is_ok());
+        assert!(c
+            .check(
+                &[3.into(), 0.into(), 2.into(), 3.into(), 1.into()],
+                Prefix(0)
+            )
+            .is_err());
+        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix(0)).is_err());
+    }
+
+    #[test]
+    fn path_positional_star_fix_star_fix_star() {
+        let c = Positional(vec![Star, Fix(0.into()), Star, Fix(1.into()), Star]);
+        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .is_ok());
+        assert!(c
+            .check(
+                &[3.into(), 4.into(), 0.into(), 1.into(), 2.into()],
+                Prefix(0)
+            )
+            .is_ok());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix(0))
+            .is_ok());
+        assert!(c
+            .check(
+                &[3.into(), 0.into(), 2.into(), 1.into(), 3.into()],
+                Prefix(0)
+            )
+            .is_ok());
+        assert!(c
+            .check(
+                &[3.into(), 0.into(), 2.into(), 3.into(), 1.into()],
+                Prefix(0)
+            )
+            .is_ok());
+        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 2.into(), 1.into(), 0.into()], Prefix(0))
+            .is_err());
+    }
+}
