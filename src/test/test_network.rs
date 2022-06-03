@@ -21,6 +21,7 @@ use crate::config::{
     Config,
     ConfigExpr::{BgpRouteMap, BgpSession, IgpLinkWeight, StaticRoute},
     ConfigModifier::{Insert, Remove},
+    NetworkConfig,
 };
 use crate::network::Network;
 use crate::route_map::{

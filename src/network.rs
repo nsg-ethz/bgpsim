@@ -21,14 +21,13 @@
 //! network.
 
 use crate::bgp::{BgpEvent, BgpSessionType};
-use crate::config::{Config, ConfigExpr, ConfigExprKey, ConfigModifier, ConfigPatch};
+use crate::config::NetworkConfig;
 use crate::event::{Event, EventQueue};
 use crate::external_router::ExternalRouter;
 use crate::printer;
-use crate::route_map::RouteMapDirection;
 use crate::router::Router;
 use crate::types::{IgpNetwork, NetworkDevice};
-use crate::{AsId, ConfigError, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
+use crate::{AsId, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
 
 use log::*;
 use petgraph::algo::FloatMeasure;
@@ -39,17 +38,18 @@ static DEFAULT_STOP_AFTER: usize = 10_000;
 #[derive(Debug)]
 /// # Network struct
 /// The struct contains all information about the underlying physical network (Links), a manages
-/// all (both internal and external) routers, and handles all events between them. Configuration is
-/// applied on the network itself, treated as network-wide configuration.
+/// all (both internal and external) routers, and handles all events between them.
+///
+/// If you wish to interact with the network by using configuration, then import the trait `NetworkConfig`.
 pub struct Network {
-    net: IgpNetwork,
-    links: Vec<(RouterId, RouterId)>,
-    routers: HashMap<RouterId, Router>,
-    external_routers: HashMap<RouterId, ExternalRouter>,
-    known_prefixes: HashSet<Prefix>,
-    stop_after: Option<usize>,
-    queue: EventQueue,
-    skip_queue: bool,
+    pub(crate) net: IgpNetwork,
+    pub(crate) links: Vec<(RouterId, RouterId)>,
+    pub(crate) routers: HashMap<RouterId, Router>,
+    pub(crate) external_routers: HashMap<RouterId, ExternalRouter>,
+    pub(crate) known_prefixes: HashSet<Prefix>,
+    pub(crate) stop_after: Option<usize>,
+    pub(crate) queue: EventQueue,
+    pub(crate) skip_queue: bool,
 }
 
 impl Clone for Network {
@@ -115,7 +115,7 @@ impl Network {
     /// a link with infinte weight is treated as not connected.
     ///
     /// ```rust
-    /// # use netsim::{Network, config::ConfigModifier, config::ConfigExpr};
+    /// # use netsim::{Network, config::ConfigModifier, config::ConfigExpr, NetworkConfig};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// let mut net = Network::new();
     /// let r1 = net.add_router("r1");
@@ -138,45 +138,6 @@ impl Network {
         self.links.push((source, target));
         self.net.add_edge(source, target, LinkWeight::infinite());
         self.net.add_edge(target, source, LinkWeight::infinite());
-    }
-
-    /// Set the provided network-wide configuration. The network first computes the patch from the
-    /// current configuration to the next one, and applies the patch. If the patch cannot be
-    /// applied, then an error is returned. Note, that this function may apply a large number of
-    /// modifications in an order which cannot be determined beforehand. If the process fails, then
-    /// the network is in an undefined state.
-    pub fn set_config(&mut self, config: &Config) -> Result<(), NetworkError> {
-        let patch = self.get_config()?.get_diff(config);
-        self.apply_patch(&patch)
-    }
-
-    /// Apply a configuration patch. The modifications of the patch are applied to the network in
-    /// the order in which they appear in `patch.modifiers`. After each modifier is applied, the
-    /// network will process all necessary messages to let the network converge. The process may
-    /// fail if the modifiers cannot be applied to the current config, or if there was a problem
-    /// while applying a modifier and letting the network converge. If the process fails, the
-    /// network is in an undefined state.
-    pub fn apply_patch(&mut self, patch: &ConfigPatch) -> Result<(), NetworkError> {
-        // apply every modifier in order
-        self.skip_queue = true;
-        for modifier in patch.modifiers.iter() {
-            self.apply_modifier(modifier)?;
-        }
-        self.skip_queue = false;
-        self.do_queue()
-    }
-
-    /// Apply a single configuration modification. The modification must be applicable to the
-    /// current configuration. All messages are exchanged. The process fails, then the network is
-    /// in an undefined state, and it should be rebuilt.
-    pub fn apply_modifier(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError> {
-        debug!(
-            "Applying modifier: {}",
-            printer::config_modifier(self, modifier)?
-        );
-
-        // execute the event
-        self.apply_modifier_to_network(modifier)
     }
 
     /// Advertise an external route and let the network converge, The source must be a `RouterId`
@@ -513,305 +474,15 @@ impl Network {
         true
     }
 
-    /// Get the current running configuration. This structure will be constructed by gathering all
-    /// necessary information from routers.
-    pub fn get_config(&self) -> Result<Config, NetworkError> {
-        let mut c = Config::new();
-
-        // get all link weights
-        for eid in self.net.edge_indices() {
-            let (source, target) = self.net.edge_endpoints(eid).unwrap();
-            let weight = *(self.net.edge_weight(eid).unwrap());
-            c.add(ConfigExpr::IgpLinkWeight {
-                source,
-                target,
-                weight,
-            })?
-        }
-
-        // get all BGP sessions, all route maps and all static routes
-        for (rid, r) in self.routers.iter() {
-            // get all BGP sessions
-            for (neighbor, session_type) in r.get_bgp_sessions() {
-                match c.add(ConfigExpr::BgpSession {
-                    source: *rid,
-                    target: *neighbor,
-                    session_type: *session_type,
-                }) {
-                    Ok(_) => {}
-                    Err(ConfigError::ConfigExprOverload) => {
-                        if let Some(ConfigExpr::BgpSession {
-                            source,
-                            target,
-                            session_type: old_session,
-                        }) = c.get_mut(ConfigExprKey::BgpSession {
-                            speaker_a: *rid,
-                            speaker_b: *neighbor,
-                        }) {
-                            if *old_session == BgpSessionType::EBgp
-                                && *session_type == BgpSessionType::IBgpClient
-                            {
-                                // remove the old key and add the new one
-                                std::mem::swap(source, target);
-                                *old_session = *session_type;
-                            } else if *old_session == BgpSessionType::IBgpClient
-                                && *session_type == BgpSessionType::IBgpClient
-                            {
-                                return Err(NetworkError::InconsistentBgpSession(*rid, *neighbor));
-                            }
-                        } else {
-                            unreachable!()
-                        }
-                    }
-                    Err(ConfigError::ConfigModifierError(_)) => unreachable!(),
-                }
-            }
-
-            // get all route-maps
-            for rm in r.get_bgp_route_maps_in() {
-                c.add(ConfigExpr::BgpRouteMap {
-                    router: *rid,
-                    direction: RouteMapDirection::Incoming,
-                    map: rm.clone(),
-                })?;
-            }
-            for rm in r.get_bgp_route_maps_out() {
-                c.add(ConfigExpr::BgpRouteMap {
-                    router: *rid,
-                    direction: RouteMapDirection::Outgoing,
-                    map: rm.clone(),
-                })?;
-            }
-
-            // get all static routes
-            for (prefix, target) in r.get_static_routes() {
-                c.add(ConfigExpr::StaticRoute {
-                    router: *rid,
-                    prefix: *prefix,
-                    target: *target,
-                })?;
-            }
-        }
-
-        Ok(c)
-    }
-
     // *******************
     // * Local Functions *
     // *******************
-
-    /// Apply or undo a single modifier. In the undo case, make sure that the modifier reversed!
-    fn apply_modifier_to_network(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError> {
-        // If the modifier can be applied, then everything is ok and we can do the actual change.
-        match modifier {
-            ConfigModifier::Insert(expr) => match expr {
-                ConfigExpr::IgpLinkWeight {
-                    source,
-                    target,
-                    weight,
-                } => {
-                    // check if router has a link to target
-                    if !self.net.contains_edge(*source, *target) {
-                        return Err(NetworkError::RoutersNotConnected(*source, *target));
-                    }
-                    self.net.update_edge(*source, *target, *weight);
-                    self.write_igp_fw_tables()
-                }
-                ConfigExpr::BgpSession {
-                    source,
-                    target,
-                    session_type,
-                } => self.add_bgp_session(*source, *target, *session_type),
-                ConfigExpr::BgpRouteMap {
-                    router,
-                    direction,
-                    map,
-                } => {
-                    match direction {
-                        RouteMapDirection::Incoming => {
-                            self.routers
-                                .get_mut(router)
-                                .ok_or(NetworkError::DeviceNotFound(*router))?
-                                .add_bgp_route_map_in(map.clone(), &mut self.queue)?;
-                        }
-                        RouteMapDirection::Outgoing => {
-                            self.routers
-                                .get_mut(router)
-                                .ok_or(NetworkError::DeviceNotFound(*router))?
-                                .add_bgp_route_map_out(map.clone(), &mut self.queue)?;
-                        }
-                    }
-                    self.do_queue()
-                }
-                ConfigExpr::StaticRoute {
-                    router,
-                    prefix,
-                    target,
-                } => {
-                    // check if router has a link to target
-                    if !self.net.contains_edge(*router, *target) {
-                        return Err(NetworkError::RoutersNotConnected(*router, *target));
-                    }
-                    self.routers
-                        .get_mut(router)
-                        .ok_or(NetworkError::DeviceNotFound(*router))?
-                        .add_static_route(*prefix, *target)?;
-                    Ok(())
-                }
-            },
-            ConfigModifier::Remove(expr) => match expr {
-                ConfigExpr::IgpLinkWeight {
-                    source,
-                    target,
-                    weight: _,
-                } => {
-                    // check if router has a link to target
-                    if !self.net.contains_edge(*source, *target) {
-                        return Err(NetworkError::RoutersNotConnected(*source, *target));
-                    }
-                    self.net
-                        .update_edge(*source, *target, LinkWeight::infinite());
-                    self.write_igp_fw_tables()
-                }
-                ConfigExpr::BgpSession {
-                    source,
-                    target,
-                    session_type: _,
-                } => self.remove_bgp_session(*source, *target),
-                ConfigExpr::BgpRouteMap {
-                    router,
-                    direction,
-                    map,
-                } => {
-                    match direction {
-                        RouteMapDirection::Incoming => {
-                            self.routers
-                                .get_mut(router)
-                                .ok_or(NetworkError::DeviceNotFound(*router))?
-                                .remove_bgp_route_map_in(map.order, &mut self.queue)?;
-                        }
-                        RouteMapDirection::Outgoing => {
-                            self.routers
-                                .get_mut(router)
-                                .ok_or(NetworkError::DeviceNotFound(*router))?
-                                .remove_bgp_route_map_out(map.order, &mut self.queue)?;
-                        }
-                    }
-                    self.do_queue()
-                }
-
-                ConfigExpr::StaticRoute {
-                    router,
-                    prefix,
-                    target,
-                } => {
-                    // check if router has a link to target
-                    if !self.net.contains_edge(*router, *target) {
-                        return Err(NetworkError::RoutersNotConnected(*router, *target));
-                    }
-                    self.routers
-                        .get_mut(router)
-                        .ok_or(NetworkError::DeviceNotFound(*router))?
-                        .remove_static_route(*prefix)?;
-                    Ok(())
-                }
-            },
-            ConfigModifier::Update { from, to } => match (from, to) {
-                (
-                    ConfigExpr::IgpLinkWeight {
-                        source: s1,
-                        target: t1,
-                        weight: _,
-                    },
-                    ConfigExpr::IgpLinkWeight {
-                        source: s2,
-                        target: t2,
-                        weight: w,
-                    },
-                ) if s1 == s2 && t1 == t2 => {
-                    // check if router has a link to target
-                    if !self.net.contains_edge(*s1, *t1) {
-                        return Err(NetworkError::RoutersNotConnected(*s1, *t1));
-                    }
-                    self.net.update_edge(*s1, *t1, *w);
-                    self.write_igp_fw_tables()
-                }
-                (
-                    ConfigExpr::BgpSession {
-                        source: s1,
-                        target: t1,
-                        session_type: _,
-                    },
-                    ConfigExpr::BgpSession {
-                        source: s2,
-                        target: t2,
-                        session_type: x,
-                    },
-                ) if (s1 == s2 && t1 == t2) || (s1 == t2 && t1 == s2) => {
-                    self.modify_bgp_session(*s2, *t2, *x)
-                }
-                (
-                    ConfigExpr::BgpRouteMap {
-                        router: r1,
-                        direction: d1,
-                        map: m1,
-                    },
-                    ConfigExpr::BgpRouteMap {
-                        router: r2,
-                        direction: d2,
-                        map: m2,
-                    },
-                ) if r1 == r2 && d1 == d2 => {
-                    match d1 {
-                        RouteMapDirection::Incoming => {
-                            self.routers
-                                .get_mut(r1)
-                                .ok_or(NetworkError::DeviceNotFound(*r1))?
-                                .modify_bgp_route_map_in(m1.order, m2.clone(), &mut self.queue)?;
-                        }
-                        RouteMapDirection::Outgoing => {
-                            self.routers
-                                .get_mut(r1)
-                                .ok_or(NetworkError::DeviceNotFound(*r1))?
-                                .modify_bgp_route_map_out(m1.order, m2.clone(), &mut self.queue)?;
-                        }
-                    }
-                    self.do_queue()
-                }
-                (
-                    ConfigExpr::StaticRoute {
-                        router: r1,
-                        prefix: p1,
-                        target: _,
-                    },
-                    ConfigExpr::StaticRoute {
-                        router: r2,
-                        prefix: p2,
-                        target: t,
-                    },
-                ) if r1 == r2 && p1 == p2 => {
-                    // check if router has a link to target
-                    if !self.net.contains_edge(*r1, *t) {
-                        return Err(NetworkError::RoutersNotConnected(*r1, *t));
-                    }
-                    self.routers
-                        .get_mut(r1)
-                        .ok_or(NetworkError::DeviceNotFound(*r1))?
-                        .modify_static_route(*p1, *t)?;
-                    Ok(())
-                }
-                _ => Err(NetworkError::ConfigError(ConfigError::ConfigModifierError(
-                    modifier.clone(),
-                ))),
-            },
-        }
-    }
 
     /// # Add an BGP session
     ///
     /// Adds an BGP session between source and target. If the session type is set to IBGpClient,
     /// then the target is considered client of the source.
-    fn add_bgp_session(
+    pub(crate) fn add_bgp_session(
         &mut self,
         source: RouterId,
         target: RouterId,
@@ -886,7 +557,7 @@ impl Network {
     ///
     /// Modifies an BGP session type between source and target. If the session type is set to
     /// IBGpClient, then the target is considered client of the source.
-    fn modify_bgp_session(
+    pub(crate) fn modify_bgp_session(
         &mut self,
         source: RouterId,
         target: RouterId,
@@ -938,7 +609,7 @@ impl Network {
     }
 
     /// Remove an iBGP session
-    fn remove_bgp_session(
+    pub(crate) fn remove_bgp_session(
         &mut self,
         source: RouterId,
         target: RouterId,
@@ -979,7 +650,7 @@ impl Network {
     /// The function returns Ok(true) if all events caused by the igp fw table write are handled
     /// correctly. Returns Ok(false) if the max number of iterations is exceeded, and returns an
     /// error if an event was not handled correctly.
-    fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
+    pub(crate) fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
         // update igp table
         for r in self.routers.values_mut() {
             r.write_igp_forwarding_table(&self.net, &mut self.queue)?;
@@ -988,7 +659,7 @@ impl Network {
     }
 
     /// Execute the queue
-    fn do_queue(&mut self) -> Result<(), NetworkError> {
+    pub(crate) fn do_queue(&mut self) -> Result<(), NetworkError> {
         if self.skip_queue {
             return Ok(());
         }
@@ -1009,7 +680,7 @@ impl Network {
 
     /// Executes one single step. If the result is Ok(true), then a step is successfully executed.
     /// If the result is Ok(false), then there was no event present in the queue.
-    fn do_queue_step(&mut self) -> Result<bool, NetworkError> {
+    pub(crate) fn do_queue_step(&mut self) -> Result<bool, NetworkError> {
         if let Some(event) = self.queue.pop_front() {
             // log the job
             self.log_event(&event)?;
@@ -1033,7 +704,7 @@ impl Network {
         }
     }
 
-    fn log_event(&self, event: &Event) -> Result<(), NetworkError> {
+    pub(crate) fn log_event(&self, event: &Event) -> Result<(), NetworkError> {
         match event {
             Event::Bgp(from, to, BgpEvent::Update(route)) => trace!(
                 "{} -> {}: BGP Update prefix {}",

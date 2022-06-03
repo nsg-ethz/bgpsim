@@ -31,7 +31,7 @@
 //! same prefix `Prefix(0)`, and all links have the same weight `1.0`.
 //!
 //! ```rust
-//! use netsim::{Network, Prefix, AsId, BgpSessionType::*};
+//! use netsim::{Network, Prefix, AsId, BgpSessionType::*, NetworkConfig};
 //! use netsim::config::{Config, ConfigExpr};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -112,6 +112,7 @@ mod test;
 pub use event::{Event, EventQueue};
 
 pub use bgp::BgpSessionType;
+pub use config::NetworkConfig;
 pub use forwarding_state::ForwardingState;
 pub use network::Network;
 pub use types::{

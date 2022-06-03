@@ -17,7 +17,7 @@
 
 use crate::{
     bgp::BgpSessionType::*,
-    config::{Config, ConfigExpr, ConfigModifier, ConfigPatch},
+    config::{Config, ConfigExpr, ConfigModifier, ConfigPatch, NetworkConfig},
     network::Network,
     route_map::*,
     AsId, NetworkError, Prefix, RouterId,
