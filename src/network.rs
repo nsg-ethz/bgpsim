@@ -48,7 +48,6 @@ pub struct Network {
     external_routers: HashMap<RouterId, ExternalRouter>,
     known_prefixes: HashSet<Prefix>,
     stop_after: Option<usize>,
-    config: Config,
     queue: EventQueue,
     skip_queue: bool,
 }
@@ -64,7 +63,6 @@ impl Clone for Network {
             external_routers: self.external_routers.clone(),
             known_prefixes: self.known_prefixes.clone(),
             stop_after: self.stop_after,
-            config: self.config.clone(),
             queue: self.queue.clone(),
             skip_queue: false,
         }
@@ -87,7 +85,6 @@ impl Network {
             known_prefixes: HashSet::new(),
             external_routers: HashMap::new(),
             stop_after: Some(DEFAULT_STOP_AFTER),
-            config: Config::new(),
             queue: EventQueue::new(),
             skip_queue: false,
         }
@@ -149,7 +146,7 @@ impl Network {
     /// modifications in an order which cannot be determined beforehand. If the process fails, then
     /// the network is in an undefined state.
     pub fn set_config(&mut self, config: &Config) -> Result<(), NetworkError> {
-        let patch = self.config.get_diff(config);
+        let patch = self.get_config()?.get_diff(config);
         self.apply_patch(&patch)
     }
 
@@ -332,11 +329,6 @@ impl Network {
     /// Returns a hashset of all known prefixes
     pub fn get_known_prefixes(&self) -> &HashSet<Prefix> {
         &self.known_prefixes
-    }
-
-    /// Return a reference to the current config.
-    pub fn current_config(&self) -> &Config {
-        &self.config
     }
 
     /// Returns an iterator over all (undirected) links in the network.
@@ -610,9 +602,6 @@ impl Network {
 
     /// Apply or undo a single modifier. In the undo case, make sure that the modifier reversed!
     fn apply_modifier_to_network(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError> {
-        // check that the modifier can be applied on the config
-        self.config.apply_modifier(modifier)?;
-
         // If the modifier can be applied, then everything is ok and we can do the actual change.
         match modifier {
             ConfigModifier::Insert(expr) => match expr {
@@ -1107,7 +1096,7 @@ impl PartialEq for Network {
         }
 
         // check if the configuration is the same
-        if self.config != other.config {
+        if self.get_config() != other.get_config() {
             return false;
         }
 
