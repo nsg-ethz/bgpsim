@@ -327,53 +327,9 @@ impl Network {
         source: RouterId,
         prefix: Prefix,
     ) -> Result<Vec<RouterId>, NetworkError> {
-        // check if we are already at an external router
-        if self.external_routers.get(&source).is_some() {
-            return Err(NetworkError::DeviceIsExternalRouter(source));
-        }
-        let mut visited_routers: HashSet<RouterId> = HashSet::new();
-        let mut result: Vec<RouterId> = Vec::new();
-        let mut current_node = source;
-        loop {
-            if !(self.routers.contains_key(&current_node)
-                || self.external_routers.contains_key(&current_node))
-            {
-                return Err(NetworkError::DeviceNotFound(current_node));
-            }
-            result.push(current_node);
-            // insert the current node into the visited routes
-            if let Some(r) = self.routers.get(&current_node) {
-                // we are still inside our network
-                if !visited_routers.insert(current_node) {
-                    debug!(
-                        "Forwarding Loop detected: {:?}",
-                        result
-                            .iter()
-                            .map(|r| self.get_router_name(*r).unwrap())
-                            .collect::<Vec<&str>>()
-                    );
-                    return Err(NetworkError::ForwardingLoop(result));
-                }
-                current_node = match r.get_next_hop(prefix) {
-                    Some(router_id) => router_id,
-                    None => {
-                        return {
-                            debug!(
-                                "Black hole detected: {:?}",
-                                result
-                                    .iter()
-                                    .map(|r| self.get_router_name(*r).unwrap())
-                                    .collect::<Vec<&str>>()
-                            );
-                            Err(NetworkError::ForwardingBlackHole(result))
-                        }
-                    }
-                };
-            } else {
-                break;
-            }
-        }
-        Ok(result)
+        // get the forwarding state of the network
+        let mut fw_state = self.get_forwarding_state();
+        fw_state.get_route(source, prefix)
     }
 
     /// Print the route of a routerID to the destination. This is a helper function, wrapping
