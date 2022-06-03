@@ -230,6 +230,11 @@ pub enum NetworkError {
     /// Invalid BGP session type
     #[error("Invalid Session type: source: {0:?}, target: {1:?}, type: {2:?}")]
     InvalidBgpSessionType(RouterId, RouterId, BgpSessionType),
+    /// A BGP session exists, where both speakers have configured the other one as client.
+    #[error(
+        "Inconsistent BGP Session: both source {0:?} and target: {1:?} treat the other as client."
+    )]
+    InconsistentBgpSession(RouterId, RouterId),
     /// Convergence Problem, but loop was detected
     #[error("Network cannot converge, loop was found!")]
     ConvergenceLoop(Vec<Event>, Vec<Network>),

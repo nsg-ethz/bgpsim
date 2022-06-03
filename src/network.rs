@@ -21,7 +21,7 @@
 //! network.
 
 use crate::bgp::{BgpEvent, BgpSessionType};
-use crate::config::{Config, ConfigExpr, ConfigModifier, ConfigPatch};
+use crate::config::{Config, ConfigExpr, ConfigExprKey, ConfigModifier, ConfigPatch};
 use crate::event::{Event, EventQueue};
 use crate::external_router::ExternalRouter;
 use crate::printer;
@@ -519,6 +519,89 @@ impl Network {
         }
 
         true
+    }
+
+    /// Get the current running configuration. This structure will be constructed by gathering all
+    /// necessary information from routers.
+    pub fn get_config(&self) -> Result<Config, NetworkError> {
+        let mut c = Config::new();
+
+        // get all link weights
+        for eid in self.net.edge_indices() {
+            let (source, target) = self.net.edge_endpoints(eid).unwrap();
+            let weight = *(self.net.edge_weight(eid).unwrap());
+            c.add(ConfigExpr::IgpLinkWeight {
+                source,
+                target,
+                weight,
+            })?
+        }
+
+        // get all BGP sessions, all route maps and all static routes
+        for (rid, r) in self.routers.iter() {
+            // get all BGP sessions
+            for (neighbor, session_type) in r.get_bgp_sessions() {
+                match c.add(ConfigExpr::BgpSession {
+                    source: *rid,
+                    target: *neighbor,
+                    session_type: *session_type,
+                }) {
+                    Ok(_) => {}
+                    Err(ConfigError::ConfigExprOverload) => {
+                        if let Some(ConfigExpr::BgpSession {
+                            source,
+                            target,
+                            session_type: old_session,
+                        }) = c.get_mut(ConfigExprKey::BgpSession {
+                            speaker_a: *rid,
+                            speaker_b: *neighbor,
+                        }) {
+                            if *old_session == BgpSessionType::EBgp
+                                && *session_type == BgpSessionType::IBgpClient
+                            {
+                                // remove the old key and add the new one
+                                std::mem::swap(source, target);
+                                *old_session = *session_type;
+                            } else if *old_session == BgpSessionType::IBgpClient
+                                && *session_type == BgpSessionType::IBgpClient
+                            {
+                                return Err(NetworkError::InconsistentBgpSession(*rid, *neighbor));
+                            }
+                        } else {
+                            unreachable!()
+                        }
+                    }
+                    Err(ConfigError::ConfigModifierError(_)) => unreachable!(),
+                }
+            }
+
+            // get all route-maps
+            for rm in r.get_bgp_route_maps_in() {
+                c.add(ConfigExpr::BgpRouteMap {
+                    router: *rid,
+                    direction: RouteMapDirection::Incoming,
+                    map: rm.clone(),
+                })?;
+            }
+            for rm in r.get_bgp_route_maps_out() {
+                c.add(ConfigExpr::BgpRouteMap {
+                    router: *rid,
+                    direction: RouteMapDirection::Outgoing,
+                    map: rm.clone(),
+                })?;
+            }
+
+            // get all static routes
+            for (prefix, target) in r.get_static_routes() {
+                c.add(ConfigExpr::StaticRoute {
+                    router: *rid,
+                    prefix: *prefix,
+                    target: *target,
+                })?;
+            }
+        }
+
+        Ok(c)
     }
 
     // *******************

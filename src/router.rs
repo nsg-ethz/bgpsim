@@ -24,7 +24,10 @@ use crate::{AsId, DeviceError, LinkWeight, Prefix, RouterId};
 use crate::{Event, EventQueue};
 use log::*;
 use petgraph::algo::bellman_ford::{bellman_ford, Paths};
-use std::collections::{hash_map::Iter, HashMap, HashSet};
+use std::{
+    collections::{hash_map::Iter, HashMap, HashSet},
+    slice::Iter as VecIter,
+};
 
 /// Bgp Router
 #[derive(Debug)]
@@ -449,6 +452,11 @@ impl Router {
         self.update_bgp_tables(queue)
     }
 
+    /// Get an iterator over all incoming route-maps
+    pub fn get_bgp_route_maps_in(&self) -> VecIter<'_, RouteMap> {
+        self.bgp_route_maps_in.iter()
+    }
+
     /// Add a route-map for the output and update the BGP tables.
     pub fn add_bgp_route_map_out(
         &mut self,
@@ -515,6 +523,16 @@ impl Router {
             Err(_) => return Err(DeviceError::NoBgpRouteMap(order)),
         }
         self.update_bgp_tables(queue)
+    }
+
+    /// Get an iterator over all outgoing route-maps
+    pub fn get_bgp_route_maps_out(&self) -> VecIter<'_, RouteMap> {
+        self.bgp_route_maps_out.iter()
+    }
+
+    /// Get an iterator over all outgoing route-maps
+    pub fn get_static_routes(&self) -> Iter<'_, Prefix, RouterId> {
+        self.static_routes.iter()
     }
 
     /// write forawrding table based on graph

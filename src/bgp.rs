@@ -90,7 +90,7 @@ impl std::hash::Hash for BgpRoute {
 /// Type of a BGP session
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum BgpSessionType {
-    /// iBGP session with a peer (or from a coient with a Route Reflector)
+    /// iBGP session with a peer (or from a client with a Route Reflector)
     IBgpPeer,
     /// iBGP session from a Route Reflector with a client
     IBgpClient,

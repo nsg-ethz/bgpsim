@@ -71,7 +71,7 @@ fn get_test_net() -> Network {
 /// Test network with BGP and link weights configured. No prefixes advertised yet. All internal
 /// routers are connected in an iBGP full mesh, all link weights are set to 1 except the one
 /// between r1 and r2.
-fn get_test_net_bgp() -> Network {
+fn get_test_net_bgp() -> (Network, Config) {
     let mut net = get_test_net();
     let mut c = Config::new();
 
@@ -216,7 +216,7 @@ fn get_test_net_bgp() -> Network {
 
     net.set_config(&c).unwrap();
 
-    net
+    (net, c)
 }
 
 #[test]
@@ -351,7 +351,7 @@ fn test_igp_table() {
 
 #[test]
 fn test_bgp_connectivity() {
-    let mut net = get_test_net_bgp();
+    let (mut net, _) = get_test_net_bgp();
 
     let p = Prefix(0);
 
@@ -384,7 +384,7 @@ fn test_bgp_connectivity() {
 
 #[test]
 fn test_static_route() {
-    let mut net = get_test_net_bgp();
+    let (mut net, _) = get_test_net_bgp();
 
     let p = Prefix(0);
 
@@ -447,7 +447,7 @@ fn test_static_route() {
 
 #[test]
 fn test_bgp_decision() {
-    let mut net = get_test_net_bgp();
+    let (mut net, _) = get_test_net_bgp();
 
     let p = Prefix(0);
 
@@ -506,7 +506,7 @@ fn test_bgp_decision() {
 
 #[test]
 fn test_route_maps() {
-    let mut original_net = get_test_net_bgp();
+    let (mut original_net, _) = get_test_net_bgp();
     let p = Prefix(0);
 
     // advertise both prefixes
@@ -635,7 +635,7 @@ fn test_route_maps() {
 
 #[test]
 fn test_link_failure() {
-    let mut original_net = get_test_net_bgp();
+    let (mut original_net, _) = get_test_net_bgp();
 
     // advertise a prefix on both ends
     let p = Prefix(0);
@@ -701,4 +701,33 @@ fn test_link_failure() {
     assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R4, *R3, *R1, *E1]));
     assert_eq!(net.get_route(*R3, p), Ok(vec![*R3, *R1, *E1]));
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *R3, *R1, *E1]));
+}
+
+#[test]
+fn test_config_extractor() {
+    let (mut net, mut original_cfg) = get_test_net_bgp();
+
+    let extracted_cfg = net.get_config().unwrap();
+    assert_eq!(original_cfg, extracted_cfg);
+
+    let modifier = crate::config::ConfigModifier::Update {
+        from: IgpLinkWeight {
+            source: *R2,
+            target: *R4,
+            weight: 1.0,
+        },
+        to: IgpLinkWeight {
+            source: *R2,
+            target: *R4,
+            weight: 2.0,
+        },
+    };
+
+    net.apply_modifier(&modifier).unwrap();
+
+    let extracted_cfg = net.get_config().unwrap();
+    assert_ne!(original_cfg, extracted_cfg);
+
+    original_cfg.apply_modifier(&modifier).unwrap();
+    assert_eq!(original_cfg, extracted_cfg);
 }

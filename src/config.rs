@@ -76,6 +76,7 @@ use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::{ConfigError, LinkWeight, Prefix, RouterId};
 
 use std::collections::{HashMap, HashSet};
+use std::ops::Index;
 
 /// # Network Configuration
 /// This struct represents the configuration of a network. It is made up of several *unordered*
@@ -232,17 +233,54 @@ impl Config {
     pub fn iter(&self) -> std::collections::hash_map::Values<ConfigExprKey, ConfigExpr> {
         self.expr.values()
     }
+
+    /// Lookup a configuration
+    pub fn get(&self, mut index: ConfigExprKey) -> Option<&ConfigExpr> {
+        index.normalize();
+        self.expr.get(&index)
+    }
+
+    /// Lookup a configuration
+    pub fn get_mut(&mut self, mut index: ConfigExprKey) -> Option<&mut ConfigExpr> {
+        index.normalize();
+        self.expr.get_mut(&index)
+    }
+}
+
+impl Index<ConfigExprKey> for Config {
+    type Output = ConfigExpr;
+
+    fn index(&self, index: ConfigExprKey) -> &Self::Output {
+        self.get(index).unwrap()
+    }
 }
 
 impl PartialEq for Config {
     fn eq(&self, other: &Self) -> bool {
-        for (key, self_e) in self.expr.iter() {
-            if let Some(other_e) = other.expr.get(key) {
-                if self_e != other_e {
-                    return false;
+        if self.expr.keys().collect::<HashSet<_>>() != other.expr.keys().collect::<HashSet<_>>() {
+            return false;
+        }
+
+        for key in self.expr.keys() {
+            match (self.expr[key].clone(), other.expr[key].clone()) {
+                (
+                    ConfigExpr::BgpSession {
+                        source: s1,
+                        target: t1,
+                        session_type: ty1,
+                    },
+                    ConfigExpr::BgpSession {
+                        source: s2,
+                        target: t2,
+                        session_type: ty2,
+                    },
+                ) if ty1 == ty2 && ty1 == BgpSessionType::IBgpPeer => {
+                    if !((s1 == s2 && t1 == t2) || (s1 == t2 && t1 == s2)) {
+                        return false;
+                    }
                 }
-            } else {
-                return false;
+                (acq, exp) if acq != exp => return false,
+                _ => {}
             }
         }
         true
@@ -405,6 +443,21 @@ pub enum ConfigExprKey {
         /// Prefix for which to configure the router
         prefix: Prefix,
     },
+}
+
+impl ConfigExprKey {
+    /// Normalize the config expr key (needed for BGP sessions)
+    pub fn normalize(&mut self) {
+        if let ConfigExprKey::BgpSession {
+            speaker_a,
+            speaker_b,
+        } = self
+        {
+            if speaker_a > speaker_b {
+                std::mem::swap(speaker_a, speaker_b)
+            }
+        }
+    }
 }
 
 /// # Config Modifier
