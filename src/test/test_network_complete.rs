@@ -1160,18 +1160,12 @@ fn change_ibgp_topology_1() {
     n.set_config(&c).unwrap();
 
     // apply the start configuration
-    assert_eq!(
-        n.advertise_external_route(p1, prefix, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        n.advertise_external_route(p2, prefix, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        n.advertise_external_route(p3, prefix, vec![AsId(1)], None, None),
-        Ok(())
-    );
+    n.advertise_external_route(p1, prefix, vec![AsId(1)], None, None)
+        .unwrap();
+    n.advertise_external_route(p2, prefix, vec![AsId(1)], None, None)
+        .unwrap();
+    n.advertise_external_route(p3, prefix, vec![AsId(1)], None, None)
+        .unwrap();
 
     assert_route_equal(&n, r1, prefix, vec![r1, e1, p1]);
     assert_route_equal(&n, r2, prefix, vec![r2, e1, p1]);
@@ -1187,6 +1181,7 @@ fn change_ibgp_topology_1() {
         session_type: IBgpClient,
     }));
     let patch_result = n.apply_patch(&patch);
+    println!("{:#?}", patch_result);
     assert!(patch_result == Err(NetworkError::NoConvergence));
 }
 

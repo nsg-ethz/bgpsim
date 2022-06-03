@@ -310,67 +310,34 @@ impl Router {
         }
     }
 
-    /// establish a bgp session with a peer
-    /// `session_type` tells that `target` is in relation to `self`. If `session_type` is
-    /// `BgpSessionType::IbgpClient`, then the `target` is added as client to `self`. Update the
-    /// bgp tables
-    pub fn establish_bgp_session(
+    /// Set a BGP session with a neighbor. If `session_type` is `None`, then any potentially
+    /// existing session will be removed. Otherwise, any existing session will be replaced by he new
+    /// type. Finally, the BGP tables are updated, and events are generated. This function will
+    /// return the old session type (if it exists).
+    pub(crate) fn set_bgp_session(
         &mut self,
         target: RouterId,
-        session_type: BgpSessionType,
+        session_type: Option<BgpSessionType>,
         queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
-        if self.bgp_sessions.contains_key(&target) {
-            return Err(DeviceError::SessionAlreadyExists(target));
-        }
-
-        self.bgp_sessions.insert(target, session_type);
-
-        // udpate the tables
-        self.update_bgp_tables(queue)
-    }
-
-    /// Change the BGP session type and update the BGP tables.
-    pub fn modify_bgp_session(
-        &mut self,
-        target: RouterId,
-        session_type: BgpSessionType,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
-        match self.bgp_sessions.get_mut(&target) {
-            Some(t) => {
-                *t = session_type;
+    ) -> Result<Option<BgpSessionType>, DeviceError> {
+        let old_type = if let Some(ty) = session_type {
+            self.bgp_sessions.insert(target, ty)
+        } else {
+            for prefix in self.bgp_known_prefixes.iter() {
+                // remove the entry in the rib tables
+                self.bgp_rib_in
+                    .get_mut(prefix)
+                    .and_then(|rib| rib.remove(&target));
+                self.bgp_rib_out
+                    .get_mut(prefix)
+                    .and_then(|rib| rib.remove(&target));
             }
-            None => return Err(DeviceError::NoBgpSession(target)),
-        }
+
+            self.bgp_sessions.remove(&target)
+        };
 
         // udpate the tables
-        self.update_bgp_tables(queue)
-    }
-
-    /// remove a bgp session and update the BGP tables.
-    pub fn close_bgp_session(
-        &mut self,
-        target: RouterId,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
-        match self.bgp_sessions.remove(&target) {
-            Some(_) => Ok(()),
-            None => Err(DeviceError::NoBgpSession(target)),
-        }?;
-
-        for prefix in self.bgp_known_prefixes.iter() {
-            // remove the entry in the rib tables
-            self.bgp_rib_in
-                .get_mut(prefix)
-                .and_then(|rib| rib.remove(&target));
-            self.bgp_rib_out
-                .get_mut(prefix)
-                .and_then(|rib| rib.remove(&target));
-        }
-
-        self.update_bgp_tables(queue)?;
-        Ok(())
+        self.update_bgp_tables(queue).map(|_| old_type)
     }
 
     /// Returns an interator over all BGP sessions

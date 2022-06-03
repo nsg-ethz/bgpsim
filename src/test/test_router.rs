@@ -28,19 +28,19 @@ use maplit::{hashmap, hashset};
 fn test_bgp_single() {
     let mut r = Router::new("test".to_string(), 0.into(), AsId(65001));
     let mut queue: EventQueue = EventQueue::new();
-    r.establish_bgp_session(100.into(), EBgp, &mut queue)
+    r.set_bgp_session(100.into(), Some(EBgp), &mut queue)
         .unwrap();
-    r.establish_bgp_session(1.into(), IBgpPeer, &mut queue)
+    r.set_bgp_session(1.into(), Some(IBgpPeer), &mut queue)
         .unwrap();
-    r.establish_bgp_session(2.into(), IBgpPeer, &mut queue)
+    r.set_bgp_session(2.into(), Some(IBgpPeer), &mut queue)
         .unwrap();
-    r.establish_bgp_session(3.into(), IBgpPeer, &mut queue)
+    r.set_bgp_session(3.into(), Some(IBgpPeer), &mut queue)
         .unwrap();
-    r.establish_bgp_session(4.into(), IBgpClient, &mut queue)
+    r.set_bgp_session(4.into(), Some(IBgpClient), &mut queue)
         .unwrap();
-    r.establish_bgp_session(5.into(), IBgpClient, &mut queue)
+    r.set_bgp_session(5.into(), Some(IBgpClient), &mut queue)
         .unwrap();
-    r.establish_bgp_session(6.into(), IBgpClient, &mut queue)
+    r.set_bgp_session(6.into(), Some(IBgpClient), &mut queue)
         .unwrap();
     r.igp_forwarding_table = hashmap! {
         100.into() => Some((100.into(), 0.0)),

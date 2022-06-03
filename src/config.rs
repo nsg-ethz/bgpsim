@@ -622,7 +622,7 @@ impl NetworkConfig for Network {
                     source,
                     target,
                     session_type,
-                } => self.add_bgp_session(*source, *target, *session_type),
+                } => self.set_bgp_session(*source, *target, Some(*session_type)),
                 ConfigExpr::BgpRouteMap {
                     router,
                     direction,
@@ -678,7 +678,7 @@ impl NetworkConfig for Network {
                     source,
                     target,
                     session_type: _,
-                } => self.remove_bgp_session(*source, *target),
+                } => self.set_bgp_session(*source, *target, None),
                 ConfigExpr::BgpRouteMap {
                     router,
                     direction,
@@ -749,7 +749,7 @@ impl NetworkConfig for Network {
                         session_type: x,
                     },
                 ) if (s1 == s2 && t1 == t2) || (s1 == t2 && t1 == s2) => {
-                    self.modify_bgp_session(*s2, *t2, *x)
+                    self.set_bgp_session(*s2, *t2, Some(*x))
                 }
                 (
                     ConfigExpr::BgpRouteMap {

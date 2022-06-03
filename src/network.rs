@@ -434,167 +434,93 @@ impl Network {
     // * Local Functions *
     // *******************
 
-    /// # Add an BGP session
-    ///
-    /// Adds an BGP session between source and target. If the session type is set to IBGpClient,
-    /// then the target is considered client of the source.
-    pub(crate) fn add_bgp_session(
+    /// Setup a BGP session between source and target. If `session_type` is `None`, then any
+    /// existing session will be removed. Otherwise, any existing session will be replaced by the
+    /// `session_type`.
+    pub fn set_bgp_session(
         &mut self,
         source: RouterId,
         target: RouterId,
-        session_type: BgpSessionType,
+        session_type: Option<BgpSessionType>,
     ) -> Result<(), NetworkError> {
         let is_source_external = self.external_routers.contains_key(&source);
         let is_target_external = self.external_routers.contains_key(&target);
         let (source_type, target_type) = match session_type {
-            BgpSessionType::IBgpPeer => {
+            Some(BgpSessionType::IBgpPeer) => {
                 if is_source_external || is_target_external {
                     Err(NetworkError::InvalidBgpSessionType(
                         source,
                         target,
-                        session_type,
+                        BgpSessionType::IBgpPeer,
                     ))
                 } else {
-                    Ok((BgpSessionType::IBgpPeer, BgpSessionType::IBgpPeer))
+                    Ok((
+                        Some(BgpSessionType::IBgpPeer),
+                        Some(BgpSessionType::IBgpPeer),
+                    ))
                 }
             }
-            BgpSessionType::IBgpClient => {
+            Some(BgpSessionType::IBgpClient) => {
                 if is_source_external || is_target_external {
                     Err(NetworkError::InvalidBgpSessionType(
                         source,
                         target,
-                        session_type,
+                        BgpSessionType::IBgpClient,
                     ))
                 } else {
-                    Ok((BgpSessionType::IBgpClient, BgpSessionType::IBgpPeer))
+                    Ok((
+                        Some(BgpSessionType::IBgpClient),
+                        Some(BgpSessionType::IBgpPeer),
+                    ))
                 }
             }
-            BgpSessionType::EBgp => {
+            Some(BgpSessionType::EBgp) => {
                 if !(is_source_external || is_target_external) {
                     Err(NetworkError::InvalidBgpSessionType(
                         source,
                         target,
-                        session_type,
+                        BgpSessionType::EBgp,
                     ))
                 } else {
-                    Ok((BgpSessionType::EBgp, BgpSessionType::EBgp))
+                    Ok((Some(BgpSessionType::EBgp), Some(BgpSessionType::EBgp)))
                 }
             }
+            None => Ok((None, None)),
         }?;
 
         // configure source
         if is_source_external {
-            self.external_routers
+            let r = self
+                .external_routers
                 .get_mut(&source)
-                .ok_or(NetworkError::DeviceNotFound(source))?
-                .establish_ebgp_session(target, &mut self.queue)?;
+                .ok_or(NetworkError::DeviceNotFound(source))?;
+            if source_type.is_some() {
+                r.establish_ebgp_session(target, &mut self.queue)?;
+            } else {
+                r.close_ebgp_session(target)?;
+            }
         } else {
             self.routers
                 .get_mut(&source)
                 .ok_or(NetworkError::DeviceNotFound(source))?
-                .establish_bgp_session(target, source_type, &mut self.queue)?;
+                .set_bgp_session(target, source_type, &mut self.queue)?;
         }
         // configure target
         if is_target_external {
-            self.external_routers
+            let r = self
+                .external_routers
                 .get_mut(&target)
-                .ok_or(NetworkError::DeviceNotFound(target))?
-                .establish_ebgp_session(source, &mut self.queue)?;
-        } else {
-            self.routers
-                .get_mut(&target)
-                .ok_or(NetworkError::DeviceNotFound(target))?
-                .establish_bgp_session(source, target_type, &mut self.queue)?;
-        }
-        self.do_queue()
-    }
-
-    /// # Modify an BGP session type
-    ///
-    /// Modifies an BGP session type between source and target. If the session type is set to
-    /// IBGpClient, then the target is considered client of the source.
-    pub(crate) fn modify_bgp_session(
-        &mut self,
-        source: RouterId,
-        target: RouterId,
-        session_type: BgpSessionType,
-    ) -> Result<(), NetworkError> {
-        let is_source_external = self.external_routers.contains_key(&source);
-        let is_target_external = self.external_routers.contains_key(&target);
-        // you can only change a session between two internal routers, because it is not possible
-        // to use a bgp session type different from eBGP with an external router. Therefore, we can
-        // safely return here if the type of the session is eBGP, and return an error if the type is
-        // not eBGP
-        if is_source_external || is_target_external {
-            return if session_type.is_ebgp() {
-                Ok(())
+                .ok_or(NetworkError::DeviceNotFound(target))?;
+            if target_type.is_some() {
+                r.establish_ebgp_session(source, &mut self.queue)?;
             } else {
-                Err(NetworkError::InvalidBgpSessionType(
-                    source,
-                    target,
-                    session_type,
-                ))
-            };
-        }
-
-        let (source_type, target_type) = match session_type {
-            BgpSessionType::IBgpPeer => (BgpSessionType::IBgpPeer, BgpSessionType::IBgpPeer),
-            BgpSessionType::IBgpClient => (BgpSessionType::IBgpClient, BgpSessionType::IBgpPeer),
-            BgpSessionType::EBgp => {
-                // in this case, we can return an error, since an ebgp session is only allowed to be
-                // established between an internal and an external router. But we have already
-                // checked that both routers are internal.
-                return Err(NetworkError::InvalidBgpSessionType(
-                    source,
-                    target,
-                    session_type,
-                ));
+                r.close_ebgp_session(source)?;
             }
-        };
-
-        self.routers
-            .get_mut(&source)
-            .ok_or(NetworkError::DeviceNotFound(source))?
-            .modify_bgp_session(target, source_type, &mut self.queue)?;
-        self.routers
-            .get_mut(&target)
-            .ok_or(NetworkError::DeviceNotFound(target))?
-            .modify_bgp_session(source, target_type, &mut self.queue)?;
-
-        self.do_queue()
-    }
-
-    /// Remove an iBGP session
-    pub(crate) fn remove_bgp_session(
-        &mut self,
-        source: RouterId,
-        target: RouterId,
-    ) -> Result<(), NetworkError> {
-        let is_source_external = self.external_routers.contains_key(&source);
-        let is_target_external = self.external_routers.contains_key(&target);
-
-        if is_source_external {
-            self.external_routers
-                .get_mut(&source)
-                .ok_or(NetworkError::DeviceNotFound(source))?
-                .close_ebgp_session(target)?;
-        } else {
-            self.routers
-                .get_mut(&source)
-                .ok_or(NetworkError::DeviceNotFound(source))?
-                .close_bgp_session(target, &mut self.queue)?;
-        }
-
-        if is_target_external {
-            self.external_routers
-                .get_mut(&target)
-                .ok_or(NetworkError::DeviceNotFound(target))?
-                .close_ebgp_session(source)?;
         } else {
             self.routers
                 .get_mut(&target)
                 .ok_or(NetworkError::DeviceNotFound(target))?
-                .close_bgp_session(source, &mut self.queue)?;
+                .set_bgp_session(source, target_type, &mut self.queue)?;
         }
         self.do_queue()
     }
