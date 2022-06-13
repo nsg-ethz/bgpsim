@@ -167,7 +167,7 @@ impl Network {
             .ok_or(NetworkError::DeviceNotFound(source))?
             .advertise_prefix(prefix, as_path, med, community, &mut self.queue);
 
-        self.do_queue()
+        self.simulate()
     }
 
     /// Retract an external route and let the network converge. The source must be a `RouterId` of
@@ -189,7 +189,7 @@ impl Network {
             .widthdraw_prefix(prefix, &mut self.queue);
 
         // run the queue
-        self.do_queue()
+        self.simulate()
     }
 
     /// Simulate a link failure in the network. This is done by removing the actual link from the
@@ -430,10 +430,6 @@ impl Network {
         true
     }
 
-    // *******************
-    // * Local Functions *
-    // *******************
-
     /// Setup a BGP session between source and target. If `session_type` is `None`, then any
     /// existing session will be removed. Otherwise, any existing session will be replaced by the
     /// `session_type`.
@@ -522,26 +518,39 @@ impl Network {
                 .ok_or(NetworkError::DeviceNotFound(target))?
                 .set_bgp_session(source, target_type, &mut self.queue)?;
         }
-        self.do_queue()
+        self.simulate()
     }
 
-    /// Write the igp forwarding tables for all internal routers. As soon as this is done, recompute
-    /// the BGP table. and run the algorithm. This will happen all at once, in a very unpredictable
-    /// manner. If you want to do this more predictable, use `write_ibgp_fw_table`.
+    /// set the link weight to the desired value. `NetworkError::RoutersNotConnected` is returned if
+    /// the link does not exist. Otherwise, the old link weight is returned. Note, that this
+    /// function only sets the *directed* link weight, and the other direction (from `target` to
+    /// `source`) is not affected.
     ///
-    /// The function returns Ok(true) if all events caused by the igp fw table write are handled
-    /// correctly. Returns Ok(false) if the max number of iterations is exceeded, and returns an
-    /// error if an event was not handled correctly.
-    pub(crate) fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
-        // update igp table
-        for r in self.routers.values_mut() {
-            r.write_igp_forwarding_table(&self.net, &mut self.queue)?;
-        }
-        self.do_queue()
+    /// This function will also update the IGP forwarding table *and* run the simulation.
+    pub fn set_link_weight(
+        &mut self,
+        source: RouterId,
+        target: RouterId,
+        mut weight: LinkWeight,
+    ) -> Result<LinkWeight, NetworkError> {
+        let edge = self
+            .net
+            .find_edge(source, target)
+            .ok_or(NetworkError::RoutersNotConnected(source, target))?;
+        std::mem::swap(&mut self.net[edge], &mut weight);
+
+        // update the forwarding tables and simulate the network.
+        self.write_igp_fw_tables()?;
+        self.simulate()?;
+
+        Ok(weight)
     }
 
-    /// Execute the queue
-    pub(crate) fn do_queue(&mut self) -> Result<(), NetworkError> {
+    /// Simulate the network behavior, given the current event queue. This function will execute all
+    /// events (that may trigger new events), until either the event queue is empt (i.e., the
+    /// network has converged), or until the maximum allowed events have been processed (which can
+    /// be set by `self.set_msg_limit`).
+    pub fn simulate(&mut self) -> Result<(), NetworkError> {
         if self.skip_queue {
             return Ok(());
         }
@@ -558,6 +567,25 @@ impl Network {
         }
 
         Ok(())
+    }
+
+    // *******************
+    // * Local Functions *
+    // *******************
+
+    /// Write the igp forwarding tables for all internal routers. As soon as this is done, recompute
+    /// the BGP table. and run the algorithm. This will happen all at once, in a very unpredictable
+    /// manner. If you want to do this more predictable, use `write_ibgp_fw_table`.
+    ///
+    /// The function returns Ok(true) if all events caused by the igp fw table write are handled
+    /// correctly. Returns Ok(false) if the max number of iterations is exceeded, and returns an
+    /// error if an event was not handled correctly.
+    pub(crate) fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
+        // update igp table
+        for r in self.routers.values_mut() {
+            r.write_igp_forwarding_table(&self.net, &mut self.queue)?;
+        }
+        self.simulate()
     }
 
     /// Executes one single step. If the result is Ok(true), then a step is successfully executed.

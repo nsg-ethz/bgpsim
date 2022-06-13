@@ -591,7 +591,7 @@ impl NetworkConfig for Network {
             self.apply_modifier(modifier)?;
         }
         self.skip_queue = false;
-        self.do_queue()
+        self.simulate()
     }
 
     /// Apply a single configuration modification. The modification must be applicable to the
@@ -642,7 +642,7 @@ impl NetworkConfig for Network {
                                 .add_bgp_route_map_out(map.clone(), &mut self.queue)?;
                         }
                     }
-                    self.do_queue()
+                    self.simulate()
                 }
                 ConfigExpr::StaticRoute {
                     router,
@@ -698,7 +698,7 @@ impl NetworkConfig for Network {
                                 .remove_bgp_route_map_out(map.order, &mut self.queue)?;
                         }
                     }
-                    self.do_queue()
+                    self.simulate()
                 }
 
                 ConfigExpr::StaticRoute {
@@ -731,11 +731,7 @@ impl NetworkConfig for Network {
                     },
                 ) if s1 == s2 && t1 == t2 => {
                     // check if router has a link to target
-                    if !self.net.contains_edge(*s1, *t1) {
-                        return Err(NetworkError::RoutersNotConnected(*s1, *t1));
-                    }
-                    self.net.update_edge(*s1, *t1, *w);
-                    self.write_igp_fw_tables()
+                    self.set_link_weight(*s1, *t1, *w).map(|_| ())
                 }
                 (
                     ConfigExpr::BgpSession {
@@ -777,7 +773,7 @@ impl NetworkConfig for Network {
                                 .modify_bgp_route_map_out(m1.order, m2.clone(), &mut self.queue)?;
                         }
                     }
-                    self.do_queue()
+                    self.simulate()
                 }
                 (
                     ConfigExpr::StaticRoute {
