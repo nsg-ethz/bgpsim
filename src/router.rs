@@ -18,7 +18,7 @@
 //! Module defining an internal router with BGP functionality.
 
 use crate::bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType};
-use crate::route_map::RouteMap;
+use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::types::IgpNetwork;
 use crate::{AsId, DeviceError, LinkWeight, Prefix, RouterId};
 use crate::{Event, EventQueue};
@@ -350,146 +350,90 @@ impl Router {
         self.bgp_sessions.get(&neighbor).copied()
     }
 
-    /// Add a route-map for the input and update the BGP tables.
-    pub fn add_bgp_route_map_in(
+    /// Update or remove a route-map from the router. If a route-map with the same order (for the
+    /// same direction) already exist, then it will be replaced by the new route-map. The old
+    /// route-map will be returned.
+    pub fn set_bgp_route_map(
         &mut self,
-        map: RouteMap,
+        mut route_map: RouteMap,
+        direction: RouteMapDirection,
         queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
-        // check that the order doesn't yet exist
-        match self
-            .bgp_route_maps_in
-            .binary_search_by(|probe| probe.order.cmp(&map.order))
-        {
-            Ok(_) => return Err(DeviceError::BgpRouteMapAlreadyExists(map.order)),
-            Err(pos) => {
-                self.bgp_route_maps_in.insert(pos, map);
-            }
-        }
-        self.update_bgp_tables(queue)
-    }
-
-    /// Remove a route-map for the input and update the BGP tables.
-    pub fn remove_bgp_route_map_in(
-        &mut self,
-        order: usize,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
-        match self
-            .bgp_route_maps_in
-            .binary_search_by(|probe| probe.order.cmp(&order))
-        {
-            Ok(pos) => {
-                self.bgp_route_maps_in.remove(pos);
-            }
-            Err(_) => return Err(DeviceError::NoBgpRouteMap(order)),
-        }
-        self.update_bgp_tables(queue)
-    }
-
-    /// Modify an existing route-map for the input and update the BGP tables.
-    pub fn modify_bgp_route_map_in(
-        &mut self,
-        order: usize,
-        map: RouteMap,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
-        match self
-            .bgp_route_maps_in
-            .binary_search_by(|probe| probe.order.cmp(&order))
-        {
-            Ok(pos) if order == map.order => {
-                self.bgp_route_maps_in[pos] = map;
-            }
-            Ok(pos) => {
-                self.bgp_route_maps_in.remove(pos);
-                // add the route map at the correct position
+    ) -> Result<Option<RouteMap>, DeviceError> {
+        let old_map = match direction {
+            RouteMapDirection::Incoming => {
                 match self
                     .bgp_route_maps_in
-                    .binary_search_by(|probe| probe.order.cmp(&map.order))
+                    .binary_search_by(|probe| probe.order.cmp(&route_map.order))
                 {
-                    Ok(_) => return Err(DeviceError::BgpRouteMapAlreadyExists(map.order)),
+                    Ok(pos) => {
+                        // replace the route-map at the selected position
+                        std::mem::swap(&mut self.bgp_route_maps_in[pos], &mut route_map);
+                        Some(route_map)
+                    }
                     Err(pos) => {
-                        self.bgp_route_maps_in.insert(pos, map);
+                        self.bgp_route_maps_in.insert(pos, route_map);
+                        None
                     }
                 }
             }
-            Err(_) => return Err(DeviceError::NoBgpRouteMap(order)),
-        }
-        self.update_bgp_tables(queue)
+            RouteMapDirection::Outgoing => {
+                match self
+                    .bgp_route_maps_out
+                    .binary_search_by(|probe| probe.order.cmp(&route_map.order))
+                {
+                    Ok(pos) => {
+                        // replace the route-map at the selected position
+                        std::mem::swap(&mut self.bgp_route_maps_out[pos], &mut route_map);
+                        Some(route_map)
+                    }
+                    Err(pos) => {
+                        self.bgp_route_maps_out.insert(pos, route_map);
+                        None
+                    }
+                }
+            }
+        };
+
+        self.update_bgp_tables(queue)?;
+        Ok(old_map)
+    }
+
+    /// Remove any route map that has the specified order and direction. If the route-map does not
+    /// exist, then `Ok(None)` is returned, and the queue is left untouched.
+    pub fn remove_bgp_route_map(
+        &mut self,
+        order: usize,
+        direction: RouteMapDirection,
+        queue: &mut EventQueue,
+    ) -> Result<Option<RouteMap>, DeviceError> {
+        let old_map = match direction {
+            RouteMapDirection::Incoming => {
+                match self
+                    .bgp_route_maps_in
+                    .binary_search_by(|probe| probe.order.cmp(&order))
+                {
+                    Ok(pos) => self.bgp_route_maps_in.remove(pos),
+                    Err(_) => return Ok(None),
+                }
+            }
+            RouteMapDirection::Outgoing => {
+                match self
+                    .bgp_route_maps_out
+                    .binary_search_by(|probe| probe.order.cmp(&order))
+                {
+                    Ok(pos) => self.bgp_route_maps_out.remove(pos),
+                    Err(_) => return Ok(None),
+                }
+            }
+        };
+
+        self.update_bgp_tables(queue)?;
+        Ok(Some(old_map))
     }
 
     /// Get an iterator over all incoming route-maps
     pub fn get_bgp_route_maps_in(&self) -> VecIter<'_, RouteMap> {
         self.bgp_route_maps_in.iter()
-    }
-
-    /// Add a route-map for the output and update the BGP tables.
-    pub fn add_bgp_route_map_out(
-        &mut self,
-        map: RouteMap,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
-        // check that the order doesn't yet exist
-        match self
-            .bgp_route_maps_out
-            .binary_search_by(|probe| probe.order.cmp(&map.order))
-        {
-            Ok(_) => return Err(DeviceError::BgpRouteMapAlreadyExists(map.order)),
-            Err(pos) => {
-                self.bgp_route_maps_out.insert(pos, map);
-            }
-        }
-        self.update_bgp_tables(queue)
-    }
-
-    /// Remove a route-map for the output and update the BGP tables.
-    pub fn remove_bgp_route_map_out(
-        &mut self,
-        order: usize,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
-        match self
-            .bgp_route_maps_out
-            .binary_search_by(|probe| probe.order.cmp(&order))
-        {
-            Ok(pos) => {
-                self.bgp_route_maps_out.remove(pos);
-            }
-            Err(_) => return Err(DeviceError::NoBgpRouteMap(order)),
-        }
-        self.update_bgp_tables(queue)
-    }
-
-    /// Modify an existing route-map for the output, and update the BGP tables.
-    pub fn modify_bgp_route_map_out(
-        &mut self,
-        order: usize,
-        map: RouteMap,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
-        match self
-            .bgp_route_maps_out
-            .binary_search_by(|probe| probe.order.cmp(&order))
-        {
-            Ok(pos) if order == map.order => {
-                self.bgp_route_maps_out[pos] = map;
-            }
-            Ok(pos) => {
-                self.bgp_route_maps_out.remove(pos);
-                match self
-                    .bgp_route_maps_out
-                    .binary_search_by(|probe| probe.order.cmp(&map.order))
-                {
-                    Ok(_) => return Err(DeviceError::BgpRouteMapAlreadyExists(map.order)),
-                    Err(pos) => {
-                        self.bgp_route_maps_out.insert(pos, map);
-                    }
-                }
-            }
-            Err(_) => return Err(DeviceError::NoBgpRouteMap(order)),
-        }
-        self.update_bgp_tables(queue)
     }
 
     /// Get an iterator over all outgoing route-maps

@@ -628,20 +628,10 @@ impl NetworkConfig for Network {
                     direction,
                     map,
                 } => {
-                    match direction {
-                        RouteMapDirection::Incoming => {
-                            self.routers
-                                .get_mut(router)
-                                .ok_or(NetworkError::DeviceNotFound(*router))?
-                                .add_bgp_route_map_in(map.clone(), &mut self.queue)?;
-                        }
-                        RouteMapDirection::Outgoing => {
-                            self.routers
-                                .get_mut(router)
-                                .ok_or(NetworkError::DeviceNotFound(*router))?
-                                .add_bgp_route_map_out(map.clone(), &mut self.queue)?;
-                        }
-                    }
+                    self.routers
+                        .get_mut(router)
+                        .ok_or(NetworkError::DeviceNotFound(*router))?
+                        .set_bgp_route_map(map.clone(), *direction, &mut self.queue)?;
                     self.simulate()
                 }
                 ConfigExpr::StaticRoute {
@@ -684,20 +674,10 @@ impl NetworkConfig for Network {
                     direction,
                     map,
                 } => {
-                    match direction {
-                        RouteMapDirection::Incoming => {
-                            self.routers
-                                .get_mut(router)
-                                .ok_or(NetworkError::DeviceNotFound(*router))?
-                                .remove_bgp_route_map_in(map.order, &mut self.queue)?;
-                        }
-                        RouteMapDirection::Outgoing => {
-                            self.routers
-                                .get_mut(router)
-                                .ok_or(NetworkError::DeviceNotFound(*router))?
-                                .remove_bgp_route_map_out(map.order, &mut self.queue)?;
-                        }
-                    }
+                    self.routers
+                        .get_mut(router)
+                        .ok_or(NetworkError::DeviceNotFound(*router))?
+                        .remove_bgp_route_map(map.order, *direction, &mut self.queue)?;
                     self.simulate()
                 }
 
@@ -751,7 +731,7 @@ impl NetworkConfig for Network {
                     ConfigExpr::BgpRouteMap {
                         router: r1,
                         direction: d1,
-                        map: m1,
+                        map: _m1,
                     },
                     ConfigExpr::BgpRouteMap {
                         router: r2,
@@ -759,20 +739,10 @@ impl NetworkConfig for Network {
                         map: m2,
                     },
                 ) if r1 == r2 && d1 == d2 => {
-                    match d1 {
-                        RouteMapDirection::Incoming => {
-                            self.routers
-                                .get_mut(r1)
-                                .ok_or(NetworkError::DeviceNotFound(*r1))?
-                                .modify_bgp_route_map_in(m1.order, m2.clone(), &mut self.queue)?;
-                        }
-                        RouteMapDirection::Outgoing => {
-                            self.routers
-                                .get_mut(r1)
-                                .ok_or(NetworkError::DeviceNotFound(*r1))?
-                                .modify_bgp_route_map_out(m1.order, m2.clone(), &mut self.queue)?;
-                        }
-                    }
+                    self.routers
+                        .get_mut(r1)
+                        .ok_or(NetworkError::DeviceNotFound(*r1))?
+                        .set_bgp_route_map(m2.clone(), *d1, &mut self.queue)?;
                     self.simulate()
                 }
                 (

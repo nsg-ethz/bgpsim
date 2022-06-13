@@ -25,6 +25,7 @@ use crate::config::NetworkConfig;
 use crate::event::{Event, EventQueue};
 use crate::external_router::ExternalRouter;
 use crate::printer;
+use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::router::Router;
 use crate::types::{IgpNetwork, NetworkDevice};
 use crate::{AsId, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
@@ -544,6 +545,39 @@ impl Network {
         self.simulate()?;
 
         Ok(weight)
+    }
+
+    /// Set the route map on a router in the network. If a route-map with the chosen order already
+    /// exists, then it will be overwritten. The old route-map will be returned.
+    ///
+    /// This function will run the simulation after updating the router.
+    pub fn set_route_map(
+        &mut self,
+        router: RouterId,
+        route_map: RouteMap,
+        direction: RouteMapDirection,
+    ) -> Result<Option<RouteMap>, NetworkError> {
+        self.routers
+            .get_mut(&router)
+            .ok_or(NetworkError::DeviceNotFound(router))?
+            .set_bgp_route_map(route_map, direction, &mut self.queue)?;
+        todo!()
+    }
+
+    /// Remove the route map on a router in the network. The old route-map will be returned.
+    ///
+    /// This function will run the simulation after updating the router.
+    pub fn remove_route_map(
+        &mut self,
+        router: RouterId,
+        order: usize,
+        direction: RouteMapDirection,
+    ) -> Result<Option<RouteMap>, NetworkError> {
+        self.routers
+            .get_mut(&router)
+            .ok_or(NetworkError::DeviceNotFound(router))?
+            .remove_bgp_route_map(order, direction, &mut self.queue)?;
+        todo!()
     }
 
     /// Simulate the network behavior, given the current event queue. This function will execute all
