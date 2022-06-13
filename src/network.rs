@@ -551,7 +551,9 @@ impl Network {
     /// exists, then it will be overwritten. The old route-map will be returned.
     ///
     /// This function will run the simulation after updating the router.
-    pub fn set_route_map(
+    ///
+    /// To remove a route map, use [`Network::remove_bgp_route_map`].
+    pub fn set_bgp_route_map(
         &mut self,
         router: RouterId,
         route_map: RouteMap,
@@ -567,7 +569,9 @@ impl Network {
     /// Remove the route map on a router in the network. The old route-map will be returned.
     ///
     /// This function will run the simulation after updating the router.
-    pub fn remove_route_map(
+    ///
+    /// To add a route map, use [`Network::set_bgp_route_map`].
+    pub fn remove_bgp_route_map(
         &mut self,
         router: RouterId,
         order: usize,

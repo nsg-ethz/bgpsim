@@ -353,6 +353,8 @@ impl Router {
     /// Update or remove a route-map from the router. If a route-map with the same order (for the
     /// same direction) already exist, then it will be replaced by the new route-map. The old
     /// route-map will be returned.
+    ///
+    /// To remove a route map, use [`Router::remove_bgp_route_map`].
     pub fn set_bgp_route_map(
         &mut self,
         mut route_map: RouteMap,
@@ -400,6 +402,8 @@ impl Router {
 
     /// Remove any route map that has the specified order and direction. If the route-map does not
     /// exist, then `Ok(None)` is returned, and the queue is left untouched.
+    ///
+    /// To add or update a route map, use [`Router::set_bgp_route_map`].
     pub fn remove_bgp_route_map(
         &mut self,
         order: usize,
