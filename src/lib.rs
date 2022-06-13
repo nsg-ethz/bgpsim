@@ -99,6 +99,7 @@ pub mod config;
 pub mod event;
 pub mod external_router;
 pub mod forwarding_state;
+pub mod interactive;
 pub mod network;
 pub mod policies;
 pub mod printer;

@@ -591,7 +591,7 @@ impl NetworkConfig for Network {
             self.apply_modifier(modifier)?;
         }
         self.skip_queue = false;
-        self.simulate()
+        self.do_queue_maybe_skip()
     }
 
     /// Apply a single configuration modification. The modification must be applicable to the
@@ -632,7 +632,7 @@ impl NetworkConfig for Network {
                         .get_mut(router)
                         .ok_or(NetworkError::DeviceNotFound(*router))?
                         .set_bgp_route_map(map.clone(), *direction, &mut self.queue)?;
-                    self.simulate()
+                    self.do_queue_maybe_skip()
                 }
                 ConfigExpr::StaticRoute {
                     router,
@@ -678,7 +678,7 @@ impl NetworkConfig for Network {
                         .get_mut(router)
                         .ok_or(NetworkError::DeviceNotFound(*router))?
                         .remove_bgp_route_map(map.order, *direction, &mut self.queue)?;
-                    self.simulate()
+                    self.do_queue_maybe_skip()
                 }
 
                 ConfigExpr::StaticRoute {
@@ -743,7 +743,7 @@ impl NetworkConfig for Network {
                         .get_mut(r1)
                         .ok_or(NetworkError::DeviceNotFound(*r1))?
                         .set_bgp_route_map(m2.clone(), *d1, &mut self.queue)?;
-                    self.simulate()
+                    self.do_queue_maybe_skip()
                 }
                 (
                     ConfigExpr::StaticRoute {

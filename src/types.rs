@@ -192,12 +192,6 @@ pub enum DeviceError {
     /// Bgp Route Map with the chosen order does not exist
     #[error("Bgp Route Map at order {0} doesn't exists")]
     NoBgpRouteMap(usize),
-    /// The undo stack of a router is empty
-    #[error("Undo stack is empty! Cannot undo further")]
-    UndoStackEmpty,
-    /// Cannot undo the action, data seems to have changed!
-    #[error("Cannot undo the action: {0}")]
-    UndoStackError(&'static str),
 }
 
 /// Network Errors

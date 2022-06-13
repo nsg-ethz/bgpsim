@@ -54,7 +54,7 @@ pub struct Network {
 }
 
 impl Clone for Network {
-    /// Cloning the network does not clone the event history, and any of the undo traces.
+    /// Cloning the network does not clone the event history.
     fn clone(&self) -> Self {
         // for the new queue, remove the history of all enqueued events
         Self {
@@ -168,7 +168,7 @@ impl Network {
             .ok_or(NetworkError::DeviceNotFound(source))?
             .advertise_prefix(prefix, as_path, med, community, &mut self.queue);
 
-        self.simulate()
+        self.do_queue_maybe_skip()
     }
 
     /// Retract an external route and let the network converge. The source must be a `RouterId` of
@@ -190,7 +190,7 @@ impl Network {
             .widthdraw_prefix(prefix, &mut self.queue);
 
         // run the queue
-        self.simulate()
+        self.do_queue_maybe_skip()
     }
 
     /// Simulate a link failure in the network. This is done by removing the actual link from the
@@ -519,7 +519,7 @@ impl Network {
                 .ok_or(NetworkError::DeviceNotFound(target))?
                 .set_bgp_session(source, target_type, &mut self.queue)?;
         }
-        self.simulate()
+        self.do_queue_maybe_skip()
     }
 
     /// set the link weight to the desired value. `NetworkError::RoutersNotConnected` is returned if
@@ -542,7 +542,7 @@ impl Network {
 
         // update the forwarding tables and simulate the network.
         self.write_igp_fw_tables()?;
-        self.simulate()?;
+        self.do_queue_maybe_skip()?;
 
         Ok(weight)
     }
@@ -588,10 +588,10 @@ impl Network {
     /// events (that may trigger new events), until either the event queue is empt (i.e., the
     /// network has converged), or until the maximum allowed events have been processed (which can
     /// be set by `self.set_msg_limit`).
+    ///
+    /// This function will simulate the entire queue, no matter how it is configured in
+    /// [`crate::interactive::InteractiveNetwork`].
     pub fn simulate(&mut self) -> Result<(), NetworkError> {
-        if self.skip_queue {
-            return Ok(());
-        }
         let mut remaining_iter = self.stop_after;
         while !self.queue.is_empty() {
             if let Some(rem) = remaining_iter {
@@ -622,6 +622,19 @@ impl Network {
         // update igp table
         for r in self.routers.values_mut() {
             r.write_igp_forwarding_table(&self.net, &mut self.queue)?;
+        }
+        self.do_queue_maybe_skip()
+    }
+
+    /// Simulate the network behavior, given the current event queue. This function will execute all
+    /// events (that may trigger new events), until either the event queue is empt (i.e., the
+    /// network has converged), or until the maximum allowed events have been processed (which can
+    /// be set by `self.set_msg_limit`).
+    ///
+    /// This function will not simulate anything if `self.skip_queue` is set to `true`.
+    pub(crate) fn do_queue_maybe_skip(&mut self) -> Result<(), NetworkError> {
+        if self.skip_queue {
+            return Ok(());
         }
         self.simulate()
     }
