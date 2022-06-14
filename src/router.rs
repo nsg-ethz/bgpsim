@@ -20,8 +20,8 @@
 use crate::bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType};
 use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::types::IgpNetwork;
+use crate::Event;
 use crate::{AsId, DeviceError, LinkWeight, Prefix, RouterId};
-use crate::{Event, EventQueue};
 use log::*;
 use petgraph::algo::bellman_ford::{bellman_ford, Paths};
 use std::{
@@ -121,19 +121,17 @@ impl Router {
         &self.igp_forwarding_table
     }
 
-    /// handle an `Event`, and enqueue several resulting events. Returns Ok(true) if the forwarding
-    /// state changes. Returns Ok(false) if the forwarding state is unchanged
-    pub(crate) fn handle_event(
+    /// handle an `Event`. This function returns all events triggered by this function.
+    pub(crate) fn handle_event<P: Default>(
         &mut self,
-        event: Event,
-        queue: &mut EventQueue,
-    ) -> Result<bool, DeviceError> {
+        event: Event<P>,
+    ) -> Result<Vec<Event<P>>, DeviceError> {
         match event {
-            Event::Bgp(from, to, bgp_event) if to == self.router_id => {
+            Event::Bgp(_, from, to, bgp_event) if to == self.router_id => {
                 // first, check if the event was received from a bgp peer
                 if !self.bgp_sessions.contains_key(&from) {
-                    debug!("Received a bgp event form a non-neighbor! Ignore event!");
-                    return Ok(false);
+                    warn!("Received a bgp event form a non-neighbor! Ignore event!");
+                    return Ok(vec![]);
                 }
                 // phase 1 of BGP protocol
                 let prefix = match bgp_event {
@@ -143,23 +141,24 @@ impl Router {
                 self.bgp_known_prefixes.insert(prefix);
 
                 // phase 2
-                let previous_next_hop = self.get_next_hop(prefix);
                 self.run_bgp_decision_process_for_prefix(prefix)?;
-                let new_next_hop = self.get_next_hop(prefix);
                 // phase 3
-                self.run_bgp_route_dissemination_for_prefix(prefix, queue)?;
-                // return wether the forwarding state has changed
-                Ok(previous_next_hop != new_next_hop)
+                Ok(self.run_bgp_route_dissemination_for_prefix(prefix)?)
             }
-            _ => Ok(false),
+            Event::Bgp(_, _, _, _) => {
+                error!(
+                    "Recenved a BGP event that is not targeted at this router! Ignore the event!"
+                );
+                Ok(vec![])
+            }
         }
     }
 
     /// Check if something would happen when the event would be processed by this device
     #[allow(dead_code)]
-    pub(crate) fn peek_event(&self, event: &Event) -> Result<bool, DeviceError> {
+    pub(crate) fn peek_event<P>(&self, event: &Event<P>) -> Result<bool, DeviceError> {
         match event {
-            Event::Bgp(from, to, BgpEvent::Update(route))
+            Event::Bgp(_, from, to, BgpEvent::Update(route))
                 if *to == self.router_id && self.bgp_sessions.contains_key(from) =>
             {
                 // would receive an update
@@ -211,7 +210,7 @@ impl Router {
                     _ => Ok(false),
                 }
             }
-            Event::Bgp(from, to, BgpEvent::Withdraw(prefix))
+            Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix))
                 if *to == self.router_id && self.bgp_sessions.contains_key(from) =>
             {
                 // would receive a withdraw
@@ -313,13 +312,13 @@ impl Router {
     /// Set a BGP session with a neighbor. If `session_type` is `None`, then any potentially
     /// existing session will be removed. Otherwise, any existing session will be replaced by he new
     /// type. Finally, the BGP tables are updated, and events are generated. This function will
-    /// return the old session type (if it exists).
-    pub(crate) fn set_bgp_session(
+    /// return the old session type (if it exists). This function will also return the set of events
+    /// triggered by this action.
+    pub(crate) fn set_bgp_session<P: Default>(
         &mut self,
         target: RouterId,
         session_type: Option<BgpSessionType>,
-        queue: &mut EventQueue,
-    ) -> Result<Option<BgpSessionType>, DeviceError> {
+    ) -> Result<(Option<BgpSessionType>, Vec<Event<P>>), DeviceError> {
         let old_type = if let Some(ty) = session_type {
             self.bgp_sessions.insert(target, ty)
         } else {
@@ -337,7 +336,7 @@ impl Router {
         };
 
         // udpate the tables
-        self.update_bgp_tables(queue).map(|_| old_type)
+        self.update_bgp_tables().map(|events| (old_type, events))
     }
 
     /// Returns an interator over all BGP sessions
@@ -352,15 +351,15 @@ impl Router {
 
     /// Update or remove a route-map from the router. If a route-map with the same order (for the
     /// same direction) already exist, then it will be replaced by the new route-map. The old
-    /// route-map will be returned.
+    /// route-map will be returned. This function will also return all events triggered by this
+    /// action.
     ///
     /// To remove a route map, use [`Router::remove_bgp_route_map`].
-    pub fn set_bgp_route_map(
+    pub(crate) fn set_bgp_route_map<P: Default>(
         &mut self,
         mut route_map: RouteMap,
         direction: RouteMapDirection,
-        queue: &mut EventQueue,
-    ) -> Result<Option<RouteMap>, DeviceError> {
+    ) -> Result<(Option<RouteMap>, Vec<Event<P>>), DeviceError> {
         let old_map = match direction {
             RouteMapDirection::Incoming => {
                 match self
@@ -396,20 +395,19 @@ impl Router {
             }
         };
 
-        self.update_bgp_tables(queue)?;
-        Ok(old_map)
+        self.update_bgp_tables().map(|events| (old_map, events))
     }
 
     /// Remove any route map that has the specified order and direction. If the route-map does not
-    /// exist, then `Ok(None)` is returned, and the queue is left untouched.
+    /// exist, then `Ok(None)` is returned, and the queue is left untouched. This function will also
+    /// return all events triggered by this action.
     ///
     /// To add or update a route map, use [`Router::set_bgp_route_map`].
-    pub fn remove_bgp_route_map(
+    pub(crate) fn remove_bgp_route_map<P: Default>(
         &mut self,
         order: usize,
         direction: RouteMapDirection,
-        queue: &mut EventQueue,
-    ) -> Result<Option<RouteMap>, DeviceError> {
+    ) -> Result<(Option<RouteMap>, Vec<Event<P>>), DeviceError> {
         let old_map = match direction {
             RouteMapDirection::Incoming => {
                 match self
@@ -417,7 +415,7 @@ impl Router {
                     .binary_search_by(|probe| probe.order.cmp(&order))
                 {
                     Ok(pos) => self.bgp_route_maps_in.remove(pos),
-                    Err(_) => return Ok(None),
+                    Err(_) => return Ok((None, vec![])),
                 }
             }
             RouteMapDirection::Outgoing => {
@@ -426,13 +424,13 @@ impl Router {
                     .binary_search_by(|probe| probe.order.cmp(&order))
                 {
                     Ok(pos) => self.bgp_route_maps_out.remove(pos),
-                    Err(_) => return Ok(None),
+                    Err(_) => return Ok((None, vec![])),
                 }
             }
         };
 
-        self.update_bgp_tables(queue)?;
-        Ok(Some(old_map))
+        self.update_bgp_tables()
+            .map(|events| (Some(old_map), events))
     }
 
     /// Get an iterator over all incoming route-maps
@@ -450,13 +448,12 @@ impl Router {
         self.static_routes.iter()
     }
 
-    /// write forawrding table based on graph
-    /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables
-    pub fn write_igp_forwarding_table(
+    /// write forawrding table based on graph and return the set of events triggered by this action.
+    /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables.
+    pub(crate) fn write_igp_forwarding_table<P: Default>(
         &mut self,
         graph: &IgpNetwork,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
+    ) -> Result<Vec<Event<P>>, DeviceError> {
         // clear the forwarding table
         self.igp_forwarding_table = HashMap::new();
         // compute shortest path to all other nodes in the graph
@@ -493,20 +490,21 @@ impl Router {
             self.igp_forwarding_table
                 .insert(router, Some((next_hop, cost)));
         }
-        self.update_bgp_tables(queue)
+        self.update_bgp_tables()
     }
 
     /// Update the bgp tables only.
-    fn update_bgp_tables(&mut self, queue: &mut EventQueue) -> Result<(), DeviceError> {
+    fn update_bgp_tables<P: Default>(&mut self) -> Result<Vec<Event<P>>, DeviceError> {
+        let mut events = Vec::new();
         // run the decision process
         for prefix in self.bgp_known_prefixes.clone() {
             self.run_bgp_decision_process_for_prefix(prefix)?
         }
         // run the route dissemination
         for prefix in self.bgp_known_prefixes.clone() {
-            self.run_bgp_route_dissemination_for_prefix(prefix, queue)?
+            events.append(&mut self.run_bgp_route_dissemination_for_prefix(prefix)?);
         }
-        Ok(())
+        Ok(events)
     }
 
     /// This function checks if all BGP tables are the same for all prefixes
@@ -571,12 +569,12 @@ impl Router {
         Ok(())
     }
 
-    /// only run bgp route dissemination (phase 3)
-    fn run_bgp_route_dissemination_for_prefix(
+    /// only run bgp route dissemination (phase 3) and return the events triggered by the dissemination
+    fn run_bgp_route_dissemination_for_prefix<P: Default>(
         &mut self,
         prefix: Prefix,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
+    ) -> Result<Vec<Event<P>>, DeviceError> {
+        let mut events = Vec::new();
         self.bgp_rib_out.entry(prefix).or_default();
 
         for (peer, peer_type) in self.bgp_sessions.iter() {
@@ -642,11 +640,11 @@ impl Router {
             };
             // add the event to the queue
             if let Some(event) = event {
-                queue.push_back(Event::Bgp(self.router_id, *peer, event));
+                events.push(Event::Bgp(P::default(), self.router_id, *peer, event));
             }
         }
 
-        Ok(())
+        Ok(events)
     }
 
     /// Tries to insert the route into the bgp_rib_in table. If the same route already exists in the table,

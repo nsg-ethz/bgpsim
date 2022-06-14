@@ -21,7 +21,7 @@
 
 use crate::bgp::{BgpEvent, BgpRibEntry, BgpRoute};
 use crate::config::{Config, ConfigExpr, ConfigModifier, ConfigPatch};
-use crate::event::Event;
+use crate::event::{Event, FmtPriority};
 use crate::network::Network;
 use crate::route_map::*;
 use crate::router::Router;
@@ -31,8 +31,8 @@ use crate::{BgpSessionType, NetworkError, Prefix};
 /// one line (one known route). The strings are formatted, and the names of the routers are
 /// inserted. The chosen route is prefixed with a `*`, while the known but not chosen routes are
 /// prefixed with nothing (` `).
-pub fn bgp_table(
-    net: &Network,
+pub fn bgp_table<Q>(
+    net: &Network<Q>,
     router: &Router,
     prefix: Prefix,
 ) -> Result<Vec<String>, NetworkError> {
@@ -58,7 +58,7 @@ pub fn bgp_table(
 
 /// Returns the formatted string for a given RIBEntry of a BGP route. The entry is formatted such
 /// that all router names are inserted.
-pub fn bgp_entry(net: &Network, entry: &BgpRibEntry) -> Result<String, NetworkError> {
+pub fn bgp_entry<Q>(net: &Network<Q>, entry: &BgpRibEntry) -> Result<String, NetworkError> {
     Ok(format!(
         "prefix: {p}, as_path: {path:?}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}",
         p = entry.route.prefix.0,
@@ -72,7 +72,7 @@ pub fn bgp_entry(net: &Network, entry: &BgpRibEntry) -> Result<String, NetworkEr
 }
 
 /// Returns a formatted string for a given BGP route.
-pub fn bgp_route(net: &Network, route: &BgpRoute) -> Result<String, NetworkError> {
+pub fn bgp_route<Q>(net: &Network<Q>, route: &BgpRoute) -> Result<String, NetworkError> {
     let mut result = format!(
         "prefix: {}, AsPath: {:?}, next hop: {}",
         route.prefix.0,
@@ -92,25 +92,34 @@ pub fn bgp_route(net: &Network, route: &BgpRoute) -> Result<String, NetworkError
 }
 
 /// Return a formatted string for a given event
-pub fn event(net: &Network, event: &Event) -> Result<String, NetworkError> {
+pub fn event<Q, P: FmtPriority>(
+    net: &Network<Q>,
+    event: &Event<P>,
+) -> Result<String, NetworkError> {
     Ok(match event {
-        Event::Bgp(from, to, BgpEvent::Update(route)) => format!(
-            "BGP Event: {} -> {}: Update [{}]",
+        Event::Bgp(p, from, to, BgpEvent::Update(route)) => format!(
+            "BGP Event: {} -> {}: Update [{}] {}",
             net.get_router_name(*from)?,
             net.get_router_name(*to)?,
-            bgp_route(net, route)?
+            bgp_route(net, route)?,
+            p.fmt()
         ),
-        Event::Bgp(from, to, BgpEvent::Withdraw(prefix)) => format!(
-            "BGP Event: {} -> {}: Withdraw prefix {}",
+        Event::Bgp(p, from, to, BgpEvent::Withdraw(prefix)) => format!(
+            "BGP Event: {} -> {}: Withdraw prefix {} {}",
             net.get_router_name(*from)?,
             net.get_router_name(*to)?,
-            prefix.0
+            prefix.0,
+            p.fmt()
         ),
     })
 }
 
 /// Print the bgp table of a given router.
-pub fn print_bgp_table(net: &Network, router: &Router, prefix: Prefix) -> Result<(), NetworkError> {
+pub fn print_bgp_table<Q>(
+    net: &Network<Q>,
+    router: &Router,
+    prefix: Prefix,
+) -> Result<(), NetworkError> {
     println!("BGP table of {} for {:?}", router.name(), prefix);
     let table = bgp_table(net, router, prefix)?;
     for entry in table {
@@ -120,7 +129,7 @@ pub fn print_bgp_table(net: &Network, router: &Router, prefix: Prefix) -> Result
 }
 
 /// Returns the config expr as a string, where all router names are inserted.
-pub fn config_expr(net: &Network, expr: &ConfigExpr) -> Result<String, NetworkError> {
+pub fn config_expr<Q>(net: &Network<Q>, expr: &ConfigExpr) -> Result<String, NetworkError> {
     Ok(match expr {
         ConfigExpr::IgpLinkWeight {
             source,
@@ -173,7 +182,10 @@ pub fn config_expr(net: &Network, expr: &ConfigExpr) -> Result<String, NetworkEr
 }
 
 /// Returns a formatted string for the given modifier, where all router names are inserted.
-pub fn config_modifier(net: &Network, modifier: &ConfigModifier) -> Result<String, NetworkError> {
+pub fn config_modifier<Q>(
+    net: &Network<Q>,
+    modifier: &ConfigModifier,
+) -> Result<String, NetworkError> {
     Ok(match modifier {
         ConfigModifier::Insert(e) => format!("INSERT {}", config_expr(net, e)?),
         ConfigModifier::Remove(e) => format!("REMOVE {}", config_expr(net, e)?),
@@ -182,7 +194,7 @@ pub fn config_modifier(net: &Network, modifier: &ConfigModifier) -> Result<Strin
 }
 
 /// Returns a formatted string of the route map, where all router names are inserted
-pub fn route_map(net: &Network, map: &RouteMap) -> Result<String, NetworkError> {
+pub fn route_map<Q>(net: &Network<Q>, map: &RouteMap) -> Result<String, NetworkError> {
     Ok(format!(
         "{} {} {} set [{}]",
         match map.state {
@@ -208,7 +220,7 @@ pub fn route_map(net: &Network, map: &RouteMap) -> Result<String, NetworkError> 
 }
 
 /// Print the complete configuration to stdout
-pub fn print_config(net: &Network, config: &Config) -> Result<(), NetworkError> {
+pub fn print_config<Q>(net: &Network<Q>, config: &Config) -> Result<(), NetworkError> {
     println!("Config {{");
     for expr in config.expr.values() {
         println!("    {}", config_expr(net, expr)?);
@@ -218,7 +230,7 @@ pub fn print_config(net: &Network, config: &Config) -> Result<(), NetworkError> 
 }
 
 /// Print the configuration patch to stdout
-pub fn print_config_patch(net: &Network, patch: &ConfigPatch) -> Result<(), NetworkError> {
+pub fn print_config_patch<Q>(net: &Network<Q>, patch: &ConfigPatch) -> Result<(), NetworkError> {
     println!("ConfigPatch {{");
     for modifier in patch.modifiers.iter() {
         println!("    {}", config_modifier(net, modifier)?);
@@ -227,7 +239,7 @@ pub fn print_config_patch(net: &Network, patch: &ConfigPatch) -> Result<(), Netw
     Ok(())
 }
 
-fn route_map_match(net: &Network, map_match: &RouteMapMatch) -> Result<String, NetworkError> {
+fn route_map_match<Q>(net: &Network<Q>, map_match: &RouteMapMatch) -> Result<String, NetworkError> {
     Ok(match map_match {
         RouteMapMatch::Neighbor(n) => format!("Neighbor {}", net.get_router_name(*n)?),
         RouteMapMatch::Prefix(c) => format!("Prefix == {}", c),
@@ -238,7 +250,7 @@ fn route_map_match(net: &Network, map_match: &RouteMapMatch) -> Result<String, N
     })
 }
 
-fn route_map_set(net: &Network, map_set: &RouteMapSet) -> Result<String, NetworkError> {
+fn route_map_set<Q>(net: &Network<Q>, map_set: &RouteMapSet) -> Result<String, NetworkError> {
     Ok(match map_set {
         RouteMapSet::NextHop(nh) => format!("NextHop = {}", net.get_router_name(*nh)?),
         RouteMapSet::LocalPref(Some(lp)) => format!("LocalPref = {}", lp),

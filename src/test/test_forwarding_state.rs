@@ -22,7 +22,7 @@ use crate::{AsId, BgpSessionType::*, Network, Prefix};
 #[test]
 fn test_forwarding_state_carousel_gadget() {
     for _ in 0..10 {
-        let mut net = Network::new();
+        let mut net = Network::default();
 
         let rr = net.add_router("rr");
         let r1 = net.add_router("r1");

@@ -56,7 +56,7 @@ impl PartialEq for ForwardingState {
 
 impl ForwardingState {
     /// Extracts the forwarding state from the network.
-    pub fn from_net(net: &Network) -> Self {
+    pub fn from_net<Q>(net: &Network<Q>) -> Self {
         // initialize the prefix lookup
         let max_num_entries = net.num_devices() * net.get_known_prefixes().len();
 

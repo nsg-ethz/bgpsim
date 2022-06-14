@@ -91,7 +91,7 @@ impl fmt::Display for Condition {
 
 impl Condition {
     /// Return the string representation of the condition, with router names inserted.
-    pub fn repr_with_name(&self, net: &Network) -> String {
+    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
         match self {
             Self::Reachable(r, p, Some(c)) => format!(
                 "Reachability({}, prefix {}, condition {})",
@@ -236,7 +236,7 @@ impl fmt::Display for PathCondition {
 
 impl PathCondition {
     /// Return the string representation of the path condition, with router names inserted.
-    pub fn repr_with_name(&self, net: &Network) -> String {
+    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
         match self {
             Self::Node(r) => net.get_router_name(*r).unwrap().to_string(),
             Self::Edge(a, b) => format!(
@@ -471,7 +471,7 @@ impl fmt::Display for Waypoint {
 
 impl Waypoint {
     /// Return a string representation of the waypoint, where the router name is inserted.
-    pub fn repr_with_name(&self, net: &Network) -> String {
+    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
         String::from(match self {
             Self::Any => "?",
             Self::Star => "...",
@@ -511,7 +511,7 @@ impl PathConditionCNF {
     }
 
     /// Return the string representation of the path condition, with router names inserted.
-    pub fn repr_with_name(&self, net: &Network) -> String {
+    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
         let cond: PathCondition = self.clone().into();
         cond.repr_with_name(net)
     }
@@ -620,7 +620,7 @@ pub enum PolicyError {
 
 impl PolicyError {
     /// Get a string representing the policy error, where all router names are inserted.
-    pub fn repr_with_name(&self, net: &Network) -> String {
+    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
         match self {
             PolicyError::BlackHole { router, prefix } => format!(
                 "Black hole for prefix {} at router {}",

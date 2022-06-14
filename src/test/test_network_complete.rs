@@ -35,7 +35,7 @@ fn test_simple() {
     // |........|............
     // |        |    external
     // e0       e1
-    let mut t = Network::new();
+    let mut t = Network::default();
 
     let prefix = Prefix(0);
 
@@ -180,7 +180,7 @@ fn test_external_router() {
     //          | .-'   |
     //          r3 ---- r4 ---- e4
 
-    let mut n = Network::new();
+    let mut n = Network::default();
     let prefix = Prefix(0);
 
     // add routers
@@ -389,7 +389,7 @@ fn test_route_order1() {
     // |........|............
     // |        |    external
     // e1       e0
-    let mut t = Network::new();
+    let mut t = Network::default();
 
     let prefix = Prefix(0);
 
@@ -525,7 +525,7 @@ fn test_route_order2() {
     // |........|............
     // |        |    external
     // e1       e0
-    let mut t = Network::new();
+    let mut t = Network::default();
 
     let prefix = Prefix(0);
 
@@ -663,7 +663,7 @@ fn test_bad_gadget() {
     //    |........|........|............
     //    |        |        |external
     //    e0       e1       e2
-    let mut t = Network::new();
+    let mut t = Network::default();
 
     let prefix = Prefix(0);
 
@@ -905,7 +905,7 @@ fn change_ibgp_topology_1() {
     //      |    |    |
     //      e1   e2   e3
 
-    let mut n = Network::new();
+    let mut n = Network::default();
 
     let prefix = Prefix(0);
 
@@ -1222,7 +1222,7 @@ fn change_ibgp_topology_2() {
     //      |    |    |
     //      e1   e2   e3
 
-    let mut n = Network::new();
+    let mut n = Network::default();
 
     let prefix = Prefix(0);
 
@@ -1605,7 +1605,7 @@ fn change_ibgp_topology_2() {
 #[test]
 fn test_twicebad_gadget() {
     // Example from L. Vanbever bgpmig_ton, figure 4
-    let mut n = Network::new();
+    let mut n = Network::default();
     let prefix1 = Prefix(1);
     let prefix2 = Prefix(2);
 
@@ -2006,7 +2006,7 @@ fn test_twicebad_gadget() {
 #[test]
 fn test_pylon_gadget() {
     // Example from L. Vanbever bgpmig_ton, figure 5
-    let mut n = Network::new();
+    let mut n = Network::default();
     let prefix = Prefix(0);
 
     let s = n.add_router("s");
@@ -2308,7 +2308,7 @@ fn test_pylon_gadget() {
 #[test]
 fn carousel_gadget() {
     // Example from L. Vanbever bgpmig_ton, figure 6
-    let mut n = Network::new();
+    let mut n = Network::default();
     let prefix1 = Prefix(1);
     let prefix2 = Prefix(2);
 
@@ -2813,7 +2813,7 @@ fn carousel_gadget() {
     assert_route_equal(&n, e4, prefix2, vec![e4, p4]);
 }
 
-fn assert_route_equal(n: &Network, source: RouterId, prefix: Prefix, exp: Vec<RouterId>) {
+fn assert_route_equal<Q>(n: &Network<Q>, source: RouterId, prefix: Prefix, exp: Vec<RouterId>) {
     let acq = n.get_route(source, prefix);
     let exp = exp
         .iter()
@@ -2830,7 +2830,7 @@ fn assert_route_equal(n: &Network, source: RouterId, prefix: Prefix, exp: Vec<Ro
     }
 }
 
-fn assert_route_bad(n: &Network, source: RouterId, prefix: Prefix, exp: Vec<RouterId>) {
+fn assert_route_bad<Q>(n: &Network<Q>, source: RouterId, prefix: Prefix, exp: Vec<RouterId>) {
     let acq = n.get_route(source, prefix);
     let exp = exp
         .iter()

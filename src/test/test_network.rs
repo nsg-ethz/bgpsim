@@ -533,6 +533,8 @@ fn test_route_maps() {
     }))
     .unwrap();
 
+    eprintln!("{:#?}", net.queue);
+
     // we expect that all take R4
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *R3, *R4, *E4]));
     assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R4, *E4]),);

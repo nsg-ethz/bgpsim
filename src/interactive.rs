@@ -1,11 +1,11 @@
 //! This module contains an extension trait that allows you to interact with the simulator on a
 //! per-message level.
 
-use crate::{Network, NetworkError};
+use crate::{event::FmtPriority, EventQueue, Network, NetworkError};
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
 /// interface to simulate a single event, inspect the queue of the network, and even reorder events.
-pub trait InteractiveNetwork {
+pub trait InteractiveNetwork<Q> {
     /// Setup the network to automatically simulate each change of the network. This is the default
     /// behavior. Disable auto-simulation by using [`InteractiveNetwork::manual_simulation`].
     fn auto_simulation(&mut self);
@@ -23,7 +23,9 @@ pub trait InteractiveNetwork {
     ///
     /// Note, that this function takes ownership of `self` and returns it afterwards. This is to
     /// prohibit you to call `with_manual_simulation` multiple times.
-    fn with_manual_simulation<F: FnOnce(&mut Network)>(self, f: F) -> Self;
+    fn with_manual_simulation<F>(self, f: F) -> Self
+    where
+        F: FnOnce(&mut Network<Q>);
 
     /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
     /// will not execute any subsequent event. This function will return the number of events left
@@ -31,7 +33,11 @@ pub trait InteractiveNetwork {
     fn simulate_step(&mut self) -> Result<usize, NetworkError>;
 }
 
-impl InteractiveNetwork for Network {
+impl<Q> InteractiveNetwork<Q> for Network<Q>
+where
+    Q: EventQueue,
+    Q::Priority: Default + FmtPriority,
+{
     fn auto_simulation(&mut self) {
         self.skip_queue = false;
     }
@@ -40,7 +46,10 @@ impl InteractiveNetwork for Network {
         self.skip_queue = false;
     }
 
-    fn with_manual_simulation<F: FnOnce(&mut Network)>(mut self, f: F) -> Self {
+    fn with_manual_simulation<F>(mut self, f: F) -> Self
+    where
+        F: FnOnce(&mut Network<Q>),
+    {
         self.manual_simulation();
         f(&mut self);
         self.auto_simulation();

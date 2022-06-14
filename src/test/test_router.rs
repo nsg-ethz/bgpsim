@@ -17,7 +17,7 @@
 
 use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
 use crate::bgp::{BgpEvent, BgpRoute};
-use crate::event::{Event, EventQueue};
+use crate::event::Event;
 use crate::external_router::*;
 use crate::router::*;
 use crate::types::IgpNetwork;
@@ -27,21 +27,13 @@ use maplit::{hashmap, hashset};
 #[test]
 fn test_bgp_single() {
     let mut r = Router::new("test".to_string(), 0.into(), AsId(65001));
-    let mut queue: EventQueue = EventQueue::new();
-    r.set_bgp_session(100.into(), Some(EBgp), &mut queue)
-        .unwrap();
-    r.set_bgp_session(1.into(), Some(IBgpPeer), &mut queue)
-        .unwrap();
-    r.set_bgp_session(2.into(), Some(IBgpPeer), &mut queue)
-        .unwrap();
-    r.set_bgp_session(3.into(), Some(IBgpPeer), &mut queue)
-        .unwrap();
-    r.set_bgp_session(4.into(), Some(IBgpClient), &mut queue)
-        .unwrap();
-    r.set_bgp_session(5.into(), Some(IBgpClient), &mut queue)
-        .unwrap();
-    r.set_bgp_session(6.into(), Some(IBgpClient), &mut queue)
-        .unwrap();
+    r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
+    r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+    r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
+    r.set_bgp_session::<()>(3.into(), Some(IBgpPeer)).unwrap();
+    r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
+    r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
+    r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
     r.igp_forwarding_table = hashmap! {
         100.into() => Some((100.into(), 0.0)),
         1.into()   => Some((1.into(), 1.0)),
@@ -54,14 +46,13 @@ fn test_bgp_single() {
         11.into()  => Some((1.into(), 15.0)),
     };
 
-    let mut queue: EventQueue = EventQueue::new();
-
     /////////////////////
     // external update //
     /////////////////////
 
-    r.handle_event(
-        Event::Bgp(
+    let events = r
+        .handle_event(Event::Bgp(
+            (),
             100.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
@@ -72,20 +63,18 @@ fn test_bgp_single() {
                 med: None,
                 community: None,
             }),
-        ),
-        &mut queue,
-    )
-    .unwrap();
+        ))
+        .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
     let entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
     assert_eq!(entry.from_type, EBgp);
     assert_eq!(entry.route.next_hop, 100.into());
     assert_eq!(entry.route.local_pref, Some(100));
-    assert_eq!(queue.len(), 6);
-    while let Some(job) = queue.pop_front() {
-        match job {
-            Event::Bgp(from, _, BgpEvent::Update(r)) => {
+    assert_eq!(events.len(), 6);
+    for event in events {
+        match event {
+            Event::Bgp(_, from, _, BgpEvent::Update(r)) => {
                 assert_eq!(from, 0.into());
                 assert_eq!(r.next_hop, 100.into());
             }
@@ -101,8 +90,9 @@ fn test_bgp_single() {
 
     // update from route reflector
 
-    r.handle_event(
-        Event::Bgp(
+    let events = r
+        .handle_event(Event::Bgp(
+            (),
             1.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
@@ -113,20 +103,18 @@ fn test_bgp_single() {
                 med: None,
                 community: None,
             }),
-        ),
-        &mut queue,
-    )
-    .unwrap();
+        ))
+        .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
     let entry = r.get_selected_bgp_route(Prefix(201)).unwrap();
     assert_eq!(entry.from_type, IBgpPeer);
     assert_eq!(entry.route.next_hop, 11.into());
     assert_eq!(entry.route.local_pref, Some(50));
-    assert_eq!(queue.len(), 4);
-    while let Some(job) = queue.pop_front() {
-        match job {
-            Event::Bgp(from, to, BgpEvent::Update(r)) => {
+    assert_eq!(events.len(), 4);
+    for event in events {
+        match event {
+            Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
                 assert_eq!(from, 0.into());
                 assert!(hashset![4, 5, 6, 100].contains(&(to.index() as usize)));
                 if to == 100.into() {
@@ -145,8 +133,9 @@ fn test_bgp_single() {
 
     // update from route reflector
 
-    r.handle_event(
-        Event::Bgp(
+    let events = r
+        .handle_event(Event::Bgp(
+            (),
             2.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
@@ -157,16 +146,14 @@ fn test_bgp_single() {
                 med: None,
                 community: None,
             }),
-        ),
-        &mut queue,
-    )
-    .unwrap();
+        ))
+        .unwrap();
 
     // check that
     let entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
     assert_eq!(entry.from_type, EBgp);
     assert_eq!(entry.route.next_hop, 100.into());
-    assert_eq!(queue.len(), 0);
+    assert_eq!(events.len(), 0);
 
     ///////////////////
     // better update //
@@ -174,8 +161,9 @@ fn test_bgp_single() {
 
     // update from route reflector
 
-    r.handle_event(
-        Event::Bgp(
+    let events = r
+        .handle_event(Event::Bgp(
+            (),
             5.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
@@ -197,20 +185,18 @@ fn test_bgp_single() {
                 med: None,
                 community: None,
             }),
-        ),
-        &mut queue,
-    )
-    .unwrap();
+        ))
+        .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
     let entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
     assert_eq!(entry.from_type, IBgpClient);
     assert_eq!(entry.route.next_hop, 5.into());
     assert_eq!(entry.route.local_pref, Some(150));
-    assert_eq!(queue.len(), 7);
-    while let Some(job) = queue.pop_front() {
-        match job {
-            Event::Bgp(from, to, BgpEvent::Update(r)) => {
+    assert_eq!(events.len(), 7);
+    for event in events {
+        match event {
+            Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
                 assert_eq!(from, 0.into());
                 assert!(hashset![1, 2, 3, 4, 6, 100].contains(&(to.index() as usize)));
                 if to == 100.into() {
@@ -221,7 +207,7 @@ fn test_bgp_single() {
                     assert_eq!(r.local_pref, Some(150));
                 }
             }
-            Event::Bgp(from, to, BgpEvent::Withdraw(prefix)) => {
+            Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix)) => {
                 assert_eq!(from, 0.into());
                 assert_eq!(to, 5.into());
                 assert_eq!(prefix, Prefix(200));
@@ -233,41 +219,47 @@ fn test_bgp_single() {
     // retract bad route //
     ///////////////////////
 
-    r.handle_event(
-        Event::Bgp(2.into(), 0.into(), BgpEvent::Withdraw(Prefix(200))),
-        &mut queue,
-    )
-    .unwrap();
+    let events = r
+        .handle_event(Event::Bgp(
+            (),
+            2.into(),
+            0.into(),
+            BgpEvent::Withdraw(Prefix(200)),
+        ))
+        .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
     let new_entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
     assert_eq!(new_entry, entry);
-    assert_eq!(queue.len(), 0);
+    assert_eq!(events.len(), 0);
 
     ////////////////////////
     // retract good route //
     ////////////////////////
 
-    r.handle_event(
-        Event::Bgp(5.into(), 0.into(), BgpEvent::Withdraw(Prefix(200))),
-        &mut queue,
-    )
-    .unwrap();
+    let events = r
+        .handle_event(Event::Bgp(
+            (),
+            5.into(),
+            0.into(),
+            BgpEvent::Withdraw(Prefix(200)),
+        ))
+        .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
     //eprintln!("{:#?}", r);
     let new_entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
     assert_eq!(new_entry, original_entry);
-    assert_eq!(queue.len(), 7);
-    while let Some(job) = queue.pop_front() {
-        match job {
-            Event::Bgp(from, to, BgpEvent::Update(r)) => {
+    assert_eq!(events.len(), 7);
+    for event in events {
+        match event {
+            Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
                 assert_eq!(from, 0.into());
                 assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index() as usize)));
                 assert_eq!(r.next_hop, 100.into());
                 assert_eq!(r.local_pref, Some(100));
             }
-            Event::Bgp(from, to, BgpEvent::Withdraw(prefix)) => {
+            Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix)) => {
                 assert_eq!(from, 0.into());
                 assert_eq!(to, 100.into());
                 assert_eq!(prefix, Prefix(200));
@@ -279,22 +271,25 @@ fn test_bgp_single() {
     // retract last route //
     ////////////////////////
 
-    r.handle_event(
-        Event::Bgp(100.into(), 0.into(), BgpEvent::Withdraw(Prefix(200))),
-        &mut queue,
-    )
-    .unwrap();
+    let events = r
+        .handle_event(Event::Bgp(
+            (),
+            100.into(),
+            0.into(),
+            BgpEvent::Withdraw(Prefix(200)),
+        ))
+        .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
     assert!(r.get_selected_bgp_route(Prefix(200)).is_none());
-    assert_eq!(queue.len(), 6);
-    while let Some(job) = queue.pop_front() {
-        match job {
-            Event::Bgp(from, to, BgpEvent::Withdraw(Prefix(200))) => {
+    assert_eq!(events.len(), 6);
+    for event in events {
+        match event {
+            Event::Bgp(_, from, to, BgpEvent::Withdraw(Prefix(200))) => {
                 assert_eq!(from, 0.into());
                 assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index() as usize)));
             }
-            _ => unreachable!(),
+            _ => panic!(),
         }
     }
 }
@@ -328,8 +323,7 @@ fn test_fw_table_simple() {
      * a       e
      */
 
-    r_a.write_igp_forwarding_table(&net, &mut EventQueue::new())
-        .unwrap();
+    r_a.write_igp_forwarding_table::<()>(&net).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => Some((r_a.router_id(), 0.0)),
@@ -346,8 +340,7 @@ fn test_fw_table_simple() {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
     }
 
-    r_b.write_igp_forwarding_table(&net, &mut EventQueue::new())
-        .unwrap();
+    r_b.write_igp_forwarding_table::<()>(&net).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => Some((r_a.router_id(), 1.0)),
@@ -364,8 +357,7 @@ fn test_fw_table_simple() {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
     }
 
-    r_c.write_igp_forwarding_table(&net, &mut EventQueue::new())
-        .unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => Some((r_b.router_id(), 2.0)),
@@ -428,8 +420,7 @@ fn test_igp_fw_table_complex() {
      *    1      8      1
      */
 
-    r_a.write_igp_forwarding_table(&net, &mut EventQueue::new())
-        .unwrap();
+    r_a.write_igp_forwarding_table::<()>(&net).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => Some((r_a.router_id(), 0.0)),
@@ -449,8 +440,7 @@ fn test_igp_fw_table_complex() {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
     }
 
-    r_c.write_igp_forwarding_table(&net, &mut EventQueue::new())
-        .unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => Some((r_f.router_id(), 3.0)),
@@ -475,26 +465,26 @@ fn test_igp_fw_table_complex() {
 fn external_router_advertise_to_neighbors() {
     // test that an external router will advertise a route to an already existing neighbor
     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
-    let mut queue = EventQueue::new();
 
     // add the session
-    r.establish_ebgp_session(1.into(), &mut queue).unwrap();
-    assert_eq!(queue.len(), 0);
+    let events = r.establish_ebgp_session::<()>(1.into()).unwrap();
+    assert!(events.is_empty());
 
     // add the session again and check that an error is returned
     assert_eq!(
-        r.establish_ebgp_session(1.into(), &mut queue),
+        r.establish_ebgp_session::<()>(1.into()),
         Err(DeviceError::SessionAlreadyExists(1.into()))
     );
 
     // advertise route
-    r.advertise_prefix(Prefix(0), vec![AsId(0)], None, None, &mut queue);
+    let (_, events) = r.advertise_prefix(Prefix(0), vec![AsId(0)], None, None);
 
     // check that one event was created
-    assert_eq!(queue.len(), 1);
+    assert_eq!(events.len(), 1);
     assert_eq!(
-        queue.pop_front().unwrap(),
+        events[0],
         Event::Bgp(
+            (),
             0.into(),
             1.into(),
             BgpEvent::Update(BgpRoute {
@@ -509,13 +499,13 @@ fn external_router_advertise_to_neighbors() {
     );
 
     // emove the route
-    r.widthdraw_prefix(Prefix(0), &mut queue);
+    let events = r.widthdraw_prefix(Prefix(0));
 
     // check that one event was created
-    assert_eq!(queue.len(), 1);
+    assert_eq!(events.len(), 1);
     assert_eq!(
-        queue.pop_front().unwrap(),
-        Event::Bgp(0.into(), 1.into(), BgpEvent::Withdraw(Prefix(0)))
+        events[0],
+        Event::Bgp((), 0.into(), 1.into(), BgpEvent::Withdraw(Prefix(0)))
     )
 }
 
@@ -523,22 +513,22 @@ fn external_router_advertise_to_neighbors() {
 fn external_router_new_neighbor() {
     // test that an external router will advertise a route to an already existing neighbor
     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
-    let mut queue = EventQueue::new();
 
     // advertise route
-    r.advertise_prefix(Prefix(0), vec![AsId(0)], None, None, &mut queue);
+    let (_, events) = r.advertise_prefix::<()>(Prefix(0), vec![AsId(0)], None, None);
 
     // check that no event was created
-    assert_eq!(queue.len(), 0);
+    assert_eq!(events.len(), 0);
 
     // add a neighbor and check that the route is advertised
-    r.establish_ebgp_session(1.into(), &mut queue).unwrap();
+    let events = r.establish_ebgp_session(1.into()).unwrap();
 
     // check that one event was created
-    assert_eq!(queue.len(), 1);
+    assert_eq!(events.len(), 1);
     assert_eq!(
-        queue.pop_front().unwrap(),
+        events[0],
         Event::Bgp(
+            (),
             0.into(),
             1.into(),
             BgpEvent::Update(BgpRoute {
@@ -560,6 +550,6 @@ fn external_router_new_neighbor() {
     );
 
     // then, withdraw the session
-    r.widthdraw_prefix(Prefix(0), &mut queue);
-    assert_eq!(queue.len(), 0);
+    let events = r.widthdraw_prefix::<()>(Prefix(0));
+    assert!(events.is_empty());
 }

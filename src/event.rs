@@ -18,30 +18,125 @@
 //! Module for defining events
 
 use crate::bgp::BgpEvent;
-use crate::{Prefix, RouterId};
-use std::collections::VecDeque;
+use crate::router::Router;
+use crate::{IgpNetwork, Prefix, RouterId};
+use std::collections::{HashMap, VecDeque};
 
 /// Event to handle
 #[derive(Debug, Clone, PartialEq)]
-pub enum Event {
-    /// BGP Event from `#0` to `#1`.
-    Bgp(RouterId, RouterId, BgpEvent),
+pub enum Event<P> {
+    /// BGP Event from `#1` to `#2`.
+    Bgp(P, RouterId, RouterId, BgpEvent),
 }
 
-impl Event {
+impl<P> Event<P> {
     /// Returns the prefix for which this event talks about.
     pub fn prefix(&self) -> Option<Prefix> {
         match self {
-            Event::Bgp(_, _, BgpEvent::Update(route)) => Some(route.prefix),
-            Event::Bgp(_, _, BgpEvent::Withdraw(prefix)) => Some(*prefix),
+            Event::Bgp(_, _, _, BgpEvent::Update(route)) => Some(route.prefix),
+            Event::Bgp(_, _, _, BgpEvent::Withdraw(prefix)) => Some(*prefix),
+        }
+    }
+
+    /// Get a reference to the priority of this event.
+    pub fn priority(&self) -> &P {
+        match self {
+            Event::Bgp(p, _, _, _) => p,
         }
     }
 
     /// Returns true if the event is a bgp message
     pub fn is_bgp_event(&self) -> bool {
-        matches!(self, Event::Bgp(_, _, _))
+        matches!(self, Event::Bgp(_, _, _, _))
     }
 }
 
-/// Event queue for enqueuing events.
-pub type EventQueue = VecDeque<Event>;
+/// Interface of an event queue.
+pub trait EventQueue {
+    /// Type of the priority.
+    type Priority;
+
+    /// Create an empty event queue
+    fn new() -> Self;
+
+    /// Enqueue a new event.
+    fn push(
+        &mut self,
+        event: Event<Self::Priority>,
+        routers: &HashMap<RouterId, Router>,
+        net: &IgpNetwork,
+    );
+
+    /// pop the next event
+    fn pop(&mut self) -> Option<Event<Self::Priority>>;
+
+    /// peek the next event
+    fn peek(&self) -> Option<&Event<Self::Priority>>;
+
+    /// Get the number of enqueued events
+    fn len(&self) -> usize;
+
+    /// Return `True` if no event is enqueued.
+    fn is_empty(&self) -> bool;
+}
+
+/// Basic event queue
+#[derive(PartialEq, Clone, Debug, Default)]
+pub struct BasicEventQueue(VecDeque<Event<()>>);
+
+impl EventQueue for BasicEventQueue {
+    type Priority = ();
+
+    fn new() -> Self {
+        Self(VecDeque::new())
+    }
+
+    fn push(
+        &mut self,
+        event: Event<Self::Priority>,
+        _: &HashMap<RouterId, Router>,
+        _: &IgpNetwork,
+    ) {
+        self.0.push_back(event)
+    }
+
+    fn pop(&mut self) -> Option<Event<Self::Priority>> {
+        self.0.pop_front()
+    }
+
+    fn peek(&self) -> Option<&Event<Self::Priority>> {
+        self.0.front()
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+}
+
+/// Display type for Priority
+pub trait FmtPriority {
+    /// Display the priority
+    fn fmt(&self) -> String;
+}
+
+impl FmtPriority for f64 {
+    fn fmt(&self) -> String {
+        format!("(time: {})", self)
+    }
+}
+
+impl FmtPriority for usize {
+    fn fmt(&self) -> String {
+        format!("(priority: {})", self)
+    }
+}
+
+impl FmtPriority for () {
+    fn fmt(&self) -> String {
+        String::new()
+    }
+}

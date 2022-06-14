@@ -20,10 +20,11 @@
 //! This module represents the network topology, applies the configuration, and simulates the
 //! network.
 
-use crate::bgp::{BgpEvent, BgpSessionType};
+use crate::bgp::BgpSessionType;
 use crate::config::NetworkConfig;
-use crate::event::{Event, EventQueue};
+use crate::event::{BasicEventQueue, Event, EventQueue, FmtPriority};
 use crate::external_router::ExternalRouter;
+use crate::printer::event as print_event;
 use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::router::Router;
 use crate::types::{IgpNetwork, NetworkDevice};
@@ -33,7 +34,7 @@ use log::*;
 use petgraph::algo::FloatMeasure;
 use std::collections::{HashMap, HashSet};
 
-static DEFAULT_STOP_AFTER: usize = 10_000;
+static DEFAULT_STOP_AFTER: usize = 100_000;
 
 #[derive(Debug)]
 /// # Network struct
@@ -41,18 +42,18 @@ static DEFAULT_STOP_AFTER: usize = 10_000;
 /// all (both internal and external) routers, and handles all events between them.
 ///
 /// If you wish to interact with the network by using configuration, then import the trait `NetworkConfig`.
-pub struct Network {
+pub struct Network<Q = BasicEventQueue> {
     pub(crate) net: IgpNetwork,
     pub(crate) links: Vec<(RouterId, RouterId)>,
     pub(crate) routers: HashMap<RouterId, Router>,
     pub(crate) external_routers: HashMap<RouterId, ExternalRouter>,
     pub(crate) known_prefixes: HashSet<Prefix>,
     pub(crate) stop_after: Option<usize>,
-    pub(crate) queue: EventQueue,
+    pub(crate) queue: Q,
     pub(crate) skip_queue: bool,
 }
 
-impl Clone for Network {
+impl<Q: Clone> Clone for Network<Q> {
     /// Cloning the network does not clone the event history.
     fn clone(&self) -> Self {
         // for the new queue, remove the history of all enqueued events
@@ -69,27 +70,13 @@ impl Clone for Network {
     }
 }
 
-impl Default for Network {
+impl Default for Network<BasicEventQueue> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Network {
-    /// Generate an empty Network
-    pub fn new() -> Self {
-        Self {
-            net: IgpNetwork::new(),
-            links: Vec::new(),
-            routers: HashMap::new(),
-            known_prefixes: HashSet::new(),
-            external_routers: HashMap::new(),
-            stop_after: Some(DEFAULT_STOP_AFTER),
-            queue: EventQueue::new(),
-            skip_queue: false,
-        }
-    }
-
+impl<Q> Network<Q> {
     /// Add a new router to the topology. Note, that the AS id is always set to `AsId(65001)`. This
     /// function returns the ID of the router, which can be used to reference it while confiugring
     /// the network.
@@ -138,89 +125,6 @@ impl Network {
         self.links.push((source, target));
         self.net.add_edge(source, target, LinkWeight::infinite());
         self.net.add_edge(target, source, LinkWeight::infinite());
-    }
-
-    /// Advertise an external route and let the network converge, The source must be a `RouterId`
-    /// of an `ExternalRouter`. If not, an error is returned. When advertising a route, all
-    /// eBGP neighbors will receive an update with the new route. If a neighbor is added later
-    /// (after `advertise_external_route` is called), then this new neighbor will receive an update
-    /// as well.
-    pub fn advertise_external_route(
-        &mut self,
-        source: RouterId,
-        prefix: Prefix,
-        as_path: Vec<AsId>,
-        med: Option<u32>,
-        community: Option<u32>,
-    ) -> Result<(), NetworkError> {
-        debug!(
-            "Advertise prefix {} on {}",
-            prefix.0,
-            self.get_router_name(source)?
-        );
-        // insert the prefix into the hashset
-        self.known_prefixes.insert(prefix);
-
-        // initiate the advertisement
-        self.external_routers
-            .get_mut(&source)
-            .ok_or(NetworkError::DeviceNotFound(source))?
-            .advertise_prefix(prefix, as_path, med, community, &mut self.queue);
-
-        self.do_queue_maybe_skip()
-    }
-
-    /// Retract an external route and let the network converge. The source must be a `RouterId` of
-    /// an `ExternalRouter`. All current eBGP neighbors will receive a withdraw message.
-    pub fn retract_external_route(
-        &mut self,
-        source: RouterId,
-        prefix: Prefix,
-    ) -> Result<(), NetworkError> {
-        debug!(
-            "Retract prefix {} on {}",
-            prefix.0,
-            self.get_router_name(source)?
-        );
-
-        self.external_routers
-            .get_mut(&source)
-            .ok_or(NetworkError::DeviceNotFound(source))?
-            .widthdraw_prefix(prefix, &mut self.queue);
-
-        // run the queue
-        self.do_queue_maybe_skip()
-    }
-
-    /// Simulate a link failure in the network. This is done by removing the actual link from the
-    /// network topology. Afterwards, it will update the IGP forwarding table, and perform the BGP
-    /// decision process, which will cause a convergence process.
-    pub fn simulate_link_failure(
-        &mut self,
-        router_a: RouterId,
-        router_b: RouterId,
-    ) -> Result<(), NetworkError> {
-        debug!(
-            "Simulate link failure: {} -- {}",
-            self.get_router_name(router_a)?,
-            self.get_router_name(router_b)?
-        );
-
-        // Remove the link in one direction
-        self.net.remove_edge(
-            self.net
-                .find_edge(router_a, router_b)
-                .ok_or(NetworkError::LinkNotFound(router_a, router_b))?,
-        );
-
-        // Rremove the link in the other direction
-        self.net.remove_edge(
-            self.net
-                .find_edge(router_b, router_a)
-                .ok_or(NetworkError::LinkNotFound(router_b, router_a))?,
-        );
-
-        self.write_igp_fw_tables()
     }
 
     /// Compute and return the current forwarding state.
@@ -403,33 +307,29 @@ impl Network {
         println!();
         Ok(())
     }
+}
 
-    /// Checks for weak equivalence, by only comparing the BGP tables. This funciton assumes that
-    /// both networks have identical routers, identical topologies, identical configuration and that
-    /// the same routes are advertised by the same external routers.
-    pub fn weak_eq(&self, other: &Self) -> bool {
-        // check if the queue is the same. Notice that the length of the queue will be checked
-        // before every element is compared!
-        if self.queue != other.queue {
-            return false;
+impl<Q: Default> Network<Q> {
+    /// Generate an empty Network
+    pub fn new() -> Self {
+        Self {
+            net: IgpNetwork::new(),
+            links: Vec::new(),
+            routers: HashMap::new(),
+            known_prefixes: HashSet::new(),
+            external_routers: HashMap::new(),
+            stop_after: Some(DEFAULT_STOP_AFTER),
+            queue: Q::default(),
+            skip_queue: false,
         }
-
-        // check if the forwarding state is the same
-        if self.get_forwarding_state() != other.get_forwarding_state() {
-            return false;
-        }
-
-        // if we have passed all those tests, it is time to check if the BGP tables on the routers
-        // are the same.
-        for router in self.routers.keys() {
-            if !self.routers[router].compare_bgp_table(other.routers.get(router).unwrap()) {
-                return false;
-            }
-        }
-
-        true
     }
+}
 
+impl<Q> Network<Q>
+where
+    Q: EventQueue,
+    Q::Priority: Default + FmtPriority,
+{
     /// Setup a BGP session between source and target. If `session_type` is `None`, then any
     /// existing session will be removed. Otherwise, any existing session will be replaced by the
     /// `session_type`.
@@ -491,15 +391,18 @@ impl Network {
                 .get_mut(&source)
                 .ok_or(NetworkError::DeviceNotFound(source))?;
             if source_type.is_some() {
-                r.establish_ebgp_session(target, &mut self.queue)?;
+                let events = r.establish_ebgp_session(target)?;
+                self.enqueue_events(events);
             } else {
                 r.close_ebgp_session(target)?;
             }
         } else {
-            self.routers
+            let (_, events) = self
+                .routers
                 .get_mut(&source)
                 .ok_or(NetworkError::DeviceNotFound(source))?
-                .set_bgp_session(target, source_type, &mut self.queue)?;
+                .set_bgp_session(target, source_type)?;
+            self.enqueue_events(events);
         }
         // configure target
         if is_target_external {
@@ -508,15 +411,18 @@ impl Network {
                 .get_mut(&target)
                 .ok_or(NetworkError::DeviceNotFound(target))?;
             if target_type.is_some() {
-                r.establish_ebgp_session(source, &mut self.queue)?;
+                let events = r.establish_ebgp_session(source)?;
+                self.enqueue_events(events);
             } else {
                 r.close_ebgp_session(source)?;
             }
         } else {
-            self.routers
+            let (_, events) = self
+                .routers
                 .get_mut(&target)
                 .ok_or(NetworkError::DeviceNotFound(target))?
-                .set_bgp_session(source, target_type, &mut self.queue)?;
+                .set_bgp_session(source, target_type)?;
+            self.enqueue_events(events);
         }
         self.do_queue_maybe_skip()
     }
@@ -558,11 +464,14 @@ impl Network {
         route_map: RouteMap,
         direction: RouteMapDirection,
     ) -> Result<Option<RouteMap>, NetworkError> {
-        self.routers
+        let (old_map, events) = self
+            .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
-            .set_bgp_route_map(route_map, direction, &mut self.queue)?;
-        todo!()
+            .set_bgp_route_map(route_map, direction)?;
+        self.enqueue_events(events);
+        self.do_queue_maybe_skip()?;
+        Ok(old_map)
     }
 
     /// Remove the route map on a router in the network. The old route-map will be returned.
@@ -576,11 +485,100 @@ impl Network {
         order: usize,
         direction: RouteMapDirection,
     ) -> Result<Option<RouteMap>, NetworkError> {
-        self.routers
+        let (old_map, events) = self
+            .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
-            .remove_bgp_route_map(order, direction, &mut self.queue)?;
-        todo!()
+            .remove_bgp_route_map(order, direction)?;
+        self.enqueue_events(events);
+        self.do_queue_maybe_skip()?;
+        Ok(old_map)
+    }
+    /// Advertise an external route and let the network converge, The source must be a `RouterId`
+    /// of an `ExternalRouter`. If not, an error is returned. When advertising a route, all
+    /// eBGP neighbors will receive an update with the new route. If a neighbor is added later
+    /// (after `advertise_external_route` is called), then this new neighbor will receive an update
+    /// as well.
+    pub fn advertise_external_route(
+        &mut self,
+        source: RouterId,
+        prefix: Prefix,
+        as_path: Vec<AsId>,
+        med: Option<u32>,
+        community: Option<u32>,
+    ) -> Result<(), NetworkError> {
+        debug!(
+            "Advertise prefix {} on {}",
+            prefix.0,
+            self.get_router_name(source)?
+        );
+        // insert the prefix into the hashset
+        self.known_prefixes.insert(prefix);
+
+        // initiate the advertisement
+        let (_, events) = self
+            .external_routers
+            .get_mut(&source)
+            .ok_or(NetworkError::DeviceNotFound(source))?
+            .advertise_prefix(prefix, as_path, med, community);
+        self.enqueue_events(events);
+
+        self.do_queue_maybe_skip()
+    }
+
+    /// Retract an external route and let the network converge. The source must be a `RouterId` of
+    /// an `ExternalRouter`. All current eBGP neighbors will receive a withdraw message.
+    pub fn retract_external_route(
+        &mut self,
+        source: RouterId,
+        prefix: Prefix,
+    ) -> Result<(), NetworkError> {
+        debug!(
+            "Retract prefix {} on {}",
+            prefix.0,
+            self.get_router_name(source)?
+        );
+
+        let events = self
+            .external_routers
+            .get_mut(&source)
+            .ok_or(NetworkError::DeviceNotFound(source))?
+            .widthdraw_prefix(prefix);
+        self.enqueue_events(events);
+
+        // run the queue
+        self.do_queue_maybe_skip()
+    }
+
+    /// Simulate a link failure in the network. This is done by removing the actual link from the
+    /// network topology. Afterwards, it will update the IGP forwarding table, and perform the BGP
+    /// decision process, which will cause a convergence process.
+    pub fn simulate_link_failure(
+        &mut self,
+        router_a: RouterId,
+        router_b: RouterId,
+    ) -> Result<(), NetworkError> {
+        debug!(
+            "Simulate link failure: {} -- {}",
+            self.get_router_name(router_a)?,
+            self.get_router_name(router_b)?
+        );
+
+        // Remove the link in one direction
+        self.net.remove_edge(
+            self.net
+                .find_edge(router_a, router_b)
+                .ok_or(NetworkError::LinkNotFound(router_a, router_b))?,
+        );
+
+        // Rremove the link in the other direction
+        self.net.remove_edge(
+            self.net
+                .find_edge(router_b, router_a)
+                .ok_or(NetworkError::LinkNotFound(router_b, router_a))?,
+        );
+
+        self.write_igp_fw_tables()
     }
 
     /// Simulate the network behavior, given the current event queue. This function will execute all
@@ -619,9 +617,11 @@ impl Network {
     /// error if an event was not handled correctly.
     pub(crate) fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
         // update igp table
+        let mut events = vec![];
         for r in self.routers.values_mut() {
-            r.write_igp_forwarding_table(&self.net, &mut self.queue)?;
+            events.append(&mut r.write_igp_forwarding_table(&self.net)?);
         }
+        self.enqueue_events(events);
         self.do_queue_maybe_skip()
     }
 
@@ -641,44 +641,74 @@ impl Network {
     /// Executes one single step. If the result is Ok(true), then a step is successfully executed.
     /// If the result is Ok(false), then there was no event present in the queue.
     pub(crate) fn do_queue_step(&mut self) -> Result<bool, NetworkError> {
-        if let Some(event) = self.queue.pop_front() {
+        if let Some(event) = self.queue.pop() {
             // log the job
             self.log_event(&event)?;
             // execute the event
-            let _fw_state_change = match event {
-                Event::Bgp(from, to, bgp_event) => {
+            let events = match event {
+                Event::Bgp(p, from, to, bgp_event) => {
                     //self.bgp_race_checker(to, &bgp_event, &history);
                     if let Some(r) = self.routers.get_mut(&to) {
-                        r.handle_event(Event::Bgp(from, to, bgp_event), &mut self.queue)?
+                        r.handle_event(Event::Bgp(p, from, to, bgp_event))?
                     } else if let Some(r) = self.external_routers.get_mut(&to) {
-                        r.handle_event(Event::Bgp(from, to, bgp_event), &mut self.queue)?
+                        r.handle_event(Event::Bgp(p, from, to, bgp_event))?
                     } else {
                         return Err(NetworkError::DeviceNotFound(to));
                     }
                 }
             };
+            self.enqueue_events(events);
             Ok(true)
         } else {
             Ok(false)
         }
     }
 
-    pub(crate) fn log_event(&self, event: &Event) -> Result<(), NetworkError> {
-        match event {
-            Event::Bgp(from, to, BgpEvent::Update(route)) => trace!(
-                "{} -> {}: BGP Update prefix {}",
-                self.get_router_name(*from)?,
-                self.get_router_name(*to)?,
-                route.prefix.0
-            ),
-            Event::Bgp(from, to, BgpEvent::Withdraw(prefix)) => trace!(
-                "{} -> {}: BGP withdraw prefix {}",
-                self.get_router_name(*from)?,
-                self.get_router_name(*to)?,
-                prefix.0
-            ),
-        }
+    pub(crate) fn log_event(&self, e: &Event<Q::Priority>) -> Result<(), NetworkError> {
+        trace!("{}", print_event(self, e)?);
         Ok(())
+    }
+
+    /// Enqueue the event
+    fn enqueue_event(&mut self, event: Event<Q::Priority>) {
+        self.queue.push(event, &self.routers, &self.net)
+    }
+
+    /// Enqueue all events
+    fn enqueue_events(&mut self, events: Vec<Event<Q::Priority>>) {
+        events.into_iter().for_each(|e| self.enqueue_event(e))
+    }
+}
+
+impl<Q> Network<Q>
+where
+    Q: EventQueue + PartialEq,
+    Q::Priority: Default,
+{
+    /// Checks for weak equivalence, by only comparing the BGP tables. This funciton assumes that
+    /// both networks have identical routers, identical topologies, identical configuration and that
+    /// the same routes are advertised by the same external routers.
+    pub fn weak_eq(&self, other: &Self) -> bool {
+        // check if the queue is the same. Notice that the length of the queue will be checked
+        // before every element is compared!
+        if self.queue != other.queue {
+            return false;
+        }
+
+        // check if the forwarding state is the same
+        if self.get_forwarding_state() != other.get_forwarding_state() {
+            return false;
+        }
+
+        // if we have passed all those tests, it is time to check if the BGP tables on the routers
+        // are the same.
+        for router in self.routers.keys() {
+            if !self.routers[router].compare_bgp_table(other.routers.get(router).unwrap()) {
+                return false;
+            }
+        }
+
+        true
     }
 }
 
@@ -686,7 +716,11 @@ impl Network {
 /// checks "simple" conditions, like the configuration, before checking the state of each individual
 /// router. Use the `Network::weak_eq` function to skip some checks, which can be known beforehand.
 /// This implementation will check the configuration, advertised prefixes and all routers.
-impl PartialEq for Network {
+impl<Q> PartialEq for Network<Q>
+where
+    Q: EventQueue + PartialEq,
+    Q::Priority: Default + FmtPriority,
+{
     fn eq(&self, other: &Self) -> bool {
         // first, check if the same number of internal and external routers exists
         if self.routers.len() != other.routers.len()

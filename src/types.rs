@@ -19,9 +19,7 @@
 
 use crate::bgp::BgpSessionType;
 use crate::config::ConfigModifier;
-use crate::event::Event;
 use crate::external_router::ExternalRouter;
-use crate::network::Network;
 use crate::router::Router;
 use petgraph::prelude::*;
 use petgraph::stable_graph::StableGraph;
@@ -229,9 +227,6 @@ pub enum NetworkError {
         "Inconsistent BGP Session: both source {0:?} and target: {1:?} treat the other as client."
     )]
     InconsistentBgpSession(RouterId, RouterId),
-    /// Convergence Problem, but loop was detected
-    #[error("Network cannot converge, loop was found!")]
-    ConvergenceLoop(Vec<Event>, Vec<Network>),
     /// Convergence Problem
     #[error("Network cannot converge in the given time!")]
     NoConvergence,
@@ -245,9 +240,6 @@ pub enum NetworkError {
     /// expectation.
     #[error("Unexpected event during convergence loop extraction")]
     UnexpectedEventConvergenceLoop,
-    /// Event cannot be handled by the network
-    #[error("Cannot handle the event: {0:?}")]
-    InvalidEvent(Event),
     /// History is invalid
     #[error("History is invalid: {0}")]
     HistoryError(&'static str),

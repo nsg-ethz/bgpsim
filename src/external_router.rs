@@ -21,7 +21,7 @@
 //! operators.
 
 use crate::bgp::{BgpEvent, BgpRoute};
-use crate::event::{Event, EventQueue};
+use crate::event::Event;
 use crate::{AsId, DeviceError, Prefix, RouterId};
 use std::collections::HashSet;
 
@@ -70,17 +70,16 @@ impl ExternalRouter {
 
     /// Handle an `Event` and produce the necessary result. Always returns Ok(false), to tell that
     /// the forwarding state has not changed.
-    pub(crate) fn handle_event(
+    pub(crate) fn handle_event<P>(
         &mut self,
-        _event: Event,
-        _queue: &mut EventQueue,
-    ) -> Result<bool, DeviceError> {
-        Ok(false)
+        _event: Event<P>,
+    ) -> Result<Vec<Event<P>>, DeviceError> {
+        Ok(vec![])
     }
 
     /// Check if something would happen when the event would be processed by this device
     #[allow(dead_code)]
-    pub(crate) fn peek_event(&self, _event: Event) -> Result<bool, DeviceError> {
+    pub(crate) fn peek_event<P>(&self, _event: Event<P>) -> Result<bool, DeviceError> {
         Ok(false)
     }
 
@@ -106,14 +105,13 @@ impl ExternalRouter {
 
     /// Start advertizing a specific route. All neighbors (including future neighbors) will get an
     /// update message with the route.
-    pub fn advertise_prefix(
+    pub(crate) fn advertise_prefix<P: Default>(
         &mut self,
         prefix: Prefix,
         as_path: Vec<AsId>,
         med: Option<u32>,
         community: Option<u32>,
-        queue: &mut EventQueue,
-    ) -> BgpRoute {
+    ) -> (BgpRoute, Vec<Event<P>>) {
         let route = BgpRoute {
             prefix,
             as_path,
@@ -138,15 +136,17 @@ impl ExternalRouter {
 
         // send an UPDATE to all neighbors
         let bgp_event = BgpEvent::Update(route.clone());
-        for neighbor in self.neighbors.iter() {
-            queue.push_back(Event::Bgp(self.router_id, *neighbor, bgp_event.clone()));
-        }
+        let events = self
+            .neighbors
+            .iter()
+            .map(|n| Event::Bgp(P::default(), self.router_id, *n, bgp_event.clone()))
+            .collect();
 
-        route
+        (route, events)
     }
 
     /// Send a BGP WITHDRAW to all neighbors for the given prefix
-    pub fn widthdraw_prefix(&mut self, prefix: Prefix, queue: &mut EventQueue) {
+    pub(crate) fn widthdraw_prefix<P: Default>(&mut self, prefix: Prefix) -> Vec<Event<P>> {
         // Find the position of the prefix in the vector
         // NOTE: We know that a prefix can only be in the list once, because the field
         // `active_routes` is private, and the only way to change it is through the exposed
@@ -158,22 +158,20 @@ impl ExternalRouter {
             self.active_routes.remove(pos);
 
             // only send the withdraw if the route actually did exist
-            for neighbor in self.neighbors.iter() {
-                queue.push_back(Event::Bgp(
-                    self.router_id,
-                    *neighbor,
-                    BgpEvent::Withdraw(prefix),
-                ));
-            }
+            self.neighbors
+                .iter()
+                .map(|n| Event::Bgp(P::default(), self.router_id, *n, BgpEvent::Withdraw(prefix)))
+                .collect()
+        } else {
+            vec![]
         }
     }
 
     /// Add an ebgp session with an internal router. Generate all events.
-    pub fn establish_ebgp_session(
+    pub(crate) fn establish_ebgp_session<P: Default>(
         &mut self,
         router: RouterId,
-        queue: &mut EventQueue,
-    ) -> Result<(), DeviceError> {
+    ) -> Result<Vec<Event<P>>, DeviceError> {
         // check if the neighbor is already in the list
         if self.neighbors.contains(&router) {
             return Err(DeviceError::SessionAlreadyExists(router));
@@ -183,18 +181,22 @@ impl ExternalRouter {
         self.neighbors.push(router);
 
         // send all prefixes to this router
-        for route in self.active_routes.iter() {
-            queue.push_back(Event::Bgp(
-                self.router_id,
-                router,
-                BgpEvent::Update(route.clone()),
-            ));
-        }
-        Ok(())
+        Ok(self
+            .active_routes
+            .iter()
+            .map(|r| {
+                Event::Bgp(
+                    P::default(),
+                    self.router_id,
+                    router,
+                    BgpEvent::Update(r.clone()),
+                )
+            })
+            .collect())
     }
 
     /// Close an existing eBGP session with an internal router.
-    pub fn close_ebgp_session(&mut self, router: RouterId) -> Result<(), DeviceError> {
+    pub(crate) fn close_ebgp_session(&mut self, router: RouterId) -> Result<(), DeviceError> {
         // NOTE: Since `self.neighbors` is private, and the only way to add neighbors is by calling
         // `establish_ebgp_session`, which only inserts neighbors if it isn't yet present in the
         // list, we know that the router will not be in the list more than once.

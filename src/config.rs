@@ -74,8 +74,11 @@
 use log::debug;
 
 use crate::bgp::BgpSessionType;
+use crate::event::FmtPriority;
 use crate::route_map::{RouteMap, RouteMapDirection};
-use crate::{printer, ConfigError, LinkWeight, Network, NetworkError, Prefix, RouterId};
+use crate::{
+    printer, ConfigError, EventQueue, LinkWeight, Network, NetworkError, Prefix, RouterId,
+};
 
 use petgraph::algo::FloatMeasure;
 use std::collections::{HashMap, HashSet};
@@ -567,7 +570,11 @@ pub trait NetworkConfig {
     fn get_config(&self) -> Result<Config, NetworkError>;
 }
 
-impl NetworkConfig for Network {
+impl<Q> NetworkConfig for Network<Q>
+where
+    Q: EventQueue,
+    Q::Priority: Default + FmtPriority,
+{
     /// Set the provided network-wide configuration. The network first computes the patch from the
     /// current configuration to the next one, and applies the patch. If the patch cannot be
     /// applied, then an error is returned. Note, that this function may apply a large number of
@@ -610,14 +617,7 @@ impl NetworkConfig for Network {
                     source,
                     target,
                     weight,
-                } => {
-                    // check if router has a link to target
-                    if !self.net.contains_edge(*source, *target) {
-                        return Err(NetworkError::RoutersNotConnected(*source, *target));
-                    }
-                    self.net.update_edge(*source, *target, *weight);
-                    self.write_igp_fw_tables()
-                }
+                } => self.set_link_weight(*source, *target, *weight).map(|_| ()),
                 ConfigExpr::BgpSession {
                     source,
                     target,
@@ -627,13 +627,9 @@ impl NetworkConfig for Network {
                     router,
                     direction,
                     map,
-                } => {
-                    self.routers
-                        .get_mut(router)
-                        .ok_or(NetworkError::DeviceNotFound(*router))?
-                        .set_bgp_route_map(map.clone(), *direction, &mut self.queue)?;
-                    self.do_queue_maybe_skip()
-                }
+                } => self
+                    .set_bgp_route_map(*router, map.clone(), *direction)
+                    .map(|_| ()),
                 ConfigExpr::StaticRoute {
                     router,
                     prefix,
@@ -655,15 +651,9 @@ impl NetworkConfig for Network {
                     source,
                     target,
                     weight: _,
-                } => {
-                    // check if router has a link to target
-                    if !self.net.contains_edge(*source, *target) {
-                        return Err(NetworkError::RoutersNotConnected(*source, *target));
-                    }
-                    self.net
-                        .update_edge(*source, *target, LinkWeight::infinite());
-                    self.write_igp_fw_tables()
-                }
+                } => self
+                    .set_link_weight(*source, *target, LinkWeight::infinite())
+                    .map(|_| ()),
                 ConfigExpr::BgpSession {
                     source,
                     target,
@@ -673,13 +663,9 @@ impl NetworkConfig for Network {
                     router,
                     direction,
                     map,
-                } => {
-                    self.routers
-                        .get_mut(router)
-                        .ok_or(NetworkError::DeviceNotFound(*router))?
-                        .remove_bgp_route_map(map.order, *direction, &mut self.queue)?;
-                    self.do_queue_maybe_skip()
-                }
+                } => self
+                    .remove_bgp_route_map(*router, map.order, *direction)
+                    .map(|_| ()),
 
                 ConfigExpr::StaticRoute {
                     router,
@@ -739,11 +725,7 @@ impl NetworkConfig for Network {
                         map: m2,
                     },
                 ) if r1 == r2 && d1 == d2 => {
-                    self.routers
-                        .get_mut(r1)
-                        .ok_or(NetworkError::DeviceNotFound(*r1))?
-                        .set_bgp_route_map(m2.clone(), *d1, &mut self.queue)?;
-                    self.do_queue_maybe_skip()
+                    self.set_bgp_route_map(*r1, m2.clone(), *d1).map(|_| ())
                 }
                 (
                     ConfigExpr::StaticRoute {
