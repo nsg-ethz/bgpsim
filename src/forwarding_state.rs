@@ -19,6 +19,7 @@
 //! containing the state, and providing some helper functions to extract certain information about
 //! the state.
 
+use crate::record::FwDelta;
 use crate::{Network, NetworkError, Prefix, RouterId};
 use log::*;
 use std::collections::{HashMap, HashSet};
@@ -200,6 +201,31 @@ impl ForwardingState {
             .get(&(router, prefix))
             .map(|l| l.as_slice())
             .unwrap_or(&[])
+    }
+
+    /// Get the difference between self and other. Each difference is stored per prefix in a
+    /// list. Each entry of these lists has the shape: `(src, self_target, other_target)`, where
+    /// `self_target` is the target used in `self`, and `other_target` is the one used by `other`.
+    pub fn diff(&self, other: &Self) -> HashMap<Prefix, Vec<FwDelta>> {
+        let keys = self
+            .state
+            .keys()
+            .chain(other.state.keys())
+            .collect::<HashSet<_>>();
+        let mut result: HashMap<Prefix, Vec<FwDelta>> = HashMap::new();
+        for key in keys {
+            let src = key.0;
+            let prefix = key.1;
+            let self_target = self.state.get(key).copied();
+            let other_target = self.state.get(key).copied();
+            if self_target != other_target {
+                result
+                    .entry(prefix)
+                    .or_default()
+                    .push((src, self_target, other_target))
+            }
+        }
+        result
     }
 }
 

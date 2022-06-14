@@ -21,6 +21,9 @@ where
     /// [`InteractiveNetwork::simulate_step`] to execute a single event on the queue.
     fn manual_simulation(&mut self);
 
+    /// Returns `true` if auto-simulation is enabled.
+    fn auto_simulation_enabled(&self) -> bool;
+
     /// Calls the function `f` with argument to a mutable network. During this call, the network
     /// will have automatic simulation disabled. It will be re-enabled once the function exits.
     ///
@@ -58,7 +61,11 @@ where
     }
 
     fn manual_simulation(&mut self) {
-        self.skip_queue = false;
+        self.skip_queue = true;
+    }
+
+    fn auto_simulation_enabled(&self) -> bool {
+        !self.skip_queue
     }
 
     fn with_manual_simulation<F>(mut self, f: F) -> Self

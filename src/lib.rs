@@ -103,6 +103,7 @@ pub mod interactive;
 pub mod network;
 pub mod policies;
 pub mod printer;
+pub mod record;
 pub mod route_map;
 pub mod router;
 pub mod types;
