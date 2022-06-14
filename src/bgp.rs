@@ -111,7 +111,7 @@ impl BgpSessionType {
 }
 
 /// BGP Events
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum BgpEvent {
     /// Withdraw a previously advertised route
     Withdraw(Prefix),

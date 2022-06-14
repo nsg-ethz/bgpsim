@@ -49,7 +49,7 @@ lazy_static! {
 ///         R3 ---- R4 ---- E4
 /// ```
 fn get_test_net() -> Network {
-    let mut net = Network::new();
+    let mut net = Network::default();
 
     assert_eq!(*R1, net.add_router("R1"));
     assert_eq!(*R2, net.add_router("R2"));

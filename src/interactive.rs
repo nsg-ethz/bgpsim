@@ -1,11 +1,14 @@
 //! This module contains an extension trait that allows you to interact with the simulator on a
 //! per-message level.
 
-use crate::{event::FmtPriority, EventQueue, Network, NetworkError};
+use crate::{event::FmtPriority, Event, EventQueue, Network, NetworkError};
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
 /// interface to simulate a single event, inspect the queue of the network, and even reorder events.
-pub trait InteractiveNetwork<Q> {
+pub trait InteractiveNetwork<Q>
+where
+    Q: EventQueue,
+{
     /// Setup the network to automatically simulate each change of the network. This is the default
     /// behavior. Disable auto-simulation by using [`InteractiveNetwork::manual_simulation`].
     fn auto_simulation(&mut self);
@@ -30,7 +33,13 @@ pub trait InteractiveNetwork<Q> {
     /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
     /// will not execute any subsequent event. This function will return the number of events left
     /// in the queue.
-    fn simulate_step(&mut self) -> Result<usize, NetworkError>;
+    #[allow(clippy::type_complexity)]
+    fn simulate_step(&mut self) -> Result<Option<(bool, Event<Q::Priority>)>, NetworkError>;
+
+    // /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
+    // /// will not execute any subsequent event. This function will return the number of events left
+    // /// in the queue.
+    // fn undo_step(&mut self) -> Result<Option<(bool, Event<Q::Priority>)>, NetworkError>;
 
     /// Get a reference to the queue
     fn queue(&self) -> &Q;
@@ -42,7 +51,7 @@ pub trait InteractiveNetwork<Q> {
 impl<Q> InteractiveNetwork<Q> for Network<Q>
 where
     Q: EventQueue,
-    Q::Priority: Default + FmtPriority,
+    Q::Priority: Default + FmtPriority + Clone,
 {
     fn auto_simulation(&mut self) {
         self.skip_queue = false;
@@ -62,9 +71,8 @@ where
         self
     }
 
-    fn simulate_step(&mut self) -> Result<usize, NetworkError> {
-        self.do_queue_step()?;
-        Ok(self.queue.len())
+    fn simulate_step(&mut self) -> Result<Option<(bool, Event<Q::Priority>)>, NetworkError> {
+        self.do_queue_step()
     }
 
     fn queue(&self) -> &Q {

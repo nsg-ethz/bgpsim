@@ -50,7 +50,7 @@ fn test_bgp_single() {
     // external update //
     /////////////////////
 
-    let events = r
+    let (_, events) = r
         .handle_event(Event::Bgp(
             (),
             100.into(),
@@ -90,7 +90,7 @@ fn test_bgp_single() {
 
     // update from route reflector
 
-    let events = r
+    let (_, events) = r
         .handle_event(Event::Bgp(
             (),
             1.into(),
@@ -133,7 +133,7 @@ fn test_bgp_single() {
 
     // update from route reflector
 
-    let events = r
+    let (_, events) = r
         .handle_event(Event::Bgp(
             (),
             2.into(),
@@ -161,7 +161,7 @@ fn test_bgp_single() {
 
     // update from route reflector
 
-    let events = r
+    let (_, events) = r
         .handle_event(Event::Bgp(
             (),
             5.into(),
@@ -219,7 +219,7 @@ fn test_bgp_single() {
     // retract bad route //
     ///////////////////////
 
-    let events = r
+    let (_, events) = r
         .handle_event(Event::Bgp(
             (),
             2.into(),
@@ -237,7 +237,7 @@ fn test_bgp_single() {
     // retract good route //
     ////////////////////////
 
-    let events = r
+    let (_, events) = r
         .handle_event(Event::Bgp(
             (),
             5.into(),
@@ -271,7 +271,7 @@ fn test_bgp_single() {
     // retract last route //
     ////////////////////////
 
-    let events = r
+    let (_, events) = r
         .handle_event(Event::Bgp(
             (),
             100.into(),

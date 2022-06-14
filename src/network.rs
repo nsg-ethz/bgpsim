@@ -72,11 +72,25 @@ impl<Q: Clone> Clone for Network<Q> {
 
 impl Default for Network<BasicEventQueue> {
     fn default() -> Self {
-        Self::new()
+        Self::new(BasicEventQueue::new())
     }
 }
 
 impl<Q> Network<Q> {
+    /// Generate an empty Network
+    pub fn new(queue: Q) -> Self {
+        Self {
+            net: IgpNetwork::new(),
+            links: Vec::new(),
+            routers: HashMap::new(),
+            known_prefixes: HashSet::new(),
+            external_routers: HashMap::new(),
+            stop_after: Some(DEFAULT_STOP_AFTER),
+            queue,
+            skip_queue: false,
+        }
+    }
+
     /// Add a new router to the topology. Note, that the AS id is always set to `AsId(65001)`. This
     /// function returns the ID of the router, which can be used to reference it while confiugring
     /// the network.
@@ -309,26 +323,10 @@ impl<Q> Network<Q> {
     }
 }
 
-impl<Q: Default> Network<Q> {
-    /// Generate an empty Network
-    pub fn new() -> Self {
-        Self {
-            net: IgpNetwork::new(),
-            links: Vec::new(),
-            routers: HashMap::new(),
-            known_prefixes: HashSet::new(),
-            external_routers: HashMap::new(),
-            stop_after: Some(DEFAULT_STOP_AFTER),
-            queue: Q::default(),
-            skip_queue: false,
-        }
-    }
-}
-
 impl<Q> Network<Q>
 where
     Q: EventQueue,
-    Q::Priority: Default + FmtPriority,
+    Q::Priority: Default + FmtPriority + Clone,
 {
     /// Setup a BGP session between source and target. If `session_type` is `None`, then any
     /// existing session will be removed. Otherwise, any existing session will be replaced by the
@@ -638,14 +636,16 @@ where
         self.simulate()
     }
 
-    /// Executes one single step. If the result is Ok(true), then a step is successfully executed.
-    /// If the result is Ok(false), then there was no event present in the queue.
-    pub(crate) fn do_queue_step(&mut self) -> Result<bool, NetworkError> {
+    /// Executes one single step.
+    #[allow(clippy::type_complexity)]
+    pub(crate) fn do_queue_step(
+        &mut self,
+    ) -> Result<Option<(bool, Event<Q::Priority>)>, NetworkError> {
         if let Some(event) = self.queue.pop() {
             // log the job
             self.log_event(&event)?;
             // execute the event
-            let events = match event {
+            let (change, events) = match event.clone() {
                 Event::Bgp(p, from, to, bgp_event) => {
                     //self.bgp_race_checker(to, &bgp_event, &history);
                     if let Some(r) = self.routers.get_mut(&to) {
@@ -658,9 +658,9 @@ where
                 }
             };
             self.enqueue_events(events);
-            Ok(true)
+            Ok(Some((change, event)))
         } else {
-            Ok(false)
+            Ok(None)
         }
     }
 
@@ -719,7 +719,7 @@ where
 impl<Q> PartialEq for Network<Q>
 where
     Q: EventQueue + PartialEq,
-    Q::Priority: Default + FmtPriority,
+    Q::Priority: Default + FmtPriority + Clone,
 {
     fn eq(&self, other: &Self) -> bool {
         // first, check if the same number of internal and external routers exists

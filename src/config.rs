@@ -573,7 +573,7 @@ pub trait NetworkConfig {
 impl<Q> NetworkConfig for Network<Q>
 where
     Q: EventQueue,
-    Q::Priority: Default + FmtPriority,
+    Q::Priority: Default + FmtPriority + Clone,
 {
     /// Set the provided network-wide configuration. The network first computes the patch from the
     /// current configuration to the next one, and applies the patch. If the patch cannot be

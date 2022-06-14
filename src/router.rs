@@ -121,17 +121,18 @@ impl Router {
         &self.igp_forwarding_table
     }
 
-    /// handle an `Event`. This function returns all events triggered by this function.
+    /// handle an `Event`. This function returns all events triggered by this function, and a
+    /// boolean to check if there was an update or not.
     pub(crate) fn handle_event<P: Default>(
         &mut self,
         event: Event<P>,
-    ) -> Result<Vec<Event<P>>, DeviceError> {
+    ) -> Result<(bool, Vec<Event<P>>), DeviceError> {
         match event {
             Event::Bgp(_, from, to, bgp_event) if to == self.router_id => {
                 // first, check if the event was received from a bgp peer
                 if !self.bgp_sessions.contains_key(&from) {
                     warn!("Received a bgp event form a non-neighbor! Ignore event!");
-                    return Ok(vec![]);
+                    return Ok((false, vec![]));
                 }
                 // phase 1 of BGP protocol
                 let prefix = match bgp_event {
@@ -141,15 +142,20 @@ impl Router {
                 self.bgp_known_prefixes.insert(prefix);
 
                 // phase 2
+                let prev_nh = self.get_next_hop(prefix);
                 self.run_bgp_decision_process_for_prefix(prefix)?;
+                let new_nh = self.get_next_hop(prefix);
                 // phase 3
-                Ok(self.run_bgp_route_dissemination_for_prefix(prefix)?)
+                Ok((
+                    prev_nh != new_nh,
+                    self.run_bgp_route_dissemination_for_prefix(prefix)?,
+                ))
             }
             Event::Bgp(_, _, _, _) => {
                 error!(
                     "Recenved a BGP event that is not targeted at this router! Ignore the event!"
                 );
-                Ok(vec![])
+                Ok((false, vec![]))
             }
         }
     }

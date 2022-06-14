@@ -23,7 +23,7 @@ use crate::{IgpNetwork, Prefix, RouterId};
 use std::collections::{HashMap, VecDeque};
 
 /// Event to handle
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum Event<P> {
     /// BGP Event from `#1` to `#2`.
     Bgp(P, RouterId, RouterId, BgpEvent),
@@ -56,9 +56,6 @@ pub trait EventQueue {
     /// Type of the priority.
     type Priority;
 
-    /// Create an empty event queue
-    fn new() -> Self;
-
     /// Enqueue a new event.
     fn push(
         &mut self,
@@ -84,12 +81,15 @@ pub trait EventQueue {
 #[derive(PartialEq, Clone, Debug, Default)]
 pub struct BasicEventQueue(VecDeque<Event<()>>);
 
-impl EventQueue for BasicEventQueue {
-    type Priority = ();
-
-    fn new() -> Self {
+impl BasicEventQueue {
+    /// Create a new empty event queue
+    pub fn new() -> Self {
         Self(VecDeque::new())
     }
+}
+
+impl EventQueue for BasicEventQueue {
+    type Priority = ();
 
     fn push(
         &mut self,

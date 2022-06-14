@@ -68,13 +68,13 @@ impl ExternalRouter {
         }
     }
 
-    /// Handle an `Event` and produce the necessary result. Always returns Ok(false), to tell that
-    /// the forwarding state has not changed.
+    /// Handle an `Event` and produce the necessary result. Always returns Ok((false, vec![])), to
+    /// tell that the forwarding state has not changed.
     pub(crate) fn handle_event<P>(
         &mut self,
         _event: Event<P>,
-    ) -> Result<Vec<Event<P>>, DeviceError> {
-        Ok(vec![])
+    ) -> Result<(bool, Vec<Event<P>>), DeviceError> {
+        Ok((false, vec![]))
     }
 
     /// Check if something would happen when the event would be processed by this device
