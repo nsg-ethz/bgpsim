@@ -106,35 +106,6 @@ pub fn event(net: &Network, event: &Event) -> Result<String, NetworkError> {
             net.get_router_name(*to)?,
             prefix.0
         ),
-        Event::Config(modifier) => format!("Apply Config: {}", config_modifier(net, modifier)?,),
-        Event::AdvertiseExternalRoute(r, route) => {
-            format!(
-                "{} advertisees route [{}]",
-                net.get_router_name(*r)?,
-                bgp_route(net, route)?
-            )
-        }
-        Event::WithdrawExternalRoute(r, prefix) => {
-            format!(
-                "{} withdraws route for prefix {}",
-                net.get_router_name(*r)?,
-                prefix.0
-            )
-        }
-        Event::LinkDown(router_a, router_b) => {
-            format!(
-                "Link {} -- {} went down!",
-                net.get_router_name(*router_a)?,
-                net.get_router_name(*router_b)?
-            )
-        }
-        Event::LinkUp(router_a, router_b) => {
-            format!(
-                "Link {} -- {} went up!",
-                net.get_router_name(*router_a)?,
-                net.get_router_name(*router_b)?
-            )
-        }
     })
 }
 

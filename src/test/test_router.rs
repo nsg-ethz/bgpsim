@@ -226,7 +226,6 @@ fn test_bgp_single() {
                 assert_eq!(to, 5.into());
                 assert_eq!(prefix, Prefix(200));
             }
-            e => panic!("Invalid event: {:?}", e),
         }
     }
 
@@ -273,7 +272,6 @@ fn test_bgp_single() {
                 assert_eq!(to, 100.into());
                 assert_eq!(prefix, Prefix(200));
             }
-            e => panic!("Invalid event: {:?}", e),
         }
     }
 

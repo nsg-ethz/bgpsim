@@ -24,7 +24,6 @@ use crate::bgp::{BgpEvent, BgpSessionType};
 use crate::config::NetworkConfig;
 use crate::event::{Event, EventQueue};
 use crate::external_router::ExternalRouter;
-use crate::printer;
 use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::router::Router;
 use crate::types::{IgpNetwork, NetworkDevice};
@@ -657,7 +656,6 @@ impl Network {
                         return Err(NetworkError::DeviceNotFound(to));
                     }
                 }
-                e => return Err(NetworkError::InvalidEvent(e)),
             };
             Ok(true)
         } else {
@@ -679,31 +677,6 @@ impl Network {
                 self.get_router_name(*to)?,
                 prefix.0
             ),
-            Event::Config(modifier) => trace!("{}", printer::config_modifier(self, modifier)?),
-            Event::AdvertiseExternalRoute(source, route) => trace!(
-                "Router {} advertises [{}]",
-                self.get_router_name(*source)?,
-                printer::bgp_route(self, route)?
-            ),
-            Event::WithdrawExternalRoute(source, prefix) => trace!(
-                "Router {} withdraws advertisement for prefix {}",
-                self.get_router_name(*source)?,
-                prefix.0
-            ),
-            Event::LinkDown(router_a, router_b) => {
-                trace!(
-                    "Link {} -- {} went down!",
-                    self.get_router_name(*router_a)?,
-                    self.get_router_name(*router_b)?
-                )
-            }
-            Event::LinkUp(router_a, router_b) => {
-                trace!(
-                    "Link {} -- {} went up!",
-                    self.get_router_name(*router_a)?,
-                    self.get_router_name(*router_b)?
-                )
-            }
         }
         Ok(())
     }

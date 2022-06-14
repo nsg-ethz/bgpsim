@@ -17,8 +17,7 @@
 
 //! Module for defining events
 
-use crate::bgp::{BgpEvent, BgpRoute};
-use crate::config::ConfigModifier;
+use crate::bgp::BgpEvent;
 use crate::{Prefix, RouterId};
 use std::collections::VecDeque;
 
@@ -27,16 +26,6 @@ use std::collections::VecDeque;
 pub enum Event {
     /// BGP Event from `#0` to `#1`.
     Bgp(RouterId, RouterId, BgpEvent),
-    /// configuration is applied to one or multiple routers.
-    Config(ConfigModifier),
-    /// Advertise an external route
-    AdvertiseExternalRoute(RouterId, BgpRoute),
-    /// Remove the advertisement of an external route
-    WithdrawExternalRoute(RouterId, Prefix),
-    /// Link went down
-    LinkDown(RouterId, RouterId),
-    /// Link went up
-    LinkUp(RouterId, RouterId),
 }
 
 impl Event {
@@ -45,9 +34,6 @@ impl Event {
         match self {
             Event::Bgp(_, _, BgpEvent::Update(route)) => Some(route.prefix),
             Event::Bgp(_, _, BgpEvent::Withdraw(prefix)) => Some(*prefix),
-            Event::AdvertiseExternalRoute(_, route) => Some(route.prefix),
-            Event::WithdrawExternalRoute(_, prefix) => Some(*prefix),
-            _ => None,
         }
     }
 
