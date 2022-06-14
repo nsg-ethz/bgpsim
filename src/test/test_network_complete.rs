@@ -18,6 +18,7 @@
 use crate::{
     bgp::BgpSessionType::*,
     config::{Config, ConfigExpr, ConfigModifier, ConfigPatch, NetworkConfig},
+    event::{ModelParams, SimpleTimingModel},
     network::Network,
     route_map::*,
     AsId, NetworkError, Prefix, RouterId,
@@ -36,6 +37,144 @@ fn test_simple() {
     // |        |    external
     // e0       e1
     let mut t = Network::default();
+
+    let prefix = Prefix(0);
+
+    let e0 = t.add_external_router("E0", AsId(1));
+    let b0 = t.add_router("B0");
+    let r0 = t.add_router("R0");
+    let r1 = t.add_router("R1");
+    let b1 = t.add_router("B1");
+    let e1 = t.add_external_router("E1", AsId(1));
+
+    t.add_link(e0, b0);
+    t.add_link(b0, r0);
+    t.add_link(r0, r1);
+    t.add_link(r1, b1);
+    t.add_link(b1, e1);
+
+    let mut c = Config::new();
+    c.add(ConfigExpr::IgpLinkWeight {
+        source: e0,
+        target: b0,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::IgpLinkWeight {
+        target: e0,
+        source: b0,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::IgpLinkWeight {
+        source: b0,
+        target: r0,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::IgpLinkWeight {
+        target: b0,
+        source: r0,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::IgpLinkWeight {
+        source: r0,
+        target: r1,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::IgpLinkWeight {
+        target: r0,
+        source: r1,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::IgpLinkWeight {
+        source: r1,
+        target: b1,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::IgpLinkWeight {
+        target: r1,
+        source: b1,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::IgpLinkWeight {
+        source: b1,
+        target: e1,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::IgpLinkWeight {
+        target: b1,
+        source: e1,
+        weight: 1.0,
+    })
+    .unwrap();
+    c.add(ConfigExpr::BgpSession {
+        source: e0,
+        target: b0,
+        session_type: EBgp,
+    })
+    .unwrap();
+    c.add(ConfigExpr::BgpSession {
+        source: r0,
+        target: b0,
+        session_type: IBgpClient,
+    })
+    .unwrap();
+    c.add(ConfigExpr::BgpSession {
+        source: r0,
+        target: r1,
+        session_type: IBgpPeer,
+    })
+    .unwrap();
+    c.add(ConfigExpr::BgpSession {
+        source: r1,
+        target: b1,
+        session_type: IBgpClient,
+    })
+    .unwrap();
+    c.add(ConfigExpr::BgpSession {
+        source: e1,
+        target: b1,
+        session_type: EBgp,
+    })
+    .unwrap();
+
+    t.set_config(&c).unwrap();
+
+    // advertise the same prefix on both routers
+    t.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+        .unwrap();
+    t.advertise_external_route(e1, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+        .unwrap();
+
+    // check that all routes are correct
+    assert_route_equal(&t, b0, prefix, vec![b0, e0]);
+    assert_route_equal(&t, r0, prefix, vec![r0, b0, e0]);
+    assert_route_equal(&t, r1, prefix, vec![r1, b1, e1]);
+    assert_route_equal(&t, b1, prefix, vec![b1, e1]);
+}
+
+#[test]
+fn test_simple_model() {
+    // All weights are 1
+    // r0 and b0 form a iBGP cluster, and so does r1 and b1
+    //
+    // r0 ----- r1
+    // |        |
+    // |        |
+    // b0       b1   internal
+    // |........|............
+    // |        |    external
+    // e0       e1
+    let mut t = Network::new(SimpleTimingModel::new(ModelParams::new(
+        0.1, 1.0, 2.0, 5.0, 0.1,
+    )));
 
     let prefix = Prefix(0);
 

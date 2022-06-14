@@ -17,6 +17,12 @@
 
 //! Module for defining events
 
+use ordered_float::NotNan;
+use priority_queue::PriorityQueue;
+use rand::prelude::ThreadRng;
+use rand::{thread_rng, Rng};
+use rand_distr::{Beta, Distribution};
+
 use crate::bgp::BgpEvent;
 use crate::router::Router;
 use crate::{IgpNetwork, Prefix, RouterId};
@@ -117,6 +123,151 @@ impl EventQueue for BasicEventQueue {
     }
 }
 
+/// Model Queue
+#[derive(Debug, Clone)]
+pub struct SimpleTimingModel {
+    q: PriorityQueue<Event<NotNan<f64>>, NotNan<f64>>,
+    messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
+    model: HashMap<(RouterId, RouterId), ModelParams>,
+    default_params: ModelParams,
+    current_time: NotNan<f64>,
+    rng: ThreadRng,
+}
+
+impl SimpleTimingModel {
+    /// Create a new, empty model queue with given default parameters
+    pub fn new(default_params: ModelParams) -> Self {
+        Self {
+            q: PriorityQueue::new(),
+            messages: HashMap::new(),
+            model: HashMap::new(),
+            default_params,
+            current_time: NotNan::default(),
+            rng: thread_rng(),
+        }
+    }
+
+    /// Set the parameters of a specific router pair.
+    pub fn set_parameters(&mut self, src: RouterId, dst: RouterId, params: ModelParams) {
+        self.model.insert((src, dst), params);
+    }
+}
+
+impl EventQueue for SimpleTimingModel {
+    type Priority = NotNan<f64>;
+
+    fn push(
+        &mut self,
+        mut event: Event<Self::Priority>,
+        _routers: &HashMap<RouterId, Router>,
+        _net: &IgpNetwork,
+    ) {
+        let mut next_time = self.current_time;
+        // match on the event
+        match event {
+            Event::Bgp(ref mut t, src, dst, _) => {
+                let key = (src, dst);
+                // compute the next time
+                let beta = self.model.get(&key).unwrap_or(&self.default_params);
+                next_time += NotNan::new(beta.sample(&mut self.rng)).unwrap();
+                // check if there is already something enqueued for this session
+                if let Some((ref mut num, ref mut time)) = self.messages.get_mut(&key) {
+                    if *num > 0 && *time > next_time {
+                        next_time = *time + beta.collision;
+                    }
+                    *num += 1;
+                    *time = next_time;
+                } else {
+                    self.messages.insert(key, (1, next_time));
+                }
+                *t = next_time;
+            }
+        }
+        // enqueue with the computed time
+        self.q.push(event, next_time);
+    }
+
+    fn pop(&mut self) -> Option<Event<Self::Priority>> {
+        let (event, _) = self.q.pop()?;
+        self.current_time = *event.priority();
+        match event {
+            Event::Bgp(_, src, dst, _) => {
+                if let Some((num, _)) = self.messages.get_mut(&(src, dst)) {
+                    *num -= 1;
+                }
+            }
+        }
+        Some(event)
+    }
+
+    fn peek(&self) -> Option<&Event<Self::Priority>> {
+        self.q.peek().map(|(e, _)| e)
+    }
+
+    fn len(&self) -> usize {
+        self.q.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.q.is_empty()
+    }
+}
+
+impl PartialEq for SimpleTimingModel {
+    fn eq(&self, other: &Self) -> bool {
+        self.q.iter().collect::<Vec<_>>() == other.q.iter().collect::<Vec<_>>()
+    }
+}
+
+/// Model parameters of the Beta distribution. A value is sampled as follows:
+///
+/// t = offset + scale * Beta[alpha, beta]
+#[derive(Debug, Clone)]
+pub struct ModelParams {
+    /// Offset factor
+    pub offset: f64,
+    /// Scale factor
+    pub scale: f64,
+    /// Alpha parameter
+    pub alpha: f64,
+    /// Beta parameter
+    pub beta: f64,
+    /// Upon a collision (TCP order violation), how much time should we wait before scheduling the
+    /// next event.
+    pub collision: NotNan<f64>,
+    /// Distribution
+    pub dist: Beta<f64>,
+}
+
+impl PartialEq for ModelParams {
+    fn eq(&self, other: &Self) -> bool {
+        self.offset == other.offset
+            && self.scale == other.scale
+            && self.alpha == other.alpha
+            && self.beta == other.beta
+            && self.collision == other.collision
+    }
+}
+
+impl ModelParams {
+    /// Create a new distribution
+    pub fn new(offset: f64, scale: f64, alpha: f64, beta: f64, collision: f64) -> Self {
+        Self {
+            offset,
+            scale,
+            alpha,
+            beta,
+            collision: NotNan::new(collision).unwrap(),
+            dist: Beta::new(alpha, beta).unwrap(),
+        }
+    }
+
+    /// Sample a new value
+    pub fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
+        (self.dist.sample(rng) * self.scale) + self.offset
+    }
+}
+
 /// Display type for Priority
 pub trait FmtPriority {
     /// Display the priority
@@ -126,6 +277,12 @@ pub trait FmtPriority {
 impl FmtPriority for f64 {
     fn fmt(&self) -> String {
         format!("(time: {})", self)
+    }
+}
+
+impl FmtPriority for NotNan<f64> {
+    fn fmt(&self) -> String {
+        format!("(time: {})", self.into_inner())
     }
 }
 
