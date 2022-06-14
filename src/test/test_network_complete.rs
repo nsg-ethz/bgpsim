@@ -18,40 +18,41 @@
 use crate::{
     bgp::BgpSessionType::*,
     config::{Config, ConfigExpr, ConfigModifier, ConfigPatch, NetworkConfig},
-    event::{ModelParams, SimpleTimingModel},
+    event::{FmtPriority, ModelParams, SimpleTimingModel},
     network::Network,
     route_map::*,
-    AsId, NetworkError, Prefix, RouterId,
+    AsId, EventQueue, NetworkError, Prefix, RouterId,
 };
 
-#[test]
-fn test_simple() {
-    // All weights are 1
-    // r0 and b0 form a iBGP cluster, and so does r1 and b1
-    //
-    // r0 ----- r1
-    // |        |
-    // |        |
-    // b0       b1   internal
-    // |........|............
-    // |        |    external
-    // e0       e1
-    let mut t = Network::default();
+/// Setup the simple network, and return `(e0, b0, r0, r1, b1, e1)`
+/// All weights are 1, r0 and b0 form a iBGP cluster, and so does r1 and b1
+///
+/// r0 ----- r1
+/// |        |
+/// |        |
+/// b0       b1   internal
+/// |........|............
+/// |        |    external
+/// e0       e1
+fn setup_simple<Q>(
+    net: &mut Network<Q>,
+) -> (RouterId, RouterId, RouterId, RouterId, RouterId, RouterId)
+where
+    Q: EventQueue,
+    Q::Priority: FmtPriority + Clone + Default,
+{
+    let e0 = net.add_external_router("E0", AsId(1));
+    let b0 = net.add_router("B0");
+    let r0 = net.add_router("R0");
+    let r1 = net.add_router("R1");
+    let b1 = net.add_router("B1");
+    let e1 = net.add_external_router("E1", AsId(1));
 
-    let prefix = Prefix(0);
-
-    let e0 = t.add_external_router("E0", AsId(1));
-    let b0 = t.add_router("B0");
-    let r0 = t.add_router("R0");
-    let r1 = t.add_router("R1");
-    let b1 = t.add_router("B1");
-    let e1 = t.add_external_router("E1", AsId(1));
-
-    t.add_link(e0, b0);
-    t.add_link(b0, r0);
-    t.add_link(r0, r1);
-    t.add_link(r1, b1);
-    t.add_link(b1, e1);
+    net.add_link(e0, b0);
+    net.add_link(b0, r0);
+    net.add_link(r0, r1);
+    net.add_link(r1, b1);
+    net.add_link(b1, e1);
 
     let mut c = Config::new();
     c.add(ConfigExpr::IgpLinkWeight {
@@ -145,199 +146,94 @@ fn test_simple() {
     })
     .unwrap();
 
-    t.set_config(&c).unwrap();
+    net.set_config(&c).unwrap();
+
+    (e0, b0, r0, r1, b1, e1)
+}
+
+#[test]
+fn test_simple() {
+    let mut net = Network::default();
+    let prefix = Prefix(0);
+
+    let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net);
 
     // advertise the same prefix on both routers
-    t.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+    net.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
         .unwrap();
-    t.advertise_external_route(e1, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+    net.advertise_external_route(e1, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
         .unwrap();
 
     // check that all routes are correct
-    assert_route_equal(&t, b0, prefix, vec![b0, e0]);
-    assert_route_equal(&t, r0, prefix, vec![r0, b0, e0]);
-    assert_route_equal(&t, r1, prefix, vec![r1, b1, e1]);
-    assert_route_equal(&t, b1, prefix, vec![b1, e1]);
+    assert_route_equal(&net, b0, prefix, vec![b0, e0]);
+    assert_route_equal(&net, r0, prefix, vec![r0, b0, e0]);
+    assert_route_equal(&net, r1, prefix, vec![r1, b1, e1]);
+    assert_route_equal(&net, b1, prefix, vec![b1, e1]);
 }
 
 #[test]
 fn test_simple_model() {
-    // All weights are 1
-    // r0 and b0 form a iBGP cluster, and so does r1 and b1
-    //
-    // r0 ----- r1
-    // |        |
-    // |        |
-    // b0       b1   internal
-    // |........|............
-    // |        |    external
-    // e0       e1
-    let mut t = Network::new(SimpleTimingModel::new(ModelParams::new(
+    let mut net = Network::new(SimpleTimingModel::new(ModelParams::new(
         0.1, 1.0, 2.0, 5.0, 0.1,
     )));
 
     let prefix = Prefix(0);
 
-    let e0 = t.add_external_router("E0", AsId(1));
-    let b0 = t.add_router("B0");
-    let r0 = t.add_router("R0");
-    let r1 = t.add_router("R1");
-    let b1 = t.add_router("B1");
-    let e1 = t.add_external_router("E1", AsId(1));
-
-    t.add_link(e0, b0);
-    t.add_link(b0, r0);
-    t.add_link(r0, r1);
-    t.add_link(r1, b1);
-    t.add_link(b1, e1);
-
-    let mut c = Config::new();
-    c.add(ConfigExpr::IgpLinkWeight {
-        source: e0,
-        target: b0,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::IgpLinkWeight {
-        target: e0,
-        source: b0,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::IgpLinkWeight {
-        source: b0,
-        target: r0,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::IgpLinkWeight {
-        target: b0,
-        source: r0,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::IgpLinkWeight {
-        source: r0,
-        target: r1,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::IgpLinkWeight {
-        target: r0,
-        source: r1,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::IgpLinkWeight {
-        source: r1,
-        target: b1,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::IgpLinkWeight {
-        target: r1,
-        source: b1,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::IgpLinkWeight {
-        source: b1,
-        target: e1,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::IgpLinkWeight {
-        target: b1,
-        source: e1,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(ConfigExpr::BgpSession {
-        source: e0,
-        target: b0,
-        session_type: EBgp,
-    })
-    .unwrap();
-    c.add(ConfigExpr::BgpSession {
-        source: r0,
-        target: b0,
-        session_type: IBgpClient,
-    })
-    .unwrap();
-    c.add(ConfigExpr::BgpSession {
-        source: r0,
-        target: r1,
-        session_type: IBgpPeer,
-    })
-    .unwrap();
-    c.add(ConfigExpr::BgpSession {
-        source: r1,
-        target: b1,
-        session_type: IBgpClient,
-    })
-    .unwrap();
-    c.add(ConfigExpr::BgpSession {
-        source: e1,
-        target: b1,
-        session_type: EBgp,
-    })
-    .unwrap();
-
-    t.set_config(&c).unwrap();
+    let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net);
 
     // advertise the same prefix on both routers
-    t.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+    net.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
         .unwrap();
-    t.advertise_external_route(e1, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+    net.advertise_external_route(e1, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
         .unwrap();
 
     // check that all routes are correct
-    assert_route_equal(&t, b0, prefix, vec![b0, e0]);
-    assert_route_equal(&t, r0, prefix, vec![r0, b0, e0]);
-    assert_route_equal(&t, r1, prefix, vec![r1, b1, e1]);
-    assert_route_equal(&t, b1, prefix, vec![b1, e1]);
+    assert_route_equal(&net, b0, prefix, vec![b0, e0]);
+    assert_route_equal(&net, r0, prefix, vec![r0, b0, e0]);
+    assert_route_equal(&net, r1, prefix, vec![r1, b1, e1]);
+    assert_route_equal(&net, b1, prefix, vec![b1, e1]);
 }
 
-#[test]
-fn test_external_router() {
-    // Topology:
-    //
-    // - All IGP weights are set to 1, except r3 -- r4: 2
-    // - BGP sessions before:
-    //   - e1 <-> r1
-    //   - r1 <-> r2
-    //   - r1 <-> r3
-    //   - r1 <-> r4
-    // - BGP sessions after:
-    //   - e4 <-> r4
-    //   - r4 <-> r1
-    //   - r4 <-> r2
-    //   - r4 <-> r3
-    //
-    //  e1 ---- r1 ---- r2
-    //          |    .-'|
-    //          | .-'   |
-    //          r3 ---- r4 ---- e4
-
-    let mut n = Network::default();
-    let prefix = Prefix(0);
-
+/// Setup the second network, and return `(e1, r1, r2, r3, r4, e4)`
+/// - All IGP weights are set to 1, except r3 -- r4: 2
+/// - BGP sessions before:
+///   - e1 <-> r1
+///   - r1 <-> r2
+///   - r1 <-> r3
+///   - r1 <-> r4
+/// - BGP sessions after:
+///   - e4 <-> r4
+///   - r4 <-> r1
+///   - r4 <-> r2
+///   - r4 <-> r3
+///
+///  e1 ---- r1 ---- r2
+///          |    .-'|
+///          | .-'   |
+///          r3 ---- r4 ---- e4
+fn setup_external<Q>(
+    net: &mut Network<Q>,
+) -> (RouterId, RouterId, RouterId, RouterId, RouterId, RouterId)
+where
+    Q: EventQueue,
+    Q::Priority: FmtPriority + Clone + Default,
+{
     // add routers
-    let r1 = n.add_router("r1");
-    let r2 = n.add_router("r2");
-    let r3 = n.add_router("r3");
-    let r4 = n.add_router("r4");
-    let e1 = n.add_external_router("e1", AsId(65101));
-    let e4 = n.add_external_router("e4", AsId(65104));
+    let r1 = net.add_router("r1");
+    let r2 = net.add_router("r2");
+    let r3 = net.add_router("r3");
+    let r4 = net.add_router("r4");
+    let e1 = net.add_external_router("e1", AsId(65101));
+    let e4 = net.add_external_router("e4", AsId(65104));
 
     // add links
-    n.add_link(r1, r2);
-    n.add_link(r1, r3);
-    n.add_link(r2, r3);
-    n.add_link(r2, r4);
-    n.add_link(r3, r4);
-    n.add_link(r1, e1);
-    n.add_link(r4, e4);
+    net.add_link(r1, r2);
+    net.add_link(r1, r3);
+    net.add_link(r2, r3);
+    net.add_link(r2, r4);
+    net.add_link(r3, r4);
+    net.add_link(r1, e1);
+    net.add_link(r4, e4);
 
     // prepare the configuration
     let mut c = Config::new();
@@ -451,69 +347,151 @@ fn test_external_router() {
     .unwrap();
 
     // apply initial configuration
-    n.set_config(&c).unwrap();
+    net.set_config(&c).unwrap();
+
+    (e1, r1, r2, r3, r4, e4)
+}
+
+#[test]
+fn test_external_router() {
+    let mut net = Network::default();
+    let prefix = Prefix(0);
+
+    let (e1, r1, r2, r3, r4, e4) = setup_external(&mut net);
 
     // advertise routes
-    n.advertise_external_route(e1, prefix, vec![AsId(65101), AsId(65200)], None, None)
+    net.advertise_external_route(e1, prefix, vec![AsId(65101), AsId(65200)], None, None)
         .unwrap();
-    n.advertise_external_route(e4, prefix, vec![AsId(65104), AsId(65200)], None, None)
+    net.advertise_external_route(e4, prefix, vec![AsId(65104), AsId(65200)], None, None)
         .unwrap();
 
-    assert_route_equal(&n, r1, prefix, vec![r1, e1]);
-    assert_route_equal(&n, r2, prefix, vec![r2, r1, e1]);
-    assert_route_equal(&n, r3, prefix, vec![r3, r1, e1]);
-    assert_route_equal(&n, r4, prefix, vec![r4, r2, r1, e1]);
+    assert_route_equal(&net, r1, prefix, vec![r1, e1]);
+    assert_route_equal(&net, r2, prefix, vec![r2, r1, e1]);
+    assert_route_equal(&net, r3, prefix, vec![r3, r1, e1]);
+    assert_route_equal(&net, r4, prefix, vec![r4, r2, r1, e1]);
 
-    eprintln!("{:#?}", n.get_device(r2));
+    eprintln!("{:#?}", net.get_device(r2));
 
     // add all new sessions
-    n.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
+    net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
         source: r2,
         target: r4,
         session_type: IBgpPeer,
     }))
     .unwrap();
-    n.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
+    net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
         source: r3,
         target: r4,
         session_type: IBgpPeer,
     }))
     .unwrap();
-    n.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
+    net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
         source: r4,
         target: e4,
         session_type: EBgp,
     }))
     .unwrap();
 
-    eprintln!("{:#?}", n.get_device(r2));
+    eprintln!("{:#?}", net.get_device(r2));
 
     // remove all old sessions
-    n.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
+    net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
         source: r1,
         target: r2,
         session_type: IBgpPeer,
     }))
     .unwrap();
-    n.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
+    net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
         source: r1,
         target: r3,
         session_type: IBgpPeer,
     }))
     .unwrap();
-    n.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
+    net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
         source: r1,
         target: e1,
         session_type: EBgp,
     }))
     .unwrap();
 
-    eprintln!("{:#?}", n.get_device(r2));
+    eprintln!("{:#?}", net.get_device(r2));
 
-    assert_route_equal(&n, r1, prefix, vec![r1, r2, r4, e4]);
-    assert_route_equal(&n, r2, prefix, vec![r2, r4, e4]);
-    assert_route_equal(&n, r3, prefix, vec![r3, r4, e4]);
-    assert_route_equal(&n, r4, prefix, vec![r4, e4]);
+    assert_route_equal(&net, r1, prefix, vec![r1, r2, r4, e4]);
+    assert_route_equal(&net, r2, prefix, vec![r2, r4, e4]);
+    assert_route_equal(&net, r3, prefix, vec![r3, r4, e4]);
+    assert_route_equal(&net, r4, prefix, vec![r4, e4]);
+}
+
+#[test]
+fn test_external_router_model() {
+    let mut net = Network::new(SimpleTimingModel::new(ModelParams::new(
+        0.1, 1.0, 2.0, 5.0, 0.1,
+    )));
+    let prefix = Prefix(0);
+
+    let (e1, r1, r2, r3, r4, e4) = setup_external(&mut net);
+
+    // advertise routes
+    net.advertise_external_route(e1, prefix, vec![AsId(65101), AsId(65200)], None, None)
+        .unwrap();
+    net.advertise_external_route(e4, prefix, vec![AsId(65104), AsId(65200)], None, None)
+        .unwrap();
+
+    assert_route_equal(&net, r1, prefix, vec![r1, e1]);
+    assert_route_equal(&net, r2, prefix, vec![r2, r1, e1]);
+    assert_route_equal(&net, r3, prefix, vec![r3, r1, e1]);
+    assert_route_equal(&net, r4, prefix, vec![r4, r2, r1, e1]);
+
+    eprintln!("{:#?}", net.get_device(r2));
+
+    // add all new sessions
+    net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
+        source: r2,
+        target: r4,
+        session_type: IBgpPeer,
+    }))
+    .unwrap();
+    net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
+        source: r3,
+        target: r4,
+        session_type: IBgpPeer,
+    }))
+    .unwrap();
+    net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
+        source: r4,
+        target: e4,
+        session_type: EBgp,
+    }))
+    .unwrap();
+
+    eprintln!("{:#?}", net.get_device(r2));
+
+    // remove all old sessions
+    net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
+        source: r1,
+        target: r2,
+        session_type: IBgpPeer,
+    }))
+    .unwrap();
+    net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
+        source: r1,
+        target: r3,
+        session_type: IBgpPeer,
+    }))
+    .unwrap();
+    net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
+        source: r1,
+        target: e1,
+        session_type: EBgp,
+    }))
+    .unwrap();
+
+    eprintln!("{:#?}", net.get_device(r2));
+
+    assert_route_equal(&net, r1, prefix, vec![r1, r2, r4, e4]);
+    assert_route_equal(&net, r2, prefix, vec![r2, r4, e4]);
+    assert_route_equal(&net, r3, prefix, vec![r3, r4, e4]);
+    assert_route_equal(&net, r4, prefix, vec![r4, e4]);
 }
 
 #[test]
