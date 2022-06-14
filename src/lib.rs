@@ -113,7 +113,6 @@ mod test;
 pub use event::{Event, EventQueue};
 
 pub use bgp::BgpSessionType;
-pub use config::NetworkConfig;
 pub use forwarding_state::ForwardingState;
 pub use network::Network;
 pub use types::{

@@ -31,6 +31,12 @@ pub trait InteractiveNetwork<Q> {
     /// will not execute any subsequent event. This function will return the number of events left
     /// in the queue.
     fn simulate_step(&mut self) -> Result<usize, NetworkError>;
+
+    /// Get a reference to the queue
+    fn queue(&self) -> &Q;
+
+    /// Get a reference to the queue
+    fn queue_mut(&mut self) -> &mut Q;
 }
 
 impl<Q> InteractiveNetwork<Q> for Network<Q>
@@ -59,5 +65,13 @@ where
     fn simulate_step(&mut self) -> Result<usize, NetworkError> {
         self.do_queue_step()?;
         Ok(self.queue.len())
+    }
+
+    fn queue(&self) -> &Q {
+        &self.queue
+    }
+
+    fn queue_mut(&mut self) -> &mut Q {
+        &mut self.queue
     }
 }
