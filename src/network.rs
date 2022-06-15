@@ -24,7 +24,7 @@ use crate::bgp::BgpSessionType;
 use crate::config::NetworkConfig;
 use crate::event::{BasicEventQueue, Event, EventQueue, FmtPriority};
 use crate::external_router::ExternalRouter;
-use crate::printer::event as print_event;
+use crate::printer::{event as print_event, fw_state as print_fw_state};
 use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::router::Router;
 use crate::types::{IgpNetwork, NetworkDevice, StepUpdate};
@@ -315,6 +315,14 @@ impl<Q> Network<Q> {
             }
         }
         println!();
+        Ok(())
+    }
+
+    /// Print the forwarding state of the network
+    pub fn print_fw_state(&self) -> Result<(), NetworkError> {
+        let fw_state = self.get_forwarding_state();
+        let fw_state_repr = print_fw_state(self, &fw_state)?;
+        println!("{}", fw_state_repr);
         Ok(())
     }
 }
