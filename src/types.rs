@@ -21,6 +21,7 @@ use crate::bgp::BgpSessionType;
 use crate::config::ConfigModifier;
 use crate::external_router::ExternalRouter;
 use crate::router::Router;
+use crate::Event;
 use petgraph::prelude::*;
 use petgraph::stable_graph::StableGraph;
 use thiserror::Error;
@@ -190,6 +191,147 @@ impl<'a> NetworkDevice<'a> {
     }
 }
 
+/// # Network Device (similar to `Option`) containing a mutable reference.
+/// Enumerates all possible network devices. This struct behaves similar to an `Option`, but it
+/// knows two different `Some` values, the `InternalRouter` and the `ExternalRouter`. Thus, it
+/// knows three different `unwrap` functions, the `unwrap_internal`, `unwrap_external` and
+/// `unwrap_none` function, as well as `internal_or` and `external_or`.
+#[derive(Debug)]
+pub enum NetworkDeviceMut<'a> {
+    /// Internal Router
+    InternalRouter(&'a mut Router),
+    /// External Router
+    ExternalRouter(&'a mut ExternalRouter),
+    /// None was found
+    None(RouterId),
+}
+
+impl<'a> NetworkDeviceMut<'a> {
+    /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::InternalRouter`
+    pub fn unwrap_internal(self) -> &'a mut Router {
+        match self {
+            Self::InternalRouter(r) => r,
+            Self::ExternalRouter(_) => {
+                panic!("`unwrap_internal()` called on a `NetworkDevice::ExternalRouter`")
+            }
+            Self::None(_) => panic!("`unwrap_internal()` called on a `NetworkDevice::None`"),
+        }
+    }
+
+    /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::ExternalRouter`
+    pub fn unwrap_external(self) -> &'a mut ExternalRouter {
+        match self {
+            Self::InternalRouter(_) => {
+                panic!("`unwrap_external()` called on a `NetworkDevice::InternalRouter`")
+            }
+            Self::ExternalRouter(r) => r,
+            Self::None(_) => panic!("`unwrap_external()` called on a `NetworkDevice::None`"),
+        }
+    }
+
+    /// Returns `()` or **panics** is the enum is not a `NetworkDevice::None`
+    pub fn unwrap_none(self) {
+        match self {
+            Self::InternalRouter(_) => {
+                panic!("`unwrap_none()` called on a `NetworkDevice::InternalRouter`")
+            }
+            Self::ExternalRouter(_) => {
+                panic!("`unwrap_none()` called on a `NetworkDevice::ExternalRouter`")
+            }
+            Self::None(_) => (),
+        }
+    }
+
+    /// Returns true if and only if self contains an internal router.
+    pub fn is_internal(&self) -> bool {
+        matches!(self, Self::InternalRouter(_))
+    }
+
+    /// Returns true if and only if self contains an external router.
+    pub fn is_external(&self) -> bool {
+        matches!(self, Self::ExternalRouter(_))
+    }
+
+    /// Returns true if and only if self contains `NetworkDevice::None`.
+    pub fn is_none(&self) -> bool {
+        matches!(self, Self::None(_))
+    }
+
+    /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `InternalRouter`.
+    pub fn internal(self) -> Option<&'a mut Router> {
+        match self {
+            Self::InternalRouter(e) => Some(e),
+            _ => None,
+        }
+    }
+
+    /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `ExternalRouter`.
+    pub fn external(self) -> Option<&'a mut ExternalRouter> {
+        match self {
+            Self::ExternalRouter(e) => Some(e),
+            _ => None,
+        }
+    }
+
+    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `InternalRouter`. If
+    /// `self` is not `InternalError`, then the provided error is returned.
+    pub fn internal_or<E: std::error::Error>(self, error: E) -> Result<&'a mut Router, E> {
+        match self {
+            Self::InternalRouter(e) => Ok(e),
+            _ => Err(error),
+        }
+    }
+
+    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `ExternalRouter`. If
+    /// `self` is not `ExternalRouter`, then the provided error is returned.
+    pub fn external_or<E: std::error::Error>(self, error: E) -> Result<&'a mut ExternalRouter, E> {
+        match self {
+            Self::ExternalRouter(e) => Ok(e),
+            _ => Err(error),
+        }
+    }
+
+    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `none`. If `self` is
+    /// not `None`, then the provided error is returned.
+    pub fn none_or<E: std::error::Error>(self, error: E) -> Result<RouterId, E> {
+        match self {
+            Self::None(id) => Ok(id),
+            _ => Err(error),
+        }
+    }
+
+    /// handle an `Event`. This function returns all events triggered by this function, and a
+    /// boolean to check if there was an update or not. If the device does not exist, then raise an
+    /// error.
+    pub(crate) fn handle_event<P: Default>(
+        &mut self,
+        event: Event<P>,
+    ) -> Result<(StepUpdate, Vec<Event<P>>), NetworkError> {
+        match self {
+            NetworkDeviceMut::InternalRouter(r) => Ok(r.handle_event(event)?),
+            NetworkDeviceMut::ExternalRouter(r) => Ok(r.handle_event(event)?),
+            NetworkDeviceMut::None(id) => Err(NetworkError::DeviceNotFound(*id)),
+        }
+    }
+
+    /// Undo the last event on the network device. If the device does not exist, then raise an
+    /// error.
+    #[cfg(feature = "undo")]
+    pub(crate) fn undo_event<P: Default>(&mut self) -> Result<(), NetworkError> {
+        match self {
+            NetworkDeviceMut::InternalRouter(r) => {
+                r.undo_event();
+                Ok(())
+            }
+            NetworkDeviceMut::ExternalRouter(r) => {
+                r.undo_event();
+                Ok(())
+            }
+            NetworkDeviceMut::None(id) => Err(NetworkError::DeviceNotFound(*id)),
+        }
+    }
+}
+
 /// Router Errors
 #[derive(Error, Debug, PartialEq)]
 pub enum DeviceError {
@@ -267,7 +409,4 @@ pub enum NetworkError {
     /// expectation.
     #[error("Unexpected event during convergence loop extraction")]
     UnexpectedEventConvergenceLoop,
-    /// History is invalid
-    #[error("History is invalid: {0}")]
-    HistoryError(&'static str),
 }

@@ -713,19 +713,19 @@ fn test_bgp_single_undo() {
     // check the undo history //
     ////////////////////////////
 
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&store_r_7);
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&store_r_6);
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&store_r_5);
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&store_r_4);
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&store_r_3);
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&store_r_2);
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&store_r_1);
 }
 
@@ -779,9 +779,9 @@ fn test_undo_fw_table() {
     r_c.write_igp_forwarding_table::<()>(&net).unwrap();
 
     // undo the state change and compare the nodes.
-    r_a.undo_action();
-    r_b.undo_action();
-    r_c.undo_action();
+    r_a.undo_event();
+    r_b.undo_event();
+    r_c.undo_event();
 
     r_a.assert_equal(&r_a_clone);
     r_b.assert_equal(&r_b_clone);
@@ -805,9 +805,9 @@ fn external_router_advertise_to_neighbors_undo() {
     // emove the route
     r.widthdraw_prefix::<()>(Prefix(0));
 
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&r_clone_2);
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&r_clone_1);
 }
 
@@ -828,8 +828,8 @@ fn external_router_new_neighbor_undo() {
     // first, remove the neighbor, then stop advertising
     r.close_ebgp_session(1.into()).unwrap();
 
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&r_clone_2);
-    r.undo_action();
+    r.undo_event();
     r.assert_equal(&r_clone_1);
 }

@@ -27,7 +27,7 @@ use crate::external_router::ExternalRouter;
 use crate::printer::{event as print_event, fw_state as print_fw_state};
 use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::router::Router;
-use crate::types::{IgpNetwork, NetworkDevice, StepUpdate};
+use crate::types::{IgpNetwork, NetworkDevice, NetworkDeviceMut, StepUpdate};
 use crate::{AsId, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
 
 use log::*;
@@ -159,6 +159,17 @@ impl<Q> Network<Q> {
             None => match self.external_routers.get(&id) {
                 Some(r) => NetworkDevice::ExternalRouter(r),
                 None => NetworkDevice::None,
+            },
+        }
+    }
+
+    /// Returns a reference to the network device.
+    pub fn get_device_mut(&mut self, id: RouterId) -> NetworkDeviceMut<'_> {
+        match self.routers.get_mut(&id) {
+            Some(r) => NetworkDeviceMut::InternalRouter(r),
+            None => match self.external_routers.get_mut(&id) {
+                Some(r) => NetworkDeviceMut::ExternalRouter(r),
+                None => NetworkDeviceMut::None(id),
             },
         }
     }
@@ -649,18 +660,9 @@ where
             // log the job
             self.log_event(&event)?;
             // execute the event
-            let (step_update, events) = match event.clone() {
-                Event::Bgp(p, from, to, bgp_event) => {
-                    //self.bgp_race_checker(to, &bgp_event, &history);
-                    if let Some(r) = self.routers.get_mut(&to) {
-                        r.handle_event(Event::Bgp(p, from, to, bgp_event))?
-                    } else if let Some(r) = self.external_routers.get_mut(&to) {
-                        r.handle_event(Event::Bgp(p, from, to, bgp_event))?
-                    } else {
-                        return Err(NetworkError::DeviceNotFound(to));
-                    }
-                }
-            };
+            let (step_update, events) = self
+                .get_device_mut(event.router())
+                .handle_event(event.clone())?;
             self.enqueue_events(events);
             Ok(Some((step_update, event)))
         } else {

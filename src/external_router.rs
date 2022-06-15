@@ -95,7 +95,7 @@ impl ExternalRouter {
 
     /// Undo the last event on the stack
     #[cfg(feature = "undo")]
-    pub(crate) fn undo_action(&mut self) {
+    pub(crate) fn undo_event(&mut self) {
         if let Some(actions) = self.undo_stack.pop() {
             for action in actions {
                 match action {

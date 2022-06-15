@@ -187,7 +187,7 @@ impl Router {
     ///
     /// **Note**: This funtion is only available with the `undo` feature.
     #[cfg(feature = "undo")]
-    pub fn undo_action(&mut self) {
+    pub(crate) fn undo_event(&mut self) {
         if let Some(actions) = self.undo_stack.pop() {
             for action in actions {
                 match action {
