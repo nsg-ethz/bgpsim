@@ -232,6 +232,10 @@ impl<Q> Network<Q> {
     /// Return the route for the given prefix, starting at the source router, as a list of
     /// `RouterIds,` starting at the source, and ending at the (probably external) router ID that
     /// originated the prefix. The Router ID must be the ID of an internal router.
+    ///
+    /// **Warning** use `net.get_fw_state().get_route()` for a cached implementation if you need
+    /// multiple routes at once. This function will extract the entire forwarding state just to get
+    /// this individual route.
     pub fn get_route(
         &self,
         source: RouterId,
