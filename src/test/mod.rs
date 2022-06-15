@@ -24,6 +24,8 @@ mod test_network;
 #[cfg(test)]
 mod test_network_complete;
 #[cfg(test)]
+mod test_network_config;
+#[cfg(test)]
 mod test_route_map;
 #[cfg(test)]
 mod test_router;
