@@ -191,13 +191,13 @@ impl ExternalRouter {
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
 
-        if let Some(old_route) = self.active_routes.remove(&prefix) {
+        if let Some(_old_route) = self.active_routes.remove(&prefix) {
             // update the undo stack
             #[cfg(feature = "undo")]
             self.undo_stack
                 .last_mut()
                 .unwrap()
-                .push(UndoAction::AdvertiseRoute(prefix, Some(old_route)));
+                .push(UndoAction::AdvertiseRoute(prefix, Some(_old_route)));
 
             // only send the withdraw if the route actually did exist
             self.neighbors

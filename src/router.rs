@@ -657,7 +657,7 @@ impl Router {
         // check if the entry will get changed
         if new_entry.as_ref() != old_entry {
             // replace the entry
-            let old_entry = if let Some(new_entry) = new_entry {
+            let _old_entry = if let Some(new_entry) = new_entry {
                 // insert the new entry
                 self.bgp_rib.insert(prefix, new_entry)
             } else {
@@ -668,7 +668,7 @@ impl Router {
             self.undo_stack
                 .last_mut()
                 .unwrap()
-                .push(UndoAction::BgpRib(prefix, old_entry));
+                .push(UndoAction::BgpRib(prefix, _old_entry));
         }
         Ok(())
     }
@@ -956,6 +956,7 @@ impl Router {
     }
 
     /// This function asserts that the BGP table is equal.
+    #[allow(dead_code)]
     #[cfg(test)]
     pub(crate) fn assert_equal(&self, other: &Self) {
         if self.igp_forwarding_table != other.igp_forwarding_table {
