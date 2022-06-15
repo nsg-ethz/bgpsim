@@ -21,7 +21,7 @@ use crate::event::Event;
 use crate::external_router::*;
 use crate::router::*;
 use crate::types::IgpNetwork;
-use crate::{AsId, DeviceError, Prefix};
+use crate::{AsId, Prefix};
 use maplit::{hashmap, hashset};
 
 #[test]
@@ -470,12 +470,6 @@ fn external_router_advertise_to_neighbors() {
     let events = r.establish_ebgp_session::<()>(1.into()).unwrap();
     assert!(events.is_empty());
 
-    // add the session again and check that an error is returned
-    assert_eq!(
-        r.establish_ebgp_session::<()>(1.into()),
-        Err(DeviceError::SessionAlreadyExists(1.into()))
-    );
-
     // advertise route
     let (_, events) = r.advertise_prefix(Prefix(0), vec![AsId(0)], None, None);
 
@@ -544,10 +538,6 @@ fn external_router_new_neighbor() {
 
     // first, remove the neighbor, then stop advertising
     r.close_ebgp_session(1.into()).unwrap();
-    assert_eq!(
-        r.close_ebgp_session(1.into()),
-        Err(DeviceError::NoBgpSession(1.into()))
-    );
 
     // then, withdraw the session
     let events = r.widthdraw_prefix::<()>(Prefix(0));
@@ -798,48 +788,48 @@ fn test_undo_fw_table() {
     r_c.assert_equal(&r_c_clone);
 }
 
-// #[cfg(feature = "undo")]
-// #[test]
-// fn external_router_advertise_to_neighbors_undo() {
-//     // test that an external router will advertise a route to an already existing neighbor
-//     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
-//
-//     // add the session
-//     r.establish_ebgp_session::<()>(1.into()).unwrap();
-//     let r_clone_1 = r.clone();
-//
-//     // advertise route
-//     r.advertise_prefix(Prefix(0), vec![AsId(0)], None, None);
-//     let r_clone_2 = r.clone();
-//
-//     // emove the route
-//     r.widthdraw_prefix(Prefix(0));
-//
-//     r.undo_action();
-//     r.assert_equal(&r_clone_2);
-//     r.undo_action();
-//     r.assert_equal(&r_clone_1);
-// }
-//
-// #[cfg(feature = "undo")]
-// #[test]
-// fn external_router_new_neighbor_undo() {
-//     // test that an external router will advertise a route to an already existing neighbor
-//     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
-//
-//     // advertise route
-//     r.advertise_prefix::<()>(Prefix(0), vec![AsId(0)], None, None);
-//     let r_clone_1 = r.clone();
-//
-//     // add a neighbor and check that the route is advertised
-//     r.establish_ebgp_session(1.into()).unwrap();
-//     let r_clone_2 = r.clone();
-//
-//     // first, remove the neighbor, then stop advertising
-//     r.close_ebgp_session(1.into()).unwrap();
-//
-//     r.undo_action();
-//     r.assert_equal(&r_clone_2);
-//     r.undo_action();
-//     r.assert_equal(&r_clone_1);
-// }
+#[cfg(feature = "undo")]
+#[test]
+fn external_router_advertise_to_neighbors_undo() {
+    // test that an external router will advertise a route to an already existing neighbor
+    let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
+
+    // add the session
+    r.establish_ebgp_session::<()>(1.into()).unwrap();
+    let r_clone_1 = r.clone();
+
+    // advertise route
+    r.advertise_prefix::<()>(Prefix(0), vec![AsId(0)], None, None);
+    let r_clone_2 = r.clone();
+
+    // emove the route
+    r.widthdraw_prefix::<()>(Prefix(0));
+
+    r.undo_action();
+    r.assert_equal(&r_clone_2);
+    r.undo_action();
+    r.assert_equal(&r_clone_1);
+}
+
+#[cfg(feature = "undo")]
+#[test]
+fn external_router_new_neighbor_undo() {
+    // test that an external router will advertise a route to an already existing neighbor
+    let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
+
+    // advertise route
+    r.advertise_prefix::<()>(Prefix(0), vec![AsId(0)], None, None);
+    let r_clone_1 = r.clone();
+
+    // add a neighbor and check that the route is advertised
+    r.establish_ebgp_session::<()>(1.into()).unwrap();
+    let r_clone_2 = r.clone();
+
+    // first, remove the neighbor, then stop advertising
+    r.close_ebgp_session(1.into()).unwrap();
+
+    r.undo_action();
+    r.assert_equal(&r_clone_2);
+    r.undo_action();
+    r.assert_equal(&r_clone_1);
+}

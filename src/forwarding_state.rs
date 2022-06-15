@@ -91,7 +91,7 @@ impl ForwardingState {
         // prefix they know a route to.
         for r in net.get_external_routers() {
             for p in net.get_device(r).unwrap_external().advertised_prefixes() {
-                state.insert((r, p), r);
+                state.insert((r, *p), r);
             }
         }
 
