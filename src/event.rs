@@ -55,6 +55,13 @@ impl<P> Event<P> {
     pub fn is_bgp_event(&self) -> bool {
         matches!(self, Event::Bgp(_, _, _, _))
     }
+
+    /// Return the router where the event is processed
+    pub fn router(&self) -> RouterId {
+        match self {
+            Event::Bgp(_, _, router, _) => *router,
+        }
+    }
 }
 
 /// Interface of an event queue.

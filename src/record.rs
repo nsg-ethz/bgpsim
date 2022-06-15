@@ -5,6 +5,7 @@ use std::collections::HashMap;
 
 use crate::{
     event::FmtPriority,
+    interactive::InteractiveNetwork,
     route_map::{RouteMap, RouteMapDirection},
     AsId, BgpSessionType, EventQueue, ForwardingState, LinkWeight, Network, NetworkError, Prefix,
     RouterId,
@@ -63,7 +64,7 @@ where
         let diff = fw_state_before.diff(&self.get_forwarding_state());
         let trace = diff
             .into_iter()
-            .map(|(prefix, delta)| (prefix, ConvergenceTrace(vec![delta])))
+            .map(|(prefix, delta)| (prefix, vec![delta]))
             .collect::<HashMap<Prefix, ConvergenceTrace>>();
 
         // now, generate the recording using the intrinsic function
@@ -78,9 +79,22 @@ where
     fn record_prepared(
         &mut self,
         initial_fw_state: ForwardingState,
-        initial_trace: HashMap<Prefix, ConvergenceTrace>,
+        mut trace: HashMap<Prefix, ConvergenceTrace>,
     ) -> Result<ConvergenceRecording, NetworkError> {
-        todo!()
+        while let Some((step, event)) = self.simulate_step()? {
+            if let Some(prefix) = step.prefix {
+                trace
+                    .entry(prefix)
+                    .or_default()
+                    .push(vec![(event.router(), step.old, step.new)]);
+            }
+        }
+        let pointers: HashMap<Prefix, usize> = trace.keys().map(|p| (*p, 0)).collect();
+        Ok(ConvergenceRecording {
+            state: initial_fw_state,
+            trace,
+            pointers,
+        })
     }
 }
 
@@ -97,8 +111,7 @@ pub struct ConvergenceRecording {
 /// This structure captures the essence of a trace, that is, the entire evolution of the forwarding
 /// state during the convergence process. It does not capture the initial or the final state, but it
 /// should be efficient to compare entries.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub struct ConvergenceTrace(pub Vec<Vec<FwDelta>>);
+pub type ConvergenceTrace = Vec<Vec<FwDelta>>;
 
 /// Forwarding state delta.
 pub type FwDelta = (RouterId, Option<RouterId>, Option<RouterId>);
