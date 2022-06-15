@@ -61,7 +61,9 @@ where
         f(NetworkRef(self))?;
 
         // get the forwarding state difference and start generating the trace
-        let diff = fw_state_before.diff(&self.get_forwarding_state());
+        let fw_state_after = self.get_forwarding_state();
+        let diff = fw_state_before.diff(&fw_state_after);
+
         let trace = diff
             .into_iter()
             .map(|(prefix, delta)| (prefix, vec![delta]))
@@ -120,6 +122,11 @@ impl ConvergenceRecording {
         }
     }
 
+    /// Get a reference to the current forwarding state
+    pub fn state(&mut self) -> &mut ForwardingState {
+        &mut self.state
+    }
+
     /// Get a reference of the convergence trace.
     pub fn trace(&self) -> &HashMap<Prefix, ConvergenceTrace> {
         &self.trace
@@ -128,6 +135,71 @@ impl ConvergenceRecording {
     /// Transform the recording into a trace.
     pub fn as_trace(self) -> HashMap<Prefix, ConvergenceTrace> {
         self.trace
+    }
+
+    /// Perform a single step for an individual prefix. If the forwarding state is already in the
+    /// final state for the specifiied prefix, then this function will return `None`. Otherwise, it
+    /// will return a slice containing all deltas that were applied during this function call.
+    pub fn step(&mut self, prefix: Prefix) -> Option<&[FwDelta]> {
+        let pointer = self.pointers.get_mut(&prefix)?;
+        let trace = self.trace.get(&prefix)?;
+        if *pointer >= trace.len() {
+            // already out of bounds
+            return None;
+        }
+        // apply the delta at the current position
+        let deltas = trace.get(*pointer)?;
+        for (router, _, new_nh) in deltas {
+            self.state.update(*router, prefix, *new_nh);
+        }
+
+        // increment the pointer
+        *pointer += 1;
+
+        // return the applied deltas
+        Some(deltas)
+    }
+
+    /// Undo a single step for an individual prefix. If the forwarding state is already in the
+    /// initial state for the specifiied prefix, then this function will return `None`. Otherwise, it
+    /// will return a slice containing all deltas that applied *in reverse direction* during this
+    /// function call.
+    pub fn back(&mut self, prefix: Prefix) -> Option<&[FwDelta]> {
+        let pointer = self.pointers.get_mut(&prefix)?;
+        let trace = self.trace.get(&prefix)?;
+        if *pointer == 0 {
+            // already out of bounds
+            return None;
+        }
+        // decrement the pointer
+        *pointer -= 1;
+        // apply the delta at the current position
+        let deltas = trace.get(*pointer)?;
+        for (router, old_nh, _) in deltas {
+            self.state.update(*router, prefix, *old_nh);
+        }
+
+        // return the applied deltas
+        Some(deltas)
+    }
+
+    /// Get the position of the recording for the given prefix.
+    pub fn pos(&self, prefix: Prefix) -> usize {
+        self.pointers.get(&prefix).copied().unwrap_or_default()
+    }
+
+    /// Get the length of the recording for the given prefix
+    #[allow(clippy::len_without_is_empty)]
+    pub fn len(&self, prefix: Prefix) -> usize {
+        self.trace.get(&prefix).map(|t| t.len()).unwrap_or_default()
+    }
+
+    /// Check if the recording is empty for the given prefix
+    pub fn is_empty(&self, prefix: Prefix) -> bool {
+        self.trace
+            .get(&prefix)
+            .map(|t| t.is_empty())
+            .unwrap_or(true)
     }
 }
 

@@ -19,13 +19,64 @@
 //! Module containing helper functions to get formatted strings and print information about the
 //! network.
 
+use std::{collections::HashSet, fmt::Write};
+
+use itertools::Itertools;
+
 use crate::bgp::{BgpEvent, BgpRibEntry, BgpRoute};
 use crate::config::{Config, ConfigExpr, ConfigModifier, ConfigPatch};
 use crate::event::{Event, FmtPriority};
 use crate::network::Network;
-use crate::route_map::*;
 use crate::router::Router;
+use crate::{route_map::*, ForwardingState};
 use crate::{BgpSessionType, NetworkError, Prefix};
+
+/// Get a string that represents the forwarding state.
+pub fn fw_state<Q>(net: &Network<Q>, state: &ForwardingState) -> Result<String, NetworkError> {
+    let mut r = String::new();
+    let f = &mut r;
+
+    let prefixes = state.state.keys().map(|(_, p)| *p).collect::<HashSet<_>>();
+    let nodes = state
+        .state
+        .keys()
+        .map(|(r, _)| *r)
+        .unique()
+        .sorted()
+        .collect::<Vec<_>>();
+    for prefix in prefixes {
+        writeln!(f, "Prefix {}", prefix.0).unwrap();
+        for node in nodes.iter().copied() {
+            writeln!(
+                f,
+                "  {} -> {}; reversed: [{}]; cached: {}",
+                net.get_router_name(node)?,
+                state
+                    .state
+                    .get(&(node, prefix))
+                    .map(|r| net.get_router_name(*r))
+                    .unwrap_or(Ok("XX"))?,
+                state
+                    .reversed
+                    .get(&(node, prefix))
+                    .map(|s| s
+                        .iter()
+                        .map(|r| net.get_router_name(*r).unwrap())
+                        .join(", "))
+                    .unwrap_or_default(),
+                match state.cache.get(&(node, prefix)) {
+                    None => String::from("no"),
+                    Some((_, path)) => path
+                        .iter()
+                        .map(|r| net.get_router_name(*r).unwrap())
+                        .join(", "),
+                }
+            )
+            .unwrap();
+        }
+    }
+    Ok(r)
+}
 
 /// Get a vector of strings, which represent the bgp table. Each `String` in the vector represents
 /// one line (one known route). The strings are formatted, and the names of the routers are
