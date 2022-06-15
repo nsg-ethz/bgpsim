@@ -229,7 +229,7 @@ impl ForwardingState {
 
     /// Update a single edge on the forwarding state. This function will invalidate all caching that
     /// used this edge.
-    pub fn update(&mut self, source: RouterId, prefix: Prefix, next_hop: Option<RouterId>) {
+    pub(crate) fn update(&mut self, source: RouterId, prefix: Prefix, next_hop: Option<RouterId>) {
         // first, change the next-hop
         let old_state = if let Some(nh) = next_hop {
             self.state.insert((source, prefix), nh)
