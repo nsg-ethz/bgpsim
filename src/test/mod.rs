@@ -15,17 +15,18 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-#[cfg(test)]
+fn init() {
+    let _ = env_logger::builder()
+        .is_test(true)
+        .filter_level(log::LevelFilter::Trace)
+        .try_init();
+}
+
 mod test_config;
-#[cfg(test)]
 mod test_forwarding_state;
-#[cfg(test)]
 mod test_network;
-#[cfg(test)]
 mod test_network_complete;
-#[cfg(test)]
 mod test_network_config;
-#[cfg(test)]
+mod test_record;
 mod test_route_map;
-#[cfg(test)]
 mod test_router;

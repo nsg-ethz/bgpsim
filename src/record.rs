@@ -82,19 +82,17 @@ where
         mut trace: HashMap<Prefix, ConvergenceTrace>,
     ) -> Result<ConvergenceRecording, NetworkError> {
         while let Some((step, event)) = self.simulate_step()? {
-            if let Some(prefix) = step.prefix {
-                trace
-                    .entry(prefix)
-                    .or_default()
-                    .push(vec![(event.router(), step.old, step.new)]);
+            if step.changed() {
+                if let Some(prefix) = step.prefix {
+                    trace.entry(prefix).or_default().push(vec![(
+                        event.router(),
+                        step.old,
+                        step.new,
+                    )]);
+                }
             }
         }
-        let pointers: HashMap<Prefix, usize> = trace.keys().map(|p| (*p, 0)).collect();
-        Ok(ConvergenceRecording {
-            state: initial_fw_state,
-            trace,
-            pointers,
-        })
+        Ok(ConvergenceRecording::new(initial_fw_state, trace))
     }
 }
 
@@ -106,6 +104,31 @@ pub struct ConvergenceRecording {
     state: ForwardingState,
     trace: HashMap<Prefix, ConvergenceTrace>,
     pointers: HashMap<Prefix, usize>,
+}
+
+impl ConvergenceRecording {
+    /// Create a Recofrding from a trace and an initial forwarding state
+    pub fn new(
+        initial_fw_state: ForwardingState,
+        trace: HashMap<Prefix, ConvergenceTrace>,
+    ) -> Self {
+        let pointers: HashMap<Prefix, usize> = trace.keys().map(|p| (*p, 0)).collect();
+        ConvergenceRecording {
+            state: initial_fw_state,
+            trace,
+            pointers,
+        }
+    }
+
+    /// Get a reference of the convergence trace.
+    pub fn trace(&self) -> &HashMap<Prefix, ConvergenceTrace> {
+        &self.trace
+    }
+
+    /// Transform the recording into a trace.
+    pub fn as_trace(self) -> HashMap<Prefix, ConvergenceTrace> {
+        self.trace
+    }
 }
 
 /// This structure captures the essence of a trace, that is, the entire evolution of the forwarding
