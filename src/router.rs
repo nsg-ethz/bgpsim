@@ -19,7 +19,7 @@
 
 use crate::bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType};
 use crate::route_map::{RouteMap, RouteMapDirection};
-use crate::types::IgpNetwork;
+use crate::types::{IgpNetwork, StepUpdate};
 use crate::Event;
 use crate::{AsId, DeviceError, LinkWeight, Prefix, RouterId};
 use log::*;
@@ -126,13 +126,15 @@ impl Router {
     pub(crate) fn handle_event<P: Default>(
         &mut self,
         event: Event<P>,
-    ) -> Result<(bool, Vec<Event<P>>), DeviceError> {
+    ) -> Result<(StepUpdate, Vec<Event<P>>), DeviceError> {
         match event {
             Event::Bgp(_, from, to, bgp_event) if to == self.router_id => {
                 // first, check if the event was received from a bgp peer
                 if !self.bgp_sessions.contains_key(&from) {
                     warn!("Received a bgp event form a non-neighbor! Ignore event!");
-                    return Ok((false, vec![]));
+                    let prefix = bgp_event.prefix();
+                    let old = self.get_next_hop(prefix);
+                    return Ok((StepUpdate::new(prefix, old, old), vec![]));
                 }
                 // phase 1 of BGP protocol
                 let prefix = match bgp_event {
@@ -142,20 +144,22 @@ impl Router {
                 self.bgp_known_prefixes.insert(prefix);
 
                 // phase 2
-                let prev_nh = self.get_next_hop(prefix);
+                let old = self.get_next_hop(prefix);
                 self.run_bgp_decision_process_for_prefix(prefix)?;
-                let new_nh = self.get_next_hop(prefix);
+                let new = self.get_next_hop(prefix);
                 // phase 3
                 Ok((
-                    prev_nh != new_nh,
+                    StepUpdate::new(prefix, old, new),
                     self.run_bgp_route_dissemination_for_prefix(prefix)?,
                 ))
             }
-            Event::Bgp(_, _, _, _) => {
+            Event::Bgp(_, _, _, bgp_event) => {
                 error!(
                     "Recenved a BGP event that is not targeted at this router! Ignore the event!"
                 );
-                Ok((false, vec![]))
+                let prefix = bgp_event.prefix();
+                let old = self.get_next_hop(prefix);
+                Ok((StepUpdate::new(prefix, old, old), vec![]))
             }
         }
     }

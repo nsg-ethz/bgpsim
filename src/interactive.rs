@@ -1,7 +1,7 @@
 //! This module contains an extension trait that allows you to interact with the simulator on a
 //! per-message level.
 
-use crate::{event::FmtPriority, Event, EventQueue, Network, NetworkError};
+use crate::{event::FmtPriority, types::StepUpdate, Event, EventQueue, Network, NetworkError};
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
 /// interface to simulate a single event, inspect the queue of the network, and even reorder events.
@@ -37,7 +37,7 @@ where
     /// will not execute any subsequent event. This function will return the number of events left
     /// in the queue.
     #[allow(clippy::type_complexity)]
-    fn simulate_step(&mut self) -> Result<Option<(bool, Event<Q::Priority>)>, NetworkError>;
+    fn simulate_step(&mut self) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError>;
 
     // /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
     // /// will not execute any subsequent event. This function will return the number of events left
@@ -78,7 +78,7 @@ where
         self
     }
 
-    fn simulate_step(&mut self) -> Result<Option<(bool, Event<Q::Priority>)>, NetworkError> {
+    fn simulate_step(&mut self) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError> {
         self.do_queue_step()
     }
 

@@ -27,7 +27,7 @@ use crate::external_router::ExternalRouter;
 use crate::printer::event as print_event;
 use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::router::Router;
-use crate::types::{IgpNetwork, NetworkDevice};
+use crate::types::{IgpNetwork, NetworkDevice, StepUpdate};
 use crate::{AsId, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
 
 use log::*;
@@ -640,12 +640,12 @@ where
     #[allow(clippy::type_complexity)]
     pub(crate) fn do_queue_step(
         &mut self,
-    ) -> Result<Option<(bool, Event<Q::Priority>)>, NetworkError> {
+    ) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError> {
         if let Some(event) = self.queue.pop() {
             // log the job
             self.log_event(&event)?;
             // execute the event
-            let (change, events) = match event.clone() {
+            let (step_update, events) = match event.clone() {
                 Event::Bgp(p, from, to, bgp_event) => {
                     //self.bgp_race_checker(to, &bgp_event, &history);
                     if let Some(r) = self.routers.get_mut(&to) {
@@ -658,7 +658,7 @@ where
                 }
             };
             self.enqueue_events(events);
-            Ok(Some((change, event)))
+            Ok(Some((step_update, event)))
         } else {
             Ok(None)
         }

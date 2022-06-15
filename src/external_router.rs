@@ -22,6 +22,7 @@
 
 use crate::bgp::{BgpEvent, BgpRoute};
 use crate::event::Event;
+use crate::types::StepUpdate;
 use crate::{AsId, DeviceError, Prefix, RouterId};
 use std::collections::HashSet;
 
@@ -72,9 +73,13 @@ impl ExternalRouter {
     /// tell that the forwarding state has not changed.
     pub(crate) fn handle_event<P>(
         &mut self,
-        _event: Event<P>,
-    ) -> Result<(bool, Vec<Event<P>>), DeviceError> {
-        Ok((false, vec![]))
+        event: Event<P>,
+    ) -> Result<(StepUpdate, Vec<Event<P>>), DeviceError> {
+        if let Some(prefix) = event.prefix() {
+            Ok((StepUpdate::new(prefix, None, None), vec![]))
+        } else {
+            Ok((StepUpdate::default(), vec![]))
+        }
     }
 
     /// Check if something would happen when the event would be processed by this device

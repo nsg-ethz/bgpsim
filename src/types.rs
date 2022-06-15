@@ -39,6 +39,33 @@ pub type LinkWeight = f32;
 /// IGP Network graph
 pub type IgpNetwork = StableGraph<(), LinkWeight, Directed, IndexType>;
 
+/// How does the next hop change after a BGP event has been processed?
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
+pub struct StepUpdate {
+    /// Which prefix was affected
+    pub prefix: Option<Prefix>,
+    /// Old next-hop
+    pub old: Option<RouterId>,
+    /// New next-hop
+    pub new: Option<RouterId>,
+}
+
+impl StepUpdate {
+    /// Create a new StepUpdate
+    pub fn new(prefix: Prefix, old: Option<RouterId>, new: Option<RouterId>) -> Self {
+        Self {
+            prefix: Some(prefix),
+            old,
+            new,
+        }
+    }
+
+    /// Returns `true` if the state has changed.
+    pub fn changed(&self) -> bool {
+        self.old != self.new
+    }
+}
+
 /// Configuration Error
 #[derive(Error, Debug, PartialEq)]
 pub enum ConfigError {
