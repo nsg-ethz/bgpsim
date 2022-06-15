@@ -553,3 +553,293 @@ fn external_router_new_neighbor() {
     let events = r.widthdraw_prefix::<()>(Prefix(0));
     assert!(events.is_empty());
 }
+
+#[cfg(feature = "undo")]
+#[test]
+fn test_bgp_single_undo() {
+    let mut r = Router::new("test".to_string(), 0.into(), AsId(65001));
+    r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
+    r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+    r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
+    r.set_bgp_session::<()>(3.into(), Some(IBgpPeer)).unwrap();
+    r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
+    r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
+    r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
+    r.igp_forwarding_table = hashmap! {
+        100.into() => Some((100.into(), 0.0)),
+        1.into()   => Some((1.into(), 1.0)),
+        2.into()   => Some((2.into(), 1.0)),
+        3.into()   => Some((2.into(), 4.0)),
+        4.into()   => Some((4.into(), 2.0)),
+        5.into()   => Some((4.into(), 6.0)),
+        6.into()   => Some((1.into(), 13.0)),
+        10.into()  => Some((1.into(), 6.0)),
+        11.into()  => Some((1.into(), 15.0)),
+    };
+
+    /////////////////////
+    // external update //
+    /////////////////////
+
+    let store_r_1 = r.clone();
+
+    r.handle_event(Event::Bgp(
+        (),
+        100.into(),
+        0.into(),
+        BgpEvent::Update(BgpRoute {
+            prefix: Prefix(200),
+            as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
+            next_hop: 100.into(),
+            local_pref: None,
+            med: None,
+            community: None,
+        }),
+    ))
+    .unwrap();
+
+    /////////////////////
+    // internal update //
+    /////////////////////
+
+    let store_r_2 = r.clone();
+
+    // update from route reflector
+
+    r.handle_event(Event::Bgp(
+        (),
+        1.into(),
+        0.into(),
+        BgpEvent::Update(BgpRoute {
+            prefix: Prefix(201),
+            as_path: vec![AsId(1), AsId(2), AsId(3)],
+            next_hop: 11.into(),
+            local_pref: Some(50),
+            med: None,
+            community: None,
+        }),
+    ))
+    .unwrap();
+
+    //////////////////
+    // worse update //
+    //////////////////
+
+    let store_r_3 = r.clone();
+
+    // update from route reflector
+
+    r.handle_event(Event::Bgp(
+        (),
+        2.into(),
+        0.into(),
+        BgpEvent::Update(BgpRoute {
+            prefix: Prefix(200),
+            as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
+            next_hop: 10.into(),
+            local_pref: None,
+            med: None,
+            community: None,
+        }),
+    ))
+    .unwrap();
+
+    ///////////////////
+    // better update //
+    ///////////////////
+
+    let store_r_4 = r.clone();
+
+    // update from route reflector
+
+    r.handle_event(Event::Bgp(
+        (),
+        5.into(),
+        0.into(),
+        BgpEvent::Update(BgpRoute {
+            prefix: Prefix(200),
+            as_path: vec![
+                AsId(1),
+                AsId(2),
+                AsId(3),
+                AsId(4),
+                AsId(5),
+                AsId(6),
+                AsId(7),
+                AsId(8),
+                AsId(9),
+                AsId(10),
+            ],
+            next_hop: 5.into(),
+            local_pref: Some(150),
+            med: None,
+            community: None,
+        }),
+    ))
+    .unwrap();
+
+    ///////////////////////
+    // retract bad route //
+    ///////////////////////
+
+    let store_r_5 = r.clone();
+
+    r.handle_event(Event::Bgp(
+        (),
+        2.into(),
+        0.into(),
+        BgpEvent::Withdraw(Prefix(200)),
+    ))
+    .unwrap();
+
+    ////////////////////////
+    // retract good route //
+    ////////////////////////
+
+    let store_r_6 = r.clone();
+
+    r.handle_event(Event::Bgp(
+        (),
+        5.into(),
+        0.into(),
+        BgpEvent::Withdraw(Prefix(200)),
+    ))
+    .unwrap();
+
+    ////////////////////////
+    // retract last route //
+    ////////////////////////
+    let store_r_7 = r.clone();
+
+    r.handle_event(Event::Bgp(
+        (),
+        100.into(),
+        0.into(),
+        BgpEvent::Withdraw(Prefix(200)),
+    ))
+    .unwrap();
+
+    ////////////////////////////
+    // check the undo history //
+    ////////////////////////////
+
+    r.undo_action();
+    r.assert_equal(&store_r_7);
+    r.undo_action();
+    r.assert_equal(&store_r_6);
+    r.undo_action();
+    r.assert_equal(&store_r_5);
+    r.undo_action();
+    r.assert_equal(&store_r_4);
+    r.undo_action();
+    r.assert_equal(&store_r_3);
+    r.undo_action();
+    r.assert_equal(&store_r_2);
+    r.undo_action();
+    r.assert_equal(&store_r_1);
+}
+
+#[cfg(feature = "undo")]
+#[test]
+fn test_undo_fw_table() {
+    let mut net: IgpNetwork = IgpNetwork::new();
+    let mut r_a = Router::new("A".to_string(), net.add_node(()), AsId(65001));
+    let mut r_b = Router::new("B".to_string(), net.add_node(()), AsId(65001));
+    let mut r_c = Router::new("C".to_string(), net.add_node(()), AsId(65001));
+    let r_d = Router::new("D".to_string(), net.add_node(()), AsId(65001));
+    let r_e = Router::new("E".to_string(), net.add_node(()), AsId(65001));
+
+    net.add_edge(r_a.router_id(), r_b.router_id(), 1.0);
+    net.add_edge(r_b.router_id(), r_c.router_id(), 1.0);
+    net.add_edge(r_c.router_id(), r_d.router_id(), 1.0);
+    net.add_edge(r_d.router_id(), r_e.router_id(), 1.0);
+    net.add_edge(r_e.router_id(), r_d.router_id(), 1.0);
+    net.add_edge(r_d.router_id(), r_c.router_id(), 1.0);
+    net.add_edge(r_c.router_id(), r_b.router_id(), 1.0);
+    net.add_edge(r_b.router_id(), r_a.router_id(), 1.0);
+    net.add_edge(r_b.router_id(), r_d.router_id(), 5.0);
+    net.add_edge(r_d.router_id(), r_b.router_id(), 5.0);
+
+    /*
+     * all weights = 1
+     * +-- c --+
+     * |       |
+     * |       |
+     * b ----- d
+     * |       |
+     * |       |
+     * a       e
+     */
+
+    r_a.write_igp_forwarding_table::<()>(&net).unwrap();
+    r_b.write_igp_forwarding_table::<()>(&net).unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net).unwrap();
+
+    let r_a_clone = r_a.clone();
+    let r_b_clone = r_b.clone();
+    let r_c_clone = r_c.clone();
+
+    // change the edge
+    net.update_edge(r_b.router_id(), r_d.router_id(), 1.0);
+    net.update_edge(r_d.router_id(), r_b.router_id(), 1.0);
+
+    // update the IGP state
+    r_a.write_igp_forwarding_table::<()>(&net).unwrap();
+    r_b.write_igp_forwarding_table::<()>(&net).unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net).unwrap();
+
+    // undo the state change and compare the nodes.
+    r_a.undo_action();
+    r_b.undo_action();
+    r_c.undo_action();
+
+    r_a.assert_equal(&r_a_clone);
+    r_b.assert_equal(&r_b_clone);
+    r_c.assert_equal(&r_c_clone);
+}
+
+// #[cfg(feature = "undo")]
+// #[test]
+// fn external_router_advertise_to_neighbors_undo() {
+//     // test that an external router will advertise a route to an already existing neighbor
+//     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
+//
+//     // add the session
+//     r.establish_ebgp_session::<()>(1.into()).unwrap();
+//     let r_clone_1 = r.clone();
+//
+//     // advertise route
+//     r.advertise_prefix(Prefix(0), vec![AsId(0)], None, None);
+//     let r_clone_2 = r.clone();
+//
+//     // emove the route
+//     r.widthdraw_prefix(Prefix(0));
+//
+//     r.undo_action();
+//     r.assert_equal(&r_clone_2);
+//     r.undo_action();
+//     r.assert_equal(&r_clone_1);
+// }
+//
+// #[cfg(feature = "undo")]
+// #[test]
+// fn external_router_new_neighbor_undo() {
+//     // test that an external router will advertise a route to an already existing neighbor
+//     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
+//
+//     // advertise route
+//     r.advertise_prefix::<()>(Prefix(0), vec![AsId(0)], None, None);
+//     let r_clone_1 = r.clone();
+//
+//     // add a neighbor and check that the route is advertised
+//     r.establish_ebgp_session(1.into()).unwrap();
+//     let r_clone_2 = r.clone();
+//
+//     // first, remove the neighbor, then stop advertising
+//     r.close_ebgp_session(1.into()).unwrap();
+//
+//     r.undo_action();
+//     r.assert_equal(&r_clone_2);
+//     r.undo_action();
+//     r.assert_equal(&r_clone_1);
+// }
