@@ -30,13 +30,12 @@
 //! reflectors `R0` and `R1`, and two external routers `E0` and `E1`. Both routers advertise the
 //! same prefix `Prefix(0)`, and all links have the same weight `1.0`.
 //!
-//! ```rust
-//! use netsim::{Network, Prefix, AsId, BgpSessionType::*, NetworkConfig};
-//! use netsim::config::{Config, ConfigExpr};
+//! ```
+//! use netsim::{Network, Prefix, AsId, BgpSessionType::*};
 //!
 //! fn main() -> Result<(), Box<dyn std::error::Error>> {
 //!
-//!     let mut t = Network::new();
+//!     let mut t = Network::default();
 //!
 //!     let prefix = Prefix(0);
 //!
@@ -53,24 +52,21 @@
 //!     t.add_link(r1, b1);
 //!     t.add_link(b1, e1);
 //!
-//!     let mut c = Config::new();
-//!     c.add(ConfigExpr::IgpLinkWeight { source: e0, target: b0, weight: 1.0 })?;
-//!     c.add(ConfigExpr::IgpLinkWeight { target: e0, source: b0, weight: 1.0 })?;
-//!     c.add(ConfigExpr::IgpLinkWeight { source: b0, target: r0, weight: 1.0 })?;
-//!     c.add(ConfigExpr::IgpLinkWeight { target: b0, source: r0, weight: 1.0 })?;
-//!     c.add(ConfigExpr::IgpLinkWeight { source: r0, target: r1, weight: 1.0 })?;
-//!     c.add(ConfigExpr::IgpLinkWeight { target: r0, source: r1, weight: 1.0 })?;
-//!     c.add(ConfigExpr::IgpLinkWeight { source: r1, target: b1, weight: 1.0 })?;
-//!     c.add(ConfigExpr::IgpLinkWeight { target: r1, source: b1, weight: 1.0 })?;
-//!     c.add(ConfigExpr::IgpLinkWeight { source: b1, target: e1, weight: 1.0 })?;
-//!     c.add(ConfigExpr::IgpLinkWeight { target: b1, source: e1, weight: 1.0 })?;
-//!     c.add(ConfigExpr::BgpSession { source: e0, target: b0, session_type: EBgp })?;
-//!     c.add(ConfigExpr::BgpSession { source: r0, target: b0, session_type: IBgpClient })?;
-//!     c.add(ConfigExpr::BgpSession { source: r0, target: r1, session_type: IBgpPeer })?;
-//!     c.add(ConfigExpr::BgpSession { source: r1, target: b1, session_type: IBgpClient })?;
-//!     c.add(ConfigExpr::BgpSession { source: e1, target: b1, session_type: EBgp })?;
-//!
-//!     t.set_config(&c)?;
+//!     t.set_link_weight(e0, b0, 1.0)?;
+//!     t.set_link_weight(b0, e0, 1.0)?;
+//!     t.set_link_weight(b0, r0, 1.0)?;
+//!     t.set_link_weight(r0, b0, 1.0)?;
+//!     t.set_link_weight(r0, r1, 1.0)?;
+//!     t.set_link_weight(r1, r0, 1.0)?;
+//!     t.set_link_weight(r1, b1, 1.0)?;
+//!     t.set_link_weight(b1, r1, 1.0)?;
+//!     t.set_link_weight(b1, e1, 1.0)?;
+//!     t.set_link_weight(e1, b1, 1.0)?;
+//!     t.set_bgp_session(e0, b0, Some(EBgp))?;
+//!     t.set_bgp_session(r0, b0, Some(IBgpClient))?;
+//!     t.set_bgp_session(r0, r1, Some(IBgpPeer))?;
+//!     t.set_bgp_session(r1, b1, Some(IBgpClient))?;
+//!     t.set_bgp_session(e1, b1, Some(EBgp))?;
 //!
 //!     // advertise the same prefix on both routers
 //!     t.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)?;

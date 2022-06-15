@@ -116,22 +116,14 @@ impl<Q> Network<Q> {
     /// a link with infinte weight is treated as not connected.
     ///
     /// ```rust
-    /// # use netsim::{Network, config::ConfigModifier, config::ConfigExpr, NetworkConfig};
+    /// # use netsim::Network;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// let mut net = Network::new();
+    /// let mut net = Network::default();
     /// let r1 = net.add_router("r1");
     /// let r2 = net.add_router("r2");
     /// net.add_link(r1, r2);
-    /// net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::IgpLinkWeight {
-    ///     source: r1,
-    ///     target: r2,
-    ///     weight: 5.0,
-    /// }))?;
-    /// net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::IgpLinkWeight {
-    ///     source: r2,
-    ///     target: r1,
-    ///     weight: 4.0,
-    /// }))?;
+    /// net.set_link_weight(r1, r2, 5.0)?;
+    /// net.set_link_weight(r2, r1, 4.0)?;
     /// # Ok(())
     /// # }
     /// ```
