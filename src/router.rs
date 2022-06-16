@@ -989,6 +989,7 @@ impl Router {
 }
 
 impl PartialEq for Router {
+    #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {
         if !(self.name == other.name
             && self.router_id == other.router_id

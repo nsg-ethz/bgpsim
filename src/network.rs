@@ -59,7 +59,6 @@ static DEFAULT_STOP_AFTER: usize = 100_000;
 /// using [`Network::undo_to_mark`].
 pub struct Network<Q = BasicEventQueue> {
     pub(crate) net: IgpNetwork,
-    pub(crate) links: Vec<(RouterId, RouterId)>,
     pub(crate) routers: HashMap<RouterId, Router>,
     pub(crate) external_routers: HashMap<RouterId, ExternalRouter>,
     pub(crate) known_prefixes: HashSet<Prefix>,
@@ -78,7 +77,6 @@ impl<Q: Clone> Clone for Network<Q> {
         // for the new queue, remove the history of all enqueued events
         Self {
             net: self.net.clone(),
-            links: self.links.clone(),
             routers: self.routers.clone(),
             external_routers: self.external_routers.clone(),
             known_prefixes: self.known_prefixes.clone(),
@@ -104,7 +102,6 @@ impl<Q> Network<Q> {
     pub fn new(queue: Q) -> Self {
         Self {
             net: IgpNetwork::new(),
-            links: Vec::new(),
             routers: HashMap::new(),
             known_prefixes: HashSet::new(),
             external_routers: HashMap::new(),
@@ -173,7 +170,6 @@ impl<Q> Network<Q> {
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn add_link(&mut self, source: RouterId, target: RouterId) {
-        self.links.push((source, target));
         self.net.add_edge(source, target, LinkWeight::infinite());
         self.net.add_edge(target, source, LinkWeight::infinite());
 
@@ -265,11 +261,6 @@ impl<Q> Network<Q> {
         &self.known_prefixes
     }
 
-    /// Returns an iterator over all (undirected) links in the network.
-    pub fn links_symmetric(&self) -> std::slice::Iter<'_, (RouterId, RouterId)> {
-        self.links.iter()
-    }
-
     /// Configure the topology to pause the queue and return after a certain number of queue have
     /// been executed. The job queue will remain active. If set to None, the queue will continue
     /// running until converged.
@@ -312,6 +303,7 @@ impl<Q> Network<Q> {
     /// Print the route of a routerID to the destination. This is a helper function, wrapping
     /// `self.get_route(source, prefix)` inside some print statements. The router ID must he the ID
     /// of an internal router
+    #[cfg(not(tarpaulin_include))]
     pub fn print_route(&self, source: RouterId, prefix: Prefix) -> Result<(), NetworkError> {
         match self.get_route(source, prefix) {
             Ok(path) => println!(
@@ -345,6 +337,7 @@ impl<Q> Network<Q> {
     }
 
     /// Print the igp forwarding table for a specific router.
+    #[cfg(not(tarpaulin_include))]
     pub fn print_igp_fw_table(&self, router_id: RouterId) -> Result<(), NetworkError> {
         let r = self
             .routers
@@ -382,6 +375,7 @@ impl<Q> Network<Q> {
     }
 
     /// Print the forwarding state of the network
+    #[cfg(not(tarpaulin_include))]
     pub fn print_fw_state(&self) -> Result<(), NetworkError> {
         let fw_state = self.get_forwarding_state();
         let fw_state_repr = print_fw_state(self, &fw_state)?;
@@ -728,6 +722,8 @@ where
                 .ok_or(NetworkError::LinkNotFound(router_b, router_a))?,
         );
 
+        // remove the link
+
         // update the undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.last_mut().unwrap().push(vec![
@@ -897,11 +893,18 @@ where
                         );
                     }
                     UndoAction::RemoveRouter(id) => {
+                        if self.net.edges(id).next().is_some() {
+                            return Err(NetworkError::UndoError(
+                                "Cannot remove the node as it is is still connected to other nodes"
+                                    .to_string(),
+                            ));
+                        }
                         self.routers
                             .remove(&id)
                             .map(|_| ())
                             .or_else(|| self.external_routers.remove(&id).map(|_| ()))
                             .ok_or(NetworkError::DeviceNotFound(id))?;
+                        self.net.remove_node(id);
                     }
                     // UndoAction::AddRouter(id, router) => {
                     //     self.routers.insert(id, *router);
@@ -968,6 +971,7 @@ where
     /// Checks for weak equivalence, by only comparing the BGP tables. This funciton assumes that
     /// both networks have identical routers, identical topologies, identical configuration and that
     /// the same routes are advertised by the same external routers.
+    #[cfg(not(tarpaulin_include))]
     pub fn weak_eq(&self, other: &Self) -> bool {
         // check if the queue is the same. Notice that the length of the queue will be checked
         // before every element is compared!
@@ -1001,12 +1005,9 @@ where
     Q: EventQueue + PartialEq,
     Q::Priority: Default + FmtPriority + Clone,
 {
+    #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {
         use ordered_float::NotNan;
-        if self.links != other.links {
-            return false;
-        }
-
         if self.routers != other.routers {
             return false;
         }

@@ -96,6 +96,7 @@ pub enum NetworkDevice<'a> {
     None,
 }
 
+#[cfg(not(tarpaulin_include))]
 impl<'a> NetworkDevice<'a> {
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::InternalRouter`
     pub fn unwrap_internal(self) -> &'a Router {
@@ -206,6 +207,7 @@ pub enum NetworkDeviceMut<'a> {
     None(RouterId),
 }
 
+#[cfg(not(tarpaulin_include))]
 impl<'a> NetworkDeviceMut<'a> {
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::InternalRouter`
     pub fn unwrap_internal(self) -> &'a mut Router {
@@ -415,4 +417,7 @@ pub enum NetworkError {
     /// Undo marks are empty
     #[error("Undo marks are empty")]
     EmptyUndoMarks,
+    /// Some undo error happened.
+    #[error("Undo error: {0}")]
+    UndoError(String),
 }

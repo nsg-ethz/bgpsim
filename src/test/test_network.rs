@@ -770,10 +770,17 @@ fn test_link_failure() {
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *E4]));
 
     // simulate link failure internally between R2 and R3
-    let mut net = original_net;
+    let mut net = original_net.clone();
     net.remove_link(*R2, *R3).unwrap();
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *E1]));
     assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R4, *R3, *R1, *E1]));
+    assert_eq!(net.get_route(*R3, p), Ok(vec![*R3, *R1, *E1]));
+    assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *R3, *R1, *E1]));
+
+    let mut net = original_net;
+    net.retract_external_route(*E4, p).unwrap();
+    assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *E1]));
+    assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R3, *R1, *E1]));
     assert_eq!(net.get_route(*R3, p), Ok(vec![*R3, *R1, *E1]));
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *R3, *R1, *E1]));
 }
@@ -825,6 +832,12 @@ fn test_link_failure_undo() {
     net.remove_link(*R2, *R3).unwrap();
     net.undo_action().unwrap();
     assert_eq!(net, net_hist_3);
+
+    // retract the route
+    net.retract_external_route(*E4, p).unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+
     net.undo_action().unwrap();
     assert_eq!(net, net_hist_2);
     net.undo_action().unwrap();

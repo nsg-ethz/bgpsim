@@ -73,6 +73,130 @@ where
 }
 
 #[test]
+fn test_undo_all() {
+    let mut net = Network::default();
+    let prefix = Prefix(0);
+    let net_hist_1 = net.clone();
+    let e0 = net.add_external_router("E0", AsId(1));
+    let net_hist_2 = net.clone();
+    let b0 = net.add_router("B0");
+    let net_hist_3 = net.clone();
+    let r0 = net.add_router("R0");
+    let net_hist_4 = net.clone();
+    let r1 = net.add_router("R1");
+    let net_hist_5 = net.clone();
+    let b1 = net.add_router("B1");
+    let net_hist_6 = net.clone();
+    let e1 = net.add_external_router("E1", AsId(1));
+    let net_hist_7 = net.clone();
+
+    net.add_link(e0, b0);
+    let net_hist_8 = net.clone();
+    net.add_link(b0, r0);
+    let net_hist_9 = net.clone();
+    net.add_link(r0, r1);
+    let net_hist_10 = net.clone();
+    net.add_link(r1, b1);
+    let net_hist_11 = net.clone();
+    net.add_link(b1, e1);
+    let net_hist_12 = net.clone();
+
+    net.set_link_weight(e0, b0, 1.0).unwrap();
+    let net_hist_13 = net.clone();
+    net.set_link_weight(b0, e0, 1.0).unwrap();
+    let net_hist_14 = net.clone();
+    net.set_link_weight(b0, r0, 1.0).unwrap();
+    let net_hist_15 = net.clone();
+    net.set_link_weight(r0, b0, 1.0).unwrap();
+    let net_hist_16 = net.clone();
+    net.set_link_weight(r0, r1, 1.0).unwrap();
+    let net_hist_17 = net.clone();
+    net.set_link_weight(r1, r0, 1.0).unwrap();
+    let net_hist_18 = net.clone();
+    net.set_link_weight(r1, b1, 1.0).unwrap();
+    let net_hist_19 = net.clone();
+    net.set_link_weight(b1, r1, 1.0).unwrap();
+    let net_hist_20 = net.clone();
+    net.set_link_weight(b1, e1, 1.0).unwrap();
+    let net_hist_21 = net.clone();
+    net.set_link_weight(e1, b1, 1.0).unwrap();
+    let net_hist_22 = net.clone();
+    net.set_bgp_session(e0, b0, Some(EBgp)).unwrap();
+    let net_hist_23 = net.clone();
+    net.set_bgp_session(r0, b0, Some(IBgpClient)).unwrap();
+    let net_hist_24 = net.clone();
+    net.set_bgp_session(r0, r1, Some(IBgpPeer)).unwrap();
+    let net_hist_25 = net.clone();
+    net.set_bgp_session(r1, b1, Some(IBgpClient)).unwrap();
+    let net_hist_26 = net.clone();
+    net.set_bgp_session(e1, b1, Some(EBgp)).unwrap();
+    let net_hist_27 = net.clone();
+    net.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+        .unwrap();
+    let net_hist_28 = net.clone();
+
+    net.advertise_external_route(e1, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+        .unwrap();
+
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_28);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_27);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_26);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_25);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_24);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_23);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_22);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_21);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_20);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_19);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_18);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_17);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_16);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_15);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_14);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_13);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_12);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_11);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_10);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_9);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_8);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_7);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_6);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_5);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_4);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_2);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_1);
+}
+
+#[test]
 fn test_simple() {
     let mut net = Network::default();
     let prefix = Prefix(0);
