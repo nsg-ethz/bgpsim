@@ -55,7 +55,7 @@ static DEFAULT_STOP_AFTER: usize = 100_000;
 ///
 /// You can undo an entire action by calling [`Network::undo_action`]. In the interactive mode, you can
 /// undo a single event by calling [`crate::interactive::InteractiveNetwork::undo_step`]. Finally,
-/// you can create an undo-mark by calling [`Network::set_undo_mark`], and undo up to this mark
+/// you can create an undo-mark by calling [`Network::get_undo_mark`], and undo up to this mark
 /// using [`Network::undo_to_mark`].
 pub struct Network<Q = BasicEventQueue> {
     pub(crate) net: IgpNetwork,
@@ -67,8 +67,6 @@ pub struct Network<Q = BasicEventQueue> {
     pub(crate) skip_queue: bool,
     #[cfg(feature = "undo")]
     undo_stack: Vec<Vec<Vec<UndoAction>>>,
-    #[cfg(feature = "undo")]
-    pub(crate) undo_marks: Vec<(usize, usize)>,
 }
 
 impl<Q: Clone> Clone for Network<Q> {
@@ -85,8 +83,6 @@ impl<Q: Clone> Clone for Network<Q> {
             skip_queue: false,
             #[cfg(feature = "undo")]
             undo_stack: self.undo_stack.clone(),
-            #[cfg(feature = "undo")]
-            undo_marks: self.undo_marks.clone(),
         }
     }
 }
@@ -110,8 +106,6 @@ impl<Q> Network<Q> {
             skip_queue: false,
             #[cfg(feature = "undo")]
             undo_stack: Vec::new(),
-            #[cfg(feature = "undo")]
-            undo_marks: Vec::new(),
         }
     }
 
@@ -781,18 +775,27 @@ where
     ///
     /// **Note**: This funtion is only available with the `undo` feature.
     #[cfg(feature = "undo")]
-    pub fn undo_to_mark(&mut self) -> Result<(), NetworkError> {
-        let last_mark = if let Some(m) = self.undo_marks.last().copied() {
-            m
-        } else {
-            return Err(NetworkError::EmptyUndoMarks);
-        };
-
-        // call undo_event until num_actions has decreased
-        while self.undo_marks.last() == Some(&last_mark) {
-            self.undo_event()?;
+    pub fn get_undo_mark(&self) -> UndoMark {
+        UndoMark {
+            major: self.undo_stack.len(),
         }
+    }
 
+    /// Undo the last action performed on the network.
+    ///
+    /// **Note**: This funtion is only available with the `undo` feature.
+    #[cfg(feature = "undo")]
+    pub fn undo_to_mark(&mut self, mark: UndoMark) -> Result<(), NetworkError> {
+        loop {
+            // Check if the mark has been reached
+            let num_actions = self.undo_stack.len();
+            // check if the mark was reached
+            if mark.major < num_actions {
+                self.undo_action()?;
+            } else {
+                break;
+            }
+        }
         Ok(())
     }
 
@@ -932,18 +935,6 @@ where
             self.undo_stack.pop();
         }
 
-        // Check if any of the undo marks have been reached
-        let num_actions = self.undo_stack.len();
-        let num_events = self.undo_stack.last().map(|a| a.len()).unwrap_or(0);
-        while let Some((major, minor)) = self.undo_marks.last().copied() {
-            // check if the mark was reached
-            if major + 1 > num_actions || (major + 1 == num_actions && minor + 1 >= num_events) {
-                self.undo_marks.pop();
-            } else {
-                break;
-            }
-        }
-
         Ok(())
     }
 
@@ -1025,7 +1016,7 @@ where
         }
 
         #[cfg(feature = "undo")]
-        if self.undo_stack != other.undo_stack || self.undo_marks != other.undo_marks {
+        if self.undo_stack != other.undo_stack {
             return false;
         }
 
@@ -1051,6 +1042,13 @@ where
 
         true
     }
+}
+
+/// Marker that caputres the information to undo to a specific point in time.
+#[cfg(feature = "undo")]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+pub struct UndoMark {
+    major: usize,
 }
 
 /// Undo action on the Network

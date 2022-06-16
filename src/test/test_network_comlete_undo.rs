@@ -18,6 +18,7 @@
 use crate::{
     bgp::BgpSessionType::*,
     event::{FmtPriority, ModelParams, SimpleTimingModel},
+    interactive::InteractiveNetwork,
     network::Network,
     AsId, EventQueue, NetworkError, Prefix, RouterId,
 };
@@ -194,6 +195,66 @@ fn test_undo_all() {
     assert_eq!(net, net_hist_2);
     net.undo_action().unwrap();
     assert_eq!(net, net_hist_1);
+}
+
+#[test]
+fn test_undo_marks() {
+    let mut net = Network::default();
+    let prefix = Prefix(0);
+    let net_hist_0 = net.clone();
+    let mark_0 = net.get_undo_mark();
+    let e0 = net.add_external_router("E0", AsId(1));
+    let b0 = net.add_router("B0");
+    let r0 = net.add_router("R0");
+    let net_hist_1 = net.clone();
+    let mark_1 = net.get_undo_mark();
+    let r1 = net.add_router("R1");
+    let b1 = net.add_router("B1");
+    let e1 = net.add_external_router("E1", AsId(1));
+
+    net.add_link(e0, b0);
+    net.add_link(b0, r0);
+    let net_hist_2 = net.clone();
+    let mark_2 = net.get_undo_mark();
+    net.add_link(r0, r1);
+    net.add_link(r1, b1);
+    net.add_link(b1, e1);
+
+    net.set_link_weight(e0, b0, 1.0).unwrap();
+    net.set_link_weight(b0, e0, 1.0).unwrap();
+    net.set_link_weight(b0, r0, 1.0).unwrap();
+    net.set_link_weight(r0, b0, 1.0).unwrap();
+    let net_hist_3 = net.clone();
+    let mark_3 = net.get_undo_mark();
+    net.set_link_weight(r0, r1, 1.0).unwrap();
+    net.set_link_weight(r1, r0, 1.0).unwrap();
+    net.set_link_weight(r1, b1, 1.0).unwrap();
+    net.set_link_weight(b1, r1, 1.0).unwrap();
+    net.set_link_weight(b1, e1, 1.0).unwrap();
+    net.set_link_weight(e1, b1, 1.0).unwrap();
+    net.set_bgp_session(e0, b0, Some(EBgp)).unwrap();
+    net.set_bgp_session(r0, b0, Some(IBgpClient)).unwrap();
+    net.set_bgp_session(r0, r1, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(r1, b1, Some(IBgpClient)).unwrap();
+    let net_hist_4 = net.clone();
+    let mark_4 = net.get_undo_mark();
+    net.set_bgp_session(e1, b1, Some(EBgp)).unwrap();
+
+    net.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+        .unwrap();
+    net.advertise_external_route(e1, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+        .unwrap();
+
+    net.undo_to_mark(mark_4).unwrap();
+    assert_eq!(net, net_hist_4);
+    net.undo_to_mark(mark_3).unwrap();
+    assert_eq!(net, net_hist_3);
+    net.undo_to_mark(mark_2).unwrap();
+    assert_eq!(net, net_hist_2);
+    net.undo_to_mark(mark_1).unwrap();
+    assert_eq!(net, net_hist_1);
+    net.undo_to_mark(mark_0).unwrap();
+    assert_eq!(net, net_hist_0);
 }
 
 #[test]
