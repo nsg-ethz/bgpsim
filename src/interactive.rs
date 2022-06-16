@@ -59,6 +59,7 @@ where
     /// Undo the last event in the network.
     ///
     /// **Note**: This funtion is only available with the `undo` feature.
+    #[cfg(feature = "undo")]
     fn undo_step(&mut self) -> Result<(), NetworkError>;
 
     /// Get a reference to the queue
@@ -99,6 +100,7 @@ where
         self.do_queue_step()
     }
 
+    #[cfg(feature = "undo")]
     fn undo_step(&mut self) -> Result<(), NetworkError> {
         self.undo_event()
     }

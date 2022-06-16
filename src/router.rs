@@ -986,31 +986,39 @@ impl Router {
                 | (_, BgpSessionType::IBgpClient)
         ))
     }
+}
 
-    /// This function asserts that the BGP table is equal.
-    #[allow(dead_code)]
-    #[cfg(test)]
-    pub(crate) fn assert_equal(&self, other: &Self) {
-        if self.igp_forwarding_table != other.igp_forwarding_table {
-            panic!("IGP table is not equal!");
+impl PartialEq for Router {
+    fn eq(&self, other: &Self) -> bool {
+        if !(self.name == other.name
+            && self.router_id == other.router_id
+            && self.as_id == other.as_id
+            && self.igp_forwarding_table == other.igp_forwarding_table
+            && self.static_routes == other.static_routes
+            && self.bgp_sessions == other.bgp_sessions
+            && self.bgp_rib == other.bgp_rib
+            && self.bgp_route_maps_in == other.bgp_route_maps_in
+            && self.bgp_route_maps_out == other.bgp_route_maps_out)
+        {
+            return false;
         }
-        if self.bgp_rib != other.bgp_rib {
-            panic!("RIB is not equal!");
+        #[cfg(feature = "undo")]
+        if self.undo_stack != other.undo_stack {
+            return false;
         }
+
         for prefix in self.bgp_known_prefixes.union(&other.bgp_known_prefixes) {
-            match (self.bgp_rib_in.get(prefix), other.bgp_rib_in.get(prefix)) {
-                (Some(x), None) if !x.is_empty() => panic!("RIB_IN wrong for prefix {}", prefix.0),
-                (None, Some(x)) if !x.is_empty() => panic!("RIB_IN wrong for prefix {}", prefix.0),
-                (Some(a), Some(b)) if a != b => panic!("RIB_IN wrong for prefix {}", prefix.0),
-                _ => {}
-            }
-            match (self.bgp_rib_out.get(prefix), other.bgp_rib_out.get(prefix)) {
-                (Some(x), None) if !x.is_empty() => panic!("RIB_OUT wrong for prefix {}", prefix.0),
-                (None, Some(x)) if !x.is_empty() => panic!("RIB_OUT wrong for prefix {}", prefix.0),
-                (Some(a), Some(b)) if a != b => panic!("RIB_OUT wrong for prefix {}", prefix.0),
-                _ => {}
-            }
+            assert_eq!(
+                self.bgp_rib_in.get(prefix).unwrap_or(&HashMap::new()),
+                other.bgp_rib_in.get(prefix).unwrap_or(&HashMap::new())
+            );
+            assert_eq!(
+                self.bgp_rib_out.get(prefix).unwrap_or(&HashMap::new()),
+                other.bgp_rib_out.get(prefix).unwrap_or(&HashMap::new())
+            );
         }
+
+        true
     }
 }
 

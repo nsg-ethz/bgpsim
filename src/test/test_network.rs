@@ -18,9 +18,8 @@
 //! Test the simple functionality of the network, without running it entirely.
 
 use crate::config::{
-    Config,
-    ConfigExpr::{BgpRouteMap, BgpSession, IgpLinkWeight, StaticRoute},
-    ConfigModifier::{Insert, Remove},
+    ConfigExpr::{IgpLinkWeight, StaticRoute},
+    ConfigModifier::Insert,
     NetworkConfig,
 };
 use crate::network::Network;
@@ -30,6 +29,7 @@ use crate::route_map::{
 use crate::{AsId, BgpSessionType::*, LinkWeight, NetworkError, Prefix, RouterId};
 use lazy_static::lazy_static;
 use petgraph::algo::FloatMeasure;
+use pretty_assertions::assert_eq;
 
 lazy_static! {
     static ref R1: RouterId = 0.into();
@@ -72,152 +72,39 @@ fn get_test_net() -> Network {
 /// Test network with BGP and link weights configured. No prefixes advertised yet. All internal
 /// routers are connected in an iBGP full mesh, all link weights are set to 1 except the one
 /// between r1 and r2.
-fn get_test_net_bgp() -> (Network, Config) {
+fn get_test_net_bgp() -> Network {
     let mut net = get_test_net();
-    let mut c = Config::new();
 
     // configure link weights
-    c.add(IgpLinkWeight {
-        source: *R1,
-        target: *R2,
-        weight: 5.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        source: *R1,
-        target: *R3,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        source: *R2,
-        target: *R3,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        source: *R2,
-        target: *R4,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        source: *R3,
-        target: *R4,
-        weight: 2.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        source: *R1,
-        target: *E1,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        source: *R4,
-        target: *E4,
-        weight: 1.0,
-    })
-    .unwrap();
+    net.set_link_weight(*R1, *R2, 5.0).unwrap();
+    net.set_link_weight(*R1, *R3, 1.0).unwrap();
+    net.set_link_weight(*R2, *R3, 1.0).unwrap();
+    net.set_link_weight(*R2, *R4, 1.0).unwrap();
+    net.set_link_weight(*R3, *R4, 2.0).unwrap();
+    net.set_link_weight(*R1, *E1, 1.0).unwrap();
+    net.set_link_weight(*R4, *E4, 1.0).unwrap();
     // configure link weights in reverse
-    c.add(IgpLinkWeight {
-        target: *R1,
-        source: *R2,
-        weight: 5.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        target: *R1,
-        source: *R3,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        target: *R2,
-        source: *R3,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        target: *R2,
-        source: *R4,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        target: *R3,
-        source: *R4,
-        weight: 2.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        target: *R1,
-        source: *E1,
-        weight: 1.0,
-    })
-    .unwrap();
-    c.add(IgpLinkWeight {
-        target: *R4,
-        source: *E4,
-        weight: 1.0,
-    })
-    .unwrap();
+    net.set_link_weight(*R2, *R1, 5.0).unwrap();
+    net.set_link_weight(*R3, *R1, 1.0).unwrap();
+    net.set_link_weight(*R3, *R2, 1.0).unwrap();
+    net.set_link_weight(*R4, *R2, 1.0).unwrap();
+    net.set_link_weight(*R4, *R3, 2.0).unwrap();
+    net.set_link_weight(*E1, *R1, 1.0).unwrap();
+    net.set_link_weight(*E4, *R4, 1.0).unwrap();
 
     // configure iBGP full mesh
-    c.add(BgpSession {
-        source: *R1,
-        target: *R2,
-        session_type: IBgpPeer,
-    })
-    .unwrap();
-    c.add(BgpSession {
-        source: *R1,
-        target: *R3,
-        session_type: IBgpPeer,
-    })
-    .unwrap();
-    c.add(BgpSession {
-        source: *R1,
-        target: *R4,
-        session_type: IBgpPeer,
-    })
-    .unwrap();
-    c.add(BgpSession {
-        source: *R2,
-        target: *R3,
-        session_type: IBgpPeer,
-    })
-    .unwrap();
-    c.add(BgpSession {
-        source: *R2,
-        target: *R4,
-        session_type: IBgpPeer,
-    })
-    .unwrap();
-    c.add(BgpSession {
-        source: *R3,
-        target: *R4,
-        session_type: IBgpPeer,
-    })
-    .unwrap();
+    net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R1, *R3, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R1, *R4, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R2, *R3, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R2, *R4, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R3, *R4, Some(IBgpPeer)).unwrap();
 
     // configure eBGP sessions
-    c.add(BgpSession {
-        source: *R1,
-        target: *E1,
-        session_type: EBgp,
-    })
-    .unwrap();
-    c.add(BgpSession {
-        source: *R4,
-        target: *E4,
-        session_type: EBgp,
-    })
-    .unwrap();
+    net.set_bgp_session(*R1, *E1, Some(EBgp)).unwrap();
+    net.set_bgp_session(*R4, *E4, Some(EBgp)).unwrap();
 
-    net.set_config(&c).unwrap();
-
-    (net, c)
+    net
 }
 
 #[test]
@@ -266,18 +153,8 @@ fn test_igp_table() {
     }
 
     // add and remove a configuration to set a single link weight to infinity.
-    net.apply_modifier(&Insert(IgpLinkWeight {
-        source: *R1,
-        target: *R2,
-        weight: LinkWeight::infinite(),
-    }))
-    .unwrap();
-    net.apply_modifier(&Remove(IgpLinkWeight {
-        source: *R1,
-        target: *R2,
-        weight: LinkWeight::infinite(),
-    }))
-    .unwrap();
+    net.set_link_weight(*R1, *R2, LinkWeight::infinite())
+        .unwrap();
 
     // now the igp forwarding table should be updated.
     for router in net.get_routers().iter() {
@@ -294,12 +171,7 @@ fn test_igp_table() {
     }
 
     // configure a single link weight and check the result
-    net.apply_modifier(&Insert(IgpLinkWeight {
-        source: *R1,
-        target: *R2,
-        weight: 5.0,
-    }))
-    .unwrap();
+    net.set_link_weight(*R1, *R2, 5.0).unwrap();
 
     // now the igp forwarding table should be updated.
     for from in net.get_routers().iter() {
@@ -318,12 +190,7 @@ fn test_igp_table() {
     }
 
     // configure a single link weight in reverse
-    net.apply_modifier(&Insert(IgpLinkWeight {
-        source: *R2,
-        target: *R1,
-        weight: 5.0,
-    }))
-    .unwrap();
+    net.set_link_weight(*R2, *R1, 5.0).unwrap();
 
     // now the igp forwarding table should be updated.
     for from in net.get_routers().iter() {
@@ -342,17 +209,38 @@ fn test_igp_table() {
     }
 
     // add a non-existing link weight
-    net.apply_modifier(&Insert(IgpLinkWeight {
-        source: *R1,
-        target: *R4,
-        weight: 1.0,
-    }))
-    .unwrap_err();
+    net.set_link_weight(*R1, *R4, 1.0).unwrap_err();
+}
+
+#[cfg(feature = "undo")]
+#[test]
+fn test_igp_table_undo() {
+    let mut net = get_test_net();
+    let net_hist_1 = net.clone();
+
+    // add and remove a configuration to set a single link weight to infinity.
+    net.set_link_weight(*R1, *R2, LinkWeight::infinite())
+        .unwrap();
+    let net_hist_2 = net.clone();
+
+    // configure a single link weight and check the result
+    net.set_link_weight(*R1, *R2, 5.0).unwrap();
+    let net_hist_3 = net.clone();
+
+    // configure a single link weight in reverse
+    net.set_link_weight(*R2, *R1, 5.0).unwrap();
+
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_2);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_1);
 }
 
 #[test]
 fn test_bgp_connectivity() {
-    let (mut net, _) = get_test_net_bgp();
+    let mut net = get_test_net_bgp();
 
     let p = Prefix(0);
 
@@ -383,9 +271,33 @@ fn test_bgp_connectivity() {
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *E4]));
 }
 
+#[cfg(feature = "undo")]
+#[test]
+fn test_bgp_connectivity_undo() {
+    let mut net = get_test_net_bgp();
+    let net_hist_1 = net.clone();
+
+    let p = Prefix(0);
+
+    // advertise prefix on e1
+    net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        .unwrap();
+    let net_hist_2 = net.clone();
+
+    // advertise prefix on e4
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        .unwrap();
+
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_2);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_1);
+}
+
+// TODO test static route undo
 #[test]
 fn test_static_route() {
-    let (mut net, _) = get_test_net_bgp();
+    let mut net = get_test_net_bgp();
 
     let p = Prefix(0);
 
@@ -409,6 +321,7 @@ fn test_static_route() {
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *E4]));
 
     // now, make sure that router R3 points to R4 for the prefix
+    // TODO reimplement this on the network!
     net.apply_modifier(&Insert(StaticRoute {
         router: *R3,
         prefix: p,
@@ -422,6 +335,7 @@ fn test_static_route() {
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *E4]));
 
     // now, make sure that router R3 points to R4 for the prefix
+    // TODO reimplement this on the network!
     net.apply_modifier(&Insert(StaticRoute {
         router: *R2,
         prefix: p,
@@ -437,6 +351,7 @@ fn test_static_route() {
     let mut test_net = net;
 
     // Add an invalid static route and expect to fail
+    // TODO reimplement this on the network!
     test_net
         .apply_modifier(&Insert(StaticRoute {
             router: *R1,
@@ -448,7 +363,7 @@ fn test_static_route() {
 
 #[test]
 fn test_bgp_decision() {
-    let (mut net, _) = get_test_net_bgp();
+    let mut net = get_test_net_bgp();
 
     let p = Prefix(0);
 
@@ -505,9 +420,64 @@ fn test_bgp_decision() {
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *E4]));
 }
 
+#[cfg(feature = "undo")]
+#[test]
+fn test_bgp_decision_undo() {
+    let mut net = get_test_net_bgp();
+    let net_hist_1 = net.clone();
+
+    let p = Prefix(0);
+
+    // advertise both prefixes
+    net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        .unwrap();
+    let net_hist_2 = net.clone();
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        .unwrap();
+    let net_hist_3 = net.clone();
+
+    // change the AS path
+    net.advertise_external_route(
+        *E4,
+        p,
+        vec![AsId(65104), AsId(65500), AsId(65201)],
+        None,
+        None,
+    )
+    .unwrap();
+    let net_hist_4 = net.clone();
+
+    // change back
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        .unwrap();
+    let net_hist_5 = net.clone();
+
+    // change the MED
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], Some(20), None)
+        .unwrap();
+    let net_hist_6 = net.clone();
+
+    // change back
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        .unwrap();
+
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_6);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_5);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_4);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_2);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_1);
+}
+
 #[test]
 fn test_route_maps() {
-    let (mut original_net, _) = get_test_net_bgp();
+    let mut original_net = get_test_net_bgp();
     let p = Prefix(0);
 
     // advertise both prefixes
@@ -526,11 +496,11 @@ fn test_route_maps() {
 
     // now, deny all routes from E1
     let mut net = original_net.clone();
-    net.apply_modifier(&Insert(BgpRouteMap {
-        router: *R1,
-        direction: Incoming,
-        map: RouteMap::new(10, Deny, vec![Match::Neighbor(*E1)], vec![]),
-    }))
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(10, Deny, vec![Match::Neighbor(*E1)], vec![]),
+        Incoming,
+    )
     .unwrap();
 
     eprintln!("{:#?}", net.queue);
@@ -543,11 +513,11 @@ fn test_route_maps() {
 
     // now, don't forward the route from E1 at R1, but keep it locally
     let mut net = original_net.clone();
-    net.apply_modifier(&Insert(BgpRouteMap {
-        router: *R1,
-        direction: Outgoing,
-        map: RouteMap::new(10, Deny, vec![Match::NextHop(*E1)], vec![]),
-    }))
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(10, Deny, vec![Match::NextHop(*E1)], vec![]),
+        Outgoing,
+    )
     .unwrap();
 
     // we expect that all take R4
@@ -558,16 +528,16 @@ fn test_route_maps() {
 
     // now, change the local pref for all to lower
     let mut net = original_net.clone();
-    net.apply_modifier(&Insert(BgpRouteMap {
-        router: *R1,
-        direction: Incoming,
-        map: RouteMap::new(
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(
             10,
             Allow,
             vec![Match::Neighbor(*E1)],
             vec![Set::LocalPref(Some(50))],
         ),
-    }))
+        Incoming,
+    )
     .unwrap();
 
     // we expect that all take R4
@@ -578,16 +548,16 @@ fn test_route_maps() {
 
     // now, change the local pref for all others to lower
     let mut net = original_net.clone();
-    net.apply_modifier(&Insert(BgpRouteMap {
-        router: *R1,
-        direction: Outgoing,
-        map: RouteMap::new(
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(
             10,
             Allow,
             vec![Match::NextHop(*E1)],
             vec![Set::LocalPref(Some(50))],
         ),
-    }))
+        Outgoing,
+    )
     .unwrap();
 
     // we expect that all take R4
@@ -598,16 +568,16 @@ fn test_route_maps() {
 
     // now, set the local pref higher only for R2, who would else pick R4
     let mut net = original_net;
-    net.apply_modifier(&Insert(BgpRouteMap {
-        router: *R1,
-        direction: Outgoing,
-        map: RouteMap::new(
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(
             10,
             Allow,
             vec![Match::Neighbor(*R2)],
             vec![Set::LocalPref(Some(200))],
         ),
-    }))
+        Outgoing,
+    )
     .unwrap();
 
     // we expect that all take R4
@@ -618,16 +588,16 @@ fn test_route_maps() {
 
     // by additionally setting local pref to a lower value, all routers should choose R4, but in R2
     // should choose R3 as a next hop
-    net.apply_modifier(&Insert(BgpRouteMap {
-        router: *R1,
-        direction: Outgoing,
-        map: RouteMap::new(
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(
             20,
             Allow,
             vec![Match::NextHop(*E1)],
             vec![Set::LocalPref(Some(50))],
         ),
-    }))
+        Outgoing,
+    )
     .unwrap();
 
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *E1]));
@@ -636,9 +606,111 @@ fn test_route_maps() {
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *E4]));
 }
 
+#[cfg(feature = "undo")]
+#[test]
+fn test_route_maps_undo() {
+    let mut net = get_test_net_bgp();
+    let p = Prefix(0);
+    let net_hist_1 = net.clone();
+
+    // advertise both prefixes
+    net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        .unwrap();
+    let net_hist_2 = net.clone();
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        .unwrap();
+    let net_hist_3 = net.clone();
+
+    // now, deny all routes from E1
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(10, Deny, vec![Match::Neighbor(*E1)], vec![]),
+        Incoming,
+    )
+    .unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+
+    // now, don't forward the route from E1 at R1, but keep it locally
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(10, Deny, vec![Match::NextHop(*E1)], vec![]),
+        Outgoing,
+    )
+    .unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+
+    // now, change the local pref for all to lower
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(
+            10,
+            Allow,
+            vec![Match::Neighbor(*E1)],
+            vec![Set::LocalPref(Some(50))],
+        ),
+        Incoming,
+    )
+    .unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+
+    // now, change the local pref for all others to lower
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(
+            10,
+            Allow,
+            vec![Match::NextHop(*E1)],
+            vec![Set::LocalPref(Some(50))],
+        ),
+        Outgoing,
+    )
+    .unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+
+    // now, set the local pref higher only for R2, who would else pick R4
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(
+            10,
+            Allow,
+            vec![Match::Neighbor(*R2)],
+            vec![Set::LocalPref(Some(200))],
+        ),
+        Outgoing,
+    )
+    .unwrap();
+    let net_hist_4 = net.clone();
+
+    // by additionally setting local pref to a lower value, all routers should choose R4, but in R2
+    // should choose R3 as a next hop
+    net.set_bgp_route_map(
+        *R1,
+        RouteMap::new(
+            20,
+            Allow,
+            vec![Match::NextHop(*E1)],
+            vec![Set::LocalPref(Some(50))],
+        ),
+        Outgoing,
+    )
+    .unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_4);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_2);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_1);
+}
+
 #[test]
 fn test_link_failure() {
-    let (mut original_net, _) = get_test_net_bgp();
+    let mut original_net = get_test_net_bgp();
 
     // advertise a prefix on both ends
     let p = Prefix(0);
@@ -706,9 +778,63 @@ fn test_link_failure() {
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *R3, *R1, *E1]));
 }
 
+#[cfg(feature = "undo")]
+#[test]
+fn test_link_failure_undo() {
+    let mut net = get_test_net_bgp();
+    let net_hist_1 = net.clone();
+
+    // advertise a prefix on both ends
+    let p = Prefix(0);
+    net.advertise_external_route(
+        *E1,
+        p,
+        vec![AsId(65101), AsId(65103), AsId(65201)],
+        None,
+        None,
+    )
+    .unwrap();
+    let net_hist_2 = net.clone();
+    net.advertise_external_route(
+        *E4,
+        p,
+        vec![AsId(65104), AsId(65101), AsId(65103), AsId(65201)],
+        None,
+        None,
+    )
+    .unwrap();
+    let net_hist_3 = net.clone();
+
+    // simulate link failure internally, between R2 and R4, which should not change anything in the
+    // forwarding state.
+    net.remove_link(*R2, *R4).unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+
+    // simulate link failure externally, between R1 and E1, which should cause reconvergence.
+    net.remove_link(*R1, *E1).unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+
+    // simulate link failure externally, between E1 and R1, which should cause reconvergence.
+    net.remove_link(*E1, *R1).unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+
+    // simulate link failure internally between R2 and R3
+    net.remove_link(*R2, *R3).unwrap();
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_3);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_2);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_hist_1);
+}
+
 #[test]
 fn test_config_extractor() {
-    let (mut net, mut original_cfg) = get_test_net_bgp();
+    let mut net = get_test_net_bgp();
+    let mut original_cfg = net.get_config().unwrap();
 
     let extracted_cfg = net.get_config().unwrap();
     assert_eq!(original_cfg, extracted_cfg);

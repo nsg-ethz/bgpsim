@@ -32,6 +32,7 @@ use crate::{AsId, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
 
 use log::*;
 use petgraph::algo::FloatMeasure;
+use petgraph::visit::{EdgeRef, IntoEdgeReferences};
 use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 100_000;
@@ -714,14 +715,14 @@ where
         );
 
         // Remove the link in one direction
-        let weight_a_b = self.net.remove_edge(
+        let _weight_a_b = self.net.remove_edge(
             self.net
                 .find_edge(router_a, router_b)
                 .ok_or(NetworkError::LinkNotFound(router_a, router_b))?,
         );
 
         // Rremove the link in the other direction
-        let weight_b_a = self.net.remove_edge(
+        let _weight_b_a = self.net.remove_edge(
             self.net
                 .find_edge(router_b, router_a)
                 .ok_or(NetworkError::LinkNotFound(router_b, router_a))?,
@@ -730,8 +731,8 @@ where
         // update the undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.last_mut().unwrap().push(vec![
-            UndoAction::UpdateIGP(router_a, router_b, weight_a_b),
-            UndoAction::UpdateIGP(router_b, router_a, weight_b_a),
+            UndoAction::UpdateIGP(router_a, router_b, _weight_a_b),
+            UndoAction::UpdateIGP(router_b, router_a, _weight_b_a),
         ]);
 
         self.write_igp_fw_tables()
@@ -1001,41 +1002,59 @@ where
     Q::Priority: Default + FmtPriority + Clone,
 {
     fn eq(&self, other: &Self) -> bool {
-        // first, check if the same number of internal and external routers exists
-        if self.routers.len() != other.routers.len()
-            || self.external_routers.len() != other.external_routers.len()
-        {
+        use ordered_float::NotNan;
+        if self.links != other.links {
             return false;
         }
 
-        // check if the known prefixes are the same
-        if self.known_prefixes != other.known_prefixes {
+        if self.routers != other.routers {
             return false;
         }
 
-        // check if the configuration is the same
+        if self.external_routers != other.external_routers {
+            return false;
+        }
+
+        if self.queue != other.queue {
+            return false;
+        }
+
         if self.get_config() != other.get_config() {
             return false;
         }
 
-        // check if the external routers advertise the same prefix
-        let external_routers_same_prefixes = self.external_routers.keys().all(|rid| {
-            self.external_routers
-                .get(rid)
-                .unwrap()
-                .advertises_same_routes(other.external_routers.get(rid).unwrap())
-        });
-        if !external_routers_same_prefixes {
+        #[cfg(feature = "undo")]
+        if self.undo_stack != other.undo_stack || self.undo_marks != other.undo_marks {
             return false;
         }
 
-        self.weak_eq(other)
+        let self_ns = HashSet::<RouterId>::from_iter(self.net.node_indices());
+        let other_ns = HashSet::<RouterId>::from_iter(other.net.node_indices());
+        if self_ns != other_ns {
+            return false;
+        }
+        let self_es = HashSet::<(RouterId, RouterId, NotNan<f32>)>::from_iter(
+            self.net
+                .edge_references()
+                .map(|e| (e.source(), e.target(), NotNan::new(*e.weight()).unwrap())),
+        );
+        let other_es = HashSet::<(RouterId, RouterId, NotNan<f32>)>::from_iter(
+            other
+                .net
+                .edge_references()
+                .map(|e| (e.source(), e.target(), NotNan::new(*e.weight()).unwrap())),
+        );
+        if self_es != other_es {
+            return false;
+        }
+
+        true
     }
 }
 
 /// Undo action on the Network
 #[cfg(feature = "undo")]
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq)]
 enum UndoAction {
     /// Update an edge weight or remove the edge entirely.
     UpdateIGP(RouterId, RouterId, Option<LinkWeight>),

@@ -23,6 +23,7 @@ use crate::router::*;
 use crate::types::IgpNetwork;
 use crate::{AsId, Prefix};
 use maplit::{hashmap, hashset};
+use pretty_assertions::assert_eq;
 
 #[test]
 fn test_bgp_single() {
@@ -713,20 +714,27 @@ fn test_bgp_single_undo() {
     // check the undo history //
     ////////////////////////////
 
+    eprintln!("7");
     r.undo_event();
-    r.assert_equal(&store_r_7);
+    assert_eq!(r, store_r_7);
+    eprintln!("6");
     r.undo_event();
-    r.assert_equal(&store_r_6);
+    assert_eq!(r, store_r_6);
+    eprintln!("5");
     r.undo_event();
-    r.assert_equal(&store_r_5);
+    assert_eq!(r, store_r_5);
+    eprintln!("4");
     r.undo_event();
-    r.assert_equal(&store_r_4);
+    assert_eq!(r, store_r_4);
+    eprintln!("3");
     r.undo_event();
-    r.assert_equal(&store_r_3);
+    assert_eq!(r, store_r_3);
+    eprintln!("2");
     r.undo_event();
-    r.assert_equal(&store_r_2);
+    assert_eq!(r, store_r_2);
+    eprintln!("1");
     r.undo_event();
-    r.assert_equal(&store_r_1);
+    assert_eq!(r, store_r_1);
 }
 
 #[cfg(feature = "undo")]
@@ -783,9 +791,9 @@ fn test_undo_fw_table() {
     r_b.undo_event();
     r_c.undo_event();
 
-    r_a.assert_equal(&r_a_clone);
-    r_b.assert_equal(&r_b_clone);
-    r_c.assert_equal(&r_c_clone);
+    assert_eq!(r_a, r_a_clone);
+    assert_eq!(r_b, r_b_clone);
+    assert_eq!(r_c, r_c_clone);
 }
 
 #[cfg(feature = "undo")]
@@ -806,9 +814,9 @@ fn external_router_advertise_to_neighbors_undo() {
     r.widthdraw_prefix::<()>(Prefix(0));
 
     r.undo_event();
-    r.assert_equal(&r_clone_2);
+    assert_eq!(r, r_clone_2);
     r.undo_event();
-    r.assert_equal(&r_clone_1);
+    assert_eq!(r, r_clone_1);
 }
 
 #[cfg(feature = "undo")]
@@ -829,7 +837,7 @@ fn external_router_new_neighbor_undo() {
     r.close_ebgp_session(1.into()).unwrap();
 
     r.undo_event();
-    r.assert_equal(&r_clone_2);
+    assert_eq!(r, r_clone_2);
     r.undo_event();
-    r.assert_equal(&r_clone_1);
+    assert_eq!(r, r_clone_1);
 }

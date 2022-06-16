@@ -88,6 +88,9 @@ pub trait EventQueue {
 
     /// Return `True` if no event is enqueued.
     fn is_empty(&self) -> bool;
+
+    /// Remove all events from the queue.
+    fn clear(&mut self);
 }
 
 /// Basic event queue
@@ -127,6 +130,10 @@ impl EventQueue for BasicEventQueue {
 
     fn is_empty(&self) -> bool {
         self.0.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.0.clear()
     }
 }
 
@@ -217,6 +224,12 @@ impl EventQueue for SimpleTimingModel {
 
     fn is_empty(&self) -> bool {
         self.q.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.q.clear();
+        self.messages.clear();
+        self.current_time = NotNan::default();
     }
 }
 

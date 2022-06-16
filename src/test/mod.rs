@@ -25,6 +25,8 @@ fn init() {
 mod test_config;
 mod test_forwarding_state;
 mod test_network;
+#[cfg(feature = "undo")]
+mod test_network_comlete_undo;
 mod test_network_complete;
 mod test_network_config;
 mod test_record;
