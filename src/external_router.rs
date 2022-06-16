@@ -78,6 +78,8 @@ impl ExternalRouter {
 
     /// Handle an `Event` and produce the necessary result. Always returns Ok((false, vec![])), to
     /// tell that the forwarding state has not changed.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn handle_event<P>(
         &mut self,
         event: Event<P>,
@@ -138,6 +140,8 @@ impl ExternalRouter {
 
     /// Start advertizing a specific route. All neighbors (including future neighbors) will get an
     /// update message with the route.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn advertise_prefix<P: Default>(
         &mut self,
         prefix: Prefix,
@@ -186,6 +190,8 @@ impl ExternalRouter {
     }
 
     /// Send a BGP WITHDRAW to all neighbors for the given prefix
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn widthdraw_prefix<P: Default>(&mut self, prefix: Prefix) -> Vec<Event<P>> {
         // prepare undo stack
         #[cfg(feature = "undo")]
@@ -211,6 +217,8 @@ impl ExternalRouter {
     }
 
     /// Add an ebgp session with an internal router. Generate all events.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn establish_ebgp_session<P: Default>(
         &mut self,
         router: RouterId,
@@ -246,6 +254,8 @@ impl ExternalRouter {
     }
 
     /// Close an existing eBGP session with an internal router.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn close_ebgp_session(&mut self, router: RouterId) -> Result<(), DeviceError> {
         // prepare undo stack
         #[cfg(feature = "undo")]

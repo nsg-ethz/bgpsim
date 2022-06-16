@@ -56,10 +56,10 @@ where
     #[allow(clippy::type_complexity)]
     fn simulate_step(&mut self) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError>;
 
-    // /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
-    // /// will not execute any subsequent event. This function will return the number of events left
-    // /// in the queue.
-    // fn undo_step(&mut self) -> Result<Option<(bool, Event<Q::Priority>)>, NetworkError>;
+    /// Undo the last event in the network.
+    ///
+    /// **Note**: This funtion is only available with the `undo` feature.
+    fn undo_step(&mut self) -> Result<(), NetworkError>;
 
     /// Get a reference to the queue
     fn queue(&self) -> &Q;
@@ -97,6 +97,10 @@ where
 
     fn simulate_step(&mut self) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError> {
         self.do_queue_step()
+    }
+
+    fn undo_step(&mut self) -> Result<(), NetworkError> {
+        self.undo_event()
     }
 
     fn queue(&self) -> &Q {

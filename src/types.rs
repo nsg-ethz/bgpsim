@@ -409,4 +409,10 @@ pub enum NetworkError {
     /// expectation.
     #[error("Unexpected event during convergence loop extraction")]
     UnexpectedEventConvergenceLoop,
+    /// Undo stack is empty
+    #[error("Undo stack is empty")]
+    EmptyUndoStack,
+    /// Undo marks are empty
+    #[error("Undo marks are empty")]
+    EmptyUndoMarks,
 }

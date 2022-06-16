@@ -670,7 +670,7 @@ fn test_link_failure() {
     // simulate link failure internally, between R2 and R4, which should not change anything in the
     // forwarding state.
     let mut net = original_net.clone();
-    net.simulate_link_failure(*R2, *R4).unwrap();
+    net.remove_link(*R2, *R4).unwrap();
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *E1]));
     assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R3, *R1, *E1]));
     assert_eq!(net.get_route(*R3, p), Ok(vec![*R3, *R1, *E1]));
@@ -679,11 +679,11 @@ fn test_link_failure() {
     // Try to remove the edge between R1 and R4, and see if an error is raised.
     // forwarding state.
     let mut net = original_net.clone();
-    net.simulate_link_failure(*R1, *R4).unwrap_err();
+    net.remove_link(*R1, *R4).unwrap_err();
 
     // simulate link failure externally, between R1 and E1, which should cause reconvergence.
     let mut net = original_net.clone();
-    net.simulate_link_failure(*R1, *E1).unwrap();
+    net.remove_link(*R1, *E1).unwrap();
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *R3, *R4, *E4]));
     assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R4, *E4]));
     assert_eq!(net.get_route(*R3, p), Ok(vec![*R3, *R4, *E4]));
@@ -691,7 +691,7 @@ fn test_link_failure() {
 
     // simulate link failure externally, between E1 and R1, which should cause reconvergence.
     let mut net = original_net.clone();
-    net.simulate_link_failure(*E1, *R1).unwrap();
+    net.remove_link(*E1, *R1).unwrap();
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *R3, *R4, *E4]));
     assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R4, *E4]));
     assert_eq!(net.get_route(*R3, p), Ok(vec![*R3, *R4, *E4]));
@@ -699,7 +699,7 @@ fn test_link_failure() {
 
     // simulate link failure internally between R2 and R3
     let mut net = original_net;
-    net.simulate_link_failure(*R2, *R3).unwrap();
+    net.remove_link(*R2, *R3).unwrap();
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *E1]));
     assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R4, *R3, *R1, *E1]));
     assert_eq!(net.get_route(*R3, p), Ok(vec![*R3, *R1, *E1]));

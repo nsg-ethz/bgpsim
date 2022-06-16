@@ -132,6 +132,8 @@ impl Router {
 
     /// handle an `Event`. This function returns all events triggered by this function, and a
     /// boolean to check if there was an update or not.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn handle_event<P: Default>(
         &mut self,
         event: Event<P>,
@@ -307,6 +309,10 @@ impl Router {
 
     /// Add a static route. Note that the router must be a neighbor. This is not checked in this
     /// funciton.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    ///
+    /// TODO implement undo functionality
     pub fn add_static_route(
         &mut self,
         prefix: Prefix,
@@ -319,6 +325,10 @@ impl Router {
     }
 
     /// Remove an existing static route
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    ///
+    /// TODO implement undo functionality
     pub fn remove_static_route(&mut self, prefix: Prefix) -> Result<(), DeviceError> {
         match self.static_routes.remove(&prefix) {
             Some(_) => Ok(()),
@@ -327,6 +337,10 @@ impl Router {
     }
 
     /// Modify a static route
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    ///
+    /// TODO implement undo functionality
     pub fn modify_static_route(
         &mut self,
         prefix: Prefix,
@@ -343,6 +357,8 @@ impl Router {
     /// type. Finally, the BGP tables are updated, and events are generated. This function will
     /// return the old session type (if it exists). This function will also return the set of events
     /// triggered by this action.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn set_bgp_session<P: Default>(
         &mut self,
         target: RouterId,
@@ -413,6 +429,8 @@ impl Router {
     /// action.
     ///
     /// To remove a route map, use [`Router::remove_bgp_route_map`].
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn set_bgp_route_map<P: Default>(
         &mut self,
         mut route_map: RouteMap,
@@ -473,6 +491,8 @@ impl Router {
     /// return all events triggered by this action.
     ///
     /// To add or update a route map, use [`Router::set_bgp_route_map`].
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn remove_bgp_route_map<P: Default>(
         &mut self,
         order: usize,
@@ -535,6 +555,8 @@ impl Router {
 
     /// write forawrding table based on graph and return the set of events triggered by this action.
     /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn write_igp_forwarding_table<P: Default>(
         &mut self,
         graph: &IgpNetwork,
@@ -592,6 +614,8 @@ impl Router {
     }
 
     /// Update the bgp tables only.
+    ///
+    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn update_bgp_tables<P: Default>(&mut self) -> Result<Vec<Event<P>>, DeviceError> {
         let mut events = Vec::new();
         // run the decision process
@@ -632,6 +656,8 @@ impl Router {
     // -----------------
 
     /// only run bgp decision process (phase 2). This function may change `self.bgp_rib[prefix]`.
+    ///
+    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn run_bgp_decision_process_for_prefix(&mut self, prefix: Prefix) -> Result<(), DeviceError> {
         // search the best route and compare
         let old_entry = self.bgp_rib.get(&prefix);
@@ -674,6 +700,8 @@ impl Router {
     }
 
     /// only run bgp route dissemination (phase 3) and return the events triggered by the dissemination
+    ///
+    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn run_bgp_route_dissemination_for_prefix<P: Default>(
         &mut self,
         prefix: Prefix,
@@ -783,6 +811,8 @@ impl Router {
     /// replace the route. It returns the prefix for which the route was inserted. The incoming
     /// routes are not processed here (no route maps apply). This is by design, so that changing
     /// route-maps does not requrie a new update from the neighbor.
+    ///
+    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn insert_bgp_route(&mut self, route: BgpRoute, from: RouterId) -> Result<Prefix, DeviceError> {
         let from_type = *self
             .bgp_sessions
@@ -822,6 +852,8 @@ impl Router {
 
     /// remove an existing bgp route in bgp_rib_in and returns the prefix for which the route was
     /// inserted.
+    ///
+    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn remove_bgp_route(&mut self, prefix: Prefix, from: RouterId) -> Prefix {
         // Remove the entry from the table
         let _old_entry = self.bgp_rib_in.entry(prefix).or_default().remove(&from);

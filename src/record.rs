@@ -314,6 +314,6 @@ where
         router_a: RouterId,
         router_b: RouterId,
     ) -> Result<(), NetworkError> {
-        self.0.simulate_link_failure(router_a, router_b)
+        self.0.remove_link(router_a, router_b)
     }
 }
