@@ -293,7 +293,6 @@ fn test_bgp_connectivity_undo() {
     assert_eq!(net, net_hist_1);
 }
 
-// TODO test static route undo
 #[test]
 fn test_static_route() {
     let mut net = get_test_net_bgp();
@@ -320,7 +319,6 @@ fn test_static_route() {
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *E4]));
 
     // now, make sure that router R3 points to R4 for the prefix
-    // TODO reimplement this on the network!
     net.set_static_route(*R3, p, Some(Direct(*R4))).unwrap();
 
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *E1]));
@@ -329,7 +327,6 @@ fn test_static_route() {
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *E4]));
 
     // now, make sure that router R3 points to R4 for the prefix
-    // TODO reimplement this on the network!
     net.set_static_route(*R2, p, Some(Direct(*R3))).unwrap();
 
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *E1]));
@@ -345,6 +342,38 @@ fn test_static_route() {
     );
     net.set_static_route(*R1, p, Some(Indirect(*R4))).unwrap();
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *R3, *R4, *E4]));
+}
+
+#[cfg(feature = "undo")]
+#[test]
+fn test_static_route_undo() {
+    let mut net = get_test_net_bgp();
+    let p = Prefix(0);
+
+    // advertise both prefixes
+    net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        .unwrap();
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        .unwrap();
+
+    // now, make sure that router R3 points to R4 for the prefix
+    let net_trace_1 = net.clone();
+    net.set_static_route(*R3, p, Some(Direct(*R4))).unwrap();
+    let net_trace_2 = net.clone();
+    net.set_static_route(*R2, p, Some(Direct(*R3))).unwrap();
+    let net_trace_3 = net.clone();
+    net.set_static_route(*R1, p, Some(Direct(*R4))).unwrap();
+    let net_trace_4 = net.clone();
+    net.set_static_route(*R1, p, Some(Indirect(*R4))).unwrap();
+
+    net.undo_action().unwrap();
+    assert_eq!(net, net_trace_4);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_trace_3);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_trace_2);
+    net.undo_action().unwrap();
+    assert_eq!(net, net_trace_1);
 }
 
 #[test]
