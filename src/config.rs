@@ -76,6 +76,7 @@ use log::debug;
 use crate::bgp::BgpSessionType;
 use crate::event::FmtPriority;
 use crate::route_map::{RouteMap, RouteMapDirection};
+use crate::router::StaticRoute;
 use crate::{
     printer, ConfigError, EventQueue, LinkWeight, Network, NetworkError, Prefix, RouterId,
 };
@@ -336,7 +337,7 @@ pub enum ConfigExpr {
         /// For which prefix to set the static route
         prefix: Prefix,
         /// To which neighbor to forward packets to.
-        target: RouterId,
+        target: StaticRoute,
     },
 }
 
@@ -636,13 +637,7 @@ where
                     target,
                 } => {
                     // check if router has a link to target
-                    if !self.net.contains_edge(*router, *target) {
-                        return Err(NetworkError::RoutersNotConnected(*router, *target));
-                    }
-                    self.routers
-                        .get_mut(router)
-                        .ok_or(NetworkError::DeviceNotFound(*router))?
-                        .add_static_route(*prefix, *target)?;
+                    self.set_static_route(*router, *prefix, Some(*target))?;
                     Ok(())
                 }
             },
@@ -667,19 +662,8 @@ where
                     .remove_bgp_route_map(*router, map.order, *direction)
                     .map(|_| ()),
 
-                ConfigExpr::StaticRoute {
-                    router,
-                    prefix,
-                    target,
-                } => {
-                    // check if router has a link to target
-                    if !self.net.contains_edge(*router, *target) {
-                        return Err(NetworkError::RoutersNotConnected(*router, *target));
-                    }
-                    self.routers
-                        .get_mut(router)
-                        .ok_or(NetworkError::DeviceNotFound(*router))?
-                        .remove_static_route(*prefix)?;
+                ConfigExpr::StaticRoute { router, prefix, .. } => {
+                    self.set_static_route(*router, *prefix, None)?;
                     Ok(())
                 }
             },
@@ -740,13 +724,7 @@ where
                     },
                 ) if r1 == r2 && p1 == p2 => {
                     // check if router has a link to target
-                    if !self.net.contains_edge(*r1, *t) {
-                        return Err(NetworkError::RoutersNotConnected(*r1, *t));
-                    }
-                    self.routers
-                        .get_mut(r1)
-                        .ok_or(NetworkError::DeviceNotFound(*r1))?
-                        .modify_static_route(*p1, *t)?;
+                    self.set_static_route(*r1, *p1, Some(*t))?;
                     Ok(())
                 }
                 _ => Err(NetworkError::ConfigError(ConfigError::ConfigModifierError(

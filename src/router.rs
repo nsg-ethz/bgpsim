@@ -42,7 +42,7 @@ pub struct Router {
     /// forwarding table for IGP messages
     pub igp_forwarding_table: HashMap<RouterId, Option<(RouterId, LinkWeight)>>,
     /// Static Routes for Prefixes
-    pub static_routes: HashMap<Prefix, RouterId>,
+    static_routes: HashMap<Prefix, StaticRoute>,
     /// hashmap of all bgp sessions
     bgp_sessions: HashMap<RouterId, BgpSessionType>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
@@ -267,6 +267,12 @@ impl Router {
                     UndoAction::DelKnownPrefix(p) => {
                         self.bgp_known_prefixes.remove(&p);
                     }
+                    UndoAction::StaticRoute(prefix, Some(target)) => {
+                        self.static_routes.insert(prefix, target);
+                    }
+                    UndoAction::StaticRoute(prefix, None) => {
+                        self.static_routes.remove(&prefix);
+                    }
                 }
             }
         }
@@ -275,17 +281,26 @@ impl Router {
     /// Get the IGP next hop for a prefix
     pub fn get_next_hop(&self, prefix: Prefix) -> Option<RouterId> {
         // first, check the static routes
-        if let Some(target) = self.static_routes.get(&prefix) {
-            return Some(*target);
-        };
-        // then, check the bgp table
-        match self.bgp_rib.get(&prefix) {
-            Some(entry) => self
-                .igp_forwarding_table
-                .get(&entry.route.next_hop)
-                .unwrap()
-                .map(|e| e.0),
-            None => None,
+        if let Some(target) = self.static_routes.get(&prefix).copied() {
+            // make sure that we can reach the
+            match target {
+                StaticRoute::Direct(target) => {
+                    if Some(target) == self.igp_forwarding_table[&target].map(|(nh, _)| nh) {
+                        Some(target)
+                    } else {
+                        None
+                    }
+                }
+                StaticRoute::Indirect(target) => {
+                    self.igp_forwarding_table[&target].map(|(nh, _)| nh)
+                }
+            }
+        } else {
+            // then, check the bgp table
+            match self.bgp_rib.get(&prefix) {
+                Some(entry) => self.igp_forwarding_table[&entry.route.next_hop].map(|(nh, _)| nh),
+                None => None,
+            }
         }
     }
 
@@ -307,49 +322,27 @@ impl Router {
         self.bgp_rib.get(&prefix).cloned()
     }
 
-    /// Add a static route. Note that the router must be a neighbor. This is not checked in this
-    /// funciton.
+    /// Change or remove a static route from the router. This function returns the old static route
+    /// (if it exists).
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    ///
-    /// TODO implement undo functionality
-    pub fn add_static_route(
+    pub(crate) fn set_static_route(
         &mut self,
         prefix: Prefix,
-        target: RouterId,
-    ) -> Result<(), DeviceError> {
-        match self.static_routes.insert(prefix, target) {
-            None => Ok(()),
-            Some(_) => Err(DeviceError::StaticRouteAlreadyExists(prefix)),
-        }
-    }
+        route: Option<StaticRoute>,
+    ) -> Option<StaticRoute> {
+        let old_route = if let Some(route) = route {
+            self.static_routes.insert(prefix, route)
+        } else {
+            self.static_routes.remove(&prefix)
+        };
 
-    /// Remove an existing static route
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
-    ///
-    /// TODO implement undo functionality
-    pub fn remove_static_route(&mut self, prefix: Prefix) -> Result<(), DeviceError> {
-        match self.static_routes.remove(&prefix) {
-            Some(_) => Ok(()),
-            None => Err(DeviceError::NoStaticRoute(prefix)),
-        }
-    }
+        // prepare the undo stack
+        #[cfg(feature = "undo")]
+        self.undo_stack
+            .push(vec![UndoAction::StaticRoute(prefix, old_route)]);
 
-    /// Modify a static route
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
-    ///
-    /// TODO implement undo functionality
-    pub fn modify_static_route(
-        &mut self,
-        prefix: Prefix,
-        target: RouterId,
-    ) -> Result<(), DeviceError> {
-        match self.static_routes.insert(prefix, target) {
-            Some(_) => Ok(()),
-            None => Err(DeviceError::NoStaticRoute(prefix)),
-        }
+        old_route
     }
 
     /// Set a BGP session with a neighbor. If `session_type` is `None`, then any potentially
@@ -549,7 +542,7 @@ impl Router {
     }
 
     /// Get an iterator over all outgoing route-maps
-    pub fn get_static_routes(&self) -> Iter<'_, Prefix, RouterId> {
+    pub fn get_static_routes(&self) -> Iter<'_, Prefix, StaticRoute> {
         self.static_routes.iter()
     }
 
@@ -1033,66 +1026,15 @@ enum UndoAction {
     BgpSession(RouterId, Option<BgpSessionType>),
     IgpForwardingTable(HashMap<RouterId, Option<(RouterId, LinkWeight)>>),
     DelKnownPrefix(Prefix),
+    StaticRoute(Prefix, Option<StaticRoute>),
 }
 
-#[cfg(feature = "undo")]
-impl std::fmt::Display for UndoAction {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            UndoAction::BgpRibIn(prefix, peer, Some(_)) => {
-                write!(
-                    f,
-                    "Add route to RIB_IN for peer {} and prefix {}",
-                    peer.index(),
-                    prefix.0
-                )
-            }
-            UndoAction::BgpRibIn(prefix, peer, None) => write!(
-                f,
-                "Remove route from RIB_IN for peer {} and prefix {}",
-                peer.index(),
-                prefix.0
-            ),
-            UndoAction::BgpRib(prefix, Some(_)) => {
-                write!(f, "Add route to RIB for prefix {}", prefix.0)
-            }
-            UndoAction::BgpRib(prefix, None) => {
-                write!(f, "Remove route from RIB for prefix {}", prefix.0)
-            }
-            UndoAction::BgpRibOut(prefix, peer, Some(_)) => {
-                write!(
-                    f,
-                    "Add route to RIB_OUT for peer {} and prefix {}",
-                    peer.index(),
-                    prefix.0
-                )
-            }
-            UndoAction::BgpRibOut(prefix, peer, None) => write!(
-                f,
-                "Remove route from RIB_OUT for peer {} and prefix {}",
-                peer.index(),
-                prefix.0
-            ),
-            UndoAction::BgpRouteMap(RouteMapDirection::Incoming, order, Some(_)) => {
-                write!(f, "Add incoming route map with order {}", order)
-            }
-            UndoAction::BgpRouteMap(RouteMapDirection::Outgoing, order, Some(_)) => {
-                write!(f, "Add outgoing route map with order {}", order)
-            }
-            UndoAction::BgpRouteMap(RouteMapDirection::Incoming, order, None) => {
-                write!(f, "Remove incoming route map with order {}", order)
-            }
-            UndoAction::BgpRouteMap(RouteMapDirection::Outgoing, order, None) => {
-                write!(f, "Remove outgoing route map with order {}", order)
-            }
-            UndoAction::BgpSession(peer, Some(_)) => {
-                write!(f, "Add peering session with {}", peer.index())
-            }
-            UndoAction::BgpSession(peer, None) => {
-                write!(f, "Remove peering session with {}", peer.index())
-            }
-            UndoAction::IgpForwardingTable(_) => write!(f, "Update IGP table"),
-            UndoAction::DelKnownPrefix(prefix) => write!(f, "Delete prefix {}", prefix.0),
-        }
-    }
+/// Static route description that can either point to the direct link to the target, or to use the
+/// IGP for getting the path to the target.
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
+pub enum StaticRoute {
+    /// Use the direct edge. If the edge no longer exists, then a black-hole will be created.
+    Direct(RouterId),
+    /// Use IGP to route traffic towards that target.
+    Indirect(RouterId),
 }

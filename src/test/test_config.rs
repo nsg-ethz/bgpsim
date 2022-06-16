@@ -18,6 +18,7 @@
 use crate::bgp::BgpSessionType::*;
 use crate::config::{Config, ConfigExpr::*, ConfigModifier::*, ConfigPatch};
 use crate::route_map::*;
+use crate::router::StaticRoute::*;
 use crate::{Prefix, RouterId};
 
 #[test]
@@ -96,25 +97,25 @@ fn config_unique() {
     c.add(StaticRoute {
         router: r0,
         prefix: p0,
-        target: r1,
+        target: Direct(r1),
     })
     .unwrap();
     c.add(StaticRoute {
         router: r0,
         prefix: p1,
-        target: r1,
+        target: Direct(r1),
     })
     .unwrap();
     c.add(StaticRoute {
         router: r1,
         prefix: p1,
-        target: r0,
+        target: Direct(r0),
     })
     .unwrap();
     c.add(StaticRoute {
         router: r0,
         prefix: p0,
-        target: r2,
+        target: Direct(r2),
     })
     .unwrap_err();
 
@@ -225,13 +226,13 @@ fn config_add_remove() {
         c.add(StaticRoute {
             router: r0,
             prefix: p0,
-            target: r1,
+            target: Direct(r1),
         })
         .unwrap();
         c.apply_modifier(&Remove(StaticRoute {
             router: r0,
             prefix: p0,
-            target: r1,
+            target: Direct(r1),
         }))
         .unwrap();
         assert_eq!(c.len(), 0);
@@ -239,20 +240,20 @@ fn config_add_remove() {
         c.add(StaticRoute {
             router: r0,
             prefix: p0,
-            target: r1,
+            target: Direct(r1),
         })
         .unwrap();
         c.apply_modifier(&Remove(StaticRoute {
             router: r0,
             prefix: p0,
-            target: r2,
+            target: Direct(r2),
         }))
         .unwrap_err();
         assert_eq!(c.len(), 1);
         c.apply_modifier(&Remove(StaticRoute {
             router: r0,
             prefix: p0,
-            target: r1,
+            target: Direct(r1),
         }))
         .unwrap();
         assert_eq!(c.len(), 0);
@@ -260,13 +261,13 @@ fn config_add_remove() {
         c.add(StaticRoute {
             router: r0,
             prefix: p0,
-            target: r1,
+            target: Direct(r1),
         })
         .unwrap();
         c.apply_modifier(&Remove(StaticRoute {
             router: r0,
             prefix: p1,
-            target: r1,
+            target: Direct(r1),
         }))
         .unwrap_err();
         assert_eq!(c.len(), 1);

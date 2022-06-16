@@ -17,14 +17,13 @@
 
 //! Test the simple functionality of the network, without running it entirely.
 
-use crate::config::{
-    ConfigExpr::{IgpLinkWeight, StaticRoute},
-    ConfigModifier::Insert,
-    NetworkConfig,
-};
 use crate::network::Network;
 use crate::route_map::{
     RouteMap, RouteMapDirection::*, RouteMapMatch as Match, RouteMapSet as Set, RouteMapState::*,
+};
+use crate::{
+    config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
+    router::StaticRoute::*,
 };
 use crate::{AsId, BgpSessionType::*, LinkWeight, NetworkError, Prefix, RouterId};
 use lazy_static::lazy_static;
@@ -322,12 +321,7 @@ fn test_static_route() {
 
     // now, make sure that router R3 points to R4 for the prefix
     // TODO reimplement this on the network!
-    net.apply_modifier(&Insert(StaticRoute {
-        router: *R3,
-        prefix: p,
-        target: *R4,
-    }))
-    .unwrap();
+    net.set_static_route(*R3, p, Some(Direct(*R4))).unwrap();
 
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *E1]));
     assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R4, *E4]));
@@ -336,29 +330,21 @@ fn test_static_route() {
 
     // now, make sure that router R3 points to R4 for the prefix
     // TODO reimplement this on the network!
-    net.apply_modifier(&Insert(StaticRoute {
-        router: *R2,
-        prefix: p,
-        target: *R3,
-    }))
-    .unwrap();
+    net.set_static_route(*R2, p, Some(Direct(*R3))).unwrap();
 
     assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *E1]));
     assert_eq!(net.get_route(*R2, p), Ok(vec![*R2, *R3, *R4, *E4]));
     assert_eq!(net.get_route(*R3, p), Ok(vec![*R3, *R4, *E4]));
     assert_eq!(net.get_route(*R4, p), Ok(vec![*R4, *E4]));
 
-    let mut test_net = net;
-
     // Add an invalid static route and expect to fail
-    // TODO reimplement this on the network!
-    test_net
-        .apply_modifier(&Insert(StaticRoute {
-            router: *R1,
-            prefix: p,
-            target: *R4,
-        }))
-        .unwrap_err();
+    net.set_static_route(*R1, p, Some(Direct(*R4))).unwrap();
+    assert_eq!(
+        net.get_route(*R1, p),
+        Err(NetworkError::ForwardingBlackHole(vec![*R1]))
+    );
+    net.set_static_route(*R1, p, Some(Indirect(*R4))).unwrap();
+    assert_eq!(net.get_route(*R1, p), Ok(vec![*R1, *R3, *R4, *E4]));
 }
 
 #[test]

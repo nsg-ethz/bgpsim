@@ -27,7 +27,7 @@ use crate::bgp::{BgpEvent, BgpRibEntry, BgpRoute};
 use crate::config::{Config, ConfigExpr, ConfigModifier, ConfigPatch};
 use crate::event::{Event, FmtPriority};
 use crate::network::Network;
-use crate::router::Router;
+use crate::router::{Router, StaticRoute};
 use crate::{route_map::*, ForwardingState};
 use crate::{BgpSessionType, NetworkError, Prefix};
 
@@ -227,7 +227,11 @@ pub fn config_expr<Q>(net: &Network<Q>, expr: &ConfigExpr) -> Result<String, Net
             "Static Route: {}: Prefix {} via {}",
             net.get_router_name(*router)?,
             prefix.0,
-            net.get_router_name(*target)?,
+            match target {
+                StaticRoute::Direct(target) => net.get_router_name(*target)?.to_string(),
+                StaticRoute::Indirect(target) =>
+                    format!("{} (indirect)", net.get_router_name(*target)?),
+            }
         ),
     })
 }

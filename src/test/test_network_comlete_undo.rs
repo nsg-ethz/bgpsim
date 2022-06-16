@@ -18,7 +18,6 @@
 use crate::{
     bgp::BgpSessionType::*,
     event::{FmtPriority, ModelParams, SimpleTimingModel},
-    interactive::InteractiveNetwork,
     network::Network,
     AsId, EventQueue, NetworkError, Prefix, RouterId,
 };

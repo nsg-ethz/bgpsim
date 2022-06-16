@@ -26,7 +26,7 @@ use crate::event::{BasicEventQueue, Event, EventQueue, FmtPriority};
 use crate::external_router::ExternalRouter;
 use crate::printer::{event as print_event, fw_state as print_fw_state};
 use crate::route_map::{RouteMap, RouteMapDirection};
-use crate::router::Router;
+use crate::router::{Router, StaticRoute};
 use crate::types::{IgpNetwork, NetworkDevice, NetworkDeviceMut, StepUpdate};
 use crate::{AsId, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
 
@@ -599,6 +599,29 @@ where
         self.do_queue_maybe_skip()?;
         Ok(old_map)
     }
+
+    /// Update or remove a static route on some router. This function will not cuase any
+    /// convergence, as the change is local only. But its action can still be undone.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    pub fn set_static_route(
+        &mut self,
+        router: RouterId,
+        prefix: Prefix,
+        route: Option<StaticRoute>,
+    ) -> Result<Option<StaticRoute>, NetworkError> {
+        // prepare undo stack
+        #[cfg(feature = "undo")]
+        self.undo_stack
+            .push(vec![vec![UndoAction::UndoDevice(router)]]);
+
+        Ok(self
+            .routers
+            .get_mut(&router)
+            .ok_or(NetworkError::DeviceNotFound(router))?
+            .set_static_route(prefix, route))
+    }
+
     /// Advertise an external route and let the network converge, The source must be a `RouterId`
     /// of an `ExternalRouter`. If not, an error is returned. When advertising a route, all
     /// eBGP neighbors will receive an update with the new route. If a neighbor is added later
