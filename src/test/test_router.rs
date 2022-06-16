@@ -23,6 +23,7 @@ use crate::router::*;
 use crate::types::IgpNetwork;
 use crate::{AsId, Prefix};
 use maplit::{hashmap, hashset};
+use petgraph::algo::floyd_warshall;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -35,16 +36,16 @@ fn test_bgp_single() {
     r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
     r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
     r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
-    r.igp_forwarding_table = hashmap! {
-        100.into() => Some((100.into(), 0.0)),
-        1.into()   => Some((1.into(), 1.0)),
-        2.into()   => Some((2.into(), 1.0)),
-        3.into()   => Some((2.into(), 4.0)),
-        4.into()   => Some((4.into(), 2.0)),
-        5.into()   => Some((4.into(), 6.0)),
-        6.into()   => Some((1.into(), 13.0)),
-        10.into()  => Some((1.into(), 6.0)),
-        11.into()  => Some((1.into(), 15.0)),
+    r.igp_table = hashmap! {
+        100.into() => (vec![100.into()], 0.0),
+        1.into()   => (vec![1.into()], 1.0),
+        2.into()   => (vec![2.into()], 1.0),
+        3.into()   => (vec![2.into()], 4.0),
+        4.into()   => (vec![4.into()], 2.0),
+        5.into()   => (vec![4.into()], 6.0),
+        6.into()   => (vec![1.into()], 13.0),
+        10.into()  => (vec![1.into()], 6.0),
+        11.into()  => (vec![1.into()], 15.0),
     };
 
     /////////////////////
@@ -324,52 +325,55 @@ fn test_fw_table_simple() {
      * a       e
      */
 
-    r_a.write_igp_forwarding_table::<()>(&net).unwrap();
+    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
+    r_a.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
 
     let expected_forwarding_table = hashmap! {
-        r_a.router_id() => Some((r_a.router_id(), 0.0)),
-        r_b.router_id() => Some((r_b.router_id(), 1.0)),
-        r_c.router_id() => Some((r_b.router_id(), 2.0)),
-        r_d.router_id() => Some((r_b.router_id(), 3.0)),
-        r_e.router_id() => Some((r_b.router_id(), 4.0)),
+        r_a.router_id() => (vec![r_a.router_id()], 0.0),
+        r_b.router_id() => (vec![r_b.router_id()], 1.0),
+        r_c.router_id() => (vec![r_b.router_id()], 2.0),
+        r_d.router_id() => (vec![r_b.router_id()], 3.0),
+        r_e.router_id() => (vec![r_b.router_id()], 4.0),
     };
 
     let exp = &expected_forwarding_table;
-    let acq = &r_a.igp_forwarding_table;
+    let acq = &r_a.igp_table;
 
     for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
     }
 
-    r_b.write_igp_forwarding_table::<()>(&net).unwrap();
+    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
+    r_b.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
 
     let expected_forwarding_table = hashmap! {
-        r_a.router_id() => Some((r_a.router_id(), 1.0)),
-        r_b.router_id() => Some((r_b.router_id(), 0.0)),
-        r_c.router_id() => Some((r_c.router_id(), 1.0)),
-        r_d.router_id() => Some((r_c.router_id(), 2.0)),
-        r_e.router_id() => Some((r_c.router_id(), 3.0)),
+        r_a.router_id() => (vec![r_a.router_id()], 1.0),
+        r_b.router_id() => (vec![r_b.router_id()], 0.0),
+        r_c.router_id() => (vec![r_c.router_id()], 1.0),
+        r_d.router_id() => (vec![r_c.router_id()], 2.0),
+        r_e.router_id() => (vec![r_c.router_id()], 3.0),
     };
 
     let exp = &expected_forwarding_table;
-    let acq = &r_b.igp_forwarding_table;
+    let acq = &r_b.igp_table;
 
     for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
     }
 
-    r_c.write_igp_forwarding_table::<()>(&net).unwrap();
+    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
 
     let expected_forwarding_table = hashmap! {
-        r_a.router_id() => Some((r_b.router_id(), 2.0)),
-        r_b.router_id() => Some((r_b.router_id(), 1.0)),
-        r_c.router_id() => Some((r_c.router_id(), 0.0)),
-        r_d.router_id() => Some((r_d.router_id(), 1.0)),
-        r_e.router_id() => Some((r_d.router_id(), 2.0)),
+        r_a.router_id() => (vec![r_b.router_id()], 2.0),
+        r_b.router_id() => (vec![r_b.router_id()], 1.0),
+        r_c.router_id() => (vec![r_c.router_id()], 0.0),
+        r_d.router_id() => (vec![r_d.router_id()], 1.0),
+        r_e.router_id() => (vec![r_d.router_id()], 2.0),
     };
 
     let exp = &expected_forwarding_table;
-    let acq = &r_c.igp_forwarding_table;
+    let acq = &r_c.igp_table;
 
     for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -421,41 +425,43 @@ fn test_igp_fw_table_complex() {
      *    1      8      1
      */
 
-    r_a.write_igp_forwarding_table::<()>(&net).unwrap();
+    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
+    r_a.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
 
     let expected_forwarding_table = hashmap! {
-        r_a.router_id() => Some((r_a.router_id(), 0.0)),
-        r_b.router_id() => Some((r_b.router_id(), 3.0)),
-        r_c.router_id() => Some((r_e.router_id(), 3.0)),
-        r_d.router_id() => Some((r_e.router_id(), 6.0)),
-        r_e.router_id() => Some((r_e.router_id(), 1.0)),
-        r_f.router_id() => Some((r_e.router_id(), 2.0)),
-        r_g.router_id() => Some((r_e.router_id(), 4.0)),
-        r_h.router_id() => Some((r_e.router_id(), 5.0)),
+        r_a.router_id() => (vec![r_a.router_id()], 0.0),
+        r_b.router_id() => (vec![r_b.router_id()], 3.0),
+        r_c.router_id() => (vec![r_e.router_id()], 3.0),
+        r_d.router_id() => (vec![r_e.router_id()], 6.0),
+        r_e.router_id() => (vec![r_e.router_id()], 1.0),
+        r_f.router_id() => (vec![r_e.router_id()], 2.0),
+        r_g.router_id() => (vec![r_e.router_id()], 4.0),
+        r_h.router_id() => (vec![r_e.router_id()], 5.0),
     };
 
     let exp = &expected_forwarding_table;
-    let acq = &r_a.igp_forwarding_table;
+    let acq = &r_a.igp_table;
 
     for target in &[&r_a, &r_b, &r_c, &r_d, &r_e, &r_f, &r_g, &r_h] {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
     }
 
-    r_c.write_igp_forwarding_table::<()>(&net).unwrap();
+    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
 
     let expected_forwarding_table = hashmap! {
-        r_a.router_id() => Some((r_f.router_id(), 3.0)),
-        r_b.router_id() => Some((r_f.router_id(), 3.0)),
-        r_c.router_id() => Some((r_c.router_id(), 0.0)),
-        r_d.router_id() => Some((r_g.router_id(), 3.0)),
-        r_e.router_id() => Some((r_f.router_id(), 2.0)),
-        r_f.router_id() => Some((r_f.router_id(), 1.0)),
-        r_g.router_id() => Some((r_g.router_id(), 1.0)),
-        r_h.router_id() => Some((r_g.router_id(), 2.0)),
+        r_a.router_id() => (vec![r_f.router_id()], 3.0),
+        r_b.router_id() => (vec![r_f.router_id()], 3.0),
+        r_c.router_id() => (vec![r_c.router_id()], 0.0),
+        r_d.router_id() => (vec![r_g.router_id()], 3.0),
+        r_e.router_id() => (vec![r_f.router_id()], 2.0),
+        r_f.router_id() => (vec![r_f.router_id()], 1.0),
+        r_g.router_id() => (vec![r_g.router_id()], 1.0),
+        r_h.router_id() => (vec![r_g.router_id()], 2.0),
     };
 
     let exp = &expected_forwarding_table;
-    let acq = &r_c.igp_forwarding_table;
+    let acq = &r_c.igp_table;
 
     for target in &[&r_a, &r_b, &r_c, &r_d, &r_e, &r_f, &r_g, &r_h] {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -556,16 +562,16 @@ fn test_bgp_single_undo() {
     r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
     r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
     r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
-    r.igp_forwarding_table = hashmap! {
-        100.into() => Some((100.into(), 0.0)),
-        1.into()   => Some((1.into(), 1.0)),
-        2.into()   => Some((2.into(), 1.0)),
-        3.into()   => Some((2.into(), 4.0)),
-        4.into()   => Some((4.into(), 2.0)),
-        5.into()   => Some((4.into(), 6.0)),
-        6.into()   => Some((1.into(), 13.0)),
-        10.into()  => Some((1.into(), 6.0)),
-        11.into()  => Some((1.into(), 15.0)),
+    r.igp_table = hashmap! {
+        100.into() => (vec![100.into()], 0.0),
+        1.into()   => (vec![1.into()], 1.0),
+        2.into()   => (vec![2.into()], 1.0),
+        3.into()   => (vec![2.into()], 4.0),
+        4.into()   => (vec![4.into()], 2.0),
+        5.into()   => (vec![4.into()], 6.0),
+        6.into()   => (vec![1.into()], 13.0),
+        10.into()  => (vec![1.into()], 6.0),
+        11.into()  => (vec![1.into()], 15.0),
     };
 
     /////////////////////
@@ -769,9 +775,10 @@ fn test_undo_fw_table() {
      * a       e
      */
 
-    r_a.write_igp_forwarding_table::<()>(&net).unwrap();
-    r_b.write_igp_forwarding_table::<()>(&net).unwrap();
-    r_c.write_igp_forwarding_table::<()>(&net).unwrap();
+    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
+    r_a.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    r_b.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
 
     let r_a_clone = r_a.clone();
     let r_b_clone = r_b.clone();
@@ -782,9 +789,10 @@ fn test_undo_fw_table() {
     net.update_edge(r_d.router_id(), r_b.router_id(), 1.0);
 
     // update the IGP state
-    r_a.write_igp_forwarding_table::<()>(&net).unwrap();
-    r_b.write_igp_forwarding_table::<()>(&net).unwrap();
-    r_c.write_igp_forwarding_table::<()>(&net).unwrap();
+    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
+    r_a.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    r_b.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
 
     // undo the state change and compare the nodes.
     r_a.undo_event();

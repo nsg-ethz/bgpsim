@@ -31,8 +31,8 @@ use crate::types::{IgpNetwork, NetworkDevice, NetworkDeviceMut, StepUpdate};
 use crate::{AsId, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
 
 use log::*;
-use petgraph::algo::FloatMeasure;
-use petgraph::visit::{EdgeRef, IntoEdgeReferences};
+use petgraph::algo::{floyd_warshall, FloatMeasure};
+use petgraph::visit::EdgeRef;
 use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 100_000;
@@ -353,15 +353,18 @@ impl<Q> Network<Q> {
             .cloned()
             .collect::<HashSet<RouterId>>();
         for target in routers_set {
-            if let Some(Some((next_hop, cost))) = r.get_igp_fw_table().get(&target) {
-                println!(
-                    "  {} via {} (IGP cost: {})",
-                    self.get_router_name(target)?,
-                    self.get_router_name(*next_hop)?,
-                    cost
-                );
-            } else {
-                println!("  {} unreachable!", self.get_router_name(target)?);
+            match r.get_igp_fw_table().get(&target) {
+                Some((nh, cost)) if !nh.is_empty() => {
+                    println!(
+                        "  {} via {} (IGP cost: {})",
+                        self.get_router_name(target)?,
+                        self.get_router_name(nh[0])?,
+                        cost
+                    );
+                }
+                _ => {
+                    println!("  {} unreachable!", self.get_router_name(target)?);
+                }
             }
         }
         println!();
@@ -838,10 +841,12 @@ where
     /// to the IGP state of devices will be added to the last event of the last action, while the
     /// queue updates will get their own event of the last action.
     pub(crate) fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
+        // compute the APSP
+        let apsp = floyd_warshall(&self.net, |e| *e.weight()).unwrap();
         // update igp table
         let mut events = vec![];
         for r in self.routers.values_mut() {
-            events.append(&mut r.write_igp_forwarding_table(&self.net)?);
+            events.append(&mut r.write_igp_forwarding_table(&self.net, &apsp)?);
 
             // add the undo action
             #[cfg(feature = "undo")]

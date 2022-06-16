@@ -31,11 +31,11 @@ use petgraph::algo::FloatMeasure;
 use pretty_assertions::assert_eq;
 
 lazy_static! {
-    static ref R1: RouterId = 0.into();
-    static ref R2: RouterId = 1.into();
-    static ref R3: RouterId = 2.into();
-    static ref R4: RouterId = 3.into();
-    static ref E1: RouterId = 4.into();
+    static ref E1: RouterId = 0.into();
+    static ref R1: RouterId = 1.into();
+    static ref R2: RouterId = 2.into();
+    static ref R3: RouterId = 3.into();
+    static ref R4: RouterId = 4.into();
     static ref E4: RouterId = 5.into();
 }
 
@@ -50,11 +50,11 @@ lazy_static! {
 fn get_test_net() -> Network {
     let mut net = Network::default();
 
+    assert_eq!(*E1, net.add_external_router("E1", AsId(65101)));
     assert_eq!(*R1, net.add_router("R1"));
     assert_eq!(*R2, net.add_router("R2"));
     assert_eq!(*R3, net.add_router("R3"));
     assert_eq!(*R4, net.add_router("R4"));
-    assert_eq!(*E1, net.add_external_router("E1", AsId(65101)));
     assert_eq!(*E4, net.add_external_router("E4", AsId(65104)));
 
     net.add_link(*R1, *E1);
@@ -162,9 +162,9 @@ fn test_igp_table() {
         assert_eq!(fw_table.len(), 6);
         for (target, entry) in fw_table.iter() {
             if *router == *target {
-                assert_eq!(entry, &Some((*router, 0.0)));
+                assert_eq!(entry, &(vec![*router], 0.0));
             } else {
-                assert_eq!(entry, &None);
+                assert_eq!(entry, &(vec![], LinkWeight::INFINITY));
             }
         }
     }
@@ -179,11 +179,11 @@ fn test_igp_table() {
         assert_eq!(fw_table.len(), 6);
         for (to, entry) in fw_table.iter() {
             if *from == *R1 && *to == *R2 {
-                assert_eq!(entry, &Some((*to, 5.0)));
+                assert_eq!(entry, &(vec![*to], 5.0));
             } else if *from == *to {
-                assert_eq!(entry, &Some((*to, 0.0)));
+                assert_eq!(entry, &(vec![*to], 0.0));
             } else {
-                assert_eq!(entry, &None);
+                assert_eq!(entry, &(vec![], LinkWeight::INFINITY));
             }
         }
     }
@@ -198,11 +198,11 @@ fn test_igp_table() {
         assert_eq!(fw_table.len(), 6);
         for (to, entry) in fw_table.iter() {
             if (*from == *R1 && *to == *R2) || (*from == *R2 && *to == *R1) {
-                assert_eq!(entry, &Some((*to, 5.0)));
+                assert_eq!(entry, &(vec![*to], 5.0));
             } else if *from == *to {
-                assert_eq!(entry, &Some((*to, 0.0)));
+                assert_eq!(entry, &(vec![*to], 0.0));
             } else {
-                assert_eq!(entry, &None);
+                assert_eq!(entry, &(vec![], LinkWeight::INFINITY));
             }
         }
     }

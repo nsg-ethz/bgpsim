@@ -23,7 +23,7 @@ use crate::types::{IgpNetwork, StepUpdate};
 use crate::Event;
 use crate::{AsId, DeviceError, LinkWeight, Prefix, RouterId};
 use log::*;
-use petgraph::algo::bellman_ford::{bellman_ford, Paths};
+use petgraph::visit::EdgeRef;
 use std::mem::swap;
 use std::{
     collections::{hash_map::Iter, HashMap, HashSet},
@@ -40,7 +40,7 @@ pub struct Router {
     /// AS Id of the router
     as_id: AsId,
     /// forwarding table for IGP messages
-    pub igp_forwarding_table: HashMap<RouterId, Option<(RouterId, LinkWeight)>>,
+    pub igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Static Routes for Prefixes
     static_routes: HashMap<Prefix, StaticRoute>,
     /// hashmap of all bgp sessions
@@ -61,6 +61,11 @@ pub struct Router {
     bgp_route_maps_in: Vec<RouteMap>,
     /// BGP Route-Maps for Output
     bgp_route_maps_out: Vec<RouteMap>,
+    /// Flag to tell if load balancing is enabled. If load balancing is enabled, then the router
+    /// will load balance packets towards a destination if multiple paths exist with equal
+    /// cost. load balancing will only work within OSPF. BGP Additional Paths is not yet
+    /// implemented.
+    do_load_balancing: bool,
     /// Stack to undo action from every event. Each processed event will push a new vector onto the
     /// stack, containing all actions to perform in order to undo the event.
     #[cfg(feature = "undo")]
@@ -73,7 +78,7 @@ impl Clone for Router {
             name: self.name.clone(),
             router_id: self.router_id,
             as_id: self.as_id,
-            igp_forwarding_table: self.igp_forwarding_table.clone(),
+            igp_table: self.igp_table.clone(),
             static_routes: self.static_routes.clone(),
             bgp_sessions: self.bgp_sessions.clone(),
             bgp_rib_in: self.bgp_rib_in.clone(),
@@ -82,6 +87,7 @@ impl Clone for Router {
             bgp_known_prefixes: self.bgp_known_prefixes.clone(),
             bgp_route_maps_in: self.bgp_route_maps_in.clone(),
             bgp_route_maps_out: self.bgp_route_maps_out.clone(),
+            do_load_balancing: self.do_load_balancing,
             #[cfg(feature = "undo")]
             undo_stack: self.undo_stack.clone(),
         }
@@ -94,7 +100,7 @@ impl Router {
             name,
             router_id,
             as_id,
-            igp_forwarding_table: HashMap::new(),
+            igp_table: HashMap::new(),
             static_routes: HashMap::new(),
             bgp_sessions: HashMap::new(),
             bgp_rib_in: HashMap::new(),
@@ -103,6 +109,7 @@ impl Router {
             bgp_known_prefixes: HashSet::new(),
             bgp_route_maps_in: Vec::new(),
             bgp_route_maps_out: Vec::new(),
+            do_load_balancing: false,
             #[cfg(feature = "undo")]
             undo_stack: Vec::new(),
         }
@@ -126,8 +133,8 @@ impl Router {
     /// Returns the IGP Forwarding table. The table maps the ID of every router in the network to
     /// a tuple `(next_hop, cost)` of the next hop on the path and the cost to reach the
     /// destination.
-    pub fn get_igp_fw_table(&self) -> &HashMap<RouterId, Option<(RouterId, LinkWeight)>> {
-        &self.igp_forwarding_table
+    pub fn get_igp_fw_table(&self) -> &HashMap<RouterId, (Vec<RouterId>, LinkWeight)> {
+        &self.igp_table
     }
 
     /// handle an `Event`. This function returns all events triggered by this function, and a
@@ -263,7 +270,7 @@ impl Router {
                     UndoAction::BgpSession(peer, None) => {
                         self.bgp_sessions.remove(&peer);
                     }
-                    UndoAction::IgpForwardingTable(t) => self.igp_forwarding_table = t,
+                    UndoAction::IgpForwardingTable(t) => self.igp_table = t,
                     UndoAction::DelKnownPrefix(p) => {
                         self.bgp_known_prefixes.remove(&p);
                     }
@@ -273,6 +280,7 @@ impl Router {
                     UndoAction::StaticRoute(prefix, None) => {
                         self.static_routes.remove(&prefix);
                     }
+                    UndoAction::SetLoadBalancing(value) => self.do_load_balancing = value,
                 }
             }
         }
@@ -285,20 +293,20 @@ impl Router {
             // make sure that we can reach the
             match target {
                 StaticRoute::Direct(target) => {
-                    if Some(target) == self.igp_forwarding_table[&target].map(|(nh, _)| nh) {
+                    if self.igp_table[&target].0.is_empty() {
+                        None
+                    } else if self.igp_table[&target].0.contains(&target) {
                         Some(target)
                     } else {
                         None
                     }
                 }
-                StaticRoute::Indirect(target) => {
-                    self.igp_forwarding_table[&target].map(|(nh, _)| nh)
-                }
+                StaticRoute::Indirect(target) => self.igp_table[&target].0.get(0).copied(),
             }
         } else {
             // then, check the bgp table
             match self.bgp_rib.get(&prefix) {
-                Some(entry) => self.igp_forwarding_table[&entry.route.next_hop].map(|(nh, _)| nh),
+                Some(entry) => self.igp_table[&entry.route.next_hop].0.get(0).copied(),
                 None => None,
             }
         }
@@ -320,6 +328,24 @@ impl Router {
     /// Returns the selected bgp route for the prefix, or returns None
     pub fn get_selected_bgp_route(&self, prefix: Prefix) -> Option<BgpRibEntry> {
         self.bgp_rib.get(&prefix).cloned()
+    }
+
+    /// Update the load balancing config value to something new, and return the old value. If load
+    /// balancing is enabled, then the router will load balance packets towards a destination if
+    /// multiple paths exist with equal cost. load balancing will only work within OSPF. BGP
+    /// Additional Paths is not yet implemented.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    pub(crate) fn set_load_balancing(&mut self, mut do_load_balancing: bool) -> bool {
+        // set the load balancing value
+        std::mem::swap(&mut self.do_load_balancing, &mut do_load_balancing);
+
+        // prepare the undo stack
+        #[cfg(feature = "undo")]
+        self.undo_stack
+            .push(vec![UndoAction::SetLoadBalancing(do_load_balancing)]);
+
+        do_load_balancing
     }
 
     /// Change or remove a static route from the router. This function returns the old static route
@@ -553,6 +579,7 @@ impl Router {
     pub(crate) fn write_igp_forwarding_table<P: Default>(
         &mut self,
         graph: &IgpNetwork,
+        apsp: &HashMap<(RouterId, RouterId), LinkWeight>,
     ) -> Result<Vec<Event<P>>, DeviceError> {
         // prepare the undo action
         #[cfg(feature = "undo")]
@@ -560,7 +587,7 @@ impl Router {
 
         // clear the forwarding table
         let mut swap_table = HashMap::new();
-        swap(&mut self.igp_forwarding_table, &mut swap_table);
+        swap(&mut self.igp_table, &mut swap_table);
 
         // add the undo action
         #[cfg(feature = "undo")]
@@ -569,39 +596,35 @@ impl Router {
             .unwrap()
             .push(UndoAction::IgpForwardingTable(swap_table));
 
-        // compute shortest path to all other nodes in the graph
-        let Paths {
-            distances: path_weights,
-            predecessors,
-        } = bellman_ford(graph, self.router_id).unwrap();
-        let mut paths: Vec<(RouterId, LinkWeight, Option<RouterId>)> = path_weights
-            .into_iter()
-            .zip(predecessors.into_iter())
-            .enumerate()
-            .map(|(i, (w, p))| ((i as u32).into(), w, p))
-            .collect();
-        paths.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap());
-        for (router, cost, predecessor) in paths {
-            if cost.is_infinite() {
-                self.igp_forwarding_table.insert(router, None);
+        let neighbors = graph
+            .edges(self.router_id)
+            .map(|r| (r.target(), *r.weight()))
+            .collect::<Vec<_>>();
+
+        // go through all targets to find the shortest path.
+        for target in graph.node_indices() {
+            if target == self.router_id {
+                self.igp_table.insert(target, (vec![self.router_id], 0.0));
                 continue;
             }
-            let next_hop = if let Some(predecessor) = predecessor {
-                // the predecessor must already be inserted into the forwarding table, because we sorted the table
-                if predecessor == self.router_id {
-                    router
-                } else {
-                    self.igp_forwarding_table
-                        .get(&predecessor)
-                        .unwrap() // first unwrap for get, which returns an option
-                        .unwrap() // second unwrap to unwrap wether the route exists (it must!)
-                        .0
-                }
-            } else {
-                router
-            };
-            self.igp_forwarding_table
-                .insert(router, Some((next_hop, cost)));
+
+            let cost = apsp[&(self.router_id, target)];
+
+            // get the predecessors by which we can reach the target in shortest time.
+            let predecessors = neighbors
+                .iter()
+                .copied()
+                .filter(|(r, w)| cost == apsp[&(*r, target)] + *w)
+                .map(|(r, _)| r)
+                .collect::<Vec<_>>();
+
+            if cost.is_infinite() || predecessors.is_empty() || cost >= LinkWeight::MAX / 16.0 {
+                self.igp_table
+                    .insert(target, (vec![], LinkWeight::INFINITY));
+                continue;
+            }
+
+            self.igp_table.insert(target, (predecessors, cost));
         }
         self.update_bgp_tables()
     }
@@ -888,12 +911,13 @@ impl Router {
         entry.igp_cost = Some(
             entry.igp_cost.unwrap_or(
                 match self
-                    .igp_forwarding_table
+                    .igp_table
                     .get(&entry.route.next_hop)
                     .ok_or(DeviceError::RouterNotFound(entry.route.next_hop))?
+                    .1
                 {
-                    Some((_, cost)) => *cost,
-                    None => return Ok(None),
+                    cost if cost.is_infinite() => return Ok(None),
+                    cost => cost,
                 },
             ),
         );
@@ -985,9 +1009,10 @@ impl PartialEq for Router {
     #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {
         if !(self.name == other.name
+            && self.do_load_balancing == other.do_load_balancing
             && self.router_id == other.router_id
             && self.as_id == other.as_id
-            && self.igp_forwarding_table == other.igp_forwarding_table
+            && self.igp_table == other.igp_table
             && self.static_routes == other.static_routes
             && self.bgp_sessions == other.bgp_sessions
             && self.bgp_rib == other.bgp_rib
@@ -1024,9 +1049,10 @@ enum UndoAction {
     BgpRibOut(Prefix, RouterId, Option<BgpRibEntry>),
     BgpRouteMap(RouteMapDirection, usize, Option<RouteMap>),
     BgpSession(RouterId, Option<BgpSessionType>),
-    IgpForwardingTable(HashMap<RouterId, Option<(RouterId, LinkWeight)>>),
+    IgpForwardingTable(HashMap<RouterId, (Vec<RouterId>, LinkWeight)>),
     DelKnownPrefix(Prefix),
     StaticRoute(Prefix, Option<StaticRoute>),
+    SetLoadBalancing(bool),
 }
 
 /// Static route description that can either point to the direct link to the target, or to use the

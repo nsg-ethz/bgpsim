@@ -22,8 +22,8 @@ use crate::config::ConfigModifier;
 use crate::external_router::ExternalRouter;
 use crate::router::Router;
 use crate::Event;
+use petgraph::graph::Graph;
 use petgraph::prelude::*;
-use petgraph::stable_graph::StableGraph;
 use thiserror::Error;
 
 type IndexType = u32;
@@ -38,7 +38,7 @@ pub struct AsId(pub u32);
 /// Link Weight for the IGP graph
 pub type LinkWeight = f32;
 /// IGP Network graph
-pub type IgpNetwork = StableGraph<(), LinkWeight, Directed, IndexType>;
+pub type IgpNetwork = Graph<(), LinkWeight, Directed, IndexType>;
 
 /// How does the next hop change after a BGP event has been processed?
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Default)]
