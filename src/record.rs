@@ -308,7 +308,7 @@ where
         self.0.retract_external_route(source, prefix)
     }
 
-    /// Wrapper around [`Network::simulate_link_failure`]
+    /// Wrapper around [`Network::remove_link`]
     pub fn simulate_link_failure(
         self,
         router_a: RouterId,
