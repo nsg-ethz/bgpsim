@@ -339,6 +339,11 @@ pub enum ConfigExpr {
         /// To which neighbor to forward packets to.
         target: StaticRoute,
     },
+    /// Enable or disable load balancing
+    LoadBalancing {
+        /// Router where to enable the load balancing
+        router: RouterId,
+    },
 }
 
 impl ConfigExpr {
@@ -389,6 +394,9 @@ impl ConfigExpr {
                 router: *router,
                 prefix: *prefix,
             },
+            ConfigExpr::LoadBalancing { router } => {
+                ConfigExprKey::LoadBalancing { router: *router }
+            }
         }
     }
 
@@ -399,6 +407,7 @@ impl ConfigExpr {
             ConfigExpr::BgpSession { source, target, .. } => vec![*source, *target],
             ConfigExpr::BgpRouteMap { router, .. } => vec![*router],
             ConfigExpr::StaticRoute { router, .. } => vec![*router],
+            ConfigExpr::LoadBalancing { router } => vec![*router],
         }
     }
 }
@@ -449,6 +458,11 @@ pub enum ConfigExprKey {
         router: RouterId,
         /// Prefix for which to configure the router
         prefix: Prefix,
+    },
+    /// Key for Load Balancing
+    LoadBalancing {
+        /// Router to be configured
+        router: RouterId,
     },
 }
 
@@ -640,6 +654,10 @@ where
                     self.set_static_route(*router, *prefix, Some(*target))?;
                     Ok(())
                 }
+                ConfigExpr::LoadBalancing { router } => {
+                    self.set_load_balancing(*router, true)?;
+                    Ok(())
+                }
             },
             ConfigModifier::Remove(expr) => match expr {
                 ConfigExpr::IgpLinkWeight {
@@ -664,6 +682,10 @@ where
 
                 ConfigExpr::StaticRoute { router, prefix, .. } => {
                     self.set_static_route(*router, *prefix, None)?;
+                    Ok(())
+                }
+                ConfigExpr::LoadBalancing { router } => {
+                    self.set_load_balancing(*router, false)?;
                     Ok(())
                 }
             },

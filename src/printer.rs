@@ -233,9 +233,9 @@ pub fn config_expr<Q>(net: &Network<Q>, expr: &ConfigExpr) -> Result<String, Net
                     format!("{} (indirect)", net.get_router_name(*target)?),
             }
         ),
-        // ConfigExpr::LoadBalancing { router } => {
-        //     format!("Load Balancing: {}", net.get_router_name(*router)?)
-        // }
+        ConfigExpr::LoadBalancing { router } => {
+            format!("Load Balancing: {}", net.get_router_name(*router)?)
+        }
     })
 }
 

@@ -625,6 +625,29 @@ where
             .set_static_route(prefix, route))
     }
 
+    /// Enable or disable Load Balancing on a single device in the network.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    pub fn set_load_balancing(
+        &mut self,
+        router: RouterId,
+        do_load_balancing: bool,
+    ) -> Result<bool, NetworkError> {
+        // update the device
+        let old_val = self
+            .routers
+            .get_mut(&router)
+            .ok_or(NetworkError::DeviceNotFound(router))?
+            .set_load_balancing(do_load_balancing);
+
+        // push undo stack
+        #[cfg(feature = "undo")]
+        self.undo_stack
+            .push(vec![vec![UndoAction::UndoDevice(router)]]);
+
+        Ok(old_val)
+    }
+
     /// Advertise an external route and let the network converge, The source must be a `RouterId`
     /// of an `ExternalRouter`. If not, an error is returned. When advertising a route, all
     /// eBGP neighbors will receive an update with the new route. If a neighbor is added later
