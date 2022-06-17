@@ -18,8 +18,8 @@
 //! Test the `record` module
 
 use crate::{
-    bgp::BgpSessionType::*, event::FmtPriority, record::RecordNetwork, test::init, AsId,
-    EventQueue, Network, NetworkError, Prefix, RouterId,
+    bgp::BgpSessionType::*, event::FmtPriority, record::RecordNetwork, AsId, EventQueue, Network,
+    NetworkError, Prefix, RouterId,
 };
 
 /// Setup the simple network, and return `(e0, b0, r0, r1, b1, e1)`
@@ -73,7 +73,6 @@ where
 
 #[test]
 fn test_simple_deterministic() {
-    init();
     let mut net = Network::default();
     let prefix = Prefix(0);
 
@@ -90,115 +89,130 @@ fn test_simple_deterministic() {
     assert_eq!(
         rec.trace()[&prefix],
         vec![
-            vec![(e1, None, Some(e1))],
-            vec![(b1, Some(r1), Some(e1))],
-            vec![(r1, Some(r0), Some(b1))],
-            vec![(r0, Some(b0), Some(r1))],
-            vec![(b0, Some(e0), Some(r0))]
+            vec![(e1, vec![], vec![e1])],
+            vec![(b1, vec![r1], vec![e1])],
+            vec![(r1, vec![r0], vec![b1])],
+            vec![(r0, vec![b0], vec![r1])],
+            vec![(b0, vec![e0], vec![r0])]
         ]
     );
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, b0, e0]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, r0, b0, e0]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, r1, r0, b0, e0]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(
+        s.get_route(b1, prefix).unwrap(),
+        vec![vec![b1, r1, r0, b0, e0]]
+    );
 
     // perform one step
     rec.step(prefix).unwrap();
 
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, b0, e0]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, r0, b0, e0]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, r1, r0, b0, e0]);
-
-    // perform one step
-    rec.step(prefix).unwrap();
-
-    // test all paths
-    let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, b0, e0]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, r0, b0, e0]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, e1]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(
+        s.get_route(b1, prefix).unwrap(),
+        vec![vec![b1, r1, r0, b0, e0]]
+    );
 
     // perform one step
     rec.step(prefix).unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, b0, e0]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, b1, e1]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, e1]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.step(prefix).unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, r1, b1, e1]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, b1, e1]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, e1]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.step(prefix).unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, r0, r1, b1, e1]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, r1, b1, e1]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, b1, e1]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, e1]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, r1, b1, e1]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
+
+    // perform one step
+    rec.step(prefix).unwrap();
+
+    // test all paths
+    let s = rec.state();
+    assert_eq!(
+        s.get_route(b0, prefix).unwrap(),
+        vec![vec![b0, r0, r1, b1, e1]]
+    );
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, r1, b1, e1]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // go back and test the same thing again.
     rec.back(prefix).unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, r1, b1, e1]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, b1, e1]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, e1]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, r1, b1, e1]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.back(prefix).unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, b0, e0]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, b1, e1]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, e1]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.back(prefix).unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, b0, e0]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, r0, b0, e0]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, e1]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.back(prefix).unwrap();
 
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, b0, e0]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, r0, b0, e0]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, r1, r0, b0, e0]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(
+        s.get_route(b1, prefix).unwrap(),
+        vec![vec![b1, r1, r0, b0, e0]]
+    );
 
     // perform one step
     rec.back(prefix).unwrap();
 
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![b0, e0]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![r0, b0, e0]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![r1, r0, b0, e0]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![b1, r1, r0, b0, e0]);
+    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(
+        s.get_route(b1, prefix).unwrap(),
+        vec![vec![b1, r1, r0, b0, e0]]
+    );
 }

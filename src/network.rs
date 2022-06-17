@@ -288,7 +288,7 @@ impl<Q> Network<Q> {
         &self,
         source: RouterId,
         prefix: Prefix,
-    ) -> Result<Vec<RouterId>, NetworkError> {
+    ) -> Result<Vec<Vec<RouterId>>, NetworkError> {
         // get the forwarding state of the network
         let mut fw_state = self.get_forwarding_state();
         fw_state.get_route(source, prefix)
@@ -300,12 +300,17 @@ impl<Q> Network<Q> {
     #[cfg(not(tarpaulin_include))]
     pub fn print_route(&self, source: RouterId, prefix: Prefix) -> Result<(), NetworkError> {
         match self.get_route(source, prefix) {
-            Ok(path) => println!(
-                "{}",
-                path.iter()
-                    .map(|r| self.get_router_name(*r))
-                    .collect::<Result<Vec<&str>, NetworkError>>()?
-                    .join(" => ")
+            Ok(paths) => println!(
+                "[{}]",
+                paths
+                    .iter()
+                    .map(|path| path
+                        .iter()
+                        .map(|r| self.get_router_name(*r))
+                        .collect::<Result<Vec<&str>, NetworkError>>()
+                        .map(|i| i.join(" => ")))
+                    .collect::<Result<Vec<String>, NetworkError>>()?
+                    .join("], [")
             ),
             Err(NetworkError::ForwardingLoop(path)) => {
                 println!(

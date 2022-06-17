@@ -26,6 +26,7 @@ use lazy_static::lazy_static;
 use log::*;
 use std::collections::{HashMap, HashSet};
 use std::vec::IntoIter;
+use thiserror::Error;
 
 lazy_static! {
     static ref EMPTY_SET: HashSet<RouterId> = HashSet::new();
@@ -45,14 +46,15 @@ lazy_static! {
 #[derive(Debug, Clone)]
 pub struct ForwardingState {
     /// The forwarding state
-    pub(crate) state: HashMap<(RouterId, Prefix), RouterId>,
+    pub(crate) state: HashMap<(RouterId, Prefix), Vec<RouterId>>,
     /// The reversed forwarding state.
     pub(crate) reversed: HashMap<(RouterId, Prefix), HashSet<RouterId>>,
     /// Cache storing the result from the last computation. The outer most vector is the corresponds
     /// to the router id, and the next is the prefix. Then, if `cache[r, p]` is `None`, we have not
     /// yet computed the result there, But if `cache[r, p]` is true, then it will store the result
     /// which was computed last time.
-    pub(crate) cache: HashMap<(RouterId, Prefix), (CacheResult, Vec<RouterId>)>,
+    #[allow(clippy::type_complexity)]
+    pub(crate) cache: HashMap<(RouterId, Prefix), Result<Vec<Vec<RouterId>>, CacheError>>,
 }
 
 impl PartialEq for ForwardingState {
@@ -68,21 +70,25 @@ impl ForwardingState {
         let max_num_entries = net.num_devices() * net.get_known_prefixes().len();
 
         // initialize state
-        let mut state: HashMap<(RouterId, Prefix), RouterId> =
+        let mut state: HashMap<(RouterId, Prefix), Vec<RouterId>> =
             HashMap::with_capacity(max_num_entries);
         let mut reversed: HashMap<(RouterId, Prefix), HashSet<RouterId>> =
             HashMap::with_capacity(max_num_entries);
         for rid in net.get_routers() {
             let r = net.get_device(rid).unwrap_internal();
             for prefix in net.get_known_prefixes() {
-                if let Some(nh) = r.get_next_hop(*prefix) {
-                    if nh == rid {
-                        // in this case, the router points at itself, which means a black hole (at
-                        // least for internal routers)
-                        continue;
+                let nhs = r.get_next_hop(*prefix);
+                if !nhs.is_empty() {
+                    state.insert((rid, *prefix), Vec::with_capacity(nhs.len()));
+                    for nh in nhs {
+                        if nh == rid {
+                            // in this case, the router points at itself, which means a black hole (at
+                            // least for internal routers)
+                            continue;
+                        }
+                        state.get_mut(&(rid, *prefix)).unwrap().push(nh);
+                        reversed.entry((nh, *prefix)).or_default().insert(rid);
                     }
-                    state.insert((rid, *prefix), nh);
-                    reversed.entry((nh, *prefix)).or_default().insert(rid);
                 }
             }
         }
@@ -91,7 +97,7 @@ impl ForwardingState {
         // prefix they know a route to.
         for r in net.get_external_routers() {
             for p in net.get_device(r).unwrap_external().advertised_prefixes() {
-                state.insert((r, *p), r);
+                state.insert((r, *p), vec![r]);
             }
         }
 
@@ -111,94 +117,102 @@ impl ForwardingState {
         &mut self,
         source: RouterId,
         prefix: Prefix,
-    ) -> Result<Vec<RouterId>, NetworkError> {
-        // check if the router exists
-        let mut visited_routers: HashSet<RouterId> = HashSet::new();
-        let mut path: Vec<RouterId> = Vec::new();
-        let mut current_node = source;
-        let (result, mut update_cache_upto) = loop {
-            // check if the result is already cached
-            match self.cache.get(&(current_node, prefix)) {
-                Some((result, cache_path)) => {
-                    let cache_upto = path.len();
-                    path.extend(cache_path);
-                    break (*result, cache_upto);
-                }
-                None => {}
-            }
+    ) -> Result<Vec<Vec<RouterId>>, NetworkError> {
+        let mut visited = HashSet::new();
+        visited.insert(source);
+        let mut path = vec![source];
+        Ok(self.get_route_recursive(prefix, source, &mut visited, &mut path)?)
+    }
 
-            path.push(current_node);
-
-            // check if visited
-            if !visited_routers.insert(current_node) {
-                break (CacheResult::ForwardingLoop, path.len());
-            }
-
-            // get the next node and handle the errors
-            let old_node = current_node;
-            current_node = match self.state.get(&(current_node, prefix)) {
-                Some(nh) => *nh,
-                None => {
-                    break (CacheResult::BlackHole, path.len());
-                }
-            };
-
-            // if the previous node was external, and we are still here, this means that the
-            // external router knows a route to the outside. Return the correct route
-            if old_node == current_node {
-                break (CacheResult::ValidPath, path.len());
-            }
-        };
-
-        // update the cache
-        // Special case for a forwarding loop, because we need to reconstruct the loop
-        if result == CacheResult::ForwardingLoop && update_cache_upto == path.len() {
-            // find the first position of the last element, which must occur twice
-            let loop_rid = path.last().unwrap();
-            let loop_pos = path.iter().position(|x| x == loop_rid).unwrap();
-            let mut tmp_loop_path = path.iter().skip(loop_pos).cloned().collect::<Vec<_>>();
-            for (update_id, router) in path
-                .iter()
-                .enumerate()
-                .take(update_cache_upto - 1)
-                .skip(loop_pos)
-            {
-                self.cache
-                    .insert((*router, prefix), (result, tmp_loop_path.clone()));
-                if update_id < update_cache_upto - 1 {
-                    tmp_loop_path.remove(0);
-                    tmp_loop_path.push(tmp_loop_path[0]);
-                }
-            }
-            update_cache_upto = loop_pos;
+    /// Recursive function to build the paths (cached) recursively.
+    fn get_route_recursive(
+        &mut self,
+        prefix: Prefix,
+        cur_node: RouterId,
+        visited: &mut HashSet<RouterId>,
+        path: &mut Vec<RouterId>,
+    ) -> Result<Vec<Vec<RouterId>>, CacheError> {
+        if let Some(r) = self.cache.get(&(cur_node, prefix)).cloned() {
+            return r;
         }
 
-        // update the regular cache
-        for update_id in 0..update_cache_upto {
+        // the thing is not yet cached. get the paths for each of the next hops
+        let nhs = self
+            .state
+            .get(&(cur_node, prefix))
+            .cloned()
+            .unwrap_or_default();
+
+        // test if there are any next hops
+        if nhs.is_empty() {
+            // black hole! Cache the result
             self.cache.insert(
-                (path[update_id], prefix),
-                (result, path.iter().skip(update_id).cloned().collect()),
+                (cur_node, prefix),
+                Err(CacheError::BlackHole(vec![cur_node])),
             );
+            return Err(CacheError::BlackHole(vec![cur_node]));
         }
 
-        // write the debug message
-        match result {
-            CacheResult::ValidPath => Ok(path),
-            CacheResult::BlackHole => {
-                trace!("Black hole detected: {:?}", path);
-                Err(NetworkError::ForwardingBlackHole(path))
-            }
-            CacheResult::ForwardingLoop => {
-                trace!("Forwarding loop detected: {:?}", path);
-                Err(NetworkError::ForwardingLoop(path))
-            }
+        // test if the next hop is only self. In that case, the path is finished.
+        if nhs == vec![cur_node] {
+            self.cache
+                .insert((cur_node, prefix), Ok(vec![vec![cur_node]]));
+            return Ok(vec![vec![cur_node]]);
         }
+
+        let mut fw_paths: Vec<Vec<RouterId>> = Vec::new();
+
+        for nh in nhs {
+            // if the nh is self, then `nhs` must have exactly one entry. Otherwise, we have a big
+            // problem...
+            if nh == cur_node {
+                unreachable!();
+            }
+
+            // check if we have already visited nh
+            if visited.contains(&nh) {
+                // Forwarding loop! construct the loop path for nh
+                let mut p = path.clone();
+                let first_idx = p.iter().position(|x| x == &nh).unwrap();
+                let mut loop_path = p.split_off(first_idx);
+                loop_path.push(nh);
+                let mut e_loop = CacheError::ForwardingLoop(loop_path);
+                // push the cache for nh
+                self.cache.insert((nh, prefix), Err(e_loop.clone()));
+                // change the loop path for current node
+                e_loop.update_path(cur_node);
+                self.cache.insert((cur_node, prefix), Err(e_loop.clone()));
+                return Err(e_loop);
+            }
+
+            visited.insert(nh);
+            path.push(nh);
+            match self.get_route_recursive(prefix, nh, visited, path) {
+                Ok(mut paths) => {
+                    paths.iter_mut().for_each(|p| p.insert(0, cur_node));
+                    fw_paths.append(&mut paths);
+                }
+                Err(mut e) => {
+                    e.update_path(cur_node);
+                    self.cache.insert((cur_node, prefix), Err(e.clone()));
+                    return Err(e);
+                }
+            }
+            visited.remove(&nh);
+            path.pop();
+        }
+
+        self.cache.insert((cur_node, prefix), Ok(fw_paths.clone()));
+        Ok(fw_paths)
     }
 
     /// Get the next hop of a router for a specific prefix. If that router does not know any route,
     /// `Ok(None)` is returned.
-    pub fn get_next_hop(&self, router: RouterId, prefix: Prefix) -> Option<RouterId> {
-        self.state.get(&(router, prefix)).cloned()
+    pub fn get_next_hop(&self, router: RouterId, prefix: Prefix) -> &[RouterId] {
+        self.state
+            .get(&(router, prefix))
+            .map(|p| p.as_slice())
+            .unwrap_or_default()
     }
 
     /// Get the set of nodes that have a next hop to `rotuer` for `prefix`.
@@ -215,13 +229,14 @@ impl ForwardingState {
         for key in keys {
             let src = key.0;
             let prefix = key.1;
-            let self_target = self.state.get(key).copied();
-            let other_target = other.state.get(key).copied();
+            let self_target = self.get_next_hop(src, prefix);
+            let other_target = other.get_next_hop(src, prefix);
             if self_target != other_target {
-                result
-                    .entry(prefix)
-                    .or_default()
-                    .push((src, self_target, other_target))
+                result.entry(prefix).or_default().push((
+                    src,
+                    self_target.to_owned(),
+                    other_target.to_owned(),
+                ))
             }
         }
         result
@@ -229,25 +244,27 @@ impl ForwardingState {
 
     /// Update a single edge on the forwarding state. This function will invalidate all caching that
     /// used this edge.
-    pub(crate) fn update(&mut self, source: RouterId, prefix: Prefix, next_hop: Option<RouterId>) {
+    pub(crate) fn update(&mut self, source: RouterId, prefix: Prefix, next_hops: Vec<RouterId>) {
         // first, change the next-hop
-        let old_state = if let Some(nh) = next_hop {
-            self.state.insert((source, prefix), nh)
+        let old_state = if next_hops.is_empty() {
+            self.state.remove(&(source, prefix)).unwrap_or_default()
         } else {
-            self.state.remove(&(source, prefix))
+            self.state
+                .insert((source, prefix), next_hops.clone())
+                .unwrap_or_default()
         };
         // check if there was any change. If not, simply exit.
-        if old_state == next_hop {
+        if old_state == next_hops {
             return;
         }
 
         // now, update the reversed fw state
-        if let Some(old_nh) = old_state {
+        for old_nh in old_state {
             self.reversed
                 .get_mut(&(old_nh, prefix))
                 .map(|set| set.remove(&source));
         }
-        if let Some(new_nh) = next_hop {
+        for new_nh in next_hops {
             self.reversed
                 .entry((new_nh, prefix))
                 .or_default()
@@ -274,15 +291,34 @@ impl ForwardingState {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub(crate) enum CacheResult {
-    ValidPath,
-    BlackHole,
-    ForwardingLoop,
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub(crate) enum CacheError {
+    #[error("Black hole: {0:?}")]
+    BlackHole(Vec<RouterId>),
+    #[error("Forwarding loop: {0:?}")]
+    ForwardingLoop(Vec<RouterId>),
+}
+
+impl CacheError {
+    pub fn update_path(&mut self, node: RouterId) {
+        match self {
+            CacheError::BlackHole(p) | CacheError::ForwardingLoop(p) => {
+                eprintln!("update path {:?} at {}", p, node.index());
+                if p.first() != Some(&node) {
+                    p.insert(0, node)
+                }
+                if let Some(pos) = p.iter().skip(1).position(|x| x == &node) {
+                    if pos + 2 < p.len() {
+                        p.truncate(pos + 2);
+                    }
+                }
+            }
+        }
+    }
 }
 
 impl IntoIterator for ForwardingState {
-    type Item = (RouterId, Prefix, Vec<RouterId>);
+    type Item = (RouterId, Prefix, Result<Vec<Vec<RouterId>>, NetworkError>);
     type IntoIter = ForwardingStateIterator;
 
     fn into_iter(self) -> Self::IntoIter {
@@ -290,6 +326,15 @@ impl IntoIterator for ForwardingState {
         ForwardingStateIterator {
             fw_state: self,
             keys,
+        }
+    }
+}
+
+impl From<CacheError> for NetworkError {
+    fn from(val: CacheError) -> Self {
+        match val {
+            CacheError::BlackHole(path) => NetworkError::ForwardingBlackHole(path),
+            CacheError::ForwardingLoop(path) => NetworkError::ForwardingLoop(path),
         }
     }
 }
@@ -302,14 +347,10 @@ pub struct ForwardingStateIterator {
 }
 
 impl Iterator for ForwardingStateIterator {
-    type Item = (RouterId, Prefix, Vec<RouterId>);
+    type Item = (RouterId, Prefix, Result<Vec<Vec<RouterId>>, NetworkError>);
     fn next(&mut self) -> Option<Self::Item> {
         if let Some((router, prefix)) = self.keys.next() {
-            Some((
-                router,
-                prefix,
-                self.fw_state.get_route(router, prefix).unwrap_or_default(),
-            ))
+            Some((router, prefix, self.fw_state.get_route(router, prefix)))
         } else {
             None
         }
@@ -320,7 +361,7 @@ impl Iterator for ForwardingStateIterator {
 mod test {
     use maplit::{hashmap, hashset};
 
-    use super::CacheResult::*;
+    use super::CacheError::*;
     use super::*;
     #[test]
     fn test_route() {
@@ -332,15 +373,18 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => r0, (r1, p) => r0, (r2, p) => r1, (r3, p) => r1, (r4, p) => r2],
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]],
             reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
             cache: hashmap![],
         };
-        assert_eq!(state.get_route(r0, Prefix(0)), Ok(vec![r0]));
-        assert_eq!(state.get_route(r1, Prefix(0)), Ok(vec![r1, r0]));
-        assert_eq!(state.get_route(r2, Prefix(0)), Ok(vec![r2, r1, r0]));
-        assert_eq!(state.get_route(r3, Prefix(0)), Ok(vec![r3, r1, r0]));
-        assert_eq!(state.get_route(r4, Prefix(0)), Ok(vec![r4, r2, r1, r0]));
+        assert_eq!(state.get_route(r0, Prefix(0)), Ok(vec![vec![r0]]));
+        assert_eq!(state.get_route(r1, Prefix(0)), Ok(vec![vec![r1, r0]]));
+        assert_eq!(state.get_route(r2, Prefix(0)), Ok(vec![vec![r2, r1, r0]]));
+        assert_eq!(state.get_route(r3, Prefix(0)), Ok(vec![vec![r3, r1, r0]]));
+        assert_eq!(
+            state.get_route(r4, Prefix(0)),
+            Ok(vec![vec![r4, r2, r1, r0]])
+        );
         assert_eq!(
             state.get_route(r5, Prefix(0)),
             Err(NetworkError::ForwardingBlackHole(vec![r5]))
@@ -357,23 +401,23 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => r0, (r1, p) => r0, (r2, p) => r1, (r3, p) => r1, (r4, p) => r2],
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]],
             reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
             cache: hashmap![],
         };
-        assert_eq!(state.get_route(r4, Prefix(0)), Ok(vec![r4, r2, r1, r0]));
+        assert_eq!(
+            state.get_route(r4, Prefix(0)),
+            Ok(vec![vec![r4, r2, r1, r0]])
+        );
         assert_eq!(state.cache.get(&(r5, p)), None);
         assert_eq!(
             state.cache.get(&(r4, p)),
-            Some(&(ValidPath, vec![r4, r2, r1, r0]))
+            Some(&Ok(vec![vec![r4, r2, r1, r0]]))
         );
         assert_eq!(state.cache.get(&(r3, p)), None);
-        assert_eq!(
-            state.cache.get(&(r2, p)),
-            Some(&(ValidPath, vec![r2, r1, r0]))
-        );
-        assert_eq!(state.cache.get(&(r1, p)), Some(&(ValidPath, vec![r1, r0])));
-        assert_eq!(state.cache.get(&(r0, p)), Some(&(ValidPath, vec![r0])));
+        assert_eq!(state.cache.get(&(r2, p)), Some(&Ok(vec![vec![r2, r1, r0]])));
+        assert_eq!(state.cache.get(&(r1, p)), Some(&Ok(vec![vec![r1, r0]])));
+        assert_eq!(state.cache.get(&(r0, p)), Some(&Ok(vec![vec![r0]])));
     }
 
     #[test]
@@ -386,7 +430,7 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => r0, (r1, p) => r0, (r2, p) => r3, (r3, p) => r4, (r4, p) => r3],
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r3]],
             reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]],
             cache: hashmap![],
         };
@@ -398,15 +442,15 @@ mod test {
         assert_eq!(state.cache.get(&(r1, p)), None);
         assert_eq!(
             state.cache.get(&(r2, p)),
-            Some(&(ForwardingLoop, vec![r2, r3, r4, r3]))
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r3])))
         );
         assert_eq!(
             state.cache.get(&(r3, p)),
-            Some(&(ForwardingLoop, vec![r3, r4, r3]))
+            Some(&Err(ForwardingLoop(vec![r3, r4, r3])))
         );
         assert_eq!(
             state.cache.get(&(r4, p)),
-            Some(&(ForwardingLoop, vec![r4, r3, r4]))
+            Some(&Err(ForwardingLoop(vec![r4, r3, r4])))
         );
         assert_eq!(state.cache.get(&(r5, p)), None);
         assert_eq!(
@@ -417,15 +461,15 @@ mod test {
         assert_eq!(state.cache.get(&(r1, p)), None);
         assert_eq!(
             state.cache.get(&(r2, p)),
-            Some(&(ForwardingLoop, vec![r2, r3, r4, r3]))
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r3])))
         );
         assert_eq!(
             state.cache.get(&(r3, p)),
-            Some(&(ForwardingLoop, vec![r3, r4, r3]))
+            Some(&Err(ForwardingLoop(vec![r3, r4, r3])))
         );
         assert_eq!(
             state.cache.get(&(r4, p)),
-            Some(&(ForwardingLoop, vec![r4, r3, r4]))
+            Some(&Err(ForwardingLoop(vec![r4, r3, r4])))
         );
         assert_eq!(state.cache.get(&(r5, p)), None);
         assert_eq!(
@@ -436,15 +480,15 @@ mod test {
         assert_eq!(state.cache.get(&(r1, p)), None);
         assert_eq!(
             state.cache.get(&(r2, p)),
-            Some(&(ForwardingLoop, vec![r2, r3, r4, r3]))
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r3])))
         );
         assert_eq!(
             state.cache.get(&(r3, p)),
-            Some(&(ForwardingLoop, vec![r3, r4, r3]))
+            Some(&Err(ForwardingLoop(vec![r3, r4, r3])))
         );
         assert_eq!(
             state.cache.get(&(r4, p)),
-            Some(&(ForwardingLoop, vec![r4, r3, r4]))
+            Some(&Err(ForwardingLoop(vec![r4, r3, r4])))
         );
         assert_eq!(state.cache.get(&(r5, p)), None);
     }
@@ -459,7 +503,7 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => r0, (r1, p) => r2, (r2, p) => r3, (r3, p) => r4, (r4, p) => r2],
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r2], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r2]],
             reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]],
             cache: hashmap![],
         };
@@ -470,19 +514,19 @@ mod test {
         assert_eq!(state.cache.get(&(r0, p)), None);
         assert_eq!(
             state.cache.get(&(r1, p)),
-            Some(&(ForwardingLoop, vec![r1, r2, r3, r4, r2]))
+            Some(&Err(ForwardingLoop(vec![r1, r2, r3, r4, r2])))
         );
         assert_eq!(
             state.cache.get(&(r2, p)),
-            Some(&(ForwardingLoop, vec![r2, r3, r4, r2]))
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r2])))
         );
         assert_eq!(
             state.cache.get(&(r3, p)),
-            Some(&(ForwardingLoop, vec![r3, r4, r2, r3]))
+            Some(&Err(ForwardingLoop(vec![r3, r4, r2, r3])))
         );
         assert_eq!(
             state.cache.get(&(r4, p)),
-            Some(&(ForwardingLoop, vec![r4, r2, r3, r4]))
+            Some(&Err(ForwardingLoop(vec![r4, r2, r3, r4])))
         );
         assert_eq!(state.cache.get(&(r5, p)), None);
         assert_eq!(
@@ -492,19 +536,19 @@ mod test {
         assert_eq!(state.cache.get(&(r0, p)), None);
         assert_eq!(
             state.cache.get(&(r1, p)),
-            Some(&(ForwardingLoop, vec![r1, r2, r3, r4, r2]))
+            Some(&Err(ForwardingLoop(vec![r1, r2, r3, r4, r2])))
         );
         assert_eq!(
             state.cache.get(&(r2, p)),
-            Some(&(ForwardingLoop, vec![r2, r3, r4, r2]))
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r2])))
         );
         assert_eq!(
             state.cache.get(&(r3, p)),
-            Some(&(ForwardingLoop, vec![r3, r4, r2, r3]))
+            Some(&Err(ForwardingLoop(vec![r3, r4, r2, r3])))
         );
         assert_eq!(
             state.cache.get(&(r4, p)),
-            Some(&(ForwardingLoop, vec![r4, r2, r3, r4]))
+            Some(&Err(ForwardingLoop(vec![r4, r2, r3, r4])))
         );
         assert_eq!(state.cache.get(&(r5, p)), None);
         assert_eq!(
@@ -514,19 +558,19 @@ mod test {
         assert_eq!(state.cache.get(&(r0, p)), None);
         assert_eq!(
             state.cache.get(&(r1, p)),
-            Some(&(ForwardingLoop, vec![r1, r2, r3, r4, r2]))
+            Some(&Err(ForwardingLoop(vec![r1, r2, r3, r4, r2])))
         );
         assert_eq!(
             state.cache.get(&(r2, p)),
-            Some(&(ForwardingLoop, vec![r2, r3, r4, r2]))
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r2])))
         );
         assert_eq!(
             state.cache.get(&(r3, p)),
-            Some(&(ForwardingLoop, vec![r3, r4, r2, r3]))
+            Some(&Err(ForwardingLoop(vec![r3, r4, r2, r3])))
         );
         assert_eq!(
             state.cache.get(&(r4, p)),
-            Some(&(ForwardingLoop, vec![r4, r2, r3, r4]))
+            Some(&Err(ForwardingLoop(vec![r4, r2, r3, r4])))
         );
         assert_eq!(state.cache.get(&(r5, p)), None);
         assert_eq!(
@@ -536,19 +580,19 @@ mod test {
         assert_eq!(state.cache.get(&(r0, p)), None);
         assert_eq!(
             state.cache.get(&(r1, p)),
-            Some(&(ForwardingLoop, vec![r1, r2, r3, r4, r2]))
+            Some(&Err(ForwardingLoop(vec![r1, r2, r3, r4, r2])))
         );
         assert_eq!(
             state.cache.get(&(r2, p)),
-            Some(&(ForwardingLoop, vec![r2, r3, r4, r2]))
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r2])))
         );
         assert_eq!(
             state.cache.get(&(r3, p)),
-            Some(&(ForwardingLoop, vec![r3, r4, r2, r3]))
+            Some(&Err(ForwardingLoop(vec![r3, r4, r2, r3])))
         );
         assert_eq!(
             state.cache.get(&(r4, p)),
-            Some(&(ForwardingLoop, vec![r4, r2, r3, r4]))
+            Some(&Err(ForwardingLoop(vec![r4, r2, r3, r4])))
         );
         assert_eq!(state.cache.get(&(r5, p)), None);
     }

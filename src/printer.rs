@@ -47,15 +47,25 @@ pub fn fw_state<Q>(net: &Network<Q>, state: &ForwardingState) -> Result<String, 
     for prefix in prefixes {
         writeln!(f, "Prefix {}", prefix.0).unwrap();
         for node in nodes.iter().copied() {
+            let next_hops = state
+                .state
+                .get(&(node, prefix))
+                .map(|v| v.as_slice())
+                .unwrap_or_default();
+            let next_hops_str = if next_hops.is_empty() {
+                "XX".to_string()
+            } else {
+                next_hops
+                    .iter()
+                    .map(|r| net.get_router_name(*r))
+                    .collect::<Result<Vec<_>, NetworkError>>()?
+                    .join(", ")
+            };
             writeln!(
                 f,
                 "  {} -> {}; reversed: [{}]; cached: {}",
                 net.get_router_name(node)?,
-                state
-                    .state
-                    .get(&(node, prefix))
-                    .map(|r| net.get_router_name(*r))
-                    .unwrap_or(Ok("XX"))?,
+                next_hops_str,
                 state
                     .reversed
                     .get(&(node, prefix))
@@ -65,11 +75,8 @@ pub fn fw_state<Q>(net: &Network<Q>, state: &ForwardingState) -> Result<String, 
                         .join(", "))
                     .unwrap_or_default(),
                 match state.cache.get(&(node, prefix)) {
-                    None => String::from("no"),
-                    Some((_, path)) => path
-                        .iter()
-                        .map(|r| net.get_router_name(*r).unwrap())
-                        .join(", "),
+                    None => "no",
+                    Some(_) => "yes",
                 }
             )
             .unwrap();

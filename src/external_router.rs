@@ -89,7 +89,7 @@ impl ExternalRouter {
         self.undo_stack.push(Vec::new());
 
         if let Some(prefix) = event.prefix() {
-            Ok((StepUpdate::new(prefix, None, None), vec![]))
+            Ok((StepUpdate::new(prefix, vec![], vec![]), vec![]))
         } else {
             Ok((StepUpdate::default(), vec![]))
         }

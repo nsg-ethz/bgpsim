@@ -15,11 +15,40 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-fn init() {
-    let _ = env_logger::builder()
-        .is_test(true)
-        .filter_level(log::LevelFilter::Trace)
-        .try_init();
+use crate::{Network, NetworkError, RouterId};
+
+fn path_result_str<Q>(paths: Result<Vec<Vec<RouterId>>, NetworkError>, net: &Network<Q>) -> String {
+    match paths {
+        Ok(paths) => format!(
+            "({})",
+            paths_names(&paths, net)
+                .unwrap()
+                .into_iter()
+                .map(|path| path.join(" => "))
+                .collect::<Vec<String>>()
+                .join("), (")
+        ),
+        Err(NetworkError::ForwardingBlackHole(path)) => format!(
+            "Black Hole: ({})",
+            path_names(&path, net).unwrap().join(" => ")
+        ),
+        Err(NetworkError::ForwardingLoop(path)) => format!(
+            "FW Loop: ({})",
+            path_names(&path, net).unwrap().join(" => ")
+        ),
+        _ => unreachable!(),
+    }
+}
+
+fn paths_names<'n, Q>(
+    paths: &[Vec<RouterId>],
+    net: &'n Network<Q>,
+) -> Result<Vec<Vec<&'n str>>, NetworkError> {
+    paths.iter().map(|p| path_names(p, net)).collect()
+}
+
+fn path_names<'n, Q>(path: &[RouterId], net: &'n Network<Q>) -> Result<Vec<&'n str>, NetworkError> {
+    path.iter().map(|r| net.get_router_name(*r)).collect()
 }
 
 mod test_config;

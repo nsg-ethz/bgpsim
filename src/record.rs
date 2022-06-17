@@ -167,7 +167,7 @@ impl ConvergenceRecording {
         // apply the delta at the current position
         let deltas = trace.get(*pointer)?;
         for (router, _, new_nh) in deltas {
-            self.state.update(*router, prefix, *new_nh);
+            self.state.update(*router, prefix, new_nh.clone());
         }
 
         // increment the pointer
@@ -193,7 +193,7 @@ impl ConvergenceRecording {
         // apply the delta at the current position
         let deltas = trace.get(*pointer)?;
         for (router, old_nh, _) in deltas {
-            self.state.update(*router, prefix, *old_nh);
+            self.state.update(*router, prefix, old_nh.clone());
         }
 
         // return the applied deltas
@@ -226,7 +226,7 @@ impl ConvergenceRecording {
 pub type ConvergenceTrace = Vec<Vec<FwDelta>>;
 
 /// Forwarding state delta.
-pub type FwDelta = (RouterId, Option<RouterId>, Option<RouterId>);
+pub type FwDelta = (RouterId, Vec<RouterId>, Vec<RouterId>);
 
 /// Mutable reference to tbe network that allows you to trigger a single event. You can either have
 /// mutable access to the network exactly once by calling one of the functions implemented on

@@ -123,9 +123,9 @@ impl Condition {
     pub fn check(&self, fw_state: &mut ForwardingState) -> Result<(), PolicyError> {
         match self {
             Self::Reachable(r, p, c) => match fw_state.get_route(*r, *p) {
-                Ok(path) => match c {
+                Ok(paths) => match c {
                     None => Ok(()),
-                    Some(c) => c.check(&path, *p),
+                    Some(c) => paths.iter().try_for_each(|path| c.check(path, *p)),
                 },
                 Err(NetworkError::ForwardingLoop(path)) => Err(PolicyError::ForwardingLoop {
                     path: prepare_loop_path(path),
@@ -141,10 +141,10 @@ impl Condition {
                 Err(NetworkError::ForwardingBlackHole(_)) => Ok(()),
                 Err(NetworkError::ForwardingLoop(_)) => Ok(()),
                 Err(e) => panic!("Unrecoverable error detected: {}", e),
-                Ok(path) => Err(PolicyError::UnallowedPathExists {
+                Ok(paths) => Err(PolicyError::UnallowedPathExists {
                     router: *r,
                     prefix: *p,
-                    path,
+                    paths,
                 }),
             },
         }
@@ -603,14 +603,14 @@ pub enum PolicyError {
     },
 
     /// A route is present, where it should be dropped somewhere
-    #[error("Router {router:?} should not be able to reach {prefix:?} but the following path is valid: {path:?}")]
+    #[error("Router {router:?} should not be able to reach {prefix:?} but the following path(s) is valid: {paths:?}")]
     UnallowedPathExists {
         /// The router who should not be able to reach the prefix
         router: RouterId,
         /// The prefix which should not be reached
         prefix: Prefix,
         /// the path with which the router can reach the prefix
-        path: Vec<RouterId>,
+        paths: Vec<Vec<RouterId>>,
     },
 
     /// No Convergence
@@ -652,15 +652,20 @@ impl PolicyError {
             PolicyError::UnallowedPathExists {
                 router,
                 prefix,
-                path,
+                paths,
             } => format!(
-                "Router {} can reach unallowed prefix {} via path [{}]",
+                "Router {} can reach unallowed prefix {} via path(s) [[{}]]",
                 net.get_router_name(*router).unwrap(),
                 prefix.0,
-                path.iter()
-                    .map(|r| net.get_router_name(*r).unwrap())
+                paths
+                    .iter()
+                    .map(|path| path
+                        .iter()
+                        .map(|r| net.get_router_name(*r).unwrap())
+                        .collect::<Vec<_>>()
+                        .join(", "))
                     .collect::<Vec<_>>()
-                    .join(", ")
+                    .join("], [")
             ),
             PolicyError::NoConvergence => String::from("No Convergence"),
         }

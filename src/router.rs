@@ -159,7 +159,7 @@ impl Router {
                     warn!("Received a bgp event form a non-neighbor! Ignore event!");
                     let prefix = bgp_event.prefix();
                     let old = self.get_next_hop(prefix);
-                    return Ok((StepUpdate::new(prefix, old, old), vec![]));
+                    return Ok((StepUpdate::new(prefix, old.clone(), old), vec![]));
                 }
                 // phase 1 of BGP protocol
                 let prefix = match bgp_event {
@@ -191,7 +191,7 @@ impl Router {
                 );
                 let prefix = bgp_event.prefix();
                 let old = self.get_next_hop(prefix);
-                Ok((StepUpdate::new(prefix, old, old), vec![]))
+                Ok((StepUpdate::new(prefix, old.clone(), old), vec![]))
             }
         }
     }
@@ -294,20 +294,33 @@ impl Router {
     }
 
     /// Get the IGP next hop for a prefix
-    pub fn get_next_hop(&self, prefix: Prefix) -> Option<RouterId> {
+    pub fn get_next_hop(&self, prefix: Prefix) -> Vec<RouterId> {
         // first, check the static routes
-        if let Some(target) = self.static_routes.get(&prefix).copied() {
-            // make sure that we can reach the
-            match target {
-                StaticRoute::Direct(target) => self.neighbors.get(&target).copied(),
-                StaticRoute::Indirect(target) => self.igp_table[&target].0.get(0).copied(),
-            }
+        let next_hops: Vec<RouterId> =
+            if let Some(target) = self.static_routes.get(&prefix).copied() {
+                // make sure that we can reach the
+                match target {
+                    StaticRoute::Direct(target) => self
+                        .neighbors
+                        .get(&target)
+                        .map(|r| vec![*r])
+                        .unwrap_or_default(),
+                    StaticRoute::Indirect(target) => self.igp_table[&target].0.clone(),
+                }
+            } else {
+                // then, check the bgp table
+                match self.bgp_rib.get(&prefix) {
+                    Some(entry) => self.igp_table[&entry.route.next_hop].0.clone(),
+                    None => vec![],
+                }
+            };
+
+        if self.do_load_balancing {
+            next_hops
+        } else if next_hops.is_empty() {
+            vec![]
         } else {
-            // then, check the bgp table
-            match self.bgp_rib.get(&prefix) {
-                Some(entry) => self.igp_table[&entry.route.next_hop].0.get(0).copied(),
-                None => None,
-            }
+            vec![next_hops[0]]
         }
     }
 
