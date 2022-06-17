@@ -39,6 +39,8 @@ pub struct Router {
     router_id: RouterId,
     /// AS Id of the router
     as_id: AsId,
+    /// Neighbors of that node. This updates with any IGP update
+    neighbors: HashSet<RouterId>,
     /// forwarding table for IGP messages
     pub igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Static Routes for Prefixes
@@ -79,6 +81,7 @@ impl Clone for Router {
             router_id: self.router_id,
             as_id: self.as_id,
             igp_table: self.igp_table.clone(),
+            neighbors: self.neighbors.clone(),
             static_routes: self.static_routes.clone(),
             bgp_sessions: self.bgp_sessions.clone(),
             bgp_rib_in: self.bgp_rib_in.clone(),
@@ -101,6 +104,7 @@ impl Router {
             router_id,
             as_id,
             igp_table: HashMap::new(),
+            neighbors: HashSet::new(),
             static_routes: HashMap::new(),
             bgp_sessions: HashMap::new(),
             bgp_rib_in: HashMap::new(),
@@ -270,7 +274,10 @@ impl Router {
                     UndoAction::BgpSession(peer, None) => {
                         self.bgp_sessions.remove(&peer);
                     }
-                    UndoAction::IgpForwardingTable(t) => self.igp_table = t,
+                    UndoAction::IgpForwardingTable(t, n) => {
+                        self.igp_table = t;
+                        self.neighbors = n;
+                    }
                     UndoAction::DelKnownPrefix(p) => {
                         self.bgp_known_prefixes.remove(&p);
                     }
@@ -292,15 +299,7 @@ impl Router {
         if let Some(target) = self.static_routes.get(&prefix).copied() {
             // make sure that we can reach the
             match target {
-                StaticRoute::Direct(target) => {
-                    if self.igp_table[&target].0.is_empty() {
-                        None
-                    } else if self.igp_table[&target].0.contains(&target) {
-                        Some(target)
-                    } else {
-                        None
-                    }
-                }
+                StaticRoute::Direct(target) => self.neighbors.get(&target).copied(),
                 StaticRoute::Indirect(target) => self.igp_table[&target].0.get(0).copied(),
             }
         } else {
@@ -589,17 +588,21 @@ impl Router {
         let mut swap_table = HashMap::new();
         swap(&mut self.igp_table, &mut swap_table);
 
+        // create the new neighbors hashmap
+        let neighbors: Vec<(RouterId, LinkWeight)> = graph
+            .edges(self.router_id)
+            .map(|r| (r.target(), *r.weight()))
+            .filter(|(_, w)| w.is_finite())
+            .collect();
+        let mut neighbors_set = neighbors.iter().map(|(r, _)| *r).collect();
+        swap(&mut self.neighbors, &mut neighbors_set);
+
         // add the undo action
         #[cfg(feature = "undo")]
         self.undo_stack
             .last_mut()
             .unwrap()
-            .push(UndoAction::IgpForwardingTable(swap_table));
-
-        let neighbors = graph
-            .edges(self.router_id)
-            .map(|r| (r.target(), *r.weight()))
-            .collect::<Vec<_>>();
+            .push(UndoAction::IgpForwardingTable(swap_table, neighbors_set));
 
         // go through all targets to find the shortest path.
         for target in graph.node_indices() {
@@ -611,20 +614,20 @@ impl Router {
             let cost = apsp[&(self.router_id, target)];
 
             // get the predecessors by which we can reach the target in shortest time.
-            let predecessors = neighbors
+            let next_hops = neighbors
                 .iter()
                 .copied()
-                .filter(|(r, w)| cost == apsp[&(*r, target)] + *w)
+                .filter(|(r, w)| cost == apsp[&(*r, target)] + w)
                 .map(|(r, _)| r)
                 .collect::<Vec<_>>();
 
-            if cost.is_infinite() || predecessors.is_empty() || cost >= LinkWeight::MAX / 16.0 {
+            if cost.is_infinite() || next_hops.is_empty() || cost >= LinkWeight::MAX / 16.0 {
                 self.igp_table
                     .insert(target, (vec![], LinkWeight::INFINITY));
                 continue;
             }
 
-            self.igp_table.insert(target, (predecessors, cost));
+            self.igp_table.insert(target, (next_hops, cost));
         }
         self.update_bgp_tables()
     }
@@ -1049,7 +1052,10 @@ enum UndoAction {
     BgpRibOut(Prefix, RouterId, Option<BgpRibEntry>),
     BgpRouteMap(RouteMapDirection, usize, Option<RouteMap>),
     BgpSession(RouterId, Option<BgpSessionType>),
-    IgpForwardingTable(HashMap<RouterId, (Vec<RouterId>, LinkWeight)>),
+    IgpForwardingTable(
+        HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+        HashSet<RouterId>,
+    ),
     DelKnownPrefix(Prefix),
     StaticRoute(Prefix, Option<StaticRoute>),
     SetLoadBalancing(bool),
