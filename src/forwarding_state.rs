@@ -363,6 +363,7 @@ mod test {
 
     use super::CacheError::*;
     use super::*;
+
     #[test]
     fn test_route() {
         let p = Prefix(0);
@@ -504,6 +505,295 @@ mod test {
         let r5: RouterId = 5.into();
         let mut state = ForwardingState {
             state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r2], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r2]],
+            reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]],
+            cache: hashmap![],
+        };
+        assert_eq!(
+            state.get_route(r1, Prefix(0)),
+            Err(NetworkError::ForwardingLoop(vec![r1, r2, r3, r4, r2]))
+        );
+        assert_eq!(state.cache.get(&(r0, p)), None);
+        assert_eq!(
+            state.cache.get(&(r1, p)),
+            Some(&Err(ForwardingLoop(vec![r1, r2, r3, r4, r2])))
+        );
+        assert_eq!(
+            state.cache.get(&(r2, p)),
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r2])))
+        );
+        assert_eq!(
+            state.cache.get(&(r3, p)),
+            Some(&Err(ForwardingLoop(vec![r3, r4, r2, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r4, p)),
+            Some(&Err(ForwardingLoop(vec![r4, r2, r3, r4])))
+        );
+        assert_eq!(state.cache.get(&(r5, p)), None);
+        assert_eq!(
+            state.get_route(r2, Prefix(0)),
+            Err(NetworkError::ForwardingLoop(vec![r2, r3, r4, r2]))
+        );
+        assert_eq!(state.cache.get(&(r0, p)), None);
+        assert_eq!(
+            state.cache.get(&(r1, p)),
+            Some(&Err(ForwardingLoop(vec![r1, r2, r3, r4, r2])))
+        );
+        assert_eq!(
+            state.cache.get(&(r2, p)),
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r2])))
+        );
+        assert_eq!(
+            state.cache.get(&(r3, p)),
+            Some(&Err(ForwardingLoop(vec![r3, r4, r2, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r4, p)),
+            Some(&Err(ForwardingLoop(vec![r4, r2, r3, r4])))
+        );
+        assert_eq!(state.cache.get(&(r5, p)), None);
+        assert_eq!(
+            state.get_route(r3, Prefix(0)),
+            Err(NetworkError::ForwardingLoop(vec![r3, r4, r2, r3]))
+        );
+        assert_eq!(state.cache.get(&(r0, p)), None);
+        assert_eq!(
+            state.cache.get(&(r1, p)),
+            Some(&Err(ForwardingLoop(vec![r1, r2, r3, r4, r2])))
+        );
+        assert_eq!(
+            state.cache.get(&(r2, p)),
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r2])))
+        );
+        assert_eq!(
+            state.cache.get(&(r3, p)),
+            Some(&Err(ForwardingLoop(vec![r3, r4, r2, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r4, p)),
+            Some(&Err(ForwardingLoop(vec![r4, r2, r3, r4])))
+        );
+        assert_eq!(state.cache.get(&(r5, p)), None);
+        assert_eq!(
+            state.get_route(r4, Prefix(0)),
+            Err(NetworkError::ForwardingLoop(vec![r4, r2, r3, r4]))
+        );
+        assert_eq!(state.cache.get(&(r0, p)), None);
+        assert_eq!(
+            state.cache.get(&(r1, p)),
+            Some(&Err(ForwardingLoop(vec![r1, r2, r3, r4, r2])))
+        );
+        assert_eq!(
+            state.cache.get(&(r2, p)),
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r2])))
+        );
+        assert_eq!(
+            state.cache.get(&(r3, p)),
+            Some(&Err(ForwardingLoop(vec![r3, r4, r2, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r4, p)),
+            Some(&Err(ForwardingLoop(vec![r4, r2, r3, r4])))
+        );
+        assert_eq!(state.cache.get(&(r5, p)), None);
+    }
+
+    #[test]
+    fn test_route_load_balancing() {
+        let p = Prefix(0);
+        let r0 = 0.into();
+        let r1 = 1.into();
+        let r2 = 2.into();
+        let r3 = 3.into();
+        let r4 = 4.into();
+        let r5 = 5.into();
+        let mut state = ForwardingState {
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]],
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
+            cache: hashmap![],
+        };
+        assert_eq!(state.get_route(r0, Prefix(0)), Ok(vec![vec![r0]]));
+        assert_eq!(state.get_route(r1, Prefix(0)), Ok(vec![vec![r1, r0]]));
+        assert_eq!(
+            state.get_route(r2, Prefix(0)),
+            Ok(vec![vec![r2, r1, r0], vec![r2, r0]])
+        );
+        assert_eq!(state.get_route(r3, Prefix(0)), Ok(vec![vec![r3, r1, r0]]));
+        assert_eq!(
+            state.get_route(r4, Prefix(0)),
+            Ok(vec![vec![r4, r2, r1, r0], vec![r4, r2, r0]])
+        );
+        assert_eq!(
+            state.get_route(r5, Prefix(0)),
+            Err(NetworkError::ForwardingBlackHole(vec![r5]))
+        );
+    }
+
+    #[test]
+    fn test_caching_load_balancing() {
+        let p = Prefix(0);
+        let r0 = 0.into();
+        let r1 = 1.into();
+        let r2 = 2.into();
+        let r3 = 3.into();
+        let r4 = 4.into();
+        let r5 = 5.into();
+        let mut state = ForwardingState {
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]],
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
+            cache: hashmap![],
+        };
+        assert_eq!(
+            state.get_route(r4, Prefix(0)),
+            Ok(vec![vec![r4, r2, r1, r0], vec![r4, r2, r0]])
+        );
+        assert_eq!(state.cache.get(&(r5, p)), None);
+        assert_eq!(
+            state.cache.get(&(r4, p)),
+            Some(&Ok(vec![vec![r4, r2, r1, r0], vec![r4, r2, r0]]))
+        );
+        assert_eq!(state.cache.get(&(r3, p)), None);
+        assert_eq!(
+            state.cache.get(&(r2, p)),
+            Some(&Ok(vec![vec![r2, r1, r0], vec![r2, r0]]))
+        );
+        assert_eq!(state.cache.get(&(r1, p)), Some(&Ok(vec![vec![r1, r0]])));
+        assert_eq!(state.cache.get(&(r0, p)), Some(&Ok(vec![vec![r0]])));
+    }
+
+    #[test]
+    fn test_route_load_balancing_multiply_1() {
+        let p = Prefix(0);
+        let r0 = 0.into();
+        let r1 = 1.into();
+        let r2 = 2.into();
+        let r3 = 3.into();
+        let r4 = 4.into();
+        let r5 = 5.into();
+        let mut state = ForwardingState {
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]],
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
+            cache: hashmap![],
+        };
+        assert_eq!(
+            state.get_route(r5, Prefix(0)),
+            Ok(vec![
+                vec![r5, r3, r1, r0],
+                vec![r5, r4, r2, r1, r0],
+                vec![r5, r4, r2, r0]
+            ])
+        );
+    }
+
+    #[test]
+    fn test_route_load_balancing_multiply_2() {
+        let p = Prefix(0);
+        let r0 = 0.into();
+        let r1 = 1.into();
+        let r2 = 2.into();
+        let r3 = 3.into();
+        let r4 = 4.into();
+        let r5 = 5.into();
+        let mut state = ForwardingState {
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r2], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]],
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
+            cache: hashmap![],
+        };
+        assert_eq!(
+            state.get_route(r5, Prefix(0)),
+            Ok(vec![
+                vec![r5, r3, r2, r1, r0],
+                vec![r5, r3, r2, r0],
+                vec![r5, r4, r2, r1, r0],
+                vec![r5, r4, r2, r0]
+            ])
+        );
+    }
+
+    #[test]
+    fn test_forwarding_loop_2_load_balancing() {
+        let p = Prefix(0);
+        let r0: RouterId = 0.into();
+        let r1: RouterId = 1.into();
+        let r2: RouterId = 2.into();
+        let r3: RouterId = 3.into();
+        let r4: RouterId = 4.into();
+        let r5: RouterId = 5.into();
+        let mut state = ForwardingState {
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4, r1], (r4, p) => vec![r3]],
+            reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]],
+            cache: hashmap![],
+        };
+        assert_eq!(
+            state.get_route(r2, Prefix(0)),
+            Err(NetworkError::ForwardingLoop(vec![r2, r3, r4, r3]))
+        );
+        assert_eq!(state.cache.get(&(r0, p)), None);
+        assert_eq!(state.cache.get(&(r1, p)), None);
+        assert_eq!(
+            state.cache.get(&(r2, p)),
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r3, p)),
+            Some(&Err(ForwardingLoop(vec![r3, r4, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r4, p)),
+            Some(&Err(ForwardingLoop(vec![r4, r3, r4])))
+        );
+        assert_eq!(state.cache.get(&(r5, p)), None);
+        assert_eq!(
+            state.get_route(r3, Prefix(0)),
+            Err(NetworkError::ForwardingLoop(vec![r3, r4, r3]))
+        );
+        assert_eq!(state.cache.get(&(r0, p)), None);
+        assert_eq!(state.cache.get(&(r1, p)), None);
+        assert_eq!(
+            state.cache.get(&(r2, p)),
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r3, p)),
+            Some(&Err(ForwardingLoop(vec![r3, r4, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r4, p)),
+            Some(&Err(ForwardingLoop(vec![r4, r3, r4])))
+        );
+        assert_eq!(state.cache.get(&(r5, p)), None);
+        assert_eq!(
+            state.get_route(r4, Prefix(0)),
+            Err(NetworkError::ForwardingLoop(vec![r4, r3, r4]))
+        );
+        assert_eq!(state.cache.get(&(r0, p)), None);
+        assert_eq!(state.cache.get(&(r1, p)), None);
+        assert_eq!(
+            state.cache.get(&(r2, p)),
+            Some(&Err(ForwardingLoop(vec![r2, r3, r4, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r3, p)),
+            Some(&Err(ForwardingLoop(vec![r3, r4, r3])))
+        );
+        assert_eq!(
+            state.cache.get(&(r4, p)),
+            Some(&Err(ForwardingLoop(vec![r4, r3, r4])))
+        );
+        assert_eq!(state.cache.get(&(r5, p)), None);
+    }
+
+    #[test]
+    fn test_forwarding_loop_3_load_balancing() {
+        let p = Prefix(0);
+        let r0: RouterId = 0.into();
+        let r1: RouterId = 1.into();
+        let r2: RouterId = 2.into();
+        let r3: RouterId = 3.into();
+        let r4: RouterId = 4.into();
+        let r5: RouterId = 5.into();
+        let mut state = ForwardingState {
+            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r2], (r2, p) => vec![r3, r1], (r3, p) => vec![r4], (r4, p) => vec![r2]],
             reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]],
             cache: hashmap![],
         };
