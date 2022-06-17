@@ -256,7 +256,7 @@ pub struct ModelParams {
     /// next event.
     pub collision: NotNan<f64>,
     /// Distribution
-    pub dist: Beta<f64>,
+    dist: Beta<f64>,
 }
 
 impl PartialEq for ModelParams {
