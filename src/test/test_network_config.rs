@@ -2378,18 +2378,12 @@ fn test_pylon_gadget() {
 
     net.set_config(&c).unwrap();
 
-    assert_eq!(
-        net.advertise_external_route(ps, prefix, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        net.advertise_external_route(p0, prefix, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        net.advertise_external_route(p1, prefix, vec![AsId(1)], None, None),
-        Ok(())
-    );
+    net.advertise_external_route(ps, prefix, vec![AsId(1)], None, None)
+        .unwrap();
+    net.advertise_external_route(p0, prefix, vec![AsId(1)], None, None)
+        .unwrap();
+    net.advertise_external_route(p1, prefix, vec![AsId(1)], None, None)
+        .unwrap();
 
     test_route!(net, s, prefix, [s, ps]);
     test_route!(net, rr1, prefix, [rr1, e0, p0]);
@@ -2398,14 +2392,12 @@ fn test_pylon_gadget() {
     test_route!(net, r2, prefix, [r2, e0, p0]);
 
     // remove session r2 ---> e0
-    assert_eq!(
-        net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
-            source: r2,
-            target: e0,
-            session_type: IBgpClient,
-        })),
-        Ok(())
-    );
+    net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpSession {
+        source: r2,
+        target: e0,
+        session_type: IBgpClient,
+    }))
+    .unwrap();
 
     test_route!(net, s, prefix, [s, ps]);
     test_route!(net, rr1, prefix, [rr1, e0, p0]);
@@ -2414,14 +2406,12 @@ fn test_pylon_gadget() {
     test_bad_route!(fw_loop, net, r2, prefix, [r2, r1, r2]);
 
     // add session r1 ---> e1
-    assert_eq!(
-        net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
-            source: r1,
-            target: e1,
-            session_type: IBgpClient,
-        })),
-        Ok(())
-    );
+    net.apply_modifier(&ConfigModifier::Insert(ConfigExpr::BgpSession {
+        source: r1,
+        target: e1,
+        session_type: IBgpClient,
+    }))
+    .unwrap();
     test_route!(net, s, prefix, [s, ps]);
     test_route!(net, rr1, prefix, [rr1, rr2, e1, p1]);
     test_route!(net, rr2, prefix, [rr2, e1, p1]);
@@ -2816,38 +2806,22 @@ fn carousel_gadget() {
     net.set_config(&c).unwrap();
 
     // start advertising
-    assert_eq!(
-        net.advertise_external_route(pr, prefix1, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        net.advertise_external_route(pr, prefix2, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        net.advertise_external_route(p1, prefix1, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        net.advertise_external_route(p2, prefix1, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        net.advertise_external_route(p2, prefix2, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        net.advertise_external_route(p3, prefix1, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        net.advertise_external_route(p3, prefix2, vec![AsId(1)], None, None),
-        Ok(())
-    );
-    assert_eq!(
-        net.advertise_external_route(p4, prefix2, vec![AsId(1)], None, None),
-        Ok(())
-    );
+    net.advertise_external_route(pr, prefix1, vec![AsId(1)], None, None)
+        .unwrap();
+    net.advertise_external_route(pr, prefix2, vec![AsId(1)], None, None)
+        .unwrap();
+    net.advertise_external_route(p1, prefix1, vec![AsId(1)], None, None)
+        .unwrap();
+    net.advertise_external_route(p2, prefix1, vec![AsId(1)], None, None)
+        .unwrap();
+    net.advertise_external_route(p2, prefix2, vec![AsId(1)], None, None)
+        .unwrap();
+    net.advertise_external_route(p3, prefix1, vec![AsId(1)], None, None)
+        .unwrap();
+    net.advertise_external_route(p3, prefix2, vec![AsId(1)], None, None)
+        .unwrap();
+    net.advertise_external_route(p4, prefix2, vec![AsId(1)], None, None)
+        .unwrap();
 
     test_route!(net, rr, prefix1, [rr, pr]);
     test_route!(net, rr, prefix2, [rr, pr]);
@@ -2869,19 +2843,17 @@ fn carousel_gadget() {
     test_route!(net, e4, prefix2, [e4, p4]);
 
     // reconfigure e2
-    assert_eq!(
-        net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpRouteMap {
-            router: e2,
-            direction: RouteMapDirection::Incoming,
-            map: RouteMap::new(
-                10,
-                RouteMapState::Allow,
-                vec![RouteMapMatch::Neighbor(p2)],
-                vec![RouteMapSet::LocalPref(Some(50))],
-            ),
-        })),
-        Ok(())
-    );
+    net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpRouteMap {
+        router: e2,
+        direction: RouteMapDirection::Incoming,
+        map: RouteMap::new(
+            10,
+            RouteMapState::Allow,
+            vec![RouteMapMatch::Neighbor(p2)],
+            vec![RouteMapSet::LocalPref(Some(50))],
+        ),
+    }))
+    .unwrap();
 
     test_route!(net, rr, prefix1, [rr, pr]);
     test_route!(net, rr, prefix2, [rr, pr]);
@@ -2903,19 +2875,17 @@ fn carousel_gadget() {
     test_route!(net, e4, prefix2, [e4, p4]);
 
     // reconfigure e3
-    assert_eq!(
-        net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpRouteMap {
-            router: e3,
-            direction: RouteMapDirection::Incoming,
-            map: RouteMap::new(
-                10,
-                RouteMapState::Allow,
-                vec![RouteMapMatch::Neighbor(p3)],
-                vec![RouteMapSet::LocalPref(Some(50))],
-            ),
-        })),
-        Ok(())
-    );
+    net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpRouteMap {
+        router: e3,
+        direction: RouteMapDirection::Incoming,
+        map: RouteMap::new(
+            10,
+            RouteMapState::Allow,
+            vec![RouteMapMatch::Neighbor(p3)],
+            vec![RouteMapSet::LocalPref(Some(50))],
+        ),
+    }))
+    .unwrap();
 
     test_route!(net, rr, prefix1, [rr, pr]);
     test_route!(net, rr, prefix2, [rr, pr]);
