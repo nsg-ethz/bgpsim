@@ -357,6 +357,7 @@ impl Iterator for ForwardingStateIterator {
     }
 }
 
+#[cfg(not(tarpaulin_include))]
 #[cfg(test)]
 mod test {
     use maplit::{hashmap, hashset};

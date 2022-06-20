@@ -602,11 +602,12 @@ impl Router {
         swap(&mut self.igp_table, &mut swap_table);
 
         // create the new neighbors hashmap
-        let neighbors: Vec<(RouterId, LinkWeight)> = graph
+        let mut neighbors: Vec<(RouterId, LinkWeight)> = graph
             .edges(self.router_id)
             .map(|r| (r.target(), *r.weight()))
             .filter(|(_, w)| w.is_finite())
             .collect();
+        neighbors.sort_by_key(|a| a.0);
         let mut neighbors_set = neighbors.iter().map(|(r, _)| *r).collect();
         swap(&mut self.neighbors, &mut neighbors_set);
 
