@@ -51,24 +51,32 @@ fn path_names<'n, Q>(path: &[RouterId], net: &'n Network<Q>) -> Result<Vec<&'n s
     path.iter().map(|r| net.get_router_name(*r)).collect()
 }
 
-macro_rules! assert_route_equal {
-    ($n: expr, $source: expr, $prefix: expr, $exp: expr) => {
-        let exp = crate::test::path_result_str(Ok($exp), $n);
-        let acq = crate::test::path_result_str($n.get_route($source, $prefix), $n);
+macro_rules! test_route {
+    ($n: expr, $source: expr, $prefix: expr, $($exp:expr),+) => {
+        let v = vec![$($exp.to_vec()),+];
+        let exp = crate::test::path_result_str(Ok(v), &$n);
+        let acq = crate::test::path_result_str($n.get_route($source, $prefix), &$n);
         pretty_assertions::assert_eq!(acq, exp)
     };
-    ($n: expr, $source: expr, $prefix: expr, $exp: expr, fw_loop) => {
-        let exp =
-            crate::test::path_result_str(Err(crate::types::NetworkError::ForwardingLoop($exp)), $n);
-        let acq = crate::test::path_result_str($n.get_route($source, $prefix), $n);
-        pretty_assertions::assert_eq!(acq, exp)
-    };
-    ($n: expr, $source: expr, $prefix: expr, $exp: expr, black_hole) => {
+}
+
+macro_rules! test_bad_route {
+    (fw_loop, $n: expr, $source: expr, $prefix: expr, $exp: expr) => {
         let exp = crate::test::path_result_str(
-            Err(crate::types::NetworkError::ForwardingBlackHole($exp)),
-            $n,
+            Err(crate::types::NetworkError::ForwardingLoop($exp.to_vec())),
+            &$n,
         );
-        let acq = crate::test::path_result_str($n.get_route($source, $prefix), $n);
+        let acq = crate::test::path_result_str($n.get_route($source, $prefix), &$n);
+        pretty_assertions::assert_eq!(acq, exp)
+    };
+    (black_hole, $n: expr, $source: expr, $prefix: expr, black_hole, $exp: expr) => {
+        let exp = crate::test::path_result_str(
+            Err(crate::types::NetworkError::ForwardingBlackHole(
+                $exp.to_vec(),
+            )),
+            &$n,
+        );
+        let acq = crate::test::path_result_str($n.get_route($source, $prefix), &$n);
         pretty_assertions::assert_eq!(acq, exp)
     };
 }

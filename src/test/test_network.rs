@@ -255,19 +255,19 @@ fn test_bgp_connectivity() {
     net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
         .unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *R2, *R3, *R1, *E1]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
     // advertise prefix on e4
     net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
         .unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 }
 
 #[cfg(feature = "undo")]
@@ -313,26 +313,26 @@ fn test_static_route() {
     net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
         .unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // now, make sure that router R3 points to R4 for the prefix
     net.set_static_route(*R3, p, Some(Direct(*R4))).unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // now, make sure that router R3 points to R4 for the prefix
     net.set_static_route(*R2, p, Some(Direct(*R3))).unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R3, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R3, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // Add an invalid static route and expect to fail
     net.set_static_route(*R1, p, Some(Direct(*R4))).unwrap();
@@ -341,7 +341,7 @@ fn test_static_route() {
         Err(NetworkError::ForwardingBlackHole(vec![*R1]))
     );
     net.set_static_route(*R1, p, Some(Indirect(*R4))).unwrap();
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *R3, *R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *R3, *R4, *E4]);
 }
 
 #[cfg(feature = "undo")]
@@ -399,40 +399,40 @@ fn test_bgp_decision() {
     .unwrap();
 
     // we now expect all routers to choose R1 as an egress
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *R2, *R3, *R1, *E1]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
     // change back
     net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
         .unwrap();
 
     // The network must have converged back
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // change the MED
     net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], Some(20), None)
         .unwrap();
 
     // we now expect all routers to choose R1 as an egress
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *R2, *R3, *R1, *E1]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
     // change back
     net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
         .unwrap();
 
     // The network must have converged back
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 }
 
 #[cfg(feature = "undo")]
@@ -504,7 +504,7 @@ fn test_route_maps() {
         .unwrap();
 
     // we expect the following state:
-    assert_route_equal!(&original_net, *R1, p, vec![vec![*R1, *E1]]);
+    test_route!(original_net, *R1, p, [*R1, *E1]);
     assert_eq!(
         original_net.get_route(*R2, p),
         Ok(vec![vec![*R2, *R4, *E4]]),
@@ -513,7 +513,7 @@ fn test_route_maps() {
         original_net.get_route(*R3, p),
         Ok(vec![vec![*R3, *R1, *E1]])
     );
-    assert_route_equal!(&original_net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(original_net, *R4, p, [*R4, *E4]);
 
     // now, deny all routes from E1
     let mut net = original_net.clone();
@@ -525,10 +525,10 @@ fn test_route_maps() {
     .unwrap();
 
     // we expect that all take R4
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *R3, *R2, *R4, *E4]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R2, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // now, don't forward the route from E1 at R1, but keep it locally
     let mut net = original_net.clone();
@@ -540,10 +540,10 @@ fn test_route_maps() {
     .unwrap();
 
     // we expect that all take R4
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R2, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // now, change the local pref for all to lower
     let mut net = original_net.clone();
@@ -560,10 +560,10 @@ fn test_route_maps() {
     .unwrap();
 
     // we expect that all take R4
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *R3, *R2, *R4, *E4]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R2, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // now, change the local pref for all others to lower
     let mut net = original_net.clone();
@@ -580,10 +580,10 @@ fn test_route_maps() {
     .unwrap();
 
     // we expect that all take R4
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R2, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // now, set the local pref higher only for R2, who would else pick R4
     let mut net = original_net;
@@ -600,10 +600,10 @@ fn test_route_maps() {
     .unwrap();
 
     // we expect that all take R4
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // by additionally setting local pref to a lower value, all routers should choose R4, but in R2
     // should choose R3 as a next hop, causing a forwarding loop. We fix that forwarding loop by
@@ -620,18 +620,18 @@ fn test_route_maps() {
     )
     .unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![*R2, *R3, *R2], fw_loop);
-    assert_route_equal!(&net, *R3, p, vec![*R3, *R2, *R3], fw_loop);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_bad_route!(fw_loop, &net, *R2, p, [*R2, *R3, *R2]);
+    test_bad_route!(fw_loop, &net, *R3, p, [*R3, *R2, *R3]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     net.set_link_weight(*R3, *R4, 1.0).unwrap();
     net.set_link_weight(*R4, *R3, 1.0).unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R3, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R3, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 }
 
 #[cfg(feature = "undo")]
@@ -762,19 +762,19 @@ fn test_link_failure() {
         .unwrap();
 
     // assert that the paths are correct
-    assert_route_equal!(&original_net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&original_net, *R2, p, vec![vec![*R2, *R3, *R1, *E1]]);
-    assert_route_equal!(&original_net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&original_net, *R4, p, vec![vec![*R4, *R2, *R3, *R1, *E1]]);
+    test_route!(original_net, *R1, p, [*R1, *E1]);
+    test_route!(original_net, *R2, p, [*R2, *R3, *R1, *E1]);
+    test_route!(original_net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(original_net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
     // simulate link failure internally, between R2 and R4, which should not change anything in the
     // forwarding state.
     let mut net = original_net.clone();
     net.remove_link(*R2, *R4).unwrap();
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *R3, *R1, *E1]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *R3, *R1, *E1]);
 
     // Try to remove the edge between R1 and R4, and see if an error is raised.
     // forwarding state.
@@ -784,33 +784,33 @@ fn test_link_failure() {
     // simulate link failure externally, between R1 and E1, which should cause reconvergence.
     let mut net = original_net.clone();
     net.remove_link(*R1, *E1).unwrap();
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *R3, *R2, *R4, *E4]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R2, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // simulate link failure externally, between E1 and R1, which should cause reconvergence.
     let mut net = original_net.clone();
     net.remove_link(*E1, *R1).unwrap();
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *R3, *R2, *R4, *E4]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R2, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // simulate link failure internally between R2 and R3
     let mut net = original_net.clone();
     net.remove_link(*R2, *R3).unwrap();
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R1, *E1]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *R3, *R1, *E1]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *R3, *R1, *E1]);
 
     let mut net = original_net;
     net.retract_external_route(*E4, p).unwrap();
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *R2, *R3, *R1, *E1]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 }
 
 #[cfg(feature = "undo")]
@@ -948,33 +948,26 @@ fn test_load_balancing() {
     net.advertise_external_route(*E1, p, vec![AsId(65101)], None, None)
         .unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R1, *E1]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *R2, *R1, *E1]]);
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *R2, *R1, *E1]);
 
     net.set_load_balancing(*R1, true).unwrap();
     net.set_load_balancing(*R2, true).unwrap();
     net.set_load_balancing(*R3, true).unwrap();
     net.set_load_balancing(*R4, true).unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(
-        &net,
-        *R2,
-        p,
-        vec![vec![*R2, *R1, *E1], vec![*R2, *R3, *R1, *E1]]
-    );
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R1, *E1], [*R2, *R3, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(
         &net,
         *R4,
         p,
-        vec![
-            vec![*R4, *R2, *R1, *E1],
-            vec![*R4, *R2, *R3, *R1, *E1],
-            vec![*R4, *R3, *R1, *E1],
-        ]
+        [*R4, *R2, *R1, *E1],
+        [*R4, *R2, *R3, *R1, *E1],
+        [*R4, *R3, *R1, *E1]
     );
 }
 
@@ -990,10 +983,10 @@ fn test_static_route_load_balancing() {
         .unwrap();
 
     // check that all nodes are using E4 without load balancing
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R2, *R4, *E4]]);
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R1, p, [*R1, *R2, *R4, *E4]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R2, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     net.set_load_balancing(*R1, true).unwrap();
     net.set_load_balancing(*R2, true).unwrap();
@@ -1001,24 +994,17 @@ fn test_static_route_load_balancing() {
     net.set_load_balancing(*R4, true).unwrap();
 
     // now, check that all nodes are using R4 with load balancing
-    assert_route_equal!(
+    test_route!(
         &net,
         *R1,
         p,
-        vec![
-            vec![*R1, *R2, *R4, *E4],
-            vec![*R1, *R3, *R2, *R4, *E4],
-            vec![*R1, *R3, *R4, *E4]
-        ]
+        [*R1, *R2, *R4, *E4],
+        [*R1, *R3, *R2, *R4, *E4],
+        [*R1, *R3, *R4, *E4]
     );
-    assert_route_equal!(&net, *R2, p, vec![vec![*R2, *R4, *E4]]);
-    assert_route_equal!(
-        &net,
-        *R3,
-        p,
-        vec![vec![*R3, *R2, *R4, *E4], vec![*R3, *R4, *E4]]
-    );
-    assert_route_equal!(&net, *R4, p, vec![vec![*R4, *E4]]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R2, *R4, *E4], [*R3, *R4, *E4]);
+    test_route!(net, *R4, p, [*R4, *E4]);
 
     // setup static routes towards R1
     net.set_static_route(*R1, p, Some(Direct(*E1))).unwrap();
@@ -1026,22 +1012,15 @@ fn test_static_route_load_balancing() {
     net.set_static_route(*R3, p, Some(Indirect(*R1))).unwrap();
     net.set_static_route(*R4, p, Some(Indirect(*R1))).unwrap();
 
-    assert_route_equal!(&net, *R1, p, vec![vec![*R1, *E1]]);
-    assert_route_equal!(
-        &net,
-        *R2,
-        p,
-        vec![vec![*R2, *R1, *E1], vec![*R2, *R3, *R1, *E1]]
-    );
-    assert_route_equal!(&net, *R3, p, vec![vec![*R3, *R1, *E1]]);
-    assert_route_equal!(
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R1, *E1], [*R2, *R3, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(
         &net,
         *R4,
         p,
-        vec![
-            vec![*R4, *R2, *R1, *E1],
-            vec![*R4, *R2, *R3, *R1, *E1],
-            vec![*R4, *R3, *R1, *E1],
-        ]
+        [*R4, *R2, *R1, *E1],
+        [*R4, *R2, *R3, *R1, *E1],
+        [*R4, *R3, *R1, *E1]
     );
 }

@@ -167,10 +167,10 @@ fn test_simple() {
         .unwrap();
 
     // check that all routes are correct
-    assert_route_equal!(&net, b0, prefix, vec![vec![b0, e0]]);
-    assert_route_equal!(&net, r0, prefix, vec![vec![r0, b0, e0]]);
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, b1, e1]]);
-    assert_route_equal!(&net, b1, prefix, vec![vec![b1, e1]]);
+    test_route!(net, b0, prefix, [b0, e0]);
+    test_route!(net, r0, prefix, [r0, b0, e0]);
+    test_route!(net, r1, prefix, [r1, b1, e1]);
+    test_route!(net, b1, prefix, [b1, e1]);
 }
 
 #[test]
@@ -190,10 +190,10 @@ fn test_simple_model() {
         .unwrap();
 
     // check that all routes are correct
-    assert_route_equal!(&net, b0, prefix, vec![vec![b0, e0]]);
-    assert_route_equal!(&net, r0, prefix, vec![vec![r0, b0, e0]]);
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, b1, e1]]);
-    assert_route_equal!(&net, b1, prefix, vec![vec![b1, e1]]);
+    test_route!(net, b0, prefix, [b0, e0]);
+    test_route!(net, r0, prefix, [r0, b0, e0]);
+    test_route!(net, r1, prefix, [r1, b1, e1]);
+    test_route!(net, b1, prefix, [b1, e1]);
 }
 
 /// Setup the second network, and return `(e1, r1, r2, r3, r4, e4)`
@@ -367,10 +367,10 @@ fn test_external_router() {
     net.advertise_external_route(e4, prefix, vec![AsId(65104), AsId(65200)], None, None)
         .unwrap();
 
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, e1]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, r1, e1]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, r1, e1]]);
-    assert_route_equal!(&net, r4, prefix, vec![vec![r4, r2, r1, e1]]);
+    test_route!(net, r1, prefix, [r1, e1]);
+    test_route!(net, r2, prefix, [r2, r1, e1]);
+    test_route!(net, r3, prefix, [r3, r1, e1]);
+    test_route!(net, r4, prefix, [r4, r2, r1, e1]);
 
     eprintln!("{:#?}", net.get_device(r2));
 
@@ -418,10 +418,10 @@ fn test_external_router() {
 
     eprintln!("{:#?}", net.get_device(r2));
 
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, r2, r4, e4]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, r4, e4]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, r2, r4, e4]]);
-    assert_route_equal!(&net, r4, prefix, vec![vec![r4, e4]]);
+    test_route!(net, r1, prefix, [r1, r2, r4, e4]);
+    test_route!(net, r2, prefix, [r2, r4, e4]);
+    test_route!(net, r3, prefix, [r3, r2, r4, e4]);
+    test_route!(net, r4, prefix, [r4, e4]);
 }
 
 #[test]
@@ -439,10 +439,10 @@ fn test_external_router_model() {
     net.advertise_external_route(e4, prefix, vec![AsId(65104), AsId(65200)], None, None)
         .unwrap();
 
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, e1]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, r1, e1]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, r1, e1]]);
-    assert_route_equal!(&net, r4, prefix, vec![vec![r4, r2, r1, e1]]);
+    test_route!(net, r1, prefix, [r1, e1]);
+    test_route!(net, r2, prefix, [r2, r1, e1]);
+    test_route!(net, r3, prefix, [r3, r1, e1]);
+    test_route!(net, r4, prefix, [r4, r2, r1, e1]);
 
     eprintln!("{:#?}", net.get_device(r2));
 
@@ -490,10 +490,10 @@ fn test_external_router_model() {
 
     eprintln!("{:#?}", net.get_device(r2));
 
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, r2, r4, e4]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, r4, e4]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, r2, r4, e4]]);
-    assert_route_equal!(&net, r4, prefix, vec![vec![r4, e4]]);
+    test_route!(net, r1, prefix, [r1, r2, r4, e4]);
+    test_route!(net, r2, prefix, [r2, r4, e4]);
+    test_route!(net, r3, prefix, [r3, r2, r4, e4]);
+    test_route!(net, r4, prefix, [r4, e4]);
 }
 
 #[test]
@@ -626,10 +626,10 @@ fn test_route_order1() {
         .unwrap();
 
     // check that all routes are correct
-    assert_route_equal!(&net, b0, prefix, vec![vec![b0, e0]]);
-    assert_route_equal!(&net, r0, prefix, vec![vec![r0, r1, b0, e0]]);
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, b0, e0]]);
-    assert_route_equal!(&net, b1, prefix, vec![vec![b1, e1]]);
+    test_route!(net, b0, prefix, [b0, e0]);
+    test_route!(net, r0, prefix, [r0, r1, b0, e0]);
+    test_route!(net, r1, prefix, [r1, b0, e0]);
+    test_route!(net, b1, prefix, [b1, e1]);
 }
 
 #[test]
@@ -762,10 +762,10 @@ fn test_route_order2() {
         .unwrap();
 
     // check that all routes are correct
-    assert_route_equal!(&net, b0, prefix, vec![vec![b0, e0]]);
-    assert_route_equal!(&net, r0, prefix, vec![vec![r0, b1, e1]]);
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, r0, b1, e1]]);
-    assert_route_equal!(&net, b1, prefix, vec![vec![b1, e1]]);
+    test_route!(net, b0, prefix, [b0, e0]);
+    test_route!(net, r0, prefix, [r0, b1, e1]);
+    test_route!(net, r1, prefix, [r1, r0, b1, e1]);
+    test_route!(net, b1, prefix, [b1, e1]);
 }
 
 #[test]
@@ -1287,10 +1287,10 @@ fn change_ibgp_topology_1() {
     net.advertise_external_route(p3, prefix, vec![AsId(1)], None, None)
         .unwrap();
 
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, e1, p1]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, e1, p1]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, e2, p2]]);
-    assert_route_equal!(&net, rr, prefix, vec![vec![rr, e1, p1]]);
+    test_route!(net, r1, prefix, [r1, e1, p1]);
+    test_route!(net, r2, prefix, [r2, e1, p1]);
+    test_route!(net, r3, prefix, [r3, e2, p2]);
+    test_route!(net, rr, prefix, [rr, e1, p1]);
 
     net.set_msg_limit(Some(5_000));
 
@@ -1611,10 +1611,10 @@ fn change_ibgp_topology_2() {
         Ok(())
     );
 
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, e1, p1]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, e1, p1]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, e2, p2]]);
-    assert_route_equal!(&net, rr, prefix, vec![vec![rr, e1, p1]]);
+    test_route!(net, r1, prefix, [r1, e1, p1]);
+    test_route!(net, r2, prefix, [r2, e1, p1]);
+    test_route!(net, r3, prefix, [r3, e2, p2]);
+    test_route!(net, rr, prefix, [rr, e1, p1]);
 
     // change from the middle routers first
     // modify r1
@@ -1650,10 +1650,10 @@ fn change_ibgp_topology_2() {
         Ok(())
     );
 
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, e1, p1]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, e1, p1]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, e2, p2]]);
-    assert_route_equal!(&net, rr, prefix, vec![vec![rr, e1, p1]]);
+    test_route!(net, r1, prefix, [r1, e1, p1]);
+    test_route!(net, r2, prefix, [r2, e1, p1]);
+    test_route!(net, r3, prefix, [r3, e2, p2]);
+    test_route!(net, rr, prefix, [rr, e1, p1]);
 
     // modify r2
     assert_eq!(
@@ -1681,10 +1681,10 @@ fn change_ibgp_topology_2() {
         Ok(())
     );
 
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, e1, p1]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, e1, p1]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, e2, p2]]);
-    assert_route_equal!(&net, rr, prefix, vec![vec![rr, e1, p1]]);
+    test_route!(net, r1, prefix, [r1, e1, p1]);
+    test_route!(net, r2, prefix, [r2, e1, p1]);
+    test_route!(net, r3, prefix, [r3, e2, p2]);
+    test_route!(net, rr, prefix, [rr, e1, p1]);
 
     // modify r3
     assert_eq!(
@@ -1704,10 +1704,10 @@ fn change_ibgp_topology_2() {
         Ok(())
     );
 
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, e1, p1]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, e1, p1]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, e2, p2]]);
-    assert_route_equal!(&net, rr, prefix, vec![vec![rr, e1, p1]]);
+    test_route!(net, r1, prefix, [r1, e1, p1]);
+    test_route!(net, r2, prefix, [r2, e1, p1]);
+    test_route!(net, r3, prefix, [r3, e2, p2]);
+    test_route!(net, rr, prefix, [rr, e1, p1]);
 
     // modify e2
     assert_eq!(
@@ -1718,10 +1718,10 @@ fn change_ibgp_topology_2() {
         })),
         Ok(())
     );
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, e1, p1]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, e1, p1]]);
-    assert_route_equal!(&net, r3, prefix, vec![vec![r3, e3, p3]]);
-    assert_route_equal!(&net, rr, prefix, vec![vec![rr, e1, p1]]);
+    test_route!(net, r1, prefix, [r1, e1, p1]);
+    test_route!(net, r2, prefix, [r2, e1, p1]);
+    test_route!(net, r3, prefix, [r3, e3, p3]);
+    test_route!(net, rr, prefix, [rr, e1, p1]);
 }
 
 #[test]
@@ -2391,11 +2391,11 @@ fn test_pylon_gadget() {
         Ok(())
     );
 
-    assert_route_equal!(&net, s, prefix, vec![vec![s, ps]]);
-    assert_route_equal!(&net, rr1, prefix, vec![vec![rr1, e0, p0]]);
-    assert_route_equal!(&net, rr2, prefix, vec![vec![rr2, rr1, e0, p0]]);
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, r2, e0, p0]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, e0, p0]]);
+    test_route!(net, s, prefix, [s, ps]);
+    test_route!(net, rr1, prefix, [rr1, e0, p0]);
+    test_route!(net, rr2, prefix, [rr2, rr1, e0, p0]);
+    test_route!(net, r1, prefix, [r1, r2, e0, p0]);
+    test_route!(net, r2, prefix, [r2, e0, p0]);
 
     // remove session r2 ---> e0
     assert_eq!(
@@ -2407,11 +2407,11 @@ fn test_pylon_gadget() {
         Ok(())
     );
 
-    assert_route_equal!(&net, s, prefix, vec![vec![s, ps]]);
-    assert_route_equal!(&net, rr1, prefix, vec![vec![rr1, e0, p0]]);
-    assert_route_equal!(&net, rr2, prefix, vec![vec![rr2, e1, p1]]);
-    assert_route_equal!(&net, r1, prefix, vec![r1, r2, r1], fw_loop);
-    assert_route_equal!(&net, r2, prefix, vec![r2, r1, r2], fw_loop);
+    test_route!(net, s, prefix, [s, ps]);
+    test_route!(net, rr1, prefix, [rr1, e0, p0]);
+    test_route!(net, rr2, prefix, [rr2, e1, p1]);
+    test_bad_route!(fw_loop, net, r1, prefix, [r1, r2, r1]);
+    test_bad_route!(fw_loop, net, r2, prefix, [r2, r1, r2]);
 
     // add session r1 ---> e1
     assert_eq!(
@@ -2422,11 +2422,11 @@ fn test_pylon_gadget() {
         })),
         Ok(())
     );
-    assert_route_equal!(&net, s, prefix, vec![vec![s, ps]]);
-    assert_route_equal!(&net, rr1, prefix, vec![vec![rr1, rr2, e1, p1]]);
-    assert_route_equal!(&net, rr2, prefix, vec![vec![rr2, e1, p1]]);
-    assert_route_equal!(&net, r1, prefix, vec![vec![r1, e1, p1]]);
-    assert_route_equal!(&net, r2, prefix, vec![vec![r2, r1, e1, p1]]);
+    test_route!(net, s, prefix, [s, ps]);
+    test_route!(net, rr1, prefix, [rr1, rr2, e1, p1]);
+    test_route!(net, rr2, prefix, [rr2, e1, p1]);
+    test_route!(net, r1, prefix, [r1, e1, p1]);
+    test_route!(net, r2, prefix, [r2, r1, e1, p1]);
 }
 
 #[test]
@@ -2849,24 +2849,24 @@ fn carousel_gadget() {
         Ok(())
     );
 
-    assert_route_equal!(&net, rr, prefix1, vec![vec![rr, pr]]);
-    assert_route_equal!(&net, rr, prefix2, vec![vec![rr, pr]]);
-    assert_route_equal!(&net, r1, prefix1, vec![vec![r1, r2, e1, p1]]);
-    assert_route_equal!(&net, r1, prefix2, vec![vec![r1, rr, pr]]);
-    assert_route_equal!(&net, r2, prefix1, vec![vec![r2, e1, p1]]);
-    assert_route_equal!(&net, r2, prefix2, vec![vec![r2, rr, pr]]);
-    assert_route_equal!(&net, r3, prefix1, vec![vec![r3, rr, pr]]);
-    assert_route_equal!(&net, r3, prefix2, vec![vec![r3, e4, p4]]);
-    assert_route_equal!(&net, r4, prefix1, vec![vec![r4, rr, pr]]);
-    assert_route_equal!(&net, r4, prefix2, vec![vec![r4, r3, e4, p4]]);
-    assert_route_equal!(&net, e1, prefix1, vec![vec![e1, p1]]);
-    assert_route_equal!(&net, e1, prefix2, vec![vec![e1, r2, rr, pr]]);
-    assert_route_equal!(&net, e2, prefix1, vec![vec![e2, r1, r2, e1, p1]]);
-    assert_route_equal!(&net, e2, prefix2, vec![vec![e2, r4, r3, e4, p4]]);
-    assert_route_equal!(&net, e3, prefix1, vec![vec![e3, r1, r2, e1, p1]]);
-    assert_route_equal!(&net, e3, prefix2, vec![vec![e3, r4, r3, e4, p4]]);
-    assert_route_equal!(&net, e4, prefix1, vec![vec![e4, r3, rr, pr]]);
-    assert_route_equal!(&net, e4, prefix2, vec![vec![e4, p4]]);
+    test_route!(net, rr, prefix1, [rr, pr]);
+    test_route!(net, rr, prefix2, [rr, pr]);
+    test_route!(net, r1, prefix1, [r1, r2, e1, p1]);
+    test_route!(net, r1, prefix2, [r1, rr, pr]);
+    test_route!(net, r2, prefix1, [r2, e1, p1]);
+    test_route!(net, r2, prefix2, [r2, rr, pr]);
+    test_route!(net, r3, prefix1, [r3, rr, pr]);
+    test_route!(net, r3, prefix2, [r3, e4, p4]);
+    test_route!(net, r4, prefix1, [r4, rr, pr]);
+    test_route!(net, r4, prefix2, [r4, r3, e4, p4]);
+    test_route!(net, e1, prefix1, [e1, p1]);
+    test_route!(net, e1, prefix2, [e1, r2, rr, pr]);
+    test_route!(net, e2, prefix1, [e2, r1, r2, e1, p1]);
+    test_route!(net, e2, prefix2, [e2, r4, r3, e4, p4]);
+    test_route!(net, e3, prefix1, [e3, r1, r2, e1, p1]);
+    test_route!(net, e3, prefix2, [e3, r4, r3, e4, p4]);
+    test_route!(net, e4, prefix1, [e4, r3, rr, pr]);
+    test_route!(net, e4, prefix2, [e4, p4]);
 
     // reconfigure e2
     assert_eq!(
@@ -2883,24 +2883,24 @@ fn carousel_gadget() {
         Ok(())
     );
 
-    assert_route_equal!(&net, rr, prefix1, vec![vec![rr, pr]]);
-    assert_route_equal!(&net, rr, prefix2, vec![vec![rr, pr]]);
-    assert_route_equal!(&net, r1, prefix1, vec![r1, r2, r1], fw_loop);
-    assert_route_equal!(&net, r1, prefix2, vec![vec![r1, rr, pr]]);
-    assert_route_equal!(&net, r2, prefix1, vec![r2, r1, r2], fw_loop);
-    assert_route_equal!(&net, r2, prefix2, vec![vec![r2, r1, rr, pr]]);
-    assert_route_equal!(&net, r3, prefix1, vec![vec![r3, r4, e2, p2]]);
-    assert_route_equal!(&net, r3, prefix2, vec![vec![r3, r4, e2, p2]]);
-    assert_route_equal!(&net, r4, prefix1, vec![vec![r4, e2, p2]]);
-    assert_route_equal!(&net, r4, prefix2, vec![vec![r4, e2, p2]]);
-    assert_route_equal!(&net, e1, prefix1, vec![vec![e1, p1]]);
-    assert_route_equal!(&net, e1, prefix2, vec![vec![e1, r2, r1, rr, pr]]);
-    assert_route_equal!(&net, e2, prefix1, vec![vec![e2, p2]]);
-    assert_route_equal!(&net, e2, prefix2, vec![vec![e2, p2]]);
-    assert_route_equal!(&net, e3, prefix1, vec![vec![e3, r4, e2, p2]]);
-    assert_route_equal!(&net, e3, prefix2, vec![vec![e3, r4, e2, p2]]);
-    assert_route_equal!(&net, e4, prefix1, vec![vec![e4, r3, r4, e2, p2]]);
-    assert_route_equal!(&net, e4, prefix2, vec![vec![e4, p4]]);
+    test_route!(net, rr, prefix1, [rr, pr]);
+    test_route!(net, rr, prefix2, [rr, pr]);
+    test_bad_route!(fw_loop, net, r1, prefix1, [r1, r2, r1]);
+    test_route!(net, r1, prefix2, [r1, rr, pr]);
+    test_bad_route!(fw_loop, net, r2, prefix1, [r2, r1, r2]);
+    test_route!(net, r2, prefix2, [r2, r1, rr, pr]);
+    test_route!(net, r3, prefix1, [r3, r4, e2, p2]);
+    test_route!(net, r3, prefix2, [r3, r4, e2, p2]);
+    test_route!(net, r4, prefix1, [r4, e2, p2]);
+    test_route!(net, r4, prefix2, [r4, e2, p2]);
+    test_route!(net, e1, prefix1, [e1, p1]);
+    test_route!(net, e1, prefix2, [e1, r2, r1, rr, pr]);
+    test_route!(net, e2, prefix1, [e2, p2]);
+    test_route!(net, e2, prefix2, [e2, p2]);
+    test_route!(net, e3, prefix1, [e3, r4, e2, p2]);
+    test_route!(net, e3, prefix2, [e3, r4, e2, p2]);
+    test_route!(net, e4, prefix1, [e4, r3, r4, e2, p2]);
+    test_route!(net, e4, prefix2, [e4, p4]);
 
     // reconfigure e3
     assert_eq!(
@@ -2917,22 +2917,22 @@ fn carousel_gadget() {
         Ok(())
     );
 
-    assert_route_equal!(&net, rr, prefix1, vec![vec![rr, pr]]);
-    assert_route_equal!(&net, rr, prefix2, vec![vec![rr, pr]]);
-    assert_route_equal!(&net, r1, prefix1, vec![vec![r1, e3, p3]]);
-    assert_route_equal!(&net, r1, prefix2, vec![vec![r1, e3, p3]]);
-    assert_route_equal!(&net, r2, prefix1, vec![vec![r2, r1, e3, p3]]);
-    assert_route_equal!(&net, r2, prefix2, vec![vec![r2, r1, e3, p3]]);
-    assert_route_equal!(&net, r3, prefix1, vec![vec![r3, r4, e2, p2]]);
-    assert_route_equal!(&net, r3, prefix2, vec![vec![r3, r4, e2, p2]]);
-    assert_route_equal!(&net, r4, prefix1, vec![vec![r4, e2, p2]]);
-    assert_route_equal!(&net, r4, prefix2, vec![vec![r4, e2, p2]]);
-    assert_route_equal!(&net, e1, prefix1, vec![vec![e1, p1]]);
-    assert_route_equal!(&net, e1, prefix2, vec![vec![e1, r2, r1, e3, p3]]);
-    assert_route_equal!(&net, e2, prefix1, vec![vec![e2, p2]]);
-    assert_route_equal!(&net, e2, prefix2, vec![vec![e2, p2]]);
-    assert_route_equal!(&net, e3, prefix1, vec![vec![e3, p3]]);
-    assert_route_equal!(&net, e3, prefix2, vec![vec![e3, p3]]);
-    assert_route_equal!(&net, e4, prefix1, vec![vec![e4, r3, r4, e2, p2]]);
-    assert_route_equal!(&net, e4, prefix2, vec![vec![e4, p4]]);
+    test_route!(net, rr, prefix1, [rr, pr]);
+    test_route!(net, rr, prefix2, [rr, pr]);
+    test_route!(net, r1, prefix1, [r1, e3, p3]);
+    test_route!(net, r1, prefix2, [r1, e3, p3]);
+    test_route!(net, r2, prefix1, [r2, r1, e3, p3]);
+    test_route!(net, r2, prefix2, [r2, r1, e3, p3]);
+    test_route!(net, r3, prefix1, [r3, r4, e2, p2]);
+    test_route!(net, r3, prefix2, [r3, r4, e2, p2]);
+    test_route!(net, r4, prefix1, [r4, e2, p2]);
+    test_route!(net, r4, prefix2, [r4, e2, p2]);
+    test_route!(net, e1, prefix1, [e1, p1]);
+    test_route!(net, e1, prefix2, [e1, r2, r1, e3, p3]);
+    test_route!(net, e2, prefix1, [e2, p2]);
+    test_route!(net, e2, prefix2, [e2, p2]);
+    test_route!(net, e3, prefix1, [e3, p3]);
+    test_route!(net, e3, prefix2, [e3, p3]);
+    test_route!(net, e4, prefix1, [e4, r3, r4, e2, p2]);
+    test_route!(net, e4, prefix2, [e4, p4]);
 }
