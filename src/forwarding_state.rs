@@ -303,7 +303,6 @@ impl CacheError {
     pub fn update_path(&mut self, node: RouterId) {
         match self {
             CacheError::BlackHole(p) | CacheError::ForwardingLoop(p) => {
-                eprintln!("update path {:?} at {}", p, node.index());
                 if p.first() != Some(&node) {
                     p.insert(0, node)
                 }
