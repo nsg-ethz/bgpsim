@@ -83,7 +83,7 @@ impl<'a, 'n, P: FmtPriority, Q> std::fmt::Display for FmtEvent<'a, 'n, P, Q> {
         match self.event {
             Event::Bgp(p, from, to, event) => write!(
                 f,
-                "BGP Event: {} -> {}: Update [{}] {}",
+                "BGP Event: {} -> {}: {} {}",
                 self.net.get_router_name(*from).unwrap_or("?"),
                 self.net.get_router_name(*to).unwrap_or("?"),
                 event.fmt(self.net),
