@@ -18,7 +18,16 @@
 //! This module contains an extension trait that allows you to interact with the simulator on a
 //! per-message level.
 
-use crate::{event::FmtPriority, types::StepUpdate, Event, EventQueue, Network, NetworkError};
+use log::debug;
+
+#[cfg(feature = "undo")]
+use crate::network::UndoAction;
+use crate::{
+    event::FmtPriority,
+    printer::{event as print_event, step_update as print_step_update},
+    types::StepUpdate,
+    Event, EventQueue, Network, NetworkError,
+};
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
 /// interface to simulate a single event, inspect the queue of the network, and even reorder events.
@@ -49,6 +58,12 @@ where
     fn with_manual_simulation<F>(self, f: F) -> Self
     where
         F: FnOnce(&mut Network<Q>);
+
+    /// Calls function `f` with argument to a mutable network. Then, it will perform the simulation,
+    /// while printing all events that happen, and their effect.
+    fn simulate_verbose<F, T>(&mut self, f: F) -> Result<T, NetworkError>
+    where
+        F: FnOnce(&mut Network<Q>) -> Result<T, NetworkError>;
 
     /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
     /// will not execute any subsequent event. This function will return the number of events left
@@ -111,5 +126,49 @@ where
 
     fn queue_mut(&mut self) -> &mut Q {
         &mut self.queue
+    }
+
+    fn simulate_verbose<F, T>(&mut self, f: F) -> Result<T, NetworkError>
+    where
+        F: FnOnce(&mut Network<Q>) -> Result<T, NetworkError>,
+    {
+        // call the function f
+        let result = f(self)?;
+
+        let mut remaining_iter = self.stop_after;
+        while !self.queue.is_empty() {
+            if let Some(rem) = remaining_iter {
+                if rem == 0 {
+                    debug!("Network could not converge!");
+                    return Err(NetworkError::NoConvergence);
+                }
+                remaining_iter = Some(rem - 1);
+            }
+
+            let event = self.queue.pop().unwrap();
+            // perform the queue step
+            // log the job
+            self.log_event(&event)?;
+            // execute the event
+            let (step_update, events) = self
+                .get_device_mut(event.router())
+                .handle_event(event.clone())?;
+            println!(
+                "{}; Triggered {} events; {}",
+                print_event(self, &event)?,
+                events.len(),
+                print_step_update(self, event.router(), &step_update)?,
+            );
+            self.enqueue_events(events);
+
+            // add the undo action
+            #[cfg(feature = "undo")]
+            self.undo_stack
+                .last_mut()
+                .unwrap()
+                .push(vec![UndoAction::UndoDevice(event.router())]);
+        }
+
+        Ok(result)
     }
 }

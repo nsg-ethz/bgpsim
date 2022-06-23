@@ -28,7 +28,8 @@ use crate::config::{Config, ConfigExpr, ConfigModifier, ConfigPatch};
 use crate::event::{Event, FmtPriority};
 use crate::network::Network;
 use crate::router::{Router, StaticRoute};
-use crate::{route_map::*, ForwardingState};
+use crate::types::StepUpdate;
+use crate::{route_map::*, ForwardingState, RouterId};
 use crate::{BgpSessionType, NetworkError, Prefix};
 
 /// Get a string that represents the forwarding state.
@@ -170,6 +171,32 @@ pub fn event<Q, P: FmtPriority>(
             p.fmt()
         ),
     })
+}
+
+/// Return a formatted string for the step update
+pub fn step_update<Q>(
+    net: &Network<Q>,
+    router: RouterId,
+    update: &StepUpdate,
+) -> Result<String, NetworkError> {
+    Ok(format!(
+        "{}:p{} {} => {}",
+        net.get_router_name(router)?,
+        update
+            .prefix
+            .map(|p| p.0.to_string())
+            .unwrap_or_else(|| "?".to_string()),
+        update
+            .old
+            .iter()
+            .map(|r| net.get_router_name(*r).unwrap_or("??"))
+            .join("|"),
+        update
+            .new
+            .iter()
+            .map(|r| net.get_router_name(*r).unwrap_or("??"))
+            .join("|"),
+    ))
 }
 
 /// Print the bgp table of a given router.

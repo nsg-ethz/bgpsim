@@ -66,7 +66,7 @@ pub struct Network<Q = BasicEventQueue> {
     pub(crate) queue: Q,
     pub(crate) skip_queue: bool,
     #[cfg(feature = "undo")]
-    undo_stack: Vec<Vec<Vec<UndoAction>>>,
+    pub(crate) undo_stack: Vec<Vec<Vec<UndoAction>>>,
 }
 
 impl<Q: Clone> Clone for Network<Q> {
@@ -206,7 +206,7 @@ impl<Q> Network<Q> {
     }
 
     /// Returns a reference to the network device.
-    pub(self) fn get_device_mut(&mut self, id: RouterId) -> NetworkDeviceMut<'_> {
+    pub(crate) fn get_device_mut(&mut self, id: RouterId) -> NetworkDeviceMut<'_> {
         match self.routers.get_mut(&id) {
             Some(r) => NetworkDeviceMut::InternalRouter(r),
             None => match self.external_routers.get_mut(&id) {
@@ -1005,7 +1005,7 @@ where
     }
 
     /// Enqueue all events
-    fn enqueue_events(&mut self, events: Vec<Event<Q::Priority>>) {
+    pub(crate) fn enqueue_events(&mut self, events: Vec<Event<Q::Priority>>) {
         events.into_iter().for_each(|e| self.enqueue_event(e))
     }
 }
@@ -1110,7 +1110,7 @@ pub struct UndoMark {
 /// Undo action on the Network
 #[cfg(feature = "undo")]
 #[derive(Debug, Clone, PartialEq)]
-enum UndoAction {
+pub(crate) enum UndoAction {
     /// Update an edge weight or remove the edge entirely.
     UpdateIGP(RouterId, RouterId, Option<LinkWeight>),
     /// Remove a router from the network
