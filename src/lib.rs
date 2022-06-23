@@ -76,10 +76,10 @@
 //!     let mut fw_state = t.get_forwarding_state();
 //!
 //!     // check that all routes are correct
-//!     assert_eq!(fw_state.get_route(b0, prefix)?, vec![b0, e0]);
-//!     assert_eq!(fw_state.get_route(r0, prefix)?, vec![r0, b0, e0]);
-//!     assert_eq!(fw_state.get_route(r1, prefix)?, vec![r1, b1, e1]);
-//!     assert_eq!(fw_state.get_route(b1, prefix)?, vec![b1, e1]);
+//!     assert_eq!(fw_state.get_route(b0, prefix)?, vec![vec![b0, e0]]);
+//!     assert_eq!(fw_state.get_route(r0, prefix)?, vec![vec![r0, b0, e0]]);
+//!     assert_eq!(fw_state.get_route(r1, prefix)?, vec![vec![r1, b1, e1]]);
+//!     assert_eq!(fw_state.get_route(b1, prefix)?, vec![vec![b1, e1]]);
 //!
 //!     Ok(())
 //! }
