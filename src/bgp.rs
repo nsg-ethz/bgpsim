@@ -105,8 +105,8 @@ impl<'a, 'n, Q> std::fmt::Display for FmtBgpRoute<'a, 'n, Q> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{ prefix: {}, Aspath: {:?}, next hop: {}{}{}{} }}",
-            self.route.prefix.0,
+            "{{ {}, Aspath: {:?}, next hop: {}{}{}{} }}",
+            self.route.prefix,
             self.route.as_path.iter().map(|x| x.0).collect::<Vec<_>>(),
             self.net.get_router_name(self.route.next_hop).unwrap_or("?"),
             if let Some(local_pref) = self.route.local_pref {
@@ -197,7 +197,7 @@ pub struct FmtBgpEvent<'a, 'n, Q> {
 impl<'a, 'n, Q> std::fmt::Display for FmtBgpEvent<'a, 'n, Q> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self.event {
-            BgpEvent::Withdraw(prefix) => write!(f, "Withdraw prefix {}", prefix.0,),
+            BgpEvent::Withdraw(prefix) => write!(f, "Withdraw {}", prefix),
             BgpEvent::Update(route) => write!(f, "Update {}", route.fmt(self.net)),
         }
     }
@@ -292,8 +292,8 @@ impl<'a, 'n, Q> std::fmt::Display for FmtBgpRibEntry<'a, 'n, Q> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "prefix: {p}, as_path: {path:?}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}",
-            p = self.entry.route.prefix.0,
+            "{p}, as_path: {path:?}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}",
+            p = self.entry.route.prefix,
             path = self.entry.route.as_path.iter().map(|x| x.0).collect::<Vec<u32>>(),
             lp = self.entry.route.local_pref.unwrap_or(100),
             med = self.entry.route.med.unwrap_or(0),

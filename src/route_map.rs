@@ -526,30 +526,6 @@ where
     }
 }
 
-impl fmt::Display for RouteMapMatchClause<Prefix> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RouteMapMatchClause::Range(a, b) => f.write_fmt(format_args!("in ({}..{})", a.0, b.0)),
-            RouteMapMatchClause::RangeExclusive(a, b) => {
-                f.write_fmt(format_args!("in ({}..{}])", a.0, b.0))
-            }
-            RouteMapMatchClause::Equal(a) => f.write_fmt(format_args!("== {}", a.0)),
-        }
-    }
-}
-
-impl fmt::Display for RouteMapMatchClause<AsId> {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            RouteMapMatchClause::Range(a, b) => f.write_fmt(format_args!("in ({}..{})", a.0, b.0)),
-            RouteMapMatchClause::RangeExclusive(a, b) => {
-                f.write_fmt(format_args!("in ({}..{}])", a.0, b.0))
-            }
-            RouteMapMatchClause::Equal(a) => f.write_fmt(format_args!("== {}", a.0)),
-        }
-    }
-}
-
 /// Clause to match on the as path
 #[derive(Debug, Clone, PartialEq)]
 pub enum RouteMapMatchAsPath {

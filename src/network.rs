@@ -666,11 +666,7 @@ where
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
 
-        debug!(
-            "Advertise prefix {} on {}",
-            prefix.0,
-            self.get_router_name(source)?
-        );
+        debug!("Advertise {} on {}", prefix, self.get_router_name(source)?);
         // insert the prefix into the hashset
         self.known_prefixes.insert(prefix);
 
@@ -705,11 +701,7 @@ where
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
 
-        debug!(
-            "Retract prefix {} on {}",
-            prefix.0,
-            self.get_router_name(source)?
-        );
+        debug!("Retract {} on {}", prefix, self.get_router_name(source)?);
 
         let events = self
             .external_routers

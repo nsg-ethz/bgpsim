@@ -493,9 +493,9 @@ impl<'a, 'n, Q> std::fmt::Display for FmtConfigExpr<'a, 'n, Q> {
                 target,
             } => write!(
                 f,
-                "Static Route: {}: Prefix {} via {}",
+                "Static Route: {}: {} via {}",
                 self.net.get_router_name(*router).unwrap_or("?"),
-                prefix.0,
+                prefix,
                 match target {
                     StaticRoute::Direct(target) =>
                         self.net.get_router_name(*target).unwrap_or("?").to_string(),
@@ -630,9 +630,9 @@ impl<'a, 'n, Q> std::fmt::Display for FmtConfigExprKey<'a, 'n, Q> {
             ),
             ConfigExprKey::StaticRoute { router, prefix } => write!(
                 f,
-                "Static Route: {}: prefix {}",
+                "Static Route: {}: {}",
                 self.net.get_router_name(*router).unwrap_or("?"),
-                prefix.0,
+                prefix,
             ),
             ConfigExprKey::LoadBalancing { router } => {
                 write!(

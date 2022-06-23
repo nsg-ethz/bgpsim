@@ -33,9 +33,21 @@ pub type RouterId = NodeIndex<IndexType>;
 /// IP Prefix (simple representation)
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
 pub struct Prefix(pub u32);
+
+impl std::fmt::Display for Prefix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "Prefix({})", self.0)
+    }
+}
 /// AS Number
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
 pub struct AsId(pub u32);
+
+impl std::fmt::Display for AsId {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "AS{}", self.0)
+    }
+}
 /// Link Weight for the IGP graph
 pub type LinkWeight = f32;
 /// IGP Network graph
@@ -95,11 +107,11 @@ impl<'a, 'n, Q> std::fmt::Display for FmtStepUpdate<'a, 'n, Q> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{} => p{}: {} > {}",
+            "{} => {}: {} > {}",
             self.net.get_router_name(self.router).unwrap_or("?"),
             self.update
                 .prefix
-                .map(|p| p.0.to_string())
+                .map(|p| p.to_string())
                 .unwrap_or_else(|| "?".to_string()),
             if self.update.old.is_empty() {
                 "X".to_string()

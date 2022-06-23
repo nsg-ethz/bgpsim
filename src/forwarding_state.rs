@@ -390,7 +390,7 @@ impl<'a, 'n, Q> std::fmt::Display for FmtForwardingState<'a, 'n, Q> {
             .sorted()
             .collect::<Vec<_>>();
         for prefix in prefixes {
-            writeln!(f, "Prefix {}", prefix.0).unwrap();
+            writeln!(f, "{}", prefix)?;
             for node in nodes.iter().copied() {
                 let next_hops = self
                     .fw_state

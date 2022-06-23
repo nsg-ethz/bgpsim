@@ -73,18 +73,12 @@ impl fmt::Display for Condition {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
             Self::Reachable(r, p, Some(c)) => {
-                write!(
-                    f,
-                    "Reachability(r{}, prefix {}, condition {})",
-                    r.index(),
-                    p.0,
-                    c
-                )
+                write!(f, "Reachability(r{}, {}, condition {})", r.index(), p, c)
             }
             Self::Reachable(r, p, None) => {
-                write!(f, "Reachability(r{}, prefix {})", r.index(), p.0)
+                write!(f, "Reachability(r{}, {})", r.index(), p)
             }
-            Self::NotReachable(r, p) => write!(f, "Isolation(r{}, prefix {})", r.index(), p.0),
+            Self::NotReachable(r, p) => write!(f, "Isolation(r{}, {})", r.index(), p),
         }
     }
 }
@@ -94,24 +88,16 @@ impl Condition {
     pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
         match self {
             Self::Reachable(r, p, Some(c)) => format!(
-                "Reachability({}, prefix {}, condition {})",
+                "Reachability({}, {}, condition {})",
                 net.get_router_name(*r).unwrap(),
-                p.0,
+                p,
                 c.repr_with_name(net)
             ),
             Self::Reachable(r, p, None) => {
-                format!(
-                    "Reachability({}, prefix {})",
-                    net.get_router_name(*r).unwrap(),
-                    p.0
-                )
+                format!("Reachability({}, {})", net.get_router_name(*r).unwrap(), p)
             }
             Self::NotReachable(r, p) => {
-                format!(
-                    "Isolation({}, prefix {})",
-                    net.get_router_name(*r).unwrap(),
-                    p.0
-                )
+                format!("Isolation({}, {})", net.get_router_name(*r).unwrap(), p)
             }
         }
     }
@@ -623,13 +609,13 @@ impl PolicyError {
     pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
         match self {
             PolicyError::BlackHole { router, prefix } => format!(
-                "Black hole for prefix {} at router {}",
-                prefix.0,
+                "Black hole for {} at router {}",
+                prefix,
                 net.get_router_name(*router).unwrap(),
             ),
             PolicyError::ForwardingLoop { path, prefix } => format!(
-                "Forwarding loop for prefix {}: {} -> {}",
-                prefix.0,
+                "Forwarding loop for {}: {} -> {}",
+                prefix,
                 path.iter()
                     .map(|r| net.get_router_name(*r).unwrap())
                     .collect::<Vec<&str>>()
@@ -641,8 +627,8 @@ impl PolicyError {
                 condition,
                 prefix,
             } => format!(
-                "Path condition invalidated for prefix {}: path: {}, condition: {}",
-                prefix.0,
+                "Path condition invalidated for {}: path: {}, condition: {}",
+                prefix,
                 path.iter()
                     .map(|r| net.get_router_name(*r).unwrap())
                     .collect::<Vec<&str>>()
@@ -654,9 +640,9 @@ impl PolicyError {
                 prefix,
                 paths,
             } => format!(
-                "Router {} can reach unallowed prefix {} via path(s) [[{}]]",
+                "Router {} can reach unallowed {} via path(s) [[{}]]",
                 net.get_router_name(*router).unwrap(),
-                prefix.0,
+                prefix,
                 paths
                     .iter()
                     .map(|path| path
