@@ -21,7 +21,8 @@ use crate::bgp::BgpSessionType;
 use crate::config::ConfigModifier;
 use crate::external_router::ExternalRouter;
 use crate::router::Router;
-use crate::Event;
+use crate::{Event, Network};
+use itertools::Itertools;
 use petgraph::graph::Graph;
 use petgraph::prelude::*;
 use thiserror::Error;
@@ -64,6 +65,61 @@ impl StepUpdate {
     /// Returns `true` if the state has changed.
     pub fn changed(&self) -> bool {
         self.old != self.new
+    }
+
+    /// Get a struct to display the StepUpdate
+    pub fn fmt<'a, 'n, Q>(
+        &'a self,
+        net: &'n Network<Q>,
+        router: RouterId,
+    ) -> FmtStepUpdate<'a, 'n, Q> {
+        FmtStepUpdate {
+            update: self,
+            net,
+            router,
+        }
+    }
+}
+
+/// Formatter for the BGP Rib Entry
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtStepUpdate<'a, 'n, Q> {
+    update: &'a StepUpdate,
+    net: &'n Network<Q>,
+    router: RouterId,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, Q> std::fmt::Display for FmtStepUpdate<'a, 'n, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{} => p{}: {} > {}",
+            self.net.get_router_name(self.router).unwrap_or("?"),
+            self.update
+                .prefix
+                .map(|p| p.0.to_string())
+                .unwrap_or_else(|| "?".to_string()),
+            if self.update.old.is_empty() {
+                "X".to_string()
+            } else {
+                self.update
+                    .old
+                    .iter()
+                    .map(|r| self.net.get_router_name(*r).unwrap_or("?"))
+                    .join("|")
+            },
+            if self.update.new.is_empty() {
+                "X".to_string()
+            } else {
+                self.update
+                    .new
+                    .iter()
+                    .map(|r| self.net.get_router_name(*r).unwrap_or("?"))
+                    .join("|")
+            },
+        )
     }
 }
 

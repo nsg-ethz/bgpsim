@@ -17,7 +17,7 @@
 
 //! Module containing definitions for BGP
 
-use crate::{AsId, LinkWeight, Prefix, RouterId};
+use crate::{AsId, LinkWeight, Network, Prefix, RouterId};
 use std::cmp::Ordering;
 
 /// Bgp Route
@@ -60,6 +60,11 @@ impl BgpRoute {
             community: Some(self.community.unwrap_or(0)),
         }
     }
+
+    /// Get a struct for displaying the Bgp Route.
+    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtBgpRoute<'a, 'n, Q> {
+        FmtBgpRoute { route: self, net }
+    }
 }
 
 impl PartialEq for BgpRoute {
@@ -84,6 +89,42 @@ impl std::hash::Hash for BgpRoute {
         s.local_pref.hash(state);
         s.med.hash(state);
         s.community.hash(state);
+    }
+}
+
+/// Formatter for a BGP route
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtBgpRoute<'a, 'n, Q> {
+    route: &'a BgpRoute,
+    net: &'n Network<Q>,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, Q> std::fmt::Display for FmtBgpRoute<'a, 'n, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "{{ prefix: {}, Aspath: {:?}, next hop: {}{}{}{} }}",
+            self.route.prefix.0,
+            self.route.as_path.iter().map(|x| x.0).collect::<Vec<_>>(),
+            self.net.get_router_name(self.route.next_hop).unwrap_or("?"),
+            if let Some(local_pref) = self.route.local_pref {
+                format!(", local pref: {}", local_pref)
+            } else {
+                String::new()
+            },
+            if let Some(med) = self.route.med {
+                format!(", MED: {}", med)
+            } else {
+                String::new()
+            },
+            if let Some(community) = self.route.community {
+                format!(", community: {}", community)
+            } else {
+                String::new()
+            },
+        )
     }
 }
 
@@ -127,6 +168,29 @@ impl BgpEvent {
             Self::Update(r) => r.prefix,
         }
     }
+
+    /// Get a struct for displaying the Bgp Event
+    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtBgpEvent<'a, 'n, Q> {
+        FmtBgpEvent { event: self, net }
+    }
+}
+
+/// Formatter for a BGP route
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtBgpEvent<'a, 'n, Q> {
+    event: &'a BgpEvent,
+    net: &'n Network<Q>,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, Q> std::fmt::Display for FmtBgpEvent<'a, 'n, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.event {
+            BgpEvent::Withdraw(prefix) => write!(f, "Withdraw prefix {}", prefix.0,),
+            BgpEvent::Update(route) => write!(f, "Update {}", route.fmt(self.net)),
+        }
+    }
 }
 
 /// BGP RIB Table entry
@@ -142,6 +206,13 @@ pub struct BgpRibEntry {
     pub to_id: Option<RouterId>,
     /// the igp cost to the next_hop
     pub igp_cost: Option<LinkWeight>,
+}
+
+impl BgpRibEntry {
+    /// Get a struct for formatting the Rib Entry
+    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtBgpRibEntry<'a, 'n, Q> {
+        FmtBgpRibEntry { entry: self, net }
+    }
 }
 
 impl PartialEq for BgpRibEntry {
@@ -195,5 +266,30 @@ impl PartialOrd for BgpRibEntry {
             Ordering::Greater => Some(Ordering::Less),
             Ordering::Less => Some(Ordering::Greater),
         }
+    }
+}
+
+/// Formatter for the BGP Rib Entry
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtBgpRibEntry<'a, 'n, Q> {
+    entry: &'a BgpRibEntry,
+    net: &'n Network<Q>,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, Q> std::fmt::Display for FmtBgpRibEntry<'a, 'n, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "prefix: {p}, as_path: {path:?}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}",
+            p = self.entry.route.prefix.0,
+            path = self.entry.route.as_path.iter().map(|x| x.0).collect::<Vec<u32>>(),
+            lp = self.entry.route.local_pref.unwrap_or(100),
+            med = self.entry.route.med.unwrap_or(0),
+            cost = self.entry.igp_cost.unwrap_or(0.0),
+            nh = self.net.get_router_name(self.entry.route.next_hop).unwrap_or("?"),
+            next = self.net.get_router_name(self.entry.from_id).unwrap_or("?"),
+        )
     }
 }

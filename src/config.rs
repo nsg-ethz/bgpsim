@@ -77,9 +77,7 @@ use crate::bgp::BgpSessionType;
 use crate::event::FmtPriority;
 use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::router::StaticRoute;
-use crate::{
-    printer, ConfigError, EventQueue, LinkWeight, Network, NetworkError, Prefix, RouterId,
-};
+use crate::{ConfigError, EventQueue, LinkWeight, Network, NetworkError, Prefix, RouterId};
 
 use petgraph::algo::FloatMeasure;
 use std::collections::{HashMap, HashSet};
@@ -252,6 +250,11 @@ impl Config {
         index.normalize();
         self.expr.get_mut(&index)
     }
+
+    /// Get a structure to print the configuration
+    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfig<'a, 'n, Q> {
+        FmtConfig { config: self, net }
+    }
 }
 
 impl Index<ConfigExprKey> for Config {
@@ -291,6 +294,25 @@ impl PartialEq for Config {
             }
         }
         true
+    }
+}
+
+/// Formatter for the BGP Rib Entry
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtConfig<'a, 'n, Q> {
+    config: &'a Config,
+    net: &'n Network<Q>,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, Q> std::fmt::Display for FmtConfig<'a, 'n, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "Config {{")?;
+        for expr in self.config.iter() {
+            writeln!(f, "    {}", expr.fmt(self.net))?;
+        }
+        writeln!(f, "}}")
     }
 }
 
@@ -410,6 +432,92 @@ impl ConfigExpr {
             ConfigExpr::LoadBalancing { router } => vec![*router],
         }
     }
+
+    /// Get a structure to display the Config Expression
+    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfigExpr<'a, 'n, Q> {
+        FmtConfigExpr { expr: self, net }
+    }
+}
+
+/// Formatter for the BGP Rib Entry
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtConfigExpr<'a, 'n, Q> {
+    expr: &'a ConfigExpr,
+    net: &'n Network<Q>,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, Q> std::fmt::Display for FmtConfigExpr<'a, 'n, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.expr {
+            ConfigExpr::IgpLinkWeight {
+                source,
+                target,
+                weight,
+            } => write!(
+                f,
+                "IGP Link Weight: {} -> {}: {}",
+                self.net.get_router_name(*source).unwrap_or("?"),
+                self.net.get_router_name(*target).unwrap_or("?"),
+                weight
+            ),
+            ConfigExpr::BgpSession {
+                source,
+                target,
+                session_type,
+            } => write!(
+                f,
+                "BGP Session: {} -> {}: type: {}",
+                self.net.get_router_name(*source).unwrap_or("?"),
+                self.net.get_router_name(*target).unwrap_or("?"),
+                match session_type {
+                    BgpSessionType::EBgp => "eBGP",
+                    BgpSessionType::IBgpClient => "iBGP Client",
+                    BgpSessionType::IBgpPeer => "iBGP Peer",
+                }
+            ),
+            ConfigExpr::BgpRouteMap {
+                router,
+                direction,
+                map,
+            } => write!(
+                f,
+                "BGP Route Map on {} [{}]: {}",
+                self.net.get_router_name(*router).unwrap_or("?"),
+                match direction {
+                    RouteMapDirection::Incoming => "in",
+                    RouteMapDirection::Outgoing => "out",
+                },
+                map.fmt(self.net)
+            ),
+            ConfigExpr::StaticRoute {
+                router,
+                prefix,
+                target,
+            } => write!(
+                f,
+                "Static Route: {}: Prefix {} via {}",
+                self.net.get_router_name(*router).unwrap_or("?"),
+                prefix.0,
+                match target {
+                    StaticRoute::Direct(target) =>
+                        self.net.get_router_name(*target).unwrap_or("?").to_string(),
+                    StaticRoute::Indirect(target) => format!(
+                        "{} (indirect)",
+                        self.net.get_router_name(*target).unwrap_or("?")
+                    ),
+                }
+            ),
+            ConfigExpr::LoadBalancing { router } => {
+                write!(
+                    f,
+                    "Load Balancing: {}",
+                    self.net.get_router_name(*router).unwrap_or("?")
+                )
+            }
+        }
+    }
 }
 
 /// # Key for Config Expressions
@@ -527,6 +635,33 @@ impl ConfigModifier {
             Self::Update { from, to } => Self::Update { from: to, to: from },
         }
     }
+
+    /// Get a structure to display the config modifier
+    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfigModifier<'a, 'n, Q> {
+        FmtConfigModifier {
+            modifier: self,
+            net,
+        }
+    }
+}
+
+/// Formatter for the BGP Rib Entry
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtConfigModifier<'a, 'n, Q> {
+    modifier: &'a ConfigModifier,
+    net: &'n Network<Q>,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, Q> std::fmt::Display for FmtConfigModifier<'a, 'n, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.modifier {
+            ConfigModifier::Insert(e) => write!(f, "INSERT {}", e.fmt(self.net)),
+            ConfigModifier::Remove(e) => write!(f, "REMOVE {}", e.fmt(self.net)),
+            ConfigModifier::Update { from: _, to } => write!(f, "MODIFY {}", to.fmt(self.net)),
+        }
+    }
 }
 
 /// # Config Patch
@@ -555,6 +690,30 @@ impl ConfigPatch {
     /// Add a new modifier to the patch
     pub fn add(&mut self, modifier: ConfigModifier) {
         self.modifiers.push(modifier);
+    }
+
+    /// Get a structure to display the Config Patch.
+    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfigPatch<'a, 'n, Q> {
+        FmtConfigPatch { patch: self, net }
+    }
+}
+
+/// Formatter for the BGP Rib Entry
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtConfigPatch<'a, 'n, Q> {
+    patch: &'a ConfigPatch,
+    net: &'n Network<Q>,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, Q> std::fmt::Display for FmtConfigPatch<'a, 'n, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        writeln!(f, "ConfigPatch {{")?;
+        for modifier in self.patch.modifiers.iter() {
+            writeln!(f, "    {}", modifier.fmt(self.net))?;
+        }
+        writeln!(f, "}}")
     }
 }
 
@@ -620,10 +779,7 @@ where
     /// current configuration. All messages are exchanged. The process fails, then the network is
     /// in an undefined state, and it should be rebuilt.
     fn apply_modifier(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError> {
-        debug!(
-            "Applying modifier: {}",
-            printer::config_modifier(self, modifier)?
-        );
+        debug!("Applying modifier: {}", modifier.fmt(self));
 
         // If the modifier can be applied, then everything is ok and we can do the actual change.
         match modifier {

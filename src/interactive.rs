@@ -22,12 +22,7 @@ use log::debug;
 
 #[cfg(feature = "undo")]
 use crate::network::UndoAction;
-use crate::{
-    event::FmtPriority,
-    printer::{event as print_event, step_update as print_step_update},
-    types::StepUpdate,
-    Event, EventQueue, Network, NetworkError,
-};
+use crate::{event::FmtPriority, types::StepUpdate, Event, EventQueue, Network, NetworkError};
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
 /// interface to simulate a single event, inspect the queue of the network, and even reorder events.
@@ -126,9 +121,9 @@ where
             if self.verbose {
                 println!(
                     "{}| Triggered {} events | {}",
-                    print_event(self, &event)?,
+                    event.fmt(self),
                     events.len(),
-                    print_step_update(self, event.router(), &step_update)?,
+                    step_update.fmt(self, event.router()),
                 );
             }
 

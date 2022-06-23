@@ -25,7 +25,6 @@ use crate::config::NetworkConfig;
 use crate::event::{BasicEventQueue, Event, EventQueue, FmtPriority};
 use crate::external_router::ExternalRouter;
 use crate::interactive::InteractiveNetwork;
-use crate::printer::{event as print_event, fw_state as print_fw_state};
 use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::router::{Router, StaticRoute};
 use crate::types::{IgpNetwork, NetworkDevice, NetworkDeviceMut};
@@ -377,15 +376,6 @@ impl<Q> Network<Q> {
             }
         }
         println!();
-        Ok(())
-    }
-
-    /// Print the forwarding state of the network
-    #[cfg(not(tarpaulin_include))]
-    pub fn print_fw_state(&self) -> Result<(), NetworkError> {
-        let fw_state = self.get_forwarding_state();
-        let fw_state_repr = print_fw_state(self, &fw_state)?;
-        println!("{}", fw_state_repr);
         Ok(())
     }
 }
@@ -884,7 +874,7 @@ where
     }
 
     pub(crate) fn log_event(&self, e: &Event<Q::Priority>) -> Result<(), NetworkError> {
-        trace!("{}", print_event(self, e)?);
+        trace!("{}", e.fmt(self));
         Ok(())
     }
 

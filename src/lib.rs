@@ -101,8 +101,6 @@ pub mod forwarding_state;
 pub mod interactive;
 pub mod network;
 pub mod policies;
-#[cfg(not(tarpaulin_include))]
-pub mod printer;
 pub mod record;
 pub mod route_map;
 pub mod router;

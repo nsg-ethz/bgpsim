@@ -25,7 +25,7 @@ use rand_distr::{Beta, Distribution};
 
 use crate::bgp::BgpEvent;
 use crate::router::Router;
-use crate::{IgpNetwork, Prefix, RouterId};
+use crate::{IgpNetwork, Network, Prefix, RouterId};
 use std::collections::{HashMap, VecDeque};
 
 /// Event to handle
@@ -60,6 +60,35 @@ impl<P> Event<P> {
     pub fn router(&self) -> RouterId {
         match self {
             Event::Bgp(_, _, router, _) => *router,
+        }
+    }
+
+    /// Return a struct to display the event.
+    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtEvent<'a, 'n, P, Q> {
+        FmtEvent { event: self, net }
+    }
+}
+
+/// Formatter for the Event
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtEvent<'a, 'n, P, Q> {
+    event: &'a Event<P>,
+    net: &'n Network<Q>,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, P: FmtPriority, Q> std::fmt::Display for FmtEvent<'a, 'n, P, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.event {
+            Event::Bgp(p, from, to, event) => write!(
+                f,
+                "BGP Event: {} -> {}: Update [{}] {}",
+                self.net.get_router_name(*from).unwrap_or("?"),
+                self.net.get_router_name(*to).unwrap_or("?"),
+                event.fmt(self.net),
+                p.fmt()
+            ),
         }
     }
 }
