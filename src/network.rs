@@ -66,6 +66,7 @@ pub struct Network<Q = BasicEventQueue> {
     pub(crate) stop_after: Option<usize>,
     pub(crate) queue: Q,
     pub(crate) skip_queue: bool,
+    pub(crate) verbose: bool,
     #[cfg(feature = "undo")]
     pub(crate) undo_stack: Vec<Vec<Vec<UndoAction>>>,
 }
@@ -82,6 +83,7 @@ impl<Q: Clone> Clone for Network<Q> {
             stop_after: self.stop_after,
             queue: self.queue.clone(),
             skip_queue: false,
+            verbose: self.verbose,
             #[cfg(feature = "undo")]
             undo_stack: self.undo_stack.clone(),
         }
@@ -105,6 +107,7 @@ impl<Q> Network<Q> {
             stop_after: Some(DEFAULT_STOP_AFTER),
             queue,
             skip_queue: false,
+            verbose: false
             #[cfg(feature = "undo")]
             undo_stack: Vec::new(),
         }

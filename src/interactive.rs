@@ -88,6 +88,9 @@ where
 
     /// Get a reference to the queue
     fn queue_mut(&mut self) -> &mut Q;
+
+    /// Set the network into verbose mode (or not)
+    fn verbose(&mut self, verbose: bool);
 }
 
 impl<Q> InteractiveNetwork<Q> for Network<Q>
@@ -125,6 +128,16 @@ where
             let (step_update, events) = self
                 .get_device_mut(event.router())
                 .handle_event(event.clone())?;
+
+            if self.verbose {
+                println!(
+                    "{}; Triggered {} events; {}",
+                    print_event(self, &event)?,
+                    events.len(),
+                    print_step_update(self, event.router(), &step_update)?,
+                );
+            }
+
             self.enqueue_events(events);
 
             // add the undo action
@@ -222,41 +235,8 @@ where
         Ok(())
     }
 
-    fn simulate_verbose(&mut self) -> Result<(), NetworkError> {
-        let mut remaining_iter = self.stop_after;
-        while !self.queue.is_empty() {
-            if let Some(rem) = remaining_iter {
-                if rem == 0 {
-                    debug!("Network could not converge!");
-                    return Err(NetworkError::NoConvergence);
-                }
-                remaining_iter = Some(rem - 1);
-            }
-
-            let event = self.queue.pop().unwrap();
-            // perform the queue step
-            // log the job
-            self.log_event(&event)?;
-            // execute the event
-            let (step_update, events) = self
-                .get_device_mut(event.router())
-                .handle_event(event.clone())?;
-            println!(
-                "{}; Triggered {} events; {}",
-                print_event(self, &event)?,
-                events.len(),
-                print_step_update(self, event.router(), &step_update)?,
-            );
-            self.enqueue_events(events);
-
-            // add the undo action
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(vec![UndoAction::UndoDevice(event.router())]);
-        }
-
-        Ok(())
+    /// Set the network into verbose mode (or not)
+    fn verbose(&mut self, verbose: bool) {
+        self.verbose = verbose;
     }
 }
