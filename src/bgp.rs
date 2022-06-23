@@ -139,6 +139,16 @@ pub enum BgpSessionType {
     EBgp,
 }
 
+impl std::fmt::Display for BgpSessionType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BgpSessionType::IBgpPeer => write!(f, "iBGP"),
+            BgpSessionType::IBgpClient => write!(f, "iBGP RR"),
+            BgpSessionType::EBgp => write!(f, "eBGP"),
+        }
+    }
+}
+
 impl BgpSessionType {
     /// returns true if the session type is EBgp
     pub fn is_ebgp(&self) -> bool {

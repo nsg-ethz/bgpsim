@@ -655,3 +655,12 @@ pub enum RouteMapDirection {
     /// Outgoing Route Map
     Outgoing,
 }
+
+impl fmt::Display for RouteMapDirection {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RouteMapDirection::Incoming => write!(f, "in"),
+            RouteMapDirection::Outgoing => write!(f, "out"),
+        }
+    }
+}

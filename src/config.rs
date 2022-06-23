@@ -471,11 +471,7 @@ impl<'a, 'n, Q> std::fmt::Display for FmtConfigExpr<'a, 'n, Q> {
                 "BGP Session: {} -> {}: type: {}",
                 self.net.get_router_name(*source).unwrap_or("?"),
                 self.net.get_router_name(*target).unwrap_or("?"),
-                match session_type {
-                    BgpSessionType::EBgp => "eBGP",
-                    BgpSessionType::IBgpClient => "iBGP Client",
-                    BgpSessionType::IBgpPeer => "iBGP Peer",
-                }
+                session_type
             ),
             ConfigExpr::BgpRouteMap {
                 router,
@@ -584,6 +580,66 @@ impl ConfigExprKey {
         {
             if speaker_a > speaker_b {
                 std::mem::swap(speaker_a, speaker_b)
+            }
+        }
+    }
+
+    /// Get a structure to display the Config ExprKeyession
+    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfigExprKey<'a, 'n, Q> {
+        FmtConfigExprKey { key: self, net }
+    }
+}
+
+/// Formatter for the BGP Rib Entry
+#[cfg(not(tarpaulin_include))]
+#[derive(Debug)]
+pub struct FmtConfigExprKey<'a, 'n, Q> {
+    key: &'a ConfigExprKey,
+    net: &'n Network<Q>,
+}
+
+#[cfg(not(tarpaulin_include))]
+impl<'a, 'n, Q> std::fmt::Display for FmtConfigExprKey<'a, 'n, Q> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.key {
+            ConfigExprKey::IgpLinkWeight { source, target } => write!(
+                f,
+                "IGP Link Weight: {} -> {}",
+                self.net.get_router_name(*source).unwrap_or("?"),
+                self.net.get_router_name(*target).unwrap_or("?"),
+            ),
+            ConfigExprKey::BgpSession {
+                speaker_a,
+                speaker_b,
+            } => write!(
+                f,
+                "BGP Session: {} <-> {}",
+                self.net.get_router_name(*speaker_a).unwrap_or("?"),
+                self.net.get_router_name(*speaker_b).unwrap_or("?"),
+            ),
+            ConfigExprKey::BgpRouteMap {
+                router,
+                direction,
+                order,
+            } => write!(
+                f,
+                "BGP Route Map on {} [{}] {}",
+                self.net.get_router_name(*router).unwrap_or("?"),
+                direction,
+                order
+            ),
+            ConfigExprKey::StaticRoute { router, prefix } => write!(
+                f,
+                "Static Route: {}: prefix {}",
+                self.net.get_router_name(*router).unwrap_or("?"),
+                prefix.0,
+            ),
+            ConfigExprKey::LoadBalancing { router } => {
+                write!(
+                    f,
+                    "Load Balancing: {}",
+                    self.net.get_router_name(*router).unwrap_or("?")
+                )
             }
         }
     }
