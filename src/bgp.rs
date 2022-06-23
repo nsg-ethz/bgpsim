@@ -17,6 +17,8 @@
 
 //! Module containing definitions for BGP
 
+use itertools::Itertools;
+
 use crate::{AsId, LinkWeight, Network, Prefix, RouterId};
 use std::cmp::Ordering;
 
@@ -105,9 +107,9 @@ impl<'a, 'n, Q> std::fmt::Display for FmtBgpRoute<'a, 'n, Q> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(
             f,
-            "{{ {}, Aspath: {:?}, next hop: {}{}{}{} }}",
+            "{{ {}, path: [{}], next hop: {}{}{}{} }}",
             self.route.prefix,
-            self.route.as_path.iter().map(|x| x.0).collect::<Vec<_>>(),
+            self.route.as_path.iter().join(", "),
             self.net.get_router_name(self.route.next_hop).unwrap_or("?"),
             if let Some(local_pref) = self.route.local_pref {
                 format!(", local pref: {}", local_pref)
