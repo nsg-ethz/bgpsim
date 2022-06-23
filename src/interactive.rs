@@ -125,7 +125,7 @@ where
 
             if self.verbose {
                 println!(
-                    "{}; Triggered {} events; {}",
+                    "{}| Triggered {} events | {}",
                     print_event(self, &event)?,
                     events.len(),
                     print_step_update(self, event.router(), &step_update)?,

@@ -186,16 +186,24 @@ pub fn step_update<Q>(
             .prefix
             .map(|p| p.0.to_string())
             .unwrap_or_else(|| "?".to_string()),
-        update
-            .old
-            .iter()
-            .map(|r| net.get_router_name(*r).unwrap_or("??"))
-            .join("|"),
-        update
-            .new
-            .iter()
-            .map(|r| net.get_router_name(*r).unwrap_or("??"))
-            .join("|"),
+        if update.old.is_empty() {
+            "X".to_string()
+        } else {
+            update
+                .old
+                .iter()
+                .map(|r| net.get_router_name(*r).unwrap_or("??"))
+                .join("|")
+        },
+        if update.new.is_empty() {
+            "X".to_string()
+        } else {
+            update
+                .new
+                .iter()
+                .map(|r| net.get_router_name(*r).unwrap_or("??"))
+                .join("|")
+        },
     ))
 }
 
