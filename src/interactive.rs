@@ -59,11 +59,17 @@ where
     where
         F: FnOnce(&mut Network<Q>);
 
-    /// Calls function `f` with argument to a mutable network. Then, it will perform the simulation,
-    /// while printing all events that happen, and their effect.
-    fn simulate_verbose<F, T>(&mut self, f: F) -> Result<T, NetworkError>
-    where
-        F: FnOnce(&mut Network<Q>) -> Result<T, NetworkError>;
+    /// Simulate the network behavior, given the current event queue. This function will execute all
+    /// events (that may trigger new events), until either the event queue is empt (i.e., the
+    /// network has converged), or until the maximum allowed events have been processed (which can
+    /// be set by `self.set_msg_limit`).
+    fn simulate(&mut self) -> Result<(), NetworkError>;
+
+    /// Simulate the network behavior, given the current event queue. This function will execute all
+    /// events (that may trigger new events), until either the event queue is empt (i.e., the
+    /// network has converged), or until the maximum allowed events have been processed (which can
+    /// be set by `self.set_msg_limit`). While simulating, print each event and its effect.
+    fn simulate_verbose(&mut self) -> Result<(), NetworkError>;
 
     /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
     /// will not execute any subsequent event. This function will return the number of events left
@@ -112,12 +118,84 @@ where
     }
 
     fn simulate_step(&mut self) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError> {
-        self.do_queue_step()
+        if let Some(event) = self.queue.pop() {
+            // log the job
+            self.log_event(&event)?;
+            // execute the event
+            let (step_update, events) = self
+                .get_device_mut(event.router())
+                .handle_event(event.clone())?;
+            self.enqueue_events(events);
+
+            // add the undo action
+            #[cfg(feature = "undo")]
+            self.undo_stack
+                .last_mut()
+                .unwrap()
+                .push(vec![UndoAction::UndoDevice(event.router())]);
+
+            Ok(Some((step_update, event)))
+        } else {
+            Ok(None)
+        }
     }
 
     #[cfg(feature = "undo")]
     fn undo_step(&mut self) -> Result<(), NetworkError> {
-        self.undo_event()
+        if let Some(event) = self.undo_stack.last_mut().and_then(|s| s.pop()) {
+            for e in event {
+                match e {
+                    UndoAction::UpdateIGP(source, target, Some(weight)) => {
+                        self.net.update_edge(source, target, weight);
+                    }
+                    UndoAction::UpdateIGP(source, target, None) => {
+                        self.net.remove_edge(
+                            self.net
+                                .find_edge(source, target)
+                                .ok_or(NetworkError::LinkNotFound(source, target))?,
+                        );
+                    }
+                    UndoAction::RemoveRouter(id) => {
+                        if self.net.edges(id).next().is_some() {
+                            return Err(NetworkError::UndoError(
+                                "Cannot remove the node as it is is still connected to other nodes"
+                                    .to_string(),
+                            ));
+                        }
+                        self.routers
+                            .remove(&id)
+                            .map(|_| ())
+                            .or_else(|| self.external_routers.remove(&id).map(|_| ()))
+                            .ok_or(NetworkError::DeviceNotFound(id))?;
+                        self.net.remove_node(id);
+                    }
+                    // UndoAction::AddRouter(id, router) => {
+                    //     self.routers.insert(id, *router);
+                    // }
+                    // UndoAction::AddExternalRouter(id, router) => {
+                    //     self.external_routers.insert(id, *router);
+                    // }
+                    UndoAction::UndoDevice(id) => {
+                        self.get_device_mut(id).undo_event::<Q::Priority>()?;
+                    }
+                }
+            }
+        } else {
+            assert!(self.undo_stack.is_empty());
+            return Err(NetworkError::EmptyUndoStack);
+        }
+
+        // if the last action is now empty, remove it
+        if self
+            .undo_stack
+            .last()
+            .map(|a| a.is_empty())
+            .unwrap_or(false)
+        {
+            self.undo_stack.pop();
+        }
+
+        Ok(())
     }
 
     fn queue(&self) -> &Q {
@@ -128,13 +206,23 @@ where
         &mut self.queue
     }
 
-    fn simulate_verbose<F, T>(&mut self, f: F) -> Result<T, NetworkError>
-    where
-        F: FnOnce(&mut Network<Q>) -> Result<T, NetworkError>,
-    {
-        // call the function f
-        let result = f(self)?;
+    fn simulate(&mut self) -> Result<(), NetworkError> {
+        let mut remaining_iter = self.stop_after;
+        while !self.queue.is_empty() {
+            if let Some(rem) = remaining_iter {
+                if rem == 0 {
+                    debug!("Network could not converge!");
+                    return Err(NetworkError::NoConvergence);
+                }
+                remaining_iter = Some(rem - 1);
+            }
+            self.simulate_step()?;
+        }
 
+        Ok(())
+    }
+
+    fn simulate_verbose(&mut self) -> Result<(), NetworkError> {
         let mut remaining_iter = self.stop_after;
         while !self.queue.is_empty() {
             if let Some(rem) = remaining_iter {
@@ -169,6 +257,6 @@ where
                 .push(vec![UndoAction::UndoDevice(event.router())]);
         }
 
-        Ok(result)
+        Ok(())
     }
 }

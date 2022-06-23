@@ -24,10 +24,11 @@ use crate::bgp::BgpSessionType;
 use crate::config::NetworkConfig;
 use crate::event::{BasicEventQueue, Event, EventQueue, FmtPriority};
 use crate::external_router::ExternalRouter;
+use crate::interactive::InteractiveNetwork;
 use crate::printer::{event as print_event, fw_state as print_fw_state};
 use crate::route_map::{RouteMap, RouteMapDirection};
 use crate::router::{Router, StaticRoute};
-use crate::types::{IgpNetwork, NetworkDevice, NetworkDeviceMut, StepUpdate};
+use crate::types::{IgpNetwork, NetworkDevice, NetworkDeviceMut};
 use crate::{AsId, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
 
 use log::*;
@@ -782,31 +783,6 @@ where
         self.write_igp_fw_tables()
     }
 
-    /// Simulate the network behavior, given the current event queue. This function will execute all
-    /// events (that may trigger new events), until either the event queue is empt (i.e., the
-    /// network has converged), or until the maximum allowed events have been processed (which can
-    /// be set by `self.set_msg_limit`).
-    ///
-    /// This function will simulate the entire queue, no matter how it is configured in
-    /// [`crate::interactive::InteractiveNetwork`].
-    ///
-    /// *Undo Functionality*: this function will push some actions to the last undo event.
-    pub fn simulate(&mut self) -> Result<(), NetworkError> {
-        let mut remaining_iter = self.stop_after;
-        while !self.queue.is_empty() {
-            if let Some(rem) = remaining_iter {
-                if rem == 0 {
-                    debug!("Network could not converge!");
-                    return Err(NetworkError::NoConvergence);
-                }
-                remaining_iter = Some(rem - 1);
-            }
-            self.do_queue_step()?;
-        }
-
-        Ok(())
-    }
-
     /// Undo the last action performed on the network.
     ///
     /// **Note**: This funtion is only available with the `undo` feature.
@@ -819,7 +795,7 @@ where
 
         // call undo_event until num_actions has decreased
         while self.undo_stack.len() == num_actions {
-            self.undo_event()?;
+            self.undo_step()?;
         }
 
         Ok(())
@@ -902,96 +878,6 @@ where
             return Ok(());
         }
         self.simulate()
-    }
-
-    /// Executes one single step.
-    ///
-    /// *Undo Functionality*: this function will push some actions to the last undo event.
-    #[allow(clippy::type_complexity)]
-    pub(crate) fn do_queue_step(
-        &mut self,
-    ) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError> {
-        if let Some(event) = self.queue.pop() {
-            // log the job
-            self.log_event(&event)?;
-            // execute the event
-            let (step_update, events) = self
-                .get_device_mut(event.router())
-                .handle_event(event.clone())?;
-            self.enqueue_events(events);
-
-            // add the undo action
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(vec![UndoAction::UndoDevice(event.router())]);
-
-            Ok(Some((step_update, event)))
-        } else {
-            Ok(None)
-        }
-    }
-
-    /// Undo the last event (a single event that happened, not an entire action).
-    ///
-    /// **Note**: This funtion is only available with the `undo` feature.
-    #[cfg(feature = "undo")]
-    pub(crate) fn undo_event(&mut self) -> Result<(), NetworkError> {
-        if let Some(event) = self.undo_stack.last_mut().and_then(|s| s.pop()) {
-            for e in event {
-                match e {
-                    UndoAction::UpdateIGP(source, target, Some(weight)) => {
-                        self.net.update_edge(source, target, weight);
-                    }
-                    UndoAction::UpdateIGP(source, target, None) => {
-                        self.net.remove_edge(
-                            self.net
-                                .find_edge(source, target)
-                                .ok_or(NetworkError::LinkNotFound(source, target))?,
-                        );
-                    }
-                    UndoAction::RemoveRouter(id) => {
-                        if self.net.edges(id).next().is_some() {
-                            return Err(NetworkError::UndoError(
-                                "Cannot remove the node as it is is still connected to other nodes"
-                                    .to_string(),
-                            ));
-                        }
-                        self.routers
-                            .remove(&id)
-                            .map(|_| ())
-                            .or_else(|| self.external_routers.remove(&id).map(|_| ()))
-                            .ok_or(NetworkError::DeviceNotFound(id))?;
-                        self.net.remove_node(id);
-                    }
-                    // UndoAction::AddRouter(id, router) => {
-                    //     self.routers.insert(id, *router);
-                    // }
-                    // UndoAction::AddExternalRouter(id, router) => {
-                    //     self.external_routers.insert(id, *router);
-                    // }
-                    UndoAction::UndoDevice(id) => {
-                        self.get_device_mut(id).undo_event::<Q::Priority>()?;
-                    }
-                }
-            }
-        } else {
-            assert!(self.undo_stack.is_empty());
-            return Err(NetworkError::EmptyUndoStack);
-        }
-
-        // if the last action is now empty, remove it
-        if self
-            .undo_stack
-            .last()
-            .map(|a| a.is_empty())
-            .unwrap_or(false)
-        {
-            self.undo_stack.pop();
-        }
-
-        Ok(())
     }
 
     pub(crate) fn log_event(&self, e: &Event<Q::Priority>) -> Result<(), NetworkError> {
