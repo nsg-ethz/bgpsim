@@ -65,12 +65,6 @@ where
     /// be set by `self.set_msg_limit`).
     fn simulate(&mut self) -> Result<(), NetworkError>;
 
-    /// Simulate the network behavior, given the current event queue. This function will execute all
-    /// events (that may trigger new events), until either the event queue is empt (i.e., the
-    /// network has converged), or until the maximum allowed events have been processed (which can
-    /// be set by `self.set_msg_limit`). While simulating, print each event and its effect.
-    fn simulate_verbose(&mut self) -> Result<(), NetworkError>;
-
     /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
     /// will not execute any subsequent event. This function will return the number of events left
     /// in the queue.

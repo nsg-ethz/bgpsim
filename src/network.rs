@@ -107,7 +107,7 @@ impl<Q> Network<Q> {
             stop_after: Some(DEFAULT_STOP_AFTER),
             queue,
             skip_queue: false,
-            verbose: false
+            verbose: false,
             #[cfg(feature = "undo")]
             undo_stack: Vec::new(),
         }
