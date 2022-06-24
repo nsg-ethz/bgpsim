@@ -18,9 +18,13 @@
 //! Module for defining events
 
 use ordered_float::NotNan;
+#[cfg(feature = "rand_queue")]
 use priority_queue::PriorityQueue;
+#[cfg(feature = "rand_queue")]
 use rand::prelude::ThreadRng;
+#[cfg(feature = "rand_queue")]
 use rand::{thread_rng, Rng};
+#[cfg(feature = "rand_queue")]
 use rand_distr::{Beta, Distribution};
 
 use crate::bgp::BgpEvent;
@@ -168,6 +172,7 @@ impl EventQueue for BasicEventQueue {
 
 /// Model Queue
 #[derive(Debug, Clone)]
+#[cfg(feature = "rand_queue")]
 pub struct SimpleTimingModel {
     q: PriorityQueue<Event<NotNan<f64>>, NotNan<f64>>,
     messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
@@ -177,6 +182,7 @@ pub struct SimpleTimingModel {
     rng: ThreadRng,
 }
 
+#[cfg(feature = "rand_queue")]
 impl SimpleTimingModel {
     /// Create a new, empty model queue with given default parameters
     pub fn new(default_params: ModelParams) -> Self {
@@ -196,6 +202,7 @@ impl SimpleTimingModel {
     }
 }
 
+#[cfg(feature = "rand_queue")]
 impl EventQueue for SimpleTimingModel {
     type Priority = NotNan<f64>;
 
@@ -262,6 +269,7 @@ impl EventQueue for SimpleTimingModel {
     }
 }
 
+#[cfg(feature = "rand_queue")]
 impl PartialEq for SimpleTimingModel {
     fn eq(&self, other: &Self) -> bool {
         self.q.iter().collect::<Vec<_>>() == other.q.iter().collect::<Vec<_>>()
@@ -271,6 +279,7 @@ impl PartialEq for SimpleTimingModel {
 /// Model parameters of the Beta distribution. A value is sampled as follows:
 ///
 /// t = offset + scale * Beta[alpha, beta]
+#[cfg(feature = "rand_queue")]
 #[derive(Debug, Clone)]
 pub struct ModelParams {
     /// Offset factor
@@ -288,6 +297,7 @@ pub struct ModelParams {
     dist: Beta<f64>,
 }
 
+#[cfg(feature = "rand_queue")]
 impl PartialEq for ModelParams {
     fn eq(&self, other: &Self) -> bool {
         self.offset == other.offset
@@ -298,6 +308,7 @@ impl PartialEq for ModelParams {
     }
 }
 
+#[cfg(feature = "rand_queue")]
 impl ModelParams {
     /// Create a new distribution
     pub fn new(offset: f64, scale: f64, alpha: f64, beta: f64, collision: f64) -> Self {

@@ -18,11 +18,14 @@
 use crate::{
     bgp::BgpSessionType::*,
     config::{Config, ConfigExpr, ConfigModifier, ConfigPatch, NetworkConfig},
-    event::{FmtPriority, ModelParams, SimpleTimingModel},
+    event::FmtPriority,
     network::Network,
     route_map::*,
     AsId, EventQueue, NetworkError, Prefix, RouterId,
 };
+
+#[cfg(feature = "rand_queue")]
+use crate::event::{ModelParams, SimpleTimingModel};
 
 use pretty_assertions::assert_eq;
 
@@ -174,6 +177,7 @@ fn test_simple() {
 }
 
 #[test]
+#[cfg(feature = "rand_queue")]
 fn test_simple_model() {
     let mut net = Network::new(SimpleTimingModel::new(ModelParams::new(
         0.1, 1.0, 2.0, 5.0, 0.1,
@@ -425,6 +429,7 @@ fn test_external_router() {
 }
 
 #[test]
+#[cfg(feature = "rand_queue")]
 fn test_external_router_model() {
     let mut net = Network::new(SimpleTimingModel::new(ModelParams::new(
         0.1, 1.0, 2.0, 5.0, 0.1,

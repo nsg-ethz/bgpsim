@@ -6,17 +6,18 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 undo = []
+rand_queue = ["dep:rand", "dep:rand_distr", "dep:priority-queue"]
 
 [dependencies]
 thiserror = "1"
 petgraph = "0.6"
 log = "0.4"
 itertools = "0.10"
-priority-queue = "1.2.2"
-rand = "0.8.4"
-rand_distr = "0.4.3"
 ordered-float = "3.0.0"
 lazy_static = "1.4.0"
+priority-queue = { version = "1.2.2", optional = true }
+rand = { version = "0.8.4", optional = true }
+rand_distr = { version = "0.4.3", optional = true }
 
 [dev-dependencies]
 rand = "0.8.4"
