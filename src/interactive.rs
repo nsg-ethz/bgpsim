@@ -22,7 +22,13 @@ use log::debug;
 
 #[cfg(feature = "undo")]
 use crate::network::UndoAction;
-use crate::{event::FmtPriority, types::StepUpdate, Event, EventQueue, Network, NetworkError};
+use crate::{
+    event::FmtPriority,
+    event::{Event, EventQueue},
+    network::Network,
+    types::NetworkError,
+    types::StepUpdate,
+};
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
 /// interface to simulate a single event, inspect the queue of the network, and even reorder events.

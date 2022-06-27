@@ -21,8 +21,12 @@
 use std::collections::HashMap;
 
 use crate::{
-    event::FmtPriority, interactive::InteractiveNetwork, EventQueue, ForwardingState, Network,
-    NetworkError, Prefix, RouterId,
+    event::EventQueue,
+    event::FmtPriority,
+    forwarding_state::ForwardingState,
+    interactive::InteractiveNetwork,
+    network::Network,
+    types::{NetworkError, Prefix, RouterId},
 };
 
 /// Extension trait that allows you to record events on the network.

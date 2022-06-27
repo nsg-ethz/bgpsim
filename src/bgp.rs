@@ -19,7 +19,10 @@
 
 use itertools::Itertools;
 
-use crate::{AsId, LinkWeight, Network, Prefix, RouterId};
+use crate::{
+    network::Network,
+    types::{AsId, LinkWeight, Prefix, RouterId},
+};
 use std::cmp::Ordering;
 
 /// Bgp Route

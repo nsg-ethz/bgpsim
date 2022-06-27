@@ -17,11 +17,13 @@
 
 //! Module defining an internal router with BGP functionality.
 
-use crate::bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType};
-use crate::route_map::{RouteMap, RouteMapDirection};
-use crate::types::{IgpNetwork, StepUpdate};
-use crate::{AsId, DeviceError, LinkWeight, Prefix, RouterId};
-use crate::{Event, Network};
+use crate::{
+    bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
+    event::Event,
+    network::Network,
+    route_map::{RouteMap, RouteMapDirection},
+    types::{AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate},
+};
 use itertools::Itertools;
 use log::*;
 use petgraph::visit::EdgeRef;

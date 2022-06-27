@@ -20,15 +20,20 @@
 //! This module represents the network topology, applies the configuration, and simulates the
 //! network.
 
-use crate::bgp::BgpSessionType;
-use crate::config::NetworkConfig;
-use crate::event::{BasicEventQueue, Event, EventQueue, FmtPriority};
-use crate::external_router::ExternalRouter;
-use crate::interactive::InteractiveNetwork;
-use crate::route_map::{RouteMap, RouteMapDirection};
-use crate::router::{Router, StaticRoute};
-use crate::types::{IgpNetwork, NetworkDevice, NetworkDeviceMut};
-use crate::{AsId, ForwardingState, LinkWeight, NetworkError, Prefix, RouterId};
+use crate::{
+    bgp::BgpSessionType,
+    config::NetworkConfig,
+    event::{BasicEventQueue, Event, EventQueue, FmtPriority},
+    external_router::ExternalRouter,
+    forwarding_state::ForwardingState,
+    interactive::InteractiveNetwork,
+    route_map::{RouteMap, RouteMapDirection},
+    router::{Router, StaticRoute},
+    types::{
+        AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut, NetworkError, Prefix,
+        RouterId,
+    },
+};
 
 use log::*;
 use petgraph::algo::{floyd_warshall, FloatMeasure};
@@ -153,8 +158,8 @@ impl<Q> Network<Q> {
     /// a link with infinte weight is treated as not connected.
     ///
     /// ```rust
-    /// # use netsim::Network;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # use netsim::prelude::*;
+    /// # fn main() -> Result<(), NetworkError> {
     /// let mut net = Network::default();
     /// let r1 = net.add_router("r1");
     /// let r2 = net.add_router("r2");

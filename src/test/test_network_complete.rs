@@ -16,8 +16,11 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use crate::{
-    bgp::BgpSessionType::*, event::FmtPriority, network::Network, route_map::*, AsId, EventQueue,
-    NetworkError, Prefix, RouterId,
+    bgp::BgpSessionType::*,
+    event::{EventQueue, FmtPriority},
+    network::Network,
+    route_map::*,
+    types::{AsId, NetworkError, Prefix, RouterId},
 };
 
 #[cfg(feature = "rand_queue")]

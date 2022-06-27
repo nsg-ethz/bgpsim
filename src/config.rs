@@ -31,9 +31,9 @@
 //! # Example Usage
 //!
 //! ```rust
-//! use netsim::BgpSessionType::*;
+//! use netsim::bgp::BgpSessionType::*;
 //! use netsim::config::{Config, ConfigExpr::BgpSession, ConfigModifier};
-//! use netsim::ConfigError;
+//! use netsim::types::ConfigError;
 //!
 //! fn main() -> Result<(), ConfigError> {
 //!     // routers
@@ -73,11 +73,14 @@
 
 use log::debug;
 
-use crate::bgp::BgpSessionType;
-use crate::event::FmtPriority;
-use crate::route_map::{RouteMap, RouteMapDirection};
-use crate::router::StaticRoute;
-use crate::{ConfigError, EventQueue, LinkWeight, Network, NetworkError, Prefix, RouterId};
+use crate::{
+    bgp::BgpSessionType,
+    event::{EventQueue, FmtPriority},
+    network::Network,
+    route_map::{RouteMap, RouteMapDirection},
+    router::StaticRoute,
+    types::{ConfigError, LinkWeight, NetworkError, Prefix, RouterId},
+};
 
 use petgraph::algo::FloatMeasure;
 use std::collections::{HashMap, HashSet};

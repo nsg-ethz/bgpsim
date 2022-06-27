@@ -19,7 +19,7 @@ use crate::bgp::BgpSessionType::*;
 use crate::config::{Config, ConfigExpr::*, ConfigModifier::*, ConfigPatch};
 use crate::route_map::*;
 use crate::router::StaticRoute::*;
-use crate::{Prefix, RouterId};
+use crate::types::{Prefix, RouterId};
 
 #[test]
 fn test_config_diff() {

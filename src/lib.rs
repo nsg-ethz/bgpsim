@@ -31,9 +31,9 @@
 //! same prefix `Prefix(0)`, and all links have the same weight `1.0`.
 //!
 //! ```
-//! use netsim::{Network, Prefix, AsId, BgpSessionType::*};
+//! use netsim::prelude::*;
 //!
-//! fn main() -> Result<(), Box<dyn std::error::Error>> {
+//! fn main() -> Result<(), NetworkError> {
 //!
 //!     let mut t = Network::default();
 //!
@@ -62,11 +62,11 @@
 //!     t.set_link_weight(b1, r1, 1.0)?;
 //!     t.set_link_weight(b1, e1, 1.0)?;
 //!     t.set_link_weight(e1, b1, 1.0)?;
-//!     t.set_bgp_session(e0, b0, Some(EBgp))?;
-//!     t.set_bgp_session(r0, b0, Some(IBgpClient))?;
-//!     t.set_bgp_session(r0, r1, Some(IBgpPeer))?;
-//!     t.set_bgp_session(r1, b1, Some(IBgpClient))?;
-//!     t.set_bgp_session(e1, b1, Some(EBgp))?;
+//!     t.set_bgp_session(e0, b0, Some(BgpSessionType::EBgp))?;
+//!     t.set_bgp_session(r0, b0, Some(BgpSessionType::IBgpClient))?;
+//!     t.set_bgp_session(r0, r1, Some(BgpSessionType::IBgpPeer))?;
+//!     t.set_bgp_session(r1, b1, Some(BgpSessionType::IBgpClient))?;
+//!     t.set_bgp_session(e1, b1, Some(BgpSessionType::EBgp))?;
 //!
 //!     // advertise the same prefix on both routers
 //!     t.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)?;
@@ -101,6 +101,7 @@ pub mod forwarding_state;
 pub mod interactive;
 pub mod network;
 pub mod policies;
+pub mod prelude;
 pub mod record;
 pub mod route_map;
 pub mod router;
@@ -109,13 +110,3 @@ pub mod types;
 #[cfg(test)]
 #[cfg(not(tarpaulin_include))]
 mod test;
-
-pub use event::{Event, EventQueue};
-
-pub use bgp::BgpSessionType;
-pub use forwarding_state::ForwardingState;
-pub use network::Network;
-pub use types::{
-    AsId, ConfigError, DeviceError, IgpNetwork, LinkWeight, NetworkDevice, NetworkError, Prefix,
-    RouterId,
-};

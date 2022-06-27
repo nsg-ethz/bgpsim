@@ -19,8 +19,11 @@
 //! containing the state, and providing some helper functions to extract certain information about
 //! the state.
 
-use crate::record::FwDelta;
-use crate::{Network, NetworkError, Prefix, RouterId};
+use crate::{
+    network::Network,
+    record::FwDelta,
+    types::{NetworkError, Prefix, RouterId},
+};
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use log::*;

@@ -27,9 +27,12 @@ use rand::{thread_rng, Rng};
 #[cfg(feature = "rand_queue")]
 use rand_distr::{Beta, Distribution};
 
-use crate::bgp::BgpEvent;
-use crate::router::Router;
-use crate::{IgpNetwork, Network, Prefix, RouterId};
+use crate::{
+    bgp::BgpEvent,
+    network::Network,
+    router::Router,
+    types::{IgpNetwork, Prefix, RouterId},
+};
 use std::collections::{HashMap, VecDeque};
 
 /// Event to handle

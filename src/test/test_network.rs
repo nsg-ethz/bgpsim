@@ -17,15 +17,17 @@
 
 //! Test the simple functionality of the network, without running it entirely.
 
-use crate::network::Network;
-use crate::route_map::{
-    RouteMap, RouteMapDirection::*, RouteMapMatch as Match, RouteMapSet as Set, RouteMapState::*,
-};
 use crate::{
+    bgp::BgpSessionType::*,
     config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
+    network::Network,
+    route_map::{
+        RouteMap, RouteMapDirection::*, RouteMapMatch as Match, RouteMapSet as Set,
+        RouteMapState::*,
+    },
     router::StaticRoute::*,
+    types::{AsId, LinkWeight, NetworkError, Prefix, RouterId},
 };
-use crate::{AsId, BgpSessionType::*, LinkWeight, NetworkError, Prefix, RouterId};
 use lazy_static::lazy_static;
 use petgraph::algo::FloatMeasure;
 use pretty_assertions::assert_eq;

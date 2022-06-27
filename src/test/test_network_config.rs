@@ -18,10 +18,10 @@
 use crate::{
     bgp::BgpSessionType::*,
     config::{Config, ConfigExpr, ConfigModifier, ConfigPatch, NetworkConfig},
-    event::FmtPriority,
+    event::{EventQueue, FmtPriority},
     network::Network,
     route_map::*,
-    AsId, EventQueue, NetworkError, Prefix, RouterId,
+    types::{AsId, NetworkError, Prefix, RouterId},
 };
 
 #[cfg(feature = "rand_queue")]

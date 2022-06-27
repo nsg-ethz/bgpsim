@@ -20,10 +20,11 @@
 //! The external router representa a router located in a different AS, not controlled by the network
 //! operators.
 
-use crate::bgp::{BgpEvent, BgpRoute};
-use crate::event::Event;
-use crate::types::StepUpdate;
-use crate::{AsId, DeviceError, Prefix, RouterId};
+use crate::{
+    bgp::{BgpEvent, BgpRoute},
+    event::Event,
+    types::{AsId, DeviceError, Prefix, RouterId, StepUpdate},
+};
 use std::collections::hash_map::Keys;
 use std::collections::{HashMap, HashSet};
 

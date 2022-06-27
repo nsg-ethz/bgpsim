@@ -17,9 +17,9 @@
 
 use crate::{
     bgp::BgpSessionType::*,
-    event::{FmtPriority, ModelParams, SimpleTimingModel},
+    event::{EventQueue, FmtPriority, ModelParams, SimpleTimingModel},
     network::Network,
-    AsId, EventQueue, NetworkError, Prefix, RouterId,
+    types::{AsId, NetworkError, Prefix, RouterId},
 };
 use pretty_assertions::assert_eq;
 

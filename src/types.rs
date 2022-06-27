@@ -17,11 +17,10 @@
 
 //! Module containing all type definitions
 
-use crate::bgp::BgpSessionType;
-use crate::config::ConfigModifier;
-use crate::external_router::ExternalRouter;
-use crate::router::Router;
-use crate::{Event, Network};
+use crate::{
+    bgp::BgpSessionType, config::ConfigModifier, event::Event, external_router::ExternalRouter,
+    network::Network, router::Router,
+};
 use itertools::Itertools;
 use petgraph::graph::Graph;
 use petgraph::prelude::*;

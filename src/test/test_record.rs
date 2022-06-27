@@ -18,8 +18,11 @@
 //! Test the `record` module
 
 use crate::{
-    bgp::BgpSessionType::*, event::FmtPriority, record::RecordNetwork, AsId, EventQueue, Network,
-    NetworkError, Prefix, RouterId,
+    bgp::BgpSessionType::*,
+    event::{EventQueue, FmtPriority},
+    network::Network,
+    record::RecordNetwork,
+    types::{AsId, NetworkError, Prefix, RouterId},
 };
 
 /// Setup the simple network, and return `(e0, b0, r0, r1, b1, e1)`

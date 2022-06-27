@@ -15,15 +15,14 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use crate::bgp::BgpSessionType::*;
-use crate::bgp::{BgpRibEntry, BgpRoute};
-use crate::route_map::RouteMapMatch as Match;
-use crate::route_map::RouteMapMatchAsPath as AClause;
-use crate::route_map::RouteMapMatchClause as Clause;
-use crate::route_map::RouteMapSet as Set;
-use crate::route_map::RouteMapState::*;
-use crate::route_map::*;
-use crate::{AsId, Prefix};
+use crate::{
+    bgp::{BgpRibEntry, BgpRoute, BgpSessionType::*},
+    route_map::{
+        RouteMapMatch as Match, RouteMapMatchAsPath as AClause, RouteMapMatchClause as Clause,
+        RouteMapSet as Set, RouteMapState::*, *,
+    },
+    types::{AsId, Prefix},
+};
 
 #[test]
 fn simple_matches() {

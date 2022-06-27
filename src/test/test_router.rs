@@ -15,13 +15,16 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
-use crate::bgp::{BgpEvent, BgpRoute};
-use crate::event::Event;
-use crate::external_router::*;
-use crate::router::*;
-use crate::types::IgpNetwork;
-use crate::{AsId, Prefix};
+use crate::{
+    bgp::{
+        BgpEvent, BgpRoute,
+        BgpSessionType::{EBgp, IBgpClient, IBgpPeer},
+    },
+    event::Event,
+    external_router::*,
+    router::*,
+    types::{AsId, IgpNetwork, Prefix},
+};
 use maplit::{hashmap, hashset};
 use petgraph::algo::floyd_warshall;
 use pretty_assertions::assert_eq;

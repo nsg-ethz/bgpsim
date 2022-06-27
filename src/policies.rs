@@ -50,7 +50,11 @@
 //! other node, then $b$ must be traversed, immediately followed by $c$. This always matches on the
 //! entire path, and not just on a small part of it.
 
-use crate::{ForwardingState, Network, NetworkError, Prefix, RouterId};
+use crate::{
+    forwarding_state::ForwardingState,
+    network::Network,
+    types::{NetworkError, Prefix, RouterId},
+};
 
 use std::collections::VecDeque;
 use thiserror::Error;

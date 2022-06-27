@@ -19,8 +19,11 @@
 //!
 //! This module contains the necessary structures to build route maps for internal BGP routers.
 
-use crate::bgp::BgpRibEntry;
-use crate::{AsId, LinkWeight, Network, Prefix, RouterId};
+use crate::{
+    bgp::BgpRibEntry,
+    network::Network,
+    types::{AsId, LinkWeight, Prefix, RouterId},
+};
 use std::fmt;
 
 /// # Main RouteMap structure
@@ -29,7 +32,7 @@ use std::fmt;
 ///
 /// ```
 /// # use netsim::route_map::*;
-/// # use netsim::{RouterId, Prefix};
+/// # use netsim::types::{RouterId, Prefix};
 /// # let neighbor: RouterId = 0.into();
 /// # let prefix: Prefix = Prefix(0);
 /// let map = RouteMapBuilder::new()
@@ -176,7 +179,7 @@ impl<'a, 'n, Q> std::fmt::Display for FmtRouteMap<'a, 'n, Q> {
 /// adding a `match` statement) on the builder, it will match on any route.
 /// ```
 /// # use netsim::route_map::*;
-/// # use netsim::{RouterId, Prefix};
+/// # use netsim::types::{RouterId, Prefix};
 /// # let neighbor: RouterId = 0.into();
 /// # let prefix: Prefix = Prefix(0);
 /// let map = RouteMapBuilder::new()
