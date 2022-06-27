@@ -17,6 +17,7 @@
 
 //! Module containing all type definitions
 
+use crate::formatter::NetworkFormatter;
 use crate::{
     bgp::BgpSessionType, config::ConfigModifier, event::Event, external_router::ExternalRouter,
     network::Network, router::Router,
@@ -79,55 +80,27 @@ impl StepUpdate {
     }
 
     /// Get a struct to display the StepUpdate
-    pub fn fmt<'a, 'n, Q>(
-        &'a self,
-        net: &'n Network<Q>,
-        router: RouterId,
-    ) -> FmtStepUpdate<'a, 'n, Q> {
-        FmtStepUpdate {
-            update: self,
-            net,
-            router,
-        }
-    }
-}
-
-/// Formatter for the BGP Rib Entry
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtStepUpdate<'a, 'n, Q> {
-    update: &'a StepUpdate,
-    net: &'n Network<Q>,
-    router: RouterId,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtStepUpdate<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
+    pub fn fmt<Q>(&self, net: &'_ Network<Q>, router: RouterId) -> String {
+        format!(
             "{} => {}: {} > {}",
-            self.net.get_router_name(self.router).unwrap_or("?"),
-            self.update
-                .prefix
+            router.fmt(net),
+            self.prefix
                 .map(|p| p.to_string())
                 .unwrap_or_else(|| "?".to_string()),
-            if self.update.old.is_empty() {
+            if self.old.is_empty() {
                 "X".to_string()
             } else {
-                self.update
-                    .old
+                self.old
                     .iter()
-                    .map(|r| self.net.get_router_name(*r).unwrap_or("?"))
+                    .map(|r| net.get_router_name(*r).unwrap_or("?"))
                     .join("|")
             },
-            if self.update.new.is_empty() {
+            if self.new.is_empty() {
                 "X".to_string()
             } else {
-                self.update
-                    .new
+                self.new
                     .iter()
-                    .map(|r| self.net.get_router_name(*r).unwrap_or("?"))
+                    .map(|r| net.get_router_name(*r).unwrap_or("?"))
                     .join("|")
             },
         )

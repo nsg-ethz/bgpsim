@@ -21,7 +21,6 @@
 
 use crate::{
     bgp::BgpRibEntry,
-    network::Network,
     types::{AsId, LinkWeight, Prefix, RouterId},
 };
 use std::fmt;
@@ -125,50 +124,6 @@ impl RouteMap {
             RouteMapMatch::Neighbor(n) => Some(*n),
             _ => None,
         })
-    }
-
-    /// Get a struct for formatting the RouteMap
-    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtRouteMap<'a, 'n, Q> {
-        FmtRouteMap { rm: self, net }
-    }
-}
-
-/// Formatter for the BGP Rib Entry
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtRouteMap<'a, 'n, Q> {
-    rm: &'a RouteMap,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtRouteMap<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(
-            f,
-            "{} {} {} set [{}]",
-            match self.rm.state {
-                RouteMapState::Allow => "allow",
-                RouteMapState::Deny => "deny ",
-            },
-            self.rm.order,
-            if self.rm.conds.is_empty() {
-                String::from("*")
-            } else {
-                self.rm
-                    .conds
-                    .iter()
-                    .map(|c| c.fmt(self.net).to_string())
-                    .collect::<Vec<_>>()
-                    .join(" AND ")
-            },
-            self.rm
-                .set
-                .iter()
-                .map(|s| s.fmt(self.net).to_string())
-                .collect::<Vec<_>>()
-                .join(", ")
-        )
     }
 }
 
@@ -445,48 +400,6 @@ impl RouteMapMatch {
             Self::Community(None) => entry.route.community.is_none(),
         }
     }
-
-    /// Get a struct for formatting the RouteMapMatch
-    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtRouteMapMatch<'a, 'n, Q> {
-        FmtRouteMapMatch {
-            rm_match: self,
-            net,
-        }
-    }
-}
-
-/// Formatter for the BGP Rib Entry
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtRouteMapMatch<'a, 'n, Q> {
-    rm_match: &'a RouteMapMatch,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtRouteMapMatch<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.rm_match {
-            RouteMapMatch::Neighbor(n) => {
-                write!(
-                    f,
-                    "Neighbor {}",
-                    self.net.get_router_name(*n).unwrap_or("?")
-                )
-            }
-            RouteMapMatch::Prefix(c) => write!(f, "Prefix == {}", c),
-            RouteMapMatch::AsPath(c) => write!(f, "{}", c),
-            RouteMapMatch::NextHop(nh) => {
-                write!(
-                    f,
-                    "NextHop == {}",
-                    self.net.get_router_name(*nh).unwrap_or("?")
-                )
-            }
-            RouteMapMatch::Community(Some(c)) => write!(f, "Community {}", c),
-            RouteMapMatch::Community(None) => write!(f, "Community empty"),
-        }
-    }
 }
 
 /// Generic RouteMapMatchClause to match on all, a range or on a specific element
@@ -587,41 +500,6 @@ impl RouteMapSet {
             Self::Med(med) => entry.route.med = Some(med.unwrap_or(0)),
             Self::IgpCost(w) => entry.igp_cost = Some(*w),
             Self::Community(c) => entry.route.community = *c,
-        }
-    }
-
-    /// Get a struct for formatting the RouteMapSet
-    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtRouteMapSet<'a, 'n, Q> {
-        FmtRouteMapSet { rm_set: self, net }
-    }
-}
-
-/// Formatter for the BGP Rib Entry
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtRouteMapSet<'a, 'n, Q> {
-    rm_set: &'a RouteMapSet,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtRouteMapSet<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.rm_set {
-            RouteMapSet::NextHop(nh) => {
-                write!(
-                    f,
-                    "NextHop = {}",
-                    self.net.get_router_name(*nh).unwrap_or("?")
-                )
-            }
-            RouteMapSet::LocalPref(Some(lp)) => write!(f, "LocalPref = {}", lp),
-            RouteMapSet::LocalPref(None) => write!(f, "clear LocalPref"),
-            RouteMapSet::Med(Some(med)) => write!(f, "MED = {}", med),
-            RouteMapSet::Med(None) => write!(f, "clear MED"),
-            RouteMapSet::IgpCost(w) => write!(f, "IgpCost = {:.2}", w),
-            RouteMapSet::Community(Some(c)) => write!(f, "Community = {}", c),
-            RouteMapSet::Community(None) => write!(f, "clear Community"),
         }
     }
 }

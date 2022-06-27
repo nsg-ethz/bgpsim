@@ -76,6 +76,7 @@ use log::debug;
 use crate::{
     bgp::BgpSessionType,
     event::{EventQueue, FmtPriority},
+    formatter::NetworkFormatter,
     network::Network,
     route_map::{RouteMap, RouteMapDirection},
     router::StaticRoute,
@@ -253,11 +254,6 @@ impl Config {
         index.normalize();
         self.expr.get_mut(&index)
     }
-
-    /// Get a structure to print the configuration
-    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfig<'a, 'n, Q> {
-        FmtConfig { config: self, net }
-    }
 }
 
 impl Index<ConfigExprKey> for Config {
@@ -297,25 +293,6 @@ impl PartialEq for Config {
             }
         }
         true
-    }
-}
-
-/// Formatter for the BGP Rib Entry
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtConfig<'a, 'n, Q> {
-    config: &'a Config,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtConfig<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "Config {{")?;
-        for expr in self.config.iter() {
-            writeln!(f, "    {}", expr.fmt(self.net))?;
-        }
-        writeln!(f, "}}")
     }
 }
 
@@ -435,88 +412,6 @@ impl ConfigExpr {
             ConfigExpr::LoadBalancing { router } => vec![*router],
         }
     }
-
-    /// Get a structure to display the Config Expression
-    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfigExpr<'a, 'n, Q> {
-        FmtConfigExpr { expr: self, net }
-    }
-}
-
-/// Formatter for the BGP Rib Entry
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtConfigExpr<'a, 'n, Q> {
-    expr: &'a ConfigExpr,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtConfigExpr<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.expr {
-            ConfigExpr::IgpLinkWeight {
-                source,
-                target,
-                weight,
-            } => write!(
-                f,
-                "IGP Link Weight: {} -> {}: {}",
-                self.net.get_router_name(*source).unwrap_or("?"),
-                self.net.get_router_name(*target).unwrap_or("?"),
-                weight
-            ),
-            ConfigExpr::BgpSession {
-                source,
-                target,
-                session_type,
-            } => write!(
-                f,
-                "BGP Session: {} -> {}: type: {}",
-                self.net.get_router_name(*source).unwrap_or("?"),
-                self.net.get_router_name(*target).unwrap_or("?"),
-                session_type
-            ),
-            ConfigExpr::BgpRouteMap {
-                router,
-                direction,
-                map,
-            } => write!(
-                f,
-                "BGP Route Map on {} [{}]: {}",
-                self.net.get_router_name(*router).unwrap_or("?"),
-                match direction {
-                    RouteMapDirection::Incoming => "in",
-                    RouteMapDirection::Outgoing => "out",
-                },
-                map.fmt(self.net)
-            ),
-            ConfigExpr::StaticRoute {
-                router,
-                prefix,
-                target,
-            } => write!(
-                f,
-                "Static Route: {}: {} via {}",
-                self.net.get_router_name(*router).unwrap_or("?"),
-                prefix,
-                match target {
-                    StaticRoute::Direct(target) =>
-                        self.net.get_router_name(*target).unwrap_or("?").to_string(),
-                    StaticRoute::Indirect(target) => format!(
-                        "{} (indirect)",
-                        self.net.get_router_name(*target).unwrap_or("?")
-                    ),
-                }
-            ),
-            ConfigExpr::LoadBalancing { router } => {
-                write!(
-                    f,
-                    "Load Balancing: {}",
-                    self.net.get_router_name(*router).unwrap_or("?")
-                )
-            }
-        }
-    }
 }
 
 /// # Key for Config Expressions
@@ -586,66 +481,6 @@ impl ConfigExprKey {
             }
         }
     }
-
-    /// Get a structure to display the Config ExprKeyession
-    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfigExprKey<'a, 'n, Q> {
-        FmtConfigExprKey { key: self, net }
-    }
-}
-
-/// Formatter for the BGP Rib Entry
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtConfigExprKey<'a, 'n, Q> {
-    key: &'a ConfigExprKey,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtConfigExprKey<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.key {
-            ConfigExprKey::IgpLinkWeight { source, target } => write!(
-                f,
-                "IGP Link Weight: {} -> {}",
-                self.net.get_router_name(*source).unwrap_or("?"),
-                self.net.get_router_name(*target).unwrap_or("?"),
-            ),
-            ConfigExprKey::BgpSession {
-                speaker_a,
-                speaker_b,
-            } => write!(
-                f,
-                "BGP Session: {} <-> {}",
-                self.net.get_router_name(*speaker_a).unwrap_or("?"),
-                self.net.get_router_name(*speaker_b).unwrap_or("?"),
-            ),
-            ConfigExprKey::BgpRouteMap {
-                router,
-                direction,
-                order,
-            } => write!(
-                f,
-                "BGP Route Map on {} [{}] {}",
-                self.net.get_router_name(*router).unwrap_or("?"),
-                direction,
-                order
-            ),
-            ConfigExprKey::StaticRoute { router, prefix } => write!(
-                f,
-                "Static Route: {}: {}",
-                self.net.get_router_name(*router).unwrap_or("?"),
-                prefix,
-            ),
-            ConfigExprKey::LoadBalancing { router } => {
-                write!(
-                    f,
-                    "Load Balancing: {}",
-                    self.net.get_router_name(*router).unwrap_or("?")
-                )
-            }
-        }
-    }
 }
 
 /// # Config Modifier
@@ -694,33 +529,6 @@ impl ConfigModifier {
             Self::Update { from, to } => Self::Update { from: to, to: from },
         }
     }
-
-    /// Get a structure to display the config modifier
-    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfigModifier<'a, 'n, Q> {
-        FmtConfigModifier {
-            modifier: self,
-            net,
-        }
-    }
-}
-
-/// Formatter for the BGP Rib Entry
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtConfigModifier<'a, 'n, Q> {
-    modifier: &'a ConfigModifier,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtConfigModifier<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self.modifier {
-            ConfigModifier::Insert(e) => write!(f, "INSERT {}", e.fmt(self.net)),
-            ConfigModifier::Remove(e) => write!(f, "REMOVE {}", e.fmt(self.net)),
-            ConfigModifier::Update { from: _, to } => write!(f, "MODIFY {}", to.fmt(self.net)),
-        }
-    }
 }
 
 /// # Config Patch
@@ -749,30 +557,6 @@ impl ConfigPatch {
     /// Add a new modifier to the patch
     pub fn add(&mut self, modifier: ConfigModifier) {
         self.modifiers.push(modifier);
-    }
-
-    /// Get a structure to display the Config Patch.
-    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtConfigPatch<'a, 'n, Q> {
-        FmtConfigPatch { patch: self, net }
-    }
-}
-
-/// Formatter for the BGP Rib Entry
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtConfigPatch<'a, 'n, Q> {
-    patch: &'a ConfigPatch,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtConfigPatch<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        writeln!(f, "ConfigPatch {{")?;
-        for modifier in self.patch.modifiers.iter() {
-            writeln!(f, "    {}", modifier.fmt(self.net))?;
-        }
-        writeln!(f, "}}")
     }
 }
 

@@ -292,14 +292,6 @@ impl ForwardingState {
             }
         }
     }
-
-    /// Get a struct for formatting the forwarding state.
-    pub fn fmt<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtForwardingState<'a, 'n, Q> {
-        FmtForwardingState {
-            fw_state: self,
-            net,
-        }
-    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
@@ -364,73 +356,6 @@ impl Iterator for ForwardingStateIterator {
         } else {
             None
         }
-    }
-}
-
-/// Formatter for the forwarding state.
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtForwardingState<'a, 'n, Q> {
-    fw_state: &'a ForwardingState,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtForwardingState<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let prefixes = self
-            .fw_state
-            .state
-            .keys()
-            .map(|(_, p)| *p)
-            .collect::<HashSet<_>>();
-        let nodes = self
-            .fw_state
-            .state
-            .keys()
-            .map(|(r, _)| *r)
-            .unique()
-            .sorted()
-            .collect::<Vec<_>>();
-        for prefix in prefixes {
-            writeln!(f, "{}", prefix)?;
-            for node in nodes.iter().copied() {
-                let next_hops = self
-                    .fw_state
-                    .state
-                    .get(&(node, prefix))
-                    .map(|v| v.as_slice())
-                    .unwrap_or_default();
-                let next_hops_str = if next_hops.is_empty() {
-                    "XX".to_string()
-                } else {
-                    next_hops
-                        .iter()
-                        .map(|r| self.net.get_router_name(*r).unwrap_or("?"))
-                        .join("|")
-                };
-                writeln!(
-                    f,
-                    "  {} -> {}; reversed: [{}]; cached: {}",
-                    self.net.get_router_name(node).unwrap_or("?"),
-                    next_hops_str,
-                    self.fw_state
-                        .reversed
-                        .get(&(node, prefix))
-                        .map(|s| s
-                            .iter()
-                            .map(|r| self.net.get_router_name(*r).unwrap_or("?"))
-                            .join(", "))
-                        .unwrap_or_default(),
-                    match self.fw_state.cache.get(&(node, prefix)) {
-                        None => "no",
-                        Some(_) => "yes",
-                    }
-                )
-                .unwrap();
-            }
-        }
-        Ok(())
     }
 }
 

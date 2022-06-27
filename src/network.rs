@@ -25,6 +25,7 @@ use crate::{
     config::NetworkConfig,
     event::{BasicEventQueue, Event, EventQueue, FmtPriority},
     external_router::ExternalRouter,
+    formatter::NetworkFormatter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
     route_map::{RouteMap, RouteMapDirection},

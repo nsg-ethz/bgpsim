@@ -97,6 +97,8 @@ pub mod bgp;
 pub mod config;
 pub mod event;
 pub mod external_router;
+#[cfg(not(tarpaulin_include))]
+pub mod formatter;
 pub mod forwarding_state;
 pub mod interactive;
 pub mod network;

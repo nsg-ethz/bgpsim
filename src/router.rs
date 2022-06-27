@@ -20,6 +20,7 @@
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
     event::Event,
+    formatter::NetworkFormatter,
     network::Network,
     route_map::{RouteMap, RouteMapDirection},
     types::{AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate},
@@ -27,9 +28,10 @@ use crate::{
 use itertools::Itertools;
 use log::*;
 use petgraph::visit::EdgeRef;
-use std::mem::swap;
 use std::{
     collections::{hash_map::Iter, HashMap, HashSet},
+    fmt::Write,
+    mem::swap,
     slice::Iter as VecIter,
 };
 
@@ -123,21 +125,44 @@ impl Router {
     }
 
     /// Get a struct to display the BGP table for a specific prefix
-    pub fn fmt_bgp_table<'a, 'n, Q>(
-        &'a self,
-        net: &'n Network<Q>,
-        prefix: Prefix,
-    ) -> FmtBgpTable<'a, 'n, Q> {
-        FmtBgpTable {
-            router: self,
-            net,
-            prefix,
+    pub fn fmt_bgp_table<Q>(&self, net: &'_ Network<Q>, prefix: Prefix) -> String {
+        let mut result = String::new();
+        let f = &mut result;
+        let selected_entry = self.get_selected_bgp_route(prefix);
+        for entry in self.get_known_bgp_routes(prefix).unwrap_or_default() {
+            let selected = selected_entry.as_ref() == Some(&entry);
+            writeln!(f, "{} {}", if selected { "*" } else { " " }, entry.fmt(net)).unwrap();
         }
+        result
     }
 
     /// Get a struct to display the IGP table.
-    pub fn fmt_igp_table<'a, 'n, Q>(&'a self, net: &'n Network<Q>) -> FmtIgpTable<'a, 'n, Q> {
-        FmtIgpTable { router: self, net }
+    pub fn fmt_igp_table<Q>(&self, net: &'_ Network<Q>) -> String {
+        let mut result = String::new();
+        let f = &mut result;
+        for r in net.get_routers() {
+            if r == self.router_id {
+                continue;
+            }
+            let next_hops = self
+                .igp_table
+                .get(&r)
+                .map(|(x, _)| x.as_slice())
+                .unwrap_or_default();
+            writeln!(
+                f,
+                "{} -> {}: {}",
+                self.name,
+                r.fmt(net),
+                if next_hops.is_empty() {
+                    String::from("X")
+                } else {
+                    next_hops.iter().map(|x| x.fmt(net)).join("|")
+                }
+            )
+            .unwrap();
+        }
+        result
     }
 
     /// Return the idx of the Router
@@ -385,6 +410,7 @@ impl Router {
     /// (if it exists).
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
+    #[allow(clippy::let_and_return)]
     pub(crate) fn set_static_route(
         &mut self,
         prefix: Prefix,
@@ -1104,74 +1130,4 @@ pub enum StaticRoute {
     Direct(RouterId),
     /// Use IGP to route traffic towards that target.
     Indirect(RouterId),
-}
-
-/// Formatter for the forwarding state.
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtBgpTable<'a, 'n, Q> {
-    router: &'a Router,
-    net: &'n Network<Q>,
-    prefix: Prefix,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtBgpTable<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        let selected_entry = self.router.get_selected_bgp_route(self.prefix);
-        for entry in self
-            .router
-            .get_known_bgp_routes(self.prefix)
-            .unwrap_or_default()
-        {
-            let selected = selected_entry.as_ref() == Some(&entry);
-            writeln!(
-                f,
-                "{} {}",
-                if selected { "*" } else { " " },
-                entry.fmt(self.net)
-            )?;
-        }
-        Ok(())
-    }
-}
-
-/// Formatter for the IGP forwarding table
-#[cfg(not(tarpaulin_include))]
-#[derive(Debug)]
-pub struct FmtIgpTable<'a, 'n, Q> {
-    router: &'a Router,
-    net: &'n Network<Q>,
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, 'n, Q> std::fmt::Display for FmtIgpTable<'a, 'n, Q> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        for r in self.net.get_routers() {
-            if r == self.router.router_id {
-                continue;
-            }
-            let next_hops = self
-                .router
-                .igp_table
-                .get(&r)
-                .map(|(x, _)| x.as_slice())
-                .unwrap_or_default();
-            writeln!(
-                f,
-                "{} -> {}: {}",
-                self.router.name,
-                self.net.get_router_name(r).unwrap_or("?"),
-                if next_hops.is_empty() {
-                    String::from("X")
-                } else {
-                    next_hops
-                        .iter()
-                        .map(|x| self.net.get_router_name(*x).unwrap_or("?"))
-                        .join("|")
-                }
-            )?;
-        }
-        Ok(())
-    }
 }

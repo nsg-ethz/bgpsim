@@ -25,6 +25,7 @@ use crate::network::UndoAction;
 use crate::{
     event::FmtPriority,
     event::{Event, EventQueue},
+    formatter::NetworkFormatter,
     network::Network,
     types::NetworkError,
     types::StepUpdate,
