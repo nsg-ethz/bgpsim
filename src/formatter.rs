@@ -27,6 +27,7 @@ use crate::{
     event::{Event, FmtPriority},
     forwarding_state::ForwardingState,
     network::Network,
+    record::{ConvergenceRecording, ConvergenceTrace, FwDelta},
     route_map::{RouteMap, RouteMapDirection, RouteMapMatch, RouteMapSet, RouteMapState},
     router::StaticRoute,
     types::RouterId,
@@ -62,6 +63,14 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for &'a [RouterId] {
     }
 }
 
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for Vec<RouterId> {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        self.as_slice().fmt(net)
+    }
+}
+
 //
 // Collection of paths
 //
@@ -73,6 +82,14 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for &'a [Vec<RouterId>] {
         self.iter()
             .map(|p| p.iter().map(|r| r.fmt(net)).join(" -> "))
             .join(" | ")
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for Vec<Vec<RouterId>> {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        self.as_slice().fmt(net)
     }
 }
 
@@ -410,5 +427,60 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for Config {
         }
         writeln!(f, "}}").unwrap();
         result
+    }
+}
+
+//
+// Recording
+//
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for FwDelta {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        format!(
+            "{}: {} => {}",
+            self.0.fmt(net),
+            self.1.iter().map(|r| r.fmt(net)).join("|"),
+            self.2.iter().map(|r| r.fmt(net)).join("|"),
+        )
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for &[FwDelta] {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        self.iter().map(|delta| delta.fmt(net)).join(" & ")
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for Vec<FwDelta> {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        self.as_slice().fmt(net)
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConvergenceTrace {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        self.iter()
+            .enumerate()
+            .map(|(i, deltas)| format!("step {}: {}", i, deltas.fmt(net)))
+            .join("\n")
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConvergenceRecording {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        self.trace()
+            .iter()
+            .map(|(prefix, trace)| format!("{}:\n{}", prefix, trace.fmt(net)))
+            .join("\n\n")
     }
 }
