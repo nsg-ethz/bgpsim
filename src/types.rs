@@ -39,6 +39,52 @@ impl std::fmt::Display for Prefix {
         write!(f, "Prefix({})", self.0)
     }
 }
+
+impl From<u32> for Prefix {
+    fn from(x: u32) -> Self {
+        Self(x)
+    }
+}
+
+impl From<u64> for Prefix {
+    fn from(x: u64) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl From<usize> for Prefix {
+    fn from(x: usize) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl From<i32> for Prefix {
+    fn from(x: i32) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl From<i64> for Prefix {
+    fn from(x: i64) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl From<isize> for Prefix {
+    fn from(x: isize) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl<T> From<&T> for Prefix
+where
+    T: Into<Prefix> + Copy,
+{
+    fn from(x: &T) -> Self {
+        (*x).into()
+    }
+}
+
 /// AS Number
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
 pub struct AsId(pub u32);
@@ -48,6 +94,52 @@ impl std::fmt::Display for AsId {
         write!(f, "AS{}", self.0)
     }
 }
+
+impl From<u32> for AsId {
+    fn from(x: u32) -> Self {
+        Self(x)
+    }
+}
+
+impl From<u64> for AsId {
+    fn from(x: u64) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl From<usize> for AsId {
+    fn from(x: usize) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl From<i32> for AsId {
+    fn from(x: i32) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl From<i64> for AsId {
+    fn from(x: i64) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl From<isize> for AsId {
+    fn from(x: isize) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl<T> From<&T> for AsId
+where
+    T: Into<AsId> + Copy,
+{
+    fn from(x: &T) -> Self {
+        (*x).into()
+    }
+}
+
 /// Link Weight for the IGP graph
 pub type LinkWeight = f32;
 /// IGP Network graph

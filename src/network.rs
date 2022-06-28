@@ -123,7 +123,7 @@ impl<Q> Network<Q> {
     /// the network.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub fn add_router<S: Into<String>>(&mut self, name: S) -> RouterId {
+    pub fn add_router(&mut self, name: impl Into<String>) -> RouterId {
         let new_router = Router::new(name.into(), self.net.add_node(()), AsId(65001));
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router);
@@ -141,8 +141,12 @@ impl<Q> Network<Q> {
     /// the ID of the router, which can be used to reference it while configuring the network.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub fn add_external_router<S: Into<String>>(&mut self, name: S, as_id: AsId) -> RouterId {
-        let new_router = ExternalRouter::new(name.into(), self.net.add_node(()), as_id);
+    pub fn add_external_router(
+        &mut self,
+        name: impl Into<String>,
+        as_id: impl Into<AsId>,
+    ) -> RouterId {
+        let new_router = ExternalRouter::new(name.into(), self.net.add_node(()), as_id.into());
         let router_id = new_router.router_id();
         self.external_routers.insert(router_id, new_router);
 
@@ -296,19 +300,23 @@ impl<Q> Network<Q> {
     pub fn get_route(
         &self,
         source: RouterId,
-        prefix: Prefix,
+        prefix: impl Into<Prefix>,
     ) -> Result<Vec<Vec<RouterId>>, NetworkError> {
         // get the forwarding state of the network
         let mut fw_state = self.get_forwarding_state();
-        fw_state.get_route(source, prefix)
+        fw_state.get_route(source, prefix.into())
     }
 
     /// Print the route of a routerID to the destination. This is a helper function, wrapping
     /// `self.get_route(source, prefix)` inside some print statements. The router ID must he the ID
     /// of an internal router
     #[cfg(not(tarpaulin_include))]
-    pub fn print_route(&self, source: RouterId, prefix: Prefix) -> Result<(), NetworkError> {
-        match self.get_route(source, prefix) {
+    pub fn print_route(
+        &self,
+        source: RouterId,
+        prefix: impl Into<Prefix>,
+    ) -> Result<(), NetworkError> {
+        match self.get_route(source, prefix.into()) {
             Ok(paths) => println!("{}", paths.fmt(self)),
             Err(NetworkError::ForwardingLoop(path)) => {
                 println!("{} FORWARDING LOOP!", path.fmt(self));
@@ -608,17 +616,24 @@ where
     /// as well.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub fn advertise_external_route(
+    pub fn advertise_external_route<A>(
         &mut self,
         source: RouterId,
-        prefix: Prefix,
-        as_path: Vec<AsId>,
+        prefix: impl Into<Prefix>,
+        as_path: A,
         med: Option<u32>,
         community: Option<u32>,
-    ) -> Result<(), NetworkError> {
+    ) -> Result<(), NetworkError>
+    where
+        A: IntoIterator,
+        A::Item: Into<AsId>,
+    {
         // prepare undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
+
+        let prefix: Prefix = prefix.into();
+        let as_path: Vec<AsId> = as_path.into_iter().map(|id| id.into()).collect();
 
         debug!("Advertise {} on {}", prefix, self.get_router_name(source)?);
         // insert the prefix into the hashset
@@ -649,8 +664,10 @@ where
     pub fn retract_external_route(
         &mut self,
         source: RouterId,
-        prefix: Prefix,
+        prefix: impl Into<Prefix>,
     ) -> Result<(), NetworkError> {
+        let prefix: Prefix = prefix.into();
+
         // prepare undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());

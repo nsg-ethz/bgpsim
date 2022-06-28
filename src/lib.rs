@@ -39,12 +39,12 @@
 //!
 //!     let prefix = Prefix(0);
 //!
-//!     let e0 = t.add_external_router("E0", AsId(1));
+//!     let e0 = t.add_external_router("E0", 1);
 //!     let b0 = t.add_router("B0");
 //!     let r0 = t.add_router("R0");
 //!     let r1 = t.add_router("R1");
 //!     let b1 = t.add_router("B1");
-//!     let e1 = t.add_external_router("E1", AsId(1));
+//!     let e1 = t.add_external_router("E1", 2);
 //!
 //!     t.add_link(e0, b0);
 //!     t.add_link(b0, r0);
@@ -69,15 +69,15 @@
 //!     t.set_bgp_session(e1, b1, Some(BgpSessionType::EBgp))?;
 //!
 //!     // advertise the same prefix on both routers
-//!     t.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)?;
-//!     t.advertise_external_route(e1, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)?;
+//!     t.advertise_external_route(e0, prefix, &[1, 2, 3], None, None)?;
+//!     t.advertise_external_route(e1, prefix, &[2, 3], None, None)?;
 //!
 //!     // get the forwarding state
 //!     let mut fw_state = t.get_forwarding_state();
 //!
 //!     // check that all routes are correct
-//!     assert_eq!(fw_state.get_route(b0, prefix)?, vec![vec![b0, e0]]);
-//!     assert_eq!(fw_state.get_route(r0, prefix)?, vec![vec![r0, b0, e0]]);
+//!     assert_eq!(fw_state.get_route(b0, prefix)?, vec![vec![b0, r0, r1, b1, e1]]);
+//!     assert_eq!(fw_state.get_route(r0, prefix)?, vec![vec![r0, r1, b1, e1]]);
 //!     assert_eq!(fw_state.get_route(r1, prefix)?, vec![vec![r1, b1, e1]]);
 //!     assert_eq!(fw_state.get_route(b1, prefix)?, vec![vec![b1, e1]]);
 //!
