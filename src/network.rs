@@ -309,35 +309,12 @@ impl<Q> Network<Q> {
     #[cfg(not(tarpaulin_include))]
     pub fn print_route(&self, source: RouterId, prefix: Prefix) -> Result<(), NetworkError> {
         match self.get_route(source, prefix) {
-            Ok(paths) => println!(
-                "[{}]",
-                paths
-                    .iter()
-                    .map(|path| path
-                        .iter()
-                        .map(|r| self.get_router_name(*r))
-                        .collect::<Result<Vec<&str>, NetworkError>>()
-                        .map(|i| i.join(" => ")))
-                    .collect::<Result<Vec<String>, NetworkError>>()?
-                    .join("], [")
-            ),
+            Ok(paths) => println!("{}", paths.fmt(self)),
             Err(NetworkError::ForwardingLoop(path)) => {
-                println!(
-                    "{} FORWARDING LOOP!",
-                    path.iter()
-                        .map(|r| self.get_router_name(*r))
-                        .collect::<Result<Vec<&str>, NetworkError>>()?
-                        .join(" => ")
-                );
+                println!("{} FORWARDING LOOP!", path.fmt(self));
             }
             Err(NetworkError::ForwardingBlackHole(path)) => {
-                println!(
-                    "{} BLACK HOLE!",
-                    path.iter()
-                        .map(|r| self.get_router_name(*r))
-                        .collect::<Result<Vec<&str>, NetworkError>>()?
-                        .join(" => ")
-                );
+                println!("{} BLACK HOLE!", path.fmt(self));
             }
             Err(e) => return Err(e),
         }
@@ -347,41 +324,12 @@ impl<Q> Network<Q> {
     /// Print the igp forwarding table for a specific router.
     #[cfg(not(tarpaulin_include))]
     pub fn print_igp_fw_table(&self, router_id: RouterId) -> Result<(), NetworkError> {
-        let r = self
-            .routers
-            .get(&router_id)
-            .ok_or(NetworkError::DeviceNotFound(router_id))?;
-        println!("Forwarding table for {}", r.name());
-        let routers_set = self
-            .routers
-            .keys()
-            .cloned()
-            .collect::<HashSet<RouterId>>()
-            .union(
-                &self
-                    .external_routers
-                    .keys()
-                    .cloned()
-                    .collect::<HashSet<RouterId>>(),
-            )
-            .cloned()
-            .collect::<HashSet<RouterId>>();
-        for target in routers_set {
-            match r.get_igp_fw_table().get(&target) {
-                Some((nh, cost)) if !nh.is_empty() => {
-                    println!(
-                        "  {} via {} (IGP cost: {})",
-                        self.get_router_name(target)?,
-                        self.get_router_name(nh[0])?,
-                        cost
-                    );
-                }
-                _ => {
-                    println!("  {} unreachable!", self.get_router_name(target)?);
-                }
-            }
-        }
-        println!();
+        println!(
+            "{}",
+            self.get_device(router_id)
+                .internal_or(NetworkError::DeviceNotFound(router_id))?
+                .fmt_igp_table(self)
+        );
         Ok(())
     }
 }
