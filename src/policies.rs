@@ -52,19 +52,33 @@
 
 use crate::{
     forwarding_state::ForwardingState,
-    network::Network,
     types::{NetworkError, Prefix, RouterId},
 };
 
-use std::collections::VecDeque;
+use std::{collections::VecDeque, error::Error};
 use thiserror::Error;
 
 use itertools::iproduct;
-use std::fmt;
+
+/// Extendable trait for policies. Each type that implements `Policy` is something that can *at
+/// least* be checked on the forwarding state of a network.
+pub trait Policy {
+    /// Error type that is thrown when `check` fails.
+    type Err: Error;
+
+    /// Check that a forwarding state satisfies the policy.
+    fn check(&self, fw_state: &mut ForwardingState) -> Result<(), Self::Err>;
+
+    /// Return the router for which the policy should apply.
+    fn router(&self) -> Option<RouterId>;
+
+    /// Return the prefix for which the policy should apply.
+    fn prefix(&self) -> Option<Prefix>;
+}
 
 /// Condition that can be checked for either being true or false.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
-pub enum Condition {
+pub enum FwPolicy {
     /// Condition that a router can reach a prefix, with optional conditions to the path that is
     /// taken.
     Reachable(RouterId, Prefix, Option<PathCondition>),
@@ -73,44 +87,10 @@ pub enum Condition {
     NotReachable(RouterId, Prefix),
 }
 
-impl fmt::Display for Condition {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Reachable(r, p, Some(c)) => {
-                write!(f, "Reachability(r{}, {}, condition {})", r.index(), p, c)
-            }
-            Self::Reachable(r, p, None) => {
-                write!(f, "Reachability(r{}, {})", r.index(), p)
-            }
-            Self::NotReachable(r, p) => write!(f, "Isolation(r{}, {})", r.index(), p),
-        }
-    }
-}
+impl Policy for FwPolicy {
+    type Err = PolicyError;
 
-impl Condition {
-    /// Return the string representation of the condition, with router names inserted.
-    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
-        match self {
-            Self::Reachable(r, p, Some(c)) => format!(
-                "Reachability({}, {}, condition {})",
-                net.get_router_name(*r).unwrap(),
-                p,
-                c.repr_with_name(net)
-            ),
-            Self::Reachable(r, p, None) => {
-                format!("Reachability({}, {})", net.get_router_name(*r).unwrap(), p)
-            }
-            Self::NotReachable(r, p) => {
-                format!("Isolation({}, {})", net.get_router_name(*r).unwrap(), p)
-            }
-        }
-    }
-
-    /// Check the the condition, returning a policy error if it is violated.
-    ///
-    /// **Warning**: reliability or transient condition is not checked here, but will just return
-    /// `Ok`.
-    pub fn check(&self, fw_state: &mut ForwardingState) -> Result<(), PolicyError> {
+    fn check(&self, fw_state: &mut ForwardingState) -> Result<(), Self::Err> {
         match self {
             Self::Reachable(r, p, c) => match fw_state.get_route(*r, *p) {
                 Ok(paths) => match c {
@@ -139,20 +119,19 @@ impl Condition {
             },
         }
     }
-    /// Returns the router id of the condition
-    pub fn router_id(&self) -> RouterId {
-        match self {
-            Condition::Reachable(r, _, _) => *r,
-            Condition::NotReachable(r, _) => *r,
-        }
+
+    fn router(&self) -> Option<RouterId> {
+        Some(match self {
+            FwPolicy::Reachable(r, _, _) => *r,
+            FwPolicy::NotReachable(r, _) => *r,
+        })
     }
 
-    /// Returns the prefix of the condition
-    pub fn prefix(&self) -> Prefix {
-        match self {
-            Condition::Reachable(_, p, _) => *p,
-            Condition::NotReachable(_, p) => *p,
-        }
+    fn prefix(&self) -> Option<Prefix> {
+        Some(match self {
+            FwPolicy::Reachable(_, p, _) => *p,
+            FwPolicy::NotReachable(_, p) => *p,
+        })
     }
 }
 
@@ -177,110 +156,7 @@ pub enum PathCondition {
     Positional(Vec<Waypoint>),
 }
 
-impl fmt::Display for PathCondition {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Node(r) => write!(f, "r{}", r.index()),
-            Self::Edge(a, b) => write!(f, "[r{} -> r{}]", a.index(), b.index()),
-            Self::And(v) => {
-                write!(f, "(")?;
-                let mut i = v.iter();
-                if let Some(c) = i.next() {
-                    write!(f, "{}", c)?;
-                } else {
-                    write!(f, "true")?;
-                }
-                for c in i {
-                    write!(f, " && {}", c)?;
-                }
-                write!(f, ")")
-            }
-            Self::Or(v) => {
-                write!(f, "(")?;
-                let mut i = v.iter();
-                if let Some(c) = i.next() {
-                    write!(f, "{}", c)?;
-                } else {
-                    write!(f, "false")?;
-                }
-                for c in i {
-                    write!(f, " || {}", c)?;
-                }
-                write!(f, ")")
-            }
-            Self::Not(c) => write!(f, "!{}", c),
-            Self::Positional(v) => {
-                write!(f, "[")?;
-                let mut i = v.iter();
-                if let Some(w) = i.next() {
-                    write!(f, "{}", w)?;
-                }
-                for w in i {
-                    write!(f, " -> {}", w)?;
-                }
-                write!(f, "]")
-            }
-        }
-    }
-}
-
 impl PathCondition {
-    /// Return the string representation of the path condition, with router names inserted.
-    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
-        match self {
-            Self::Node(r) => net.get_router_name(*r).unwrap().to_string(),
-            Self::Edge(a, b) => format!(
-                "[{} -> {}]",
-                net.get_router_name(*a).unwrap(),
-                net.get_router_name(*b).unwrap()
-            ),
-            Self::And(v) => {
-                let mut result = String::from("(");
-                let mut i = v.iter();
-                if let Some(c) = i.next() {
-                    result.push_str(&c.repr_with_name(net));
-                } else {
-                    result.push_str("true");
-                }
-                for c in i {
-                    result.push_str(" && ");
-                    result.push_str(&c.repr_with_name(net));
-                }
-                result.push(')');
-                result
-            }
-            Self::Or(v) => {
-                let mut result = String::from("(");
-                let mut i = v.iter();
-                if let Some(c) = i.next() {
-                    result.push_str(&c.repr_with_name(net));
-                } else {
-                    result.push_str("false");
-                }
-                for c in i {
-                    result.push_str(" || ");
-                    result.push_str(&c.repr_with_name(net));
-                }
-                result.push(')');
-                result
-            }
-            Self::Not(c) => format!("!{}", c.repr_with_name(net)),
-            Self::Positional(v) => {
-                let mut result = String::from("[");
-                let mut i = v.iter();
-                if let Some(w) = i.next() {
-                    result.push_str(&w.repr_with_name(net));
-                }
-                for w in i {
-                    result.push_str(" -> ");
-                    result.push_str(&w.repr_with_name(net));
-                }
-                result.push(']');
-                result
-            }
-        }
-    }
-
     /// Returns wether the path condition is satisfied
     pub fn check(&self, path: &[RouterId], prefix: Prefix) -> Result<(), PolicyError> {
         if match self {
@@ -449,27 +325,6 @@ pub enum Waypoint {
     Fix(RouterId),
 }
 
-impl fmt::Display for Waypoint {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        match self {
-            Self::Any => write!(f, "?"),
-            Self::Star => write!(f, "..."),
-            Self::Fix(r) => write!(f, "r{}", r.index()),
-        }
-    }
-}
-
-impl Waypoint {
-    /// Return a string representation of the waypoint, where the router name is inserted.
-    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
-        String::from(match self {
-            Self::Any => "?",
-            Self::Star => "...",
-            Self::Fix(r) => net.get_router_name(*r).unwrap(),
-        })
-    }
-}
-
 /// Path Condition, expressed in Conjunctive Normal Form (CNF), which is a product of sums, or in
 /// other words, an AND of ORs.
 /// There might be cases, where the PathCondition cannot fully be expressed as a CNF. This is the
@@ -498,12 +353,6 @@ impl PathConditionCNF {
     /// requirements
     pub fn is_cnf(&self) -> bool {
         self.is_cnf
-    }
-
-    /// Return the string representation of the path condition, with router names inserted.
-    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
-        let cond: PathCondition = self.clone().into();
-        cond.repr_with_name(net)
     }
 
     /// Returns wether the path condition is satisfied
@@ -552,13 +401,6 @@ impl From<PathConditionCNF> for PathCondition {
     }
 }
 
-impl fmt::Display for PathConditionCNF {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        let c: PathCondition = self.clone().into();
-        c.fmt(f)
-    }
-}
-
 /// # Hard Policy Error
 /// This indicates which policy resulted in the policy failing.
 #[derive(Debug, Error, PartialEq, Eq, Hash, Clone)]
@@ -582,7 +424,7 @@ pub enum PolicyError {
     },
 
     /// PathRequirement was not satisfied
-    #[error("Invalid Path for {prefix:?}: path: {path:?} condition: {condition}")]
+    #[error("Invalid Path for {prefix:?}: path: {path:?}")]
     PathCondition {
         /// The actual path taken in the network
         path: Vec<RouterId>,
@@ -606,60 +448,6 @@ pub enum PolicyError {
     /// No Convergence
     #[error("Network did not converge")]
     NoConvergence,
-}
-
-impl PolicyError {
-    /// Get a string representing the policy error, where all router names are inserted.
-    pub fn repr_with_name<Q>(&self, net: &Network<Q>) -> String {
-        match self {
-            PolicyError::BlackHole { router, prefix } => format!(
-                "Black hole for {} at router {}",
-                prefix,
-                net.get_router_name(*router).unwrap(),
-            ),
-            PolicyError::ForwardingLoop { path, prefix } => format!(
-                "Forwarding loop for {}: {} -> {}",
-                prefix,
-                path.iter()
-                    .map(|r| net.get_router_name(*r).unwrap())
-                    .collect::<Vec<&str>>()
-                    .join(" -> "),
-                net.get_router_name(*path.first().unwrap()).unwrap(),
-            ),
-            PolicyError::PathCondition {
-                path,
-                condition,
-                prefix,
-            } => format!(
-                "Path condition invalidated for {}: path: {}, condition: {}",
-                prefix,
-                path.iter()
-                    .map(|r| net.get_router_name(*r).unwrap())
-                    .collect::<Vec<&str>>()
-                    .join(" -> "),
-                condition.repr_with_name(net)
-            ),
-            PolicyError::UnallowedPathExists {
-                router,
-                prefix,
-                paths,
-            } => format!(
-                "Router {} can reach unallowed {} via path(s) [[{}]]",
-                net.get_router_name(*router).unwrap(),
-                prefix,
-                paths
-                    .iter()
-                    .map(|path| path
-                        .iter()
-                        .map(|r| net.get_router_name(*r).unwrap())
-                        .collect::<Vec<_>>()
-                        .join(", "))
-                    .collect::<Vec<_>>()
-                    .join("], [")
-            ),
-            PolicyError::NoConvergence => String::from("No Convergence"),
-        }
-    }
 }
 
 /// Extracts only the loop from the path.

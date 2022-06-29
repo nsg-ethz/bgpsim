@@ -27,6 +27,7 @@ use crate::{
     event::{Event, FmtPriority},
     forwarding_state::ForwardingState,
     network::Network,
+    policies::{FwPolicy, PathCondition, PathConditionCNF, PolicyError, Waypoint},
     record::{ConvergenceRecording, ConvergenceTrace, FwDelta},
     route_map::{RouteMap, RouteMapDirection, RouteMapMatch, RouteMapSet, RouteMapState},
     router::StaticRoute,
@@ -482,5 +483,106 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConvergenceRecording {
             .iter()
             .map(|(prefix, trace)| format!("{}:\n{}", prefix, trace.fmt(net)))
             .join("\n\n")
+    }
+}
+
+//
+// Policies
+//
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for FwPolicy {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        match self {
+            Self::Reachable(r, p, Some(c)) => {
+                format!(
+                    "Reachability({}, {}, condition {})",
+                    r.fmt(net),
+                    p,
+                    c.fmt(net)
+                )
+            }
+            Self::Reachable(r, p, None) => {
+                format!("Reachability({}, {})", r.fmt(net), p)
+            }
+            Self::NotReachable(r, p) => format!("Isolation({}, {})", r.fmt(net), p),
+        }
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for PathCondition {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        match self {
+            Self::Node(r) => format!("[.* {} .*]", r.fmt(net)),
+            Self::Edge(a, b) => format!("[.* ({},{}) .*]", a.fmt(net), b.fmt(net)),
+            Self::And(v) if v.is_empty() => String::from("(true)"),
+            Self::And(v) => format!("({})", v.iter().map(|c| c.fmt(net)).join(" && ")),
+            Self::Or(v) if v.is_empty() => String::from("(false)"),
+            Self::Or(v) => format!("({})", v.iter().map(|c| c.fmt(net)).join(" || ")),
+            Self::Not(c) => format!("!{}", c.fmt(net)),
+            Self::Positional(v) => format!("[{}]", v.iter().map(|p| p.fmt(net)).join(" ")),
+        }
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for Waypoint {
+    type Formatter = &'n str;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        match self {
+            Waypoint::Any => ".",
+            Waypoint::Star => ".*",
+            Waypoint::Fix(r) => r.fmt(net),
+        }
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for PathConditionCNF {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        PathCondition::from(self.clone()).fmt(net)
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for PolicyError {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        match self {
+            PolicyError::BlackHole { router, prefix } => {
+                format!("Black hole for {} at {}", prefix, router.fmt(net),)
+            }
+            PolicyError::ForwardingLoop { path, prefix } => format!(
+                "Forwarding loop for {}: {} -> {}",
+                prefix,
+                path.fmt(net),
+                path.first().unwrap().fmt(net),
+            ),
+            PolicyError::PathCondition {
+                path,
+                condition,
+                prefix,
+            } => format!(
+                "Path condition invalidated for {}: path: {}, condition: {}",
+                prefix,
+                path.fmt(net),
+                condition.fmt(net)
+            ),
+            PolicyError::UnallowedPathExists {
+                router,
+                prefix,
+                paths,
+            } => format!(
+                "{} can reach unallowed {} via path(s) {}",
+                router.fmt(net),
+                prefix,
+                paths.fmt(net)
+            ),
+            PolicyError::NoConvergence => String::from("No Convergence"),
+        }
     }
 }
