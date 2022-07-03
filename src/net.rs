@@ -1,0 +1,234 @@
+use std::collections::HashMap;
+
+use forceatlas2::{Layout, Nodes, Settings};
+use getrandom::getrandom;
+use netsim::{
+    bgp::BgpSessionType,
+    event::BasicEventQueue,
+    network::Network,
+    types::{NetworkError, RouterId},
+};
+
+use crate::point::Point;
+
+#[derive(Clone, Default)]
+pub struct Net {
+    pub net: Network<BasicEventQueue>,
+    pub pos: HashMap<RouterId, Point>,
+    speed: HashMap<RouterId, Point>,
+    is_init: bool,
+}
+
+const BATCH: usize = 10;
+const SMOL: f64 = 0.0001;
+
+impl Net {
+    pub fn init(&mut self) {
+        if !self.is_init {
+            get_test_net(&mut self.net).unwrap();
+            self.pos = self
+                .net
+                .get_topology()
+                .node_indices()
+                .map(|r| {
+                    (
+                        r,
+                        Point {
+                            x: rand_uniform(),
+                            y: rand_uniform(),
+                        },
+                    )
+                })
+                .collect();
+            self.speed = Default::default();
+            self.is_init = true;
+            self.spring_layout();
+        }
+    }
+
+    pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {
+        self.net
+            .get_routers()
+            .into_iter()
+            .flat_map(|src| {
+                self.net
+                    .get_device(src)
+                    .unwrap_internal()
+                    .get_bgp_sessions()
+                    .map(|(target, ty)| (*target, *ty))
+                    .filter_map(move |(dst, ty)| {
+                        if ty == BgpSessionType::IBgpPeer {
+                            self.net
+                                .get_device(dst)
+                                .internal()
+                                .and_then(|d| d.get_bgp_session_type(src))
+                                .and_then(|other_ty| match other_ty {
+                                    BgpSessionType::IBgpPeer if src.index() > dst.index() => {
+                                        Some((src, dst, BgpSessionType::IBgpPeer))
+                                    }
+                                    _ => None,
+                                })
+                        } else {
+                            Some((src, dst, ty))
+                        }
+                    })
+            })
+            .collect()
+    }
+
+    pub fn spring_layout(&mut self) {
+        // while self.spring_step() {}
+        let g = self.net.get_topology();
+        let edges = g
+            .edge_indices()
+            .map(|e| g.edge_endpoints(e).unwrap())
+            .map(|(a, b)| (a.index(), b.index()))
+            .filter(|(a, b)| a < b)
+            .collect();
+        let num_nodes = g
+            .node_indices()
+            .map(|x| x.index())
+            .max()
+            .map(|x| x + 1)
+            .unwrap_or(0);
+        let nodes = Nodes::Degree(num_nodes);
+        let settings = Settings {
+            chunk_size: None,
+            dimensions: 2,
+            dissuade_hubs: false,
+            ka: 1.0,
+            kg: 1.0,
+            kr: 1.0,
+            lin_log: false,
+            prevent_overlapping: None,
+            speed: 0.01,
+            strong_gravity: false,
+        };
+        log::debug!("{:?}", edges);
+        let mut layout: Layout<f64> = Layout::from_graph(edges, nodes, None, settings);
+
+        let mut delta = 1.0;
+        let mut old_pos = self.pos.clone();
+
+        while delta > SMOL {
+            for _ in 0..BATCH {
+                layout.iteration();
+            }
+
+            std::mem::swap(&mut old_pos, &mut self.pos);
+
+            for (r, p) in self.pos.iter_mut() {
+                let computed_points = layout.points.get(r.index());
+                p.x = computed_points[0];
+                p.y = computed_points[1];
+            }
+
+            Self::normalize_pos(&mut self.pos);
+            delta = Self::compute_delta(&old_pos, &self.pos);
+        }
+    }
+
+    fn normalize_pos(pos: &mut HashMap<RouterId, Point>) {
+        // scale all numbers to be in the expected range
+        let min_x = pos
+            .values()
+            .map(|p| p.x)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(0.0);
+        let max_x = pos
+            .values()
+            .map(|p| p.x)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(1.0);
+        let min_y = pos
+            .values()
+            .map(|p| p.y)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(0.0);
+        let max_y = pos
+            .values()
+            .map(|p| p.y)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(1.0);
+
+        let scale_x = 1.0 / (max_x - min_x);
+        let offset_x = -min_x;
+        let scale_y = 1.0 / (max_y - min_y);
+        let offset_y = -min_y;
+
+        for p in pos.values_mut() {
+            p.x = (p.x + offset_x) * scale_x;
+            p.y = (p.y + offset_y) * scale_y;
+        }
+    }
+
+    fn compute_delta(old: &HashMap<RouterId, Point>, new: &HashMap<RouterId, Point>) -> f64 {
+        old.iter()
+            .map(|(r, p)| (p, new.get(r).unwrap()))
+            .map(|(p1, p2)| p1.dist2(*p2))
+            .sum::<f64>()
+    }
+}
+
+fn rand_uniform() -> f64 {
+    let mut bytes = [0, 0, 0, 0];
+    getrandom(&mut bytes).unwrap();
+    let x = ((((((bytes[0] as u32) << 8) + bytes[1] as u32) << 8) + bytes[2] as u32) << 8)
+        + bytes[3] as u32;
+    x as f64 / (u32::MAX as f64)
+}
+
+fn get_test_net(net: &mut Network<BasicEventQueue>) -> Result<(), NetworkError> {
+    let e1 = net.add_external_router("E1", 100i32);
+    let r1 = net.add_router("R1");
+    let r2 = net.add_router("R2");
+    let r3 = net.add_router("R3");
+    let r4 = net.add_router("R4");
+    let r5 = net.add_router("R5");
+    let e5 = net.add_external_router("E5", 500i32);
+    // add links
+    net.add_link(r1, e1);
+    net.add_link(r1, r2);
+    net.add_link(r1, r4);
+    net.add_link(r1, r5);
+    net.add_link(r2, r3);
+    net.add_link(r3, r4);
+    net.add_link(r3, r5);
+    net.add_link(r4, r5);
+    net.add_link(r5, e5);
+    // set link weights
+    net.set_link_weight(r1, e1, 1.0)?;
+    net.set_link_weight(r1, r2, 10.0)?;
+    net.set_link_weight(r1, r4, 12.0)?;
+    net.set_link_weight(r1, r5, 40.0)?;
+    net.set_link_weight(r2, r3, 5.0)?;
+    net.set_link_weight(r3, r4, 10.0)?;
+    net.set_link_weight(r3, r5, 5.0)?;
+    net.set_link_weight(r4, r5, 12.0)?;
+    net.set_link_weight(r5, e5, 1.0)?;
+    // set link weights in reverse
+    net.set_link_weight(e1, r1, 1.0)?;
+    net.set_link_weight(r2, r1, 10.0)?;
+    net.set_link_weight(r4, r1, 12.0)?;
+    net.set_link_weight(r5, r1, 40.0)?;
+    net.set_link_weight(r3, r2, 5.0)?;
+    net.set_link_weight(r4, r3, 10.0)?;
+    net.set_link_weight(r5, r3, 5.0)?;
+    net.set_link_weight(r5, r4, 12.0)?;
+    net.set_link_weight(e5, r5, 1.0)?;
+    // setup bgp internal sessions
+    net.set_bgp_session(r3, r1, Some(BgpSessionType::IBgpClient))?;
+    net.set_bgp_session(r3, r2, Some(BgpSessionType::IBgpClient))?;
+    net.set_bgp_session(r3, r4, Some(BgpSessionType::IBgpClient))?;
+    net.set_bgp_session(r3, r5, Some(BgpSessionType::IBgpClient))?;
+    // establish external sessions
+    net.set_bgp_session(r1, e1, Some(BgpSessionType::EBgp))?;
+    net.set_bgp_session(r5, e5, Some(BgpSessionType::EBgp))?;
+    // advertise the route
+    net.advertise_external_route(e1, 1, &[100, 200, 300, 400], None, None)?;
+    net.advertise_external_route(e5, 1, &[500, 400], None, None)?;
+    net.advertise_external_route(e1, 2, &[100, 200, 300], None, None)?;
+    net.advertise_external_route(e5, 2, &[500, 400, 300], None, None)?;
+
+    Ok(())
+}

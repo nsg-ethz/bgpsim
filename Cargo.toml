@@ -1,0 +1,26 @@
+[package]
+name = "netweb"
+version = "0.1.0"
+edition = "2021"
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+
+[dependencies]
+yew = "0.19.3"
+netsim = { path = "../netsim" }
+yewdux = "0.7.0"
+yewdux-functional = "0.1.0"
+yew-lucide = "0.61.0"
+web-sys = { version = "0.3", features = [ "HtmlDivElement", "SvgGraphicsElement", "SvgRect" ] }
+log = "0.4.17"
+wasm-logger = "0.2.0"
+ordered-float = "3.0.0"
+getrandom = { version = "0.2.7", features = [ "js" ] }
+gloo-timers = "0.2.4"
+gloo-utils = "0.1.4"
+petgraph = "0.6"
+itertools = "0.10"
+wasm-bindgen = "0.2.81"
+strum = "0.24"
+strum_macros = "0.24"
+forceatlas2 = { version = "0.4", features = [] }
