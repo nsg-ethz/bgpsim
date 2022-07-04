@@ -467,7 +467,7 @@ impl<'a> NetworkDeviceMut<'a> {
 }
 
 /// Router Errors
-#[derive(Error, Debug, PartialEq)]
+#[derive(Error, Debug, PartialEq, Eq)]
 pub enum DeviceError {
     /// BGP session is already established
     #[error("BGP Session with {0:?} is already created!")]

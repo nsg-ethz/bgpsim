@@ -100,7 +100,7 @@ pub trait EventQueue {
 }
 
 /// Basic event queue
-#[derive(PartialEq, Clone, Debug, Default)]
+#[derive(PartialEq, Eq, Clone, Debug, Default)]
 pub struct BasicEventQueue(VecDeque<Event<()>>);
 
 impl BasicEventQueue {

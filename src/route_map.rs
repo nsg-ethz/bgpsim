@@ -369,7 +369,7 @@ impl RouteMapState {
 }
 
 /// Match statement of the route map. Can be combined to generate complex match statements
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RouteMapMatch {
     /// Matches on the neighbor (exact value only)
     Neighbor(RouterId),
@@ -403,7 +403,7 @@ impl RouteMapMatch {
 }
 
 /// Generic RouteMapMatchClause to match on all, a range or on a specific element
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RouteMapMatchClause<T> {
     /// Matches a range of values (inclusive)
     Range(T, T),
@@ -443,7 +443,7 @@ where
 }
 
 /// Clause to match on the as path
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum RouteMapMatchAsPath {
     /// Contains a specific AsId
     Contains(AsId),

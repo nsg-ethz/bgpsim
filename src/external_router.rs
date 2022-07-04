@@ -38,7 +38,7 @@ use std::collections::{HashMap, HashSet};
 ///   a bit more expensive. However, it is to be expected that neighbors are added and removed more
 ///   often. In this case, we need to iterate over the `active_routes`, which is faster than using a
 ///   `HashMap`. Also, cloning the External Router is faster when we have a vector.
-#[derive(Debug, PartialEq)]
+#[derive(Debug, PartialEq, Eq)]
 pub struct ExternalRouter {
     name: String,
     router_id: RouterId,
@@ -303,7 +303,7 @@ impl ExternalRouter {
 }
 
 #[cfg(feature = "undo")]
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 enum UndoAction {
     AddBgpSession(RouterId),
     DelBgpSession(RouterId),
