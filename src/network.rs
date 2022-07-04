@@ -286,6 +286,23 @@ impl<Q> Network<Q> {
         }
     }
 
+    /// Change the router name
+    pub fn set_router_name(
+        &mut self,
+        router_id: RouterId,
+        name: impl Into<String>,
+    ) -> Result<(), NetworkError> {
+        if let Some(r) = self.routers.get_mut(&router_id) {
+            r.set_name(name.into());
+            Ok(())
+        } else if let Some(r) = self.external_routers.get_mut(&router_id) {
+            r.set_name(name.into());
+            Ok(())
+        } else {
+            Err(NetworkError::DeviceNotFound(router_id))
+        }
+    }
+
     // *******************
     // * Print Functions *
     // *******************

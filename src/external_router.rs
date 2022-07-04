@@ -295,6 +295,11 @@ impl ExternalRouter {
         assert_eq!(self.active_routes, other.active_routes);
         assert_eq!(self.neighbors, other.neighbors);
     }
+
+    /// Set the name of the router.
+    pub(crate) fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
 }
 
 #[cfg(feature = "undo")]

@@ -1067,6 +1067,11 @@ impl Router {
                 | (_, BgpSessionType::IBgpClient)
         ))
     }
+
+    /// Set the name of the router.
+    pub(crate) fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
 }
 
 impl PartialEq for Router {
