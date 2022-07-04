@@ -160,7 +160,7 @@ impl ExternalRouter {
             next_hop: self.router_id,
             local_pref: None,
             med,
-            community,
+            community: community.into_iter().collect(),
         };
 
         let old_route = self.active_routes.insert(prefix, route.clone());

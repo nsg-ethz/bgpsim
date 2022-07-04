@@ -18,7 +18,7 @@
 //! Module containing definitions for BGP
 
 use crate::types::{AsId, LinkWeight, Prefix, RouterId};
-use std::cmp::Ordering;
+use std::{cmp::Ordering, collections::BTreeSet};
 
 /// Bgp Route
 /// The following attributes are omitted
@@ -38,7 +38,7 @@ pub struct BgpRoute {
     /// MED (Multi-Exit Discriminator)
     pub med: Option<u32>,
     /// Community
-    pub community: Option<u32>,
+    pub community: BTreeSet<u32>,
 }
 
 impl BgpRoute {
@@ -57,7 +57,7 @@ impl BgpRoute {
             next_hop: self.next_hop,
             local_pref: Some(self.local_pref.unwrap_or(100)),
             med: Some(self.med.unwrap_or(0)),
-            community: Some(self.community.unwrap_or(0)),
+            community: self.community.clone(),
         }
     }
 }

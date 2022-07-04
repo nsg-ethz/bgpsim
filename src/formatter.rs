@@ -19,7 +19,7 @@
 
 use std::{collections::HashSet, fmt::Write};
 
-use itertools::Itertools;
+use itertools::{join, Itertools};
 
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute},
@@ -200,10 +200,10 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for BgpRoute {
             } else {
                 String::new()
             },
-            if let Some(community) = self.community {
-                format!(", community: {}", community)
-            } else {
+            if self.community.is_empty() {
                 String::new()
+            } else {
+                format!(", community: {}", join(self.community.iter(), ";"))
             },
         )
     }
@@ -245,8 +245,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMapMatch {
             RouteMapMatch::Prefix(c) => format!("Prefix == {}", c),
             RouteMapMatch::AsPath(c) => format!("{}", c),
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),
-            RouteMapMatch::Community(Some(c)) => format!("Community {}", c),
-            RouteMapMatch::Community(None) => "Community empty".to_string(),
+            RouteMapMatch::Community(c) => format!("Community {}", c),
         }
     }
 }
@@ -262,8 +261,8 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMapSet {
             RouteMapSet::Med(Some(med)) => format!("MED = {}", med),
             RouteMapSet::Med(None) => "clear MED".to_string(),
             RouteMapSet::IgpCost(w) => format!("IgpCost = {:.2}", w),
-            RouteMapSet::Community(Some(c)) => format!("Community = {}", c),
-            RouteMapSet::Community(None) => "clear Community".to_string(),
+            RouteMapSet::SetCommunity(c) => format!("Set community {}", c),
+            RouteMapSet::DelCommunity(c) => format!("Remove community {}", c),
         }
     }
 }

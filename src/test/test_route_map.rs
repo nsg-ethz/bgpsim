@@ -33,7 +33,7 @@ fn simple_matches() {
             next_hop: 0.into(),
             local_pref: None,
             med: None,
-            community: None,
+            community: Default::default(),
         },
         from_type: IBgpClient,
         from_id: 0.into(),
@@ -148,62 +148,15 @@ fn simple_matches() {
     entry.to_id = None;
     assert!(!map.apply(entry).0);
 
-    // Match on communits, not set
-    let map = RouteMap::new(10, Deny, vec![Match::Community(None)], vec![]);
-    let mut entry = default_entry.clone();
-    entry.route.community = None;
-    assert!(map.apply(entry.clone()).0);
-    entry.route.community = Some(0);
-    assert!(!map.apply(entry).0);
-
     // Match on Community, exact
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::Community(Some(Clause::Equal(0)))],
-        vec![],
-    );
-    let mut entry = default_entry.clone();
-    entry.route.community = Some(0);
-    assert!(map.apply(entry.clone()).0);
-    entry.route.community = Some(1);
-    assert!(!map.apply(entry.clone()).0);
-    entry.route.community = None;
-    assert!(!map.apply(entry).0);
-
-    // Match on Community with range
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::Community(Some(Clause::Range(0, 9)))],
-        vec![],
-    );
-    let mut entry = default_entry.clone();
-    entry.route.community = Some(0);
-    assert!(map.apply(entry.clone()).0);
-    entry.route.community = Some(9);
-    assert!(map.apply(entry.clone()).0);
-    entry.route.community = Some(10);
-    assert!(!map.apply(entry.clone()).0);
-    entry.route.community = None;
-    assert!(!map.apply(entry).0);
-
-    // Match on Community with exclusive_range
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::Community(Some(Clause::RangeExclusive(0, 10)))],
-        vec![],
-    );
+    let map = RouteMap::new(10, Deny, vec![Match::Community(0)], vec![]);
     let mut entry = default_entry;
-    entry.route.community = Some(0);
-    assert!(map.apply(entry.clone()).0);
-    entry.route.community = Some(9);
-    assert!(map.apply(entry.clone()).0);
-    entry.route.community = Some(10);
+    entry.route.community = Default::default();
     assert!(!map.apply(entry.clone()).0);
-    entry.route.community = None;
-    assert!(!map.apply(entry).0);
+    entry.route.community.insert(1);
+    assert!(!map.apply(entry.clone()).0);
+    entry.route.community.insert(0);
+    assert!(map.apply(entry).0);
 }
 
 #[test]
@@ -215,7 +168,7 @@ fn complex_matches() {
             next_hop: 0.into(),
             local_pref: None,
             med: None,
-            community: None,
+            community: Default::default(),
         },
         from_type: IBgpClient,
         from_id: 0.into(),
@@ -261,7 +214,7 @@ fn overwrite() {
             next_hop: 0.into(),
             local_pref: Some(1),
             med: Some(10),
-            community: None,
+            community: Default::default(),
         },
         from_type: IBgpClient,
         from_id: 0.into(),
@@ -436,39 +389,11 @@ fn route_map_builder() {
     );
 
     assert_eq!(
-        RouteMap::new(10, Deny, vec![Match::Community(None)], vec![]),
-        RouteMapBuilder::new()
-            .order(10)
-            .deny()
-            .match_community_empty()
-            .build()
-    );
-
-    assert_eq!(
-        RouteMap::new(
-            10,
-            Deny,
-            vec![Match::Community(Some(Clause::Equal(0)))],
-            vec![]
-        ),
+        RouteMap::new(10, Deny, vec![Match::Community(0)], vec![]),
         RouteMapBuilder::new()
             .order(10)
             .deny()
             .match_community(0)
-            .build()
-    );
-
-    assert_eq!(
-        RouteMap::new(
-            10,
-            Deny,
-            vec![Match::Community(Some(Clause::Range(0, 9)))],
-            vec![]
-        ),
-        RouteMapBuilder::new()
-            .order(10)
-            .deny()
-            .match_community_range(0, 9)
             .build()
     );
 
@@ -528,7 +453,7 @@ fn route_map_builder() {
     );
 
     assert_eq!(
-        RouteMap::new(10, Allow, vec![], vec![Set::Community(Some(10))]),
+        RouteMap::new(10, Allow, vec![], vec![Set::SetCommunity(10)]),
         RouteMapBuilder::new()
             .order(10)
             .allow()
@@ -537,11 +462,11 @@ fn route_map_builder() {
     );
 
     assert_eq!(
-        RouteMap::new(10, Allow, vec![], vec![Set::Community(None)]),
+        RouteMap::new(10, Allow, vec![], vec![Set::DelCommunity(10)]),
         RouteMapBuilder::new()
             .order(10)
             .allow()
-            .reset_community()
+            .remove_community(10)
             .build()
     );
 }

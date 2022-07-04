@@ -66,7 +66,7 @@ fn test_bgp_single() {
                 next_hop: 100.into(),
                 local_pref: None,
                 med: None,
-                community: None,
+                community: Default::default(),
             }),
         ))
         .unwrap();
@@ -106,7 +106,7 @@ fn test_bgp_single() {
                 next_hop: 11.into(),
                 local_pref: Some(50),
                 med: None,
-                community: None,
+                community: Default::default(),
             }),
         ))
         .unwrap();
@@ -149,7 +149,7 @@ fn test_bgp_single() {
                 next_hop: 10.into(),
                 local_pref: None,
                 med: None,
-                community: None,
+                community: Default::default(),
             }),
         ))
         .unwrap();
@@ -188,7 +188,7 @@ fn test_bgp_single() {
                 next_hop: 5.into(),
                 local_pref: Some(150),
                 med: None,
-                community: None,
+                community: Default::default(),
             }),
         ))
         .unwrap();
@@ -497,7 +497,7 @@ fn external_router_advertise_to_neighbors() {
                 next_hop: 0.into(),
                 local_pref: None,
                 med: None,
-                community: None,
+                community: Default::default(),
             }),
         )
     );
@@ -541,7 +541,7 @@ fn external_router_new_neighbor() {
                 next_hop: 0.into(),
                 local_pref: None,
                 med: None,
-                community: None,
+                community: Default::default(),
             }),
         )
     );
@@ -593,7 +593,7 @@ fn test_bgp_single_undo() {
             next_hop: 100.into(),
             local_pref: None,
             med: None,
-            community: None,
+            community: Default::default(),
         }),
     ))
     .unwrap();
@@ -616,7 +616,7 @@ fn test_bgp_single_undo() {
             next_hop: 11.into(),
             local_pref: Some(50),
             med: None,
-            community: None,
+            community: Default::default(),
         }),
     ))
     .unwrap();
@@ -639,7 +639,7 @@ fn test_bgp_single_undo() {
             next_hop: 10.into(),
             local_pref: None,
             med: None,
-            community: None,
+            community: Default::default(),
         }),
     ))
     .unwrap();
@@ -673,7 +673,7 @@ fn test_bgp_single_undo() {
             next_hop: 5.into(),
             local_pref: Some(150),
             med: None,
-            community: None,
+            community: Default::default(),
         }),
     ))
     .unwrap();

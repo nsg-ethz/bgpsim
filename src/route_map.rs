@@ -246,25 +246,7 @@ impl RouteMapBuilder {
 
     /// Add a match condition to the Route-Map, matching on the community with exact value
     pub fn match_community(&mut self, community: u32) -> &mut Self {
-        self.conds
-            .push(RouteMapMatch::Community(Some(RouteMapMatchClause::Equal(
-                community,
-            ))));
-        self
-    }
-
-    /// Add a match condition to the Route-Map, matching on routes without community
-    pub fn match_community_empty(&mut self) -> &mut Self {
-        self.conds.push(RouteMapMatch::Community(None));
-        self
-    }
-
-    /// Add a match condition to the Route-Map, matching on the community with an inclusive range
-    pub fn match_community_range(&mut self, from: u32, to: u32) -> &mut Self {
-        self.conds
-            .push(RouteMapMatch::Community(Some(RouteMapMatchClause::Range(
-                from, to,
-            ))));
+        self.conds.push(RouteMapMatch::Community(community));
         self
     }
 
@@ -312,13 +294,13 @@ impl RouteMapBuilder {
 
     /// Add a set expression, overwriting the Community
     pub fn set_community(&mut self, community: u32) -> &mut Self {
-        self.set.push(RouteMapSet::Community(Some(community)));
+        self.set.push(RouteMapSet::SetCommunity(community));
         self
     }
 
     /// Add a set expression, resetting the Community
-    pub fn reset_community(&mut self) -> &mut Self {
-        self.set.push(RouteMapSet::Community(None));
+    pub fn remove_community(&mut self, community: u32) -> &mut Self {
+        self.set.push(RouteMapSet::DelCommunity(community));
         self
     }
 
@@ -380,7 +362,7 @@ pub enum RouteMapMatch {
     /// Matches on the Next Hop (exact value)
     NextHop(RouterId),
     /// Matches on the community (either not set, or set and matches a value or a range)
-    Community(Option<RouteMapMatchClause<u32>>),
+    Community(u32),
 }
 
 impl RouteMapMatch {
@@ -391,13 +373,7 @@ impl RouteMapMatch {
             Self::Prefix(clause) => clause.matches(&entry.route.prefix),
             Self::AsPath(clause) => clause.matches(&entry.route.as_path),
             Self::NextHop(nh) => entry.route.next_hop == *nh,
-            Self::Community(Some(clause)) => entry
-                .route
-                .community
-                .as_ref()
-                .map(|c| clause.matches(c))
-                .unwrap_or(false),
-            Self::Community(None) => entry.route.community.is_none(),
+            Self::Community(com) => entry.route.community.contains(com),
         }
     }
 }
@@ -483,8 +459,10 @@ pub enum RouteMapSet {
     Med(Option<u32>),
     /// overwrite the distance attribute (IGP weight). This does not affect peers.
     IgpCost(LinkWeight),
-    /// overwrite the community, (None means remove the field from the route)
-    Community(Option<u32>),
+    /// Set the community value
+    SetCommunity(u32),
+    /// Remove the community value
+    DelCommunity(u32),
 }
 
 impl RouteMapSet {
@@ -499,7 +477,12 @@ impl RouteMapSet {
             Self::LocalPref(lp) => entry.route.local_pref = Some(lp.unwrap_or(100)),
             Self::Med(med) => entry.route.med = Some(med.unwrap_or(0)),
             Self::IgpCost(w) => entry.igp_cost = Some(*w),
-            Self::Community(c) => entry.route.community = *c,
+            Self::SetCommunity(c) => {
+                entry.route.community.insert(*c);
+            }
+            Self::DelCommunity(c) => {
+                entry.route.community.remove(c);
+            }
         }
     }
 }
