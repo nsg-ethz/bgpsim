@@ -645,17 +645,18 @@ where
     /// as well.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub fn advertise_external_route<A>(
+    pub fn advertise_external_route<A, C>(
         &mut self,
         source: RouterId,
         prefix: impl Into<Prefix>,
         as_path: A,
         med: Option<u32>,
-        community: Option<u32>,
+        community: C,
     ) -> Result<(), NetworkError>
     where
         A: IntoIterator,
         A::Item: Into<AsId>,
+        C: IntoIterator<Item = u32>,
     {
         // prepare undo stack
         #[cfg(feature = "undo")]
