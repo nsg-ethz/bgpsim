@@ -289,6 +289,11 @@ impl ExternalRouter {
         &self.active_routes
     }
 
+    /// Returns a reference to the hashset containing all BGP sessions.
+    pub fn get_bgp_sessions(&self) -> &HashSet<RouterId> {
+        &self.neighbors
+    }
+
     /// Checks if both routers advertise the same routes.
     #[cfg(test)]
     pub fn assert_equal(&self, other: &Self) {
@@ -299,6 +304,11 @@ impl ExternalRouter {
     /// Set the name of the router.
     pub(crate) fn set_name(&mut self, name: String) {
         self.name = name;
+    }
+
+    /// Set the AS Id
+    pub(crate) fn set_as_id(&mut self, as_id: AsId) {
+        self.as_id = as_id;
     }
 }
 

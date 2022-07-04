@@ -303,6 +303,18 @@ impl<Q> Network<Q> {
         }
     }
 
+    /// Set the AS Id of an external router
+    pub fn set_as_id(
+        &mut self,
+        router_id: RouterId,
+        as_id: impl Into<AsId>,
+    ) -> Result<(), NetworkError> {
+        self.get_device_mut(router_id)
+            .external_or(NetworkError::DeviceNotFound(router_id))?
+            .set_as_id(as_id.into());
+        Ok(())
+    }
+
     // *******************
     // * Print Functions *
     // *******************
