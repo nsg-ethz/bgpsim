@@ -143,12 +143,12 @@ impl ExternalRouter {
     /// update message with the route.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn advertise_prefix<P: Default>(
+    pub(crate) fn advertise_prefix<P: Default, I: IntoIterator<Item = u32>>(
         &mut self,
         prefix: Prefix,
         as_path: Vec<AsId>,
         med: Option<u32>,
-        community: Option<u32>,
+        community: I,
     ) -> (BgpRoute, Vec<Event<P>>) {
         // prepare undo stack
         #[cfg(feature = "undo")]

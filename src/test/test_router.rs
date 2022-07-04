@@ -519,7 +519,7 @@ fn external_router_new_neighbor() {
     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
 
     // advertise route
-    let (_, events) = r.advertise_prefix::<()>(Prefix(0), vec![AsId(0)], None, None);
+    let (_, events) = r.advertise_prefix::<(), Option<u32>>(Prefix(0), vec![AsId(0)], None, None);
 
     // check that no event was created
     assert_eq!(events.len(), 0);
@@ -818,7 +818,7 @@ fn external_router_advertise_to_neighbors_undo() {
     let r_clone_1 = r.clone();
 
     // advertise route
-    r.advertise_prefix::<()>(Prefix(0), vec![AsId(0)], None, None);
+    r.advertise_prefix::<(), Option<u32>>(Prefix(0), vec![AsId(0)], None, None);
     let r_clone_2 = r.clone();
 
     // emove the route
@@ -837,7 +837,7 @@ fn external_router_new_neighbor_undo() {
     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
 
     // advertise route
-    r.advertise_prefix::<()>(Prefix(0), vec![AsId(0)], None, None);
+    r.advertise_prefix::<(), Option<u32>>(Prefix(0), vec![AsId(0)], None, None);
     let r_clone_1 = r.clone();
 
     // add a neighbor and check that the route is advertised
