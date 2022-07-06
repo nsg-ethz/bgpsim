@@ -616,6 +616,22 @@ impl Router {
             .map(|events| (Some(old_map), events))
     }
 
+    /// Get a specific incoming route map with the given order, or `None`.
+    pub fn get_bgp_route_map_in(&self, order: usize) -> Option<&RouteMap> {
+        self.bgp_route_maps_in
+            .binary_search_by_key(&order, |rm| rm.order)
+            .ok()
+            .and_then(|p| self.bgp_route_maps_in.get(p))
+    }
+
+    /// Get a specific outgoing route map with the given order, or `None`.
+    pub fn get_bgp_route_map_out(&self, order: usize) -> Option<&RouteMap> {
+        self.bgp_route_maps_out
+            .binary_search_by_key(&order, |rm| rm.order)
+            .ok()
+            .and_then(|p| self.bgp_route_maps_out.get(p))
+    }
+
     /// Get an iterator over all incoming route-maps
     pub fn get_bgp_route_maps_in(&self) -> VecIter<'_, RouteMap> {
         self.bgp_route_maps_in.iter()
