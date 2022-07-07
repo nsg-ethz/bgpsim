@@ -33,6 +33,7 @@ use thiserror::Error;
 
 lazy_static! {
     static ref EMPTY_SET: HashSet<RouterId> = HashSet::new();
+    static ref TO_DST: RouterId = RouterId::from(u32::MAX);
 }
 
 /// # Forwarding State
@@ -70,7 +71,7 @@ impl ForwardingState {
     /// Extracts the forwarding state from the network.
     pub fn from_net<Q>(net: &Network<Q>) -> Self {
         // initialize the prefix lookup
-        let max_num_entries = net.num_devices() * net.get_known_prefixes().len();
+        let max_num_entries = (net.num_devices() + 1) * net.get_known_prefixes().len();
 
         // initialize state
         let mut state: HashMap<(RouterId, Prefix), Vec<RouterId>> =
@@ -100,7 +101,8 @@ impl ForwardingState {
         // prefix they know a route to.
         for r in net.get_external_routers() {
             for p in net.get_device(r).unwrap_external().advertised_prefixes() {
-                state.insert((r, *p), vec![r]);
+                state.insert((r, *p), vec![*TO_DST]);
+                reversed.entry((*TO_DST, *p)).or_default().insert(r);
             }
         }
 
@@ -157,7 +159,7 @@ impl ForwardingState {
         }
 
         // test if the next hop is only self. In that case, the path is finished.
-        if nhs == vec![cur_node] {
+        if nhs == [*TO_DST] {
             self.cache
                 .insert((cur_node, prefix), Ok(vec![vec![cur_node]]));
             return Ok(vec![vec![cur_node]]);
@@ -168,7 +170,7 @@ impl ForwardingState {
         for nh in nhs {
             // if the nh is self, then `nhs` must have exactly one entry. Otherwise, we have a big
             // problem...
-            if nh == cur_node {
+            if nh == cur_node || nh == *TO_DST {
                 unreachable!();
             }
 
@@ -209,8 +211,26 @@ impl ForwardingState {
         Ok(fw_paths)
     }
 
+    /// Get the set of routers that can reach the given prefix internally, or know a route towards
+    /// that prefix from their own peering sessions.
+    pub fn get_terminals(&self, prefix: Prefix) -> &HashSet<RouterId> {
+        self.reversed.get(&(*TO_DST, prefix)).unwrap_or(&EMPTY_SET)
+    }
+
+    /// Returns `true` if `router` is a terminal for `prefix`.
+    pub fn is_terminals(&self, router: RouterId, prefix: Prefix) -> bool {
+        self.reversed
+            .get(&(*TO_DST, prefix))
+            .map(|s| s.contains(&router))
+            .unwrap_or(false)
+    }
+
     /// Get the next hop of a router for a specific prefix. If that router does not know any route,
     /// `Ok(None)` is returned.
+    ///
+    /// **Warning** if this function is called on an external router, then this function may return
+    /// the router id: `u32::MAX`, which indicates that this router forwards traffic internally to
+    /// the actual destination.
     pub fn get_next_hop(&self, router: RouterId, prefix: Prefix) -> &[RouterId] {
         self.state
             .get(&(router, prefix))
@@ -370,6 +390,7 @@ mod test {
     #[test]
     fn test_route() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
         let r2 = 2.into();
@@ -377,7 +398,7 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]],
             reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
             cache: hashmap![],
         };
@@ -398,6 +419,7 @@ mod test {
     #[test]
     fn test_caching() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
         let r2 = 2.into();
@@ -405,7 +427,7 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]],
             reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
             cache: hashmap![],
         };
@@ -427,6 +449,7 @@ mod test {
     #[test]
     fn test_forwarding_loop_2() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0: RouterId = 0.into();
         let r1: RouterId = 1.into();
         let r2: RouterId = 2.into();
@@ -434,7 +457,7 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r3]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r3]],
             reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]],
             cache: hashmap![],
         };
@@ -500,6 +523,7 @@ mod test {
     #[test]
     fn test_forwarding_loop_3() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0: RouterId = 0.into();
         let r1: RouterId = 1.into();
         let r2: RouterId = 2.into();
@@ -507,7 +531,7 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r2], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r2]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r2], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r2]],
             reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]],
             cache: hashmap![],
         };
@@ -604,6 +628,7 @@ mod test {
     #[test]
     fn test_route_load_balancing() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
         let r2 = 2.into();
@@ -611,7 +636,7 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]],
             reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
             cache: hashmap![],
         };
@@ -635,6 +660,7 @@ mod test {
     #[test]
     fn test_caching_load_balancing() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
         let r2 = 2.into();
@@ -642,7 +668,7 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]],
             reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
             cache: hashmap![],
         };
@@ -667,6 +693,7 @@ mod test {
     #[test]
     fn test_route_load_balancing_multiply_1() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
         let r2 = 2.into();
@@ -674,7 +701,7 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]],
             reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
             cache: hashmap![],
         };
@@ -691,6 +718,7 @@ mod test {
     #[test]
     fn test_route_load_balancing_multiply_2() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
         let r2 = 2.into();
@@ -698,7 +726,7 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r2], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r2], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]],
             reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
             cache: hashmap![],
         };
@@ -716,6 +744,7 @@ mod test {
     #[test]
     fn test_forwarding_loop_2_load_balancing() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0: RouterId = 0.into();
         let r1: RouterId = 1.into();
         let r2: RouterId = 2.into();
@@ -723,7 +752,7 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4, r1], (r4, p) => vec![r3]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4, r1], (r4, p) => vec![r3]],
             reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]],
             cache: hashmap![],
         };
@@ -789,6 +818,7 @@ mod test {
     #[test]
     fn test_forwarding_loop_3_load_balancing() {
         let p = Prefix(0);
+        let dst = u32::MAX.into();
         let r0: RouterId = 0.into();
         let r1: RouterId = 1.into();
         let r2: RouterId = 2.into();
@@ -796,7 +826,7 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut state = ForwardingState {
-            state: hashmap![(r0, p) => vec![r0], (r1, p) => vec![r2], (r2, p) => vec![r3, r1], (r3, p) => vec![r4], (r4, p) => vec![r2]],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r2], (r2, p) => vec![r3, r1], (r3, p) => vec![r4], (r4, p) => vec![r2]],
             reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]],
             cache: hashmap![],
         };

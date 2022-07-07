@@ -92,7 +92,7 @@ fn test_simple_deterministic() {
     assert_eq!(
         rec.trace()[&prefix],
         vec![
-            vec![(e1, vec![], vec![e1])],
+            vec![(e1, vec![], vec![u32::MAX.into()])],
             vec![(b1, vec![r1], vec![e1])],
             vec![(r1, vec![r0], vec![b1])],
             vec![(r0, vec![b0], vec![r1])],
