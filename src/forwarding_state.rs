@@ -218,7 +218,7 @@ impl ForwardingState {
     }
 
     /// Returns `true` if `router` is a terminal for `prefix`.
-    pub fn is_terminals(&self, router: RouterId, prefix: Prefix) -> bool {
+    pub fn is_terminal(&self, router: RouterId, prefix: Prefix) -> bool {
         self.reversed
             .get(&(*TO_DST, prefix))
             .map(|s| s.contains(&router))
