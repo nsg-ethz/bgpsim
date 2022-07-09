@@ -8,7 +8,7 @@ use crate::{
     dim::Dim,
     net::Net,
     point::Point,
-    state::{Hover, Selected, State},
+    state::{Hover, State},
 };
 
 use super::{arrows::CurvedArrow, SvgColor};
@@ -18,7 +18,6 @@ pub struct BgpSession {
     p2: Point,
     net: Rc<Net>,
     dim: Rc<Dim>,
-    selected: bool,
     _net_dispatch: Dispatch<BasicStore<Net>>,
     _dim_dispatch: Dispatch<BasicStore<Dim>>,
     state_dispatch: Dispatch<BasicStore<State>>,
@@ -33,7 +32,7 @@ pub enum Msg {
     OnClick,
 }
 
-#[derive(Properties, PartialEq)]
+#[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub src: RouterId,
     pub dst: RouterId,
@@ -53,7 +52,6 @@ impl Component for BgpSession {
             p2: Default::default(),
             net: Default::default(),
             dim: Default::default(),
-            selected: false,
             _net_dispatch,
             _dim_dispatch,
             state_dispatch,
@@ -61,13 +59,10 @@ impl Component for BgpSession {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let color = match (ctx.props().session_type, self.selected) {
-            (BgpSessionType::IBgpPeer, false) => SvgColor::BlueLight,
-            (BgpSessionType::IBgpClient, false) => SvgColor::PurpleLight,
-            (BgpSessionType::EBgp, false) => SvgColor::RedLight,
-            (BgpSessionType::IBgpPeer, true) => SvgColor::BlueDark,
-            (BgpSessionType::IBgpClient, true) => SvgColor::PurpleDark,
-            (BgpSessionType::EBgp, true) => SvgColor::RedDark,
+        let color = match ctx.props().session_type {
+            BgpSessionType::IBgpPeer => SvgColor::BlueLight,
+            BgpSessionType::IBgpClient => SvgColor::PurpleLight,
+            BgpSessionType::EBgp => SvgColor::RedLight,
         };
         let on_mouse_enter = ctx.link().callback(|_| Msg::OnMouseEnter);
         let on_mouse_leave = ctx.link().callback(|_| Msg::OnMouseLeave);
@@ -94,16 +89,7 @@ impl Component for BgpSession {
             Msg::StateNet(n) => {
                 self.net = n;
             }
-            Msg::State(s) => {
-                let selected =
-                    s.selected() == Selected::BgpSession(ctx.props().src, ctx.props().dst);
-                return if selected != self.selected {
-                    self.selected = selected;
-                    true
-                } else {
-                    false
-                };
-            }
+            Msg::State(_) => return false,
             Msg::OnMouseEnter => {
                 let src = ctx.props().src;
                 let dst = ctx.props().dst;
@@ -116,10 +102,6 @@ impl Component for BgpSession {
                 return false;
             }
             Msg::OnClick => {
-                let src = ctx.props().src;
-                let dst = ctx.props().dst;
-                self.state_dispatch
-                    .reduce(move |s| s.set_selected(Selected::BgpSession(src, dst)));
                 return false;
             }
         }

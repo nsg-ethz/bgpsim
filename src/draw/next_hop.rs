@@ -8,22 +8,27 @@ use crate::{
     dim::{Dim, FW_ARROW_LENGTH, ROUTER_RADIUS},
     net::Net,
     point::Point,
+    state::{Hover, State},
 };
 
 use super::{arrows::Arrow, SvgColor};
 
 pub struct NextHop {
-    next_hops: Vec<Point>,
+    next_hops: Vec<(RouterId, Point)>,
     p1: Point,
     net: Rc<Net>,
     dim: Rc<Dim>,
     _net_dispatch: Dispatch<BasicStore<Net>>,
     _dim_dispatch: Dispatch<BasicStore<Dim>>,
+    state_dispatch: Dispatch<BasicStore<State>>,
 }
 
 pub enum Msg {
+    State(Rc<State>),
     StateDim(Rc<Dim>),
     StateNet(Rc<Net>),
+    HoverEnter(RouterId),
+    HoverLeave,
 }
 
 #[derive(Properties, PartialEq, Eq)]
@@ -39,6 +44,7 @@ impl Component for NextHop {
     fn create(ctx: &Context<Self>) -> Self {
         let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
         let _dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
+        let state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
         NextHop {
             next_hops: Default::default(),
             p1: Default::default(),
@@ -46,20 +52,23 @@ impl Component for NextHop {
             dim: Default::default(),
             _net_dispatch,
             _dim_dispatch,
+            state_dispatch,
         }
     }
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         html! {
             <>
             {
-                self.next_hops.iter().map(|p3| {
-                    let dist = self.p1.dist(*p3);
-                    let p1 = self.p1.interpolate(*p3, ROUTER_RADIUS / dist);
-                    let p2 = self.p1.interpolate(*p3, FW_ARROW_LENGTH / dist);
+                self.next_hops.iter().cloned().map(|(dst, p3)| {
+                    let dist = self.p1.dist(p3);
+                    let p1 = self.p1.interpolate(p3, ROUTER_RADIUS / dist);
+                    let p2 = self.p1.interpolate(p3, FW_ARROW_LENGTH / dist);
+                    let on_mouse_enter = ctx.link().callback(move |_| Msg::HoverEnter(dst));
+                    let on_mouse_leave = ctx.link().callback(|_| Msg::HoverLeave);
                     let color = SvgColor::BlueLight;
                     html! {
-                        <Arrow {color} {p1} {p2} />
+                        <Arrow {color} {p1} {p2} {on_mouse_enter} {on_mouse_leave} />
                     }
                 }).collect::<Html>()
             }
@@ -75,6 +84,20 @@ impl Component for NextHop {
             }
             Msg::StateNet(n) => {
                 self.net = n;
+            }
+            Msg::State(_) => {
+                return false;
+            }
+            Msg::HoverEnter(dst) => {
+                let src = ctx.props().router_id;
+                self.state_dispatch
+                    .reduce(move |state| state.set_hover(Hover::NextHop(src, dst)));
+                return false;
+            }
+            Msg::HoverLeave => {
+                self.state_dispatch
+                    .reduce(|state| state.set_hover(Hover::None));
+                return false;
             }
         }
 
@@ -97,11 +120,11 @@ impl Component for NextHop {
     }
 }
 
-fn get_next_hop(net: &Net, dim: &Dim, router: RouterId, prefix: Prefix) -> Vec<Point> {
+fn get_next_hop(net: &Net, dim: &Dim, router: RouterId, prefix: Prefix) -> Vec<(RouterId, Point)> {
     if let Some(r) = net.net.get_device(router).internal() {
         r.get_next_hop(prefix)
             .into_iter()
-            .map(|r| dim.get(net.pos.get(&r).copied().unwrap_or_default()))
+            .map(|r| (r, dim.get(net.pos.get(&r).copied().unwrap_or_default())))
             .collect()
     } else {
         Vec::new()

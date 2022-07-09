@@ -41,10 +41,7 @@ impl State {
             | (Layer::Igp, Selected::None)
             | (Layer::Igp, Selected::Router(_))
             | (Layer::Bgp, Selected::None)
-            | (Layer::Bgp, Selected::Router(_))
-            | (Layer::Bgp, Selected::BgpSession(_, _)) => self.selected,
-            (Layer::FwState, Selected::BgpSession(_, _))
-            | (Layer::Igp, Selected::BgpSession(_, _)) => Selected::None,
+            | (Layer::Bgp, Selected::Router(_)) => self.selected,
         };
     }
 
@@ -57,7 +54,6 @@ impl State {
 pub enum Selected {
     None,
     Router(RouterId),
-    BgpSession(RouterId, RouterId),
 }
 
 impl Default for Selected {
@@ -71,6 +67,7 @@ pub enum Hover {
     None,
     Router(RouterId),
     BgpSession(RouterId, RouterId),
+    NextHop(RouterId, RouterId),
 }
 
 impl Default for Hover {

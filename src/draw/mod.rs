@@ -9,6 +9,7 @@ pub mod link_weight;
 pub mod next_hop;
 pub mod router;
 pub mod text;
+pub mod tooltip;
 
 #[derive(Clone, Copy, PartialEq, Eq, EnumIter, Debug)]
 pub enum SvgColor {

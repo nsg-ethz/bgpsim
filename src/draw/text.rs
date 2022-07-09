@@ -28,6 +28,8 @@ where
     pub text_class: Option<Classes>,
     pub bg_class: Option<Classes>,
     pub padding: Option<f64>,
+    pub padding_x: Option<f64>,
+    pub rounded_corners: Option<f64>,
 }
 
 impl<T> Component for Text<T>
@@ -51,8 +53,10 @@ where
     fn view(&self, ctx: &Context<Self>) -> Html {
         let p = ctx.props().p + self.offset;
         let padding = ctx.props().padding.unwrap_or(1.0);
-        let p_box = p - Point::new(padding, padding + self.height / 2.0);
-        let box_w = (self.width + 2.0 * padding).to_string();
+        let padding_x = ctx.props().padding_x.unwrap_or(padding);
+        let rx = ctx.props().rounded_corners.unwrap_or(0.0).to_string();
+        let p_box = p - Point::new(padding_x, padding + self.height / 2.0);
+        let box_w = (self.width + 2.0 * padding_x).to_string();
         let box_h = (self.height + 2.0 * padding).to_string();
 
         let bg_class = ctx
@@ -63,7 +67,7 @@ where
         let text_class = ctx.props().text_class.clone().unwrap_or_default();
         html! {
             <>
-                <rect x={p_box.x()} y={p_box.y()} width={box_w} height={box_h} class={bg_class} />
+                <rect x={p_box.x()} y={p_box.y()} width={box_w} height={box_h} class={bg_class} {rx} />
                 <text class={text_class} x={p.x()} y={p.y()} ref={self.text_ref.clone()} dominant-baseline="central">{ ctx.props().text.to_string() }</text>
             </>
         }

@@ -173,7 +173,7 @@ impl<T: Copy + PartialEq + 'static> Component for DropdownMenu<T> {
             <>
                 if self.menu_shown {
                     <button
-                     class="absolute left-0 top-0 insert-0 h-screen w-screen bg-black opacity-5 cursor-default focus:outline-none"
+                     class="absolute left-0 top-0 insert-0 h-screen w-screen cursor-default focus:outline-none"
                      onclick={onclick_close} />
                 }
                 <div class="relative">

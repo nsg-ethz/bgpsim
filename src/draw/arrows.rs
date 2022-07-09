@@ -86,10 +86,7 @@ pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
     };
     let p1 = props.p1;
     let p2 = props.p2;
-    let delta = p2 - p1;
-    let h = (props.angle * std::f64::consts::PI / 180.0).tan() * 0.5;
-    let m = p1.mid(p2);
-    let pt = m + delta.rotate() * h;
+    let pt = get_curve_point(p1, p2, props.angle);
     let (p1, p2) = if props.sub_radius {
         (
             p1.interpolate_absolute(pt, ROUTER_RADIUS),
@@ -106,4 +103,18 @@ pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
     html! {
         <path marker-end={marker_end} {d} {class} {onclick} {onmouseenter} {onmouseleave} fill="none" />
     }
+}
+
+pub fn get_curve_point(p1: Point, p2: Point, angle: f64) -> Point {
+    let delta = p2 - p1;
+    let h = (angle * std::f64::consts::PI / 180.0).tan() * 0.5;
+    let m = p1.mid(p2);
+    m + delta.rotate() * h
+}
+
+pub fn get_mid_point(p1: Point, p2: Point, angle: f64) -> Point {
+    let delta = p2 - p1;
+    let h = (angle * std::f64::consts::PI / 180.0).tan() * 0.25;
+    let m = p1.mid(p2);
+    m + delta.rotate() * h
 }

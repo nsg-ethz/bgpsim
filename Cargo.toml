@@ -11,7 +11,7 @@ netsim = { path = "../netsim" }
 yewdux = "0.7.0"
 yewdux-functional = "0.1.0"
 yew-lucide = "0.61.0"
-web-sys = { version = "0.3", features = [ "HtmlDivElement", "SvgGraphicsElement", "SvgRect" ] }
+web-sys = { version = "0.3", features = [ "HtmlDivElement", "SvgGraphicsElement", "SvgRect", "Window", "KeyboardEvent" ] }
 log = "0.4.17"
 wasm-logger = "0.2.0"
 ordered-float = "3.0.0"

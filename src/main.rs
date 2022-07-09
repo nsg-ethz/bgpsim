@@ -16,11 +16,11 @@ use yew::prelude::*;
 #[function_component(App)]
 fn app() -> Html {
     html! {
-        <div class="flex flex-col w-screen h-screen">
+        <div class="flex flex-col w-screen h-screen max-h-screen">
             <div class="flex">
                 <Header />
             </div>
-            <div class="flex h-full w-full bg-gray-100">
+            <div class="flex h-full w-full max-h-full bg-gray-100 overflow-scroll">
                 <Canvas />
                 <Sidebar />
             </div>

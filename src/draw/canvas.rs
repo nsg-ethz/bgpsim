@@ -13,6 +13,7 @@ use super::link::Link;
 use super::link_weight::LinkWeight;
 use super::next_hop::NextHop;
 use super::router::Router;
+use super::tooltip::Tooltip;
 use crate::dim::Dim;
 use crate::net::Net;
 use crate::state::{Layer, State};
@@ -104,6 +105,7 @@ impl Component for Canvas {
                             html!{}
                         }
                     }
+                    <Tooltip />
                 </svg>
             </div>
         }
@@ -116,7 +118,6 @@ impl Component for Canvas {
                     let w = div.client_width() as f64;
                     let h = div.client_height() as f64;
                     if w != self.dim.width || h != self.dim.height {
-                        log::info!("update size to {}x{}", w, h);
                         self.dim_dispatch.reduce(move |dim: &mut Dim| {
                             dim.width = w;
                             dim.height = h;

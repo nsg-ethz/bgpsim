@@ -5,6 +5,7 @@ use yew::prelude::*;
 pub enum Icon {
     ChevronDown,
     Menu,
+    X,
 }
 
 impl Icon {
@@ -12,6 +13,7 @@ impl Icon {
         match self {
             Self::ChevronDown => html! { <yew_lucide::ChevronDown />},
             Self::Menu => html! { <yew_lucide::Menu />},
+            Self::X => html! { <yew_lucide::X />},
         }
     }
 }

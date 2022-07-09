@@ -19,8 +19,8 @@ pub struct Net {
     is_init: bool,
 }
 
-const BATCH: usize = 10;
-const SMOL: f64 = 0.0001;
+const BATCH: usize = 100;
+const SMOL: f64 = 0.00001;
 
 impl Net {
     pub fn init(&mut self) {
@@ -104,7 +104,6 @@ impl Net {
             speed: 0.01,
             strong_gravity: false,
         };
-        log::debug!("{:?}", edges);
         let mut layout: Layout<f64> = Layout::from_graph(edges, nodes, None, settings);
 
         let mut delta = 1.0;
