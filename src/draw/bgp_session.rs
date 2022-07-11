@@ -27,7 +27,7 @@ pub enum Msg {
     State(Rc<State>),
     StateDim(Rc<Dim>),
     StateNet(Rc<Net>),
-    OnMouseEnter,
+    OnMouseEnter(MouseEvent),
     OnMouseLeave,
     OnClick,
 }
@@ -64,7 +64,7 @@ impl Component for BgpSession {
             BgpSessionType::IBgpClient => SvgColor::PurpleLight,
             BgpSessionType::EBgp => SvgColor::RedLight,
         };
-        let on_mouse_enter = ctx.link().callback(|_| Msg::OnMouseEnter);
+        let on_mouse_enter = ctx.link().callback(Msg::OnMouseEnter);
         let on_mouse_leave = ctx.link().callback(|_| Msg::OnMouseLeave);
         let on_click = ctx.link().callback(|_| Msg::OnClick);
         html! {
@@ -90,7 +90,7 @@ impl Component for BgpSession {
                 self.net = n;
             }
             Msg::State(_) => return false,
-            Msg::OnMouseEnter => {
+            Msg::OnMouseEnter(_) => {
                 let src = ctx.props().src;
                 let dst = ctx.props().dst;
                 self.state_dispatch
@@ -98,7 +98,7 @@ impl Component for BgpSession {
                 return false;
             }
             Msg::OnMouseLeave => {
-                self.state_dispatch.reduce(|s| s.set_hover(Hover::None));
+                self.state_dispatch.reduce(|s| s.clear_hover());
                 return false;
             }
             Msg::OnClick => {

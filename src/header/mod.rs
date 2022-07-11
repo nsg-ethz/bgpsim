@@ -1,104 +1,135 @@
 use std::rc::Rc;
 
 use netsim::types::Prefix;
+use strum::IntoEnumIterator;
+use web_sys::HtmlInputElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
+use yewdux_functional::use_store;
 
 use crate::{
-    components::{dropdown_menu::ButtonStyle, DropdownMenu},
-    icons::Icon,
     net::Net,
     state::{Layer, State},
 };
 
-pub enum Msg {
-    State(Rc<State>),
-    StateNet(Rc<Net>),
-    MenuAction(MenuAction),
-    ChangeLayer(Layer),
-    ChangePrefix(Prefix),
+#[derive(Properties, PartialEq)]
+pub struct Properties {
+    pub node_ref: NodeRef,
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
-pub enum MenuAction {
-    Import,
-    Export,
-    Settings,
-    Help,
+#[function_component(Header)]
+pub fn header(props: &Properties) -> Html {
+    html! {
+        <>
+            <div class="absolute flex">
+                <MainMenu node_ref={props.node_ref.clone()}/>
+                <div class="absolute mt-4 ml-20 w-full flex space-x-4">
+                    <LayerSelection />
+                    <PrefixSelection />
+                </div>
+            </div>
+        </>
+    }
 }
 
-pub struct Header {
-    layer_text: String,
+#[function_component(LayerSelection)]
+pub fn layer_selection() -> Html {
+    let button_class = "flex flex-1 w-40 rounded-full z-5 p-2 px-4 drop-shadow bg-white text-gray-700 hover:text-gray-900 transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
+    let content_class = "mt-2 z-4 flex flex-col space-y-2 p-4 opacity-0 rounded-xl drop-shadow bg-white peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
+    let bg_class = "absolute z-3 -top-4 -left-20 h-screen w-screen bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-150 ease-in-out";
+
+    let shown = use_state(|| false);
+    let toggle = {
+        let shown = shown.clone();
+        Callback::from(move |_| shown.set(!*shown))
+    };
+    let hide = {
+        let shown = shown.clone();
+        Callback::from(move |_| shown.set(false))
+    };
+
+    let state = use_store::<BasicStore<State>>();
+    let layer = state
+        .state()
+        .map(|s| s.layer().to_string())
+        .unwrap_or_default();
+
+    let layer_options = Layer::iter().map(|l| {
+        let text = l.to_string();
+        let onclick = {
+            let shown = shown.clone();
+            state.dispatch().reduce_callback(move |s| {
+                shown.set(false);
+                s.set_layer(l);
+            })
+        };
+        html! { <button class="text-gray-700 hover:text-black focus:outline-none" {onclick}>{text}</button> }
+    }).collect::<Html>();
+
+    html! {
+        <span class="pointer-events-none">
+            <input type="checkbox" value="" class="sr-only peer" checked={*shown}/>
+            <button class={bg_class} onclick={hide}> </button>
+            <button class={button_class} onclick={toggle}> <yew_lucide::Layers class="w-5 h-5 mr-2"/> <p class="flex-1">{layer}</p> </button>
+            <div class={content_class}> {layer_options} </div>
+        </span>
+    }
+}
+
+pub struct PrefixSelection {
     state: Rc<State>,
-    net: Rc<Net>,
+    shown: bool,
+    text: String,
+    input_ref: NodeRef,
+    input_wrong: bool,
+    last_prefix: Option<Prefix>,
     state_dispatch: Dispatch<BasicStore<State>>,
     _net_dispatch: Dispatch<BasicStore<Net>>,
 }
 
-impl Component for Header {
+pub enum Msg {
+    State(Rc<State>),
+    StateNet(Rc<Net>),
+    OnChange,
+}
+
+impl Component for PrefixSelection {
     type Message = Msg;
     type Properties = ();
 
     fn create(ctx: &Context<Self>) -> Self {
         let state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
         let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        Self {
-            layer_text: Layer::default().to_string(),
+        PrefixSelection {
             state: Default::default(),
-            net: Default::default(),
+            text: 0.to_string(),
+            shown: false,
+            input_ref: Default::default(),
+            input_wrong: false,
+            last_prefix: None,
             state_dispatch,
             _net_dispatch,
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let prefixes = Vec::from_iter(self.net.net.get_known_prefixes().iter().cloned());
+        let button_class = "z-5 p-2 px-4 flex justify-between items-center rounded-full drop-shadow bg-white text-gray-700 opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-auto";
+        let text_input_class = "w-10 ml-2 px-2 border-b border-gray-300 focus:border-gray-700 peer-checked:border-red-700 focus:outline-none focus:text-black transition duration-150 ease-in-out";
 
-        let menu_button_text = "Menu".to_string();
-        let on_menu_select = ctx.link().callback(Msg::MenuAction);
-
-        let layer_button_text = format!("Layer: {}", self.layer_text);
-        let on_layer_select = ctx.link().callback(Msg::ChangeLayer);
-
-        let prefix_button_text = self
-            .state
-            .prefix()
-            .map(|p| p.to_string())
-            .unwrap_or_else(|| "No Prefix".to_string());
-        let on_prefix_select = ctx.link().callback(Msg::ChangePrefix);
+        let text_update = ctx.link().callback(|_| Msg::OnChange);
         html! {
-            <div class="w-full flex-1 p-4 bg-white drop-shadow-lg flex">
-                <DropdownMenu<MenuAction>
-                    button_style={ButtonStyle::Flat}
-                    button_icon={Icon::Menu}
-                    button_text={menu_button_text}
-                    expand_left=true
-                    options={vec![
-                        ("Import".to_string(), MenuAction::Import),
-                        ("Export".to_string(), MenuAction::Export),
-                        ("Settings".to_string(), MenuAction::Settings),
-                        ("Help".to_string(), MenuAction::Help)]}
-                    on_select={on_menu_select} />
-                if self.state.layer() == Layer::FwState {
-                    <DropdownMenu<Prefix>
-                        button_style={ButtonStyle::Flat}
-                        button_icon={Icon::ChevronDown}
-                        button_text={prefix_button_text}
-                        expand_left=false
-                        options={prefixes.into_iter().map(|p| (p.to_string(), p)).collect::<Vec<(String, Prefix)>>()}
-                        on_select={on_prefix_select} />
-                }
-                <DropdownMenu<Layer>
-                    button_style={ButtonStyle::Flat}
-                    button_icon={Icon::ChevronDown}
-                    button_text={layer_button_text}
-                    expand_left=false
-                    options={vec![
-                        (Layer::FwState.to_string(), Layer::FwState),
-                        (Layer::Igp.to_string(), Layer::Igp),
-                        (Layer::Bgp.to_string(), Layer::Bgp)]}
-                    on_select={on_layer_select} />
-            </div>
+            <span class="pointer-events-none">
+                <input type="checkbox" value="" class="sr-only peer" checked={self.shown}/>
+                <div class={button_class}>
+                    <p> {"Prefix"} </p>
+                    <input type="checkbox" value="" class="sr-only peer" checked={self.input_wrong}/>
+                    <input type="text" class={text_input_class} value={self.text.clone()} ref={self.input_ref.clone()}
+                        onchange={text_update.reform(|_| ())}
+                        onkeypress={text_update.reform(|_| ())}
+                        onpaste={text_update.reform(|_| ())}
+                        oninput={text_update.reform(|_| ())} />
+                </div>
+            </span>
         }
     }
 
@@ -106,36 +137,68 @@ impl Component for Header {
         match msg {
             Msg::State(s) => {
                 self.state = s;
+                let new_prefix = self.state.prefix();
+                if self.last_prefix != new_prefix {
+                    self.last_prefix = new_prefix;
+                    self.input_wrong = false;
+                    self.text = new_prefix.map(|p| p.0.to_string()).unwrap_or_default();
+                }
+                self.shown = self.state.layer().requires_prefix();
                 true
             }
             Msg::StateNet(n) => {
-                self.net = n;
-                let prefixes = self.net.net.get_known_prefixes();
-                if self.state.prefix().is_none() && !prefixes.is_empty() {
-                    let p = *prefixes.iter().next().unwrap();
-                    self.state_dispatch.reduce(move |s| s.set_prefix(Some(p)));
-                } else if self.state.prefix().is_some() && prefixes.is_empty() {
-                    self.state_dispatch.reduce(move |s| s.set_prefix(None));
+                if self.last_prefix.is_none() {
+                    let new_prefix = n.net.get_known_prefixes().iter().next().cloned();
+                    if new_prefix != self.last_prefix {
+                        self.state_dispatch
+                            .reduce(move |s| s.set_prefix(new_prefix));
+                    }
                 }
-                true
-            }
-            Msg::MenuAction(a) => {
-                match a {
-                    MenuAction::Import => log::info!("Import"),
-                    MenuAction::Export => log::info!("Export"),
-                    MenuAction::Settings => log::info!("Settings"),
-                    MenuAction::Help => log::info!("Help"),
-                }
-                true
-            }
-            Msg::ChangeLayer(l) => {
-                self.state_dispatch.reduce(move |s| s.set_layer(l));
                 false
             }
-            Msg::ChangePrefix(p) => {
-                self.state_dispatch.reduce(move |s| s.set_prefix(Some(p)));
-                false
+            Msg::OnChange => {
+                self.text = self.input_ref.cast::<HtmlInputElement>().unwrap().value();
+                if let Ok(p) = self.text.parse::<u32>().map(Prefix) {
+                    if Some(p) != self.last_prefix {
+                        self.input_wrong = false;
+                        self.state_dispatch.reduce(move |s| s.set_prefix(Some(p)));
+                        true
+                    } else {
+                        false
+                    }
+                } else {
+                    self.input_wrong = true;
+                    true
+                }
             }
         }
+    }
+}
+
+#[function_component(MainMenu)]
+pub fn main_menu(props: &Properties) -> Html {
+    let button_class = "absolute rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-600 active:bg-blue-700 transition duration-150 ease-in-out";
+    let bg_class = "absolute z-6 h-screen w-screen bg-gray-900 bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-300 ease-in-out";
+    let sidebar_class = "absolute z-7 h-screen -left-96 w-96 bg-white shadow-xl peer-checked:opacity-100 pointer-events-none peer-checked:pointer-events-auto peer-checked:translate-x-full transition duration-300 ease-in-out";
+
+    let shown = use_state(|| false);
+    let show = {
+        let shown = shown.clone();
+        Callback::from(move |_| shown.set(true))
+    };
+    let hide = {
+        let shown = shown.clone();
+        Callback::from(move |_| shown.set(false))
+    };
+
+    html! {
+        <span>
+            <input type="checkbox" value="" class="sr-only peer" checked={*shown}/>
+            <button class={button_class} onclick={show} ref={props.node_ref.clone()}> <yew_lucide::Menu /> </button>
+            <button class={bg_class} onclick={hide}> </button>
+            <div class={sidebar_class}>
+
+            </div>
+        </span>
     }
 }

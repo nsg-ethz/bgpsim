@@ -8,9 +8,9 @@ pub struct TextField {
 }
 
 pub enum Msg {
-    OnKeypress(KeyboardEvent),
-    OnChange,
-    OnSet,
+    Keypress(KeyboardEvent),
+    Change,
+    Set,
 }
 
 #[derive(Properties, PartialEq)]
@@ -52,11 +52,11 @@ impl Component for TextField {
 
         let node_ref = self.node_ref.clone();
 
-        let onchange = ctx.link().callback(|_| Msg::OnChange);
-        let onkeypress = ctx.link().callback(Msg::OnKeypress);
-        let onpaste = ctx.link().callback(|_| Msg::OnChange);
-        let oninput = ctx.link().callback(|_| Msg::OnChange);
-        let onclick = ctx.link().callback(|_| Msg::OnSet);
+        let onchange = ctx.link().callback(|_| Msg::Change);
+        let onkeypress = ctx.link().callback(Msg::Keypress);
+        let onpaste = ctx.link().callback(|_| Msg::Change);
+        let oninput = ctx.link().callback(|_| Msg::Change);
+        let onclick = ctx.link().callback(|_| Msg::Set);
         let enabled = changed && ctx.props().correct;
         let button_class = if enabled {
             classes! {"ml-2", "px-2", "flex-none", "text-gray-700", "rounded", "shadow-md", "hover:shadow-lg", "transition", "ease-in-out", "border", "border-gray-300", "focus:border-blue-600", "focus:outline-none"}
@@ -88,7 +88,7 @@ impl Component for TextField {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::OnChange => {
+            Msg::Change => {
                 let elem = self.node_ref.cast::<HtmlInputElement>().unwrap();
                 let val = elem.value();
                 let updated = val != self.current_text;
@@ -97,16 +97,16 @@ impl Component for TextField {
                 ctx.props().on_change.emit(self.current_text.clone());
                 updated
             }
-            Msg::OnSet => {
+            Msg::Set => {
                 ctx.props().on_set.emit(self.current_text.clone());
                 false
             }
-            Msg::OnKeypress(e) => self.update(
+            Msg::Keypress(e) => self.update(
                 ctx,
                 if e.code() == "Enter" {
-                    Msg::OnSet
+                    Msg::Set
                 } else {
-                    Msg::OnChange
+                    Msg::Change
                 },
             ),
         }

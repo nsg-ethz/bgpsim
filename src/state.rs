@@ -1,6 +1,10 @@
-use netsim::types::{Prefix, RouterId};
+use netsim::{
+    bgp::BgpRoute,
+    types::{Prefix, RouterId},
+};
+use strum_macros::EnumIter;
 
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct State {
     selected: Selected,
     hover: Hover,
@@ -14,7 +18,7 @@ impl State {
     }
 
     pub fn hover(&self) -> Hover {
-        self.hover
+        self.hover.clone()
     }
 
     pub fn layer(&self) -> Layer {
@@ -30,19 +34,19 @@ impl State {
     }
 
     pub fn set_hover(&mut self, hover: Hover) {
-        self.hover = hover
+        self.hover = hover;
+    }
+
+    pub fn clear_hover(&mut self) {
+        self.hover = Hover::None;
+    }
+
+    pub fn is_hover(&self) -> bool {
+        !matches!(self.hover, Hover::None)
     }
 
     pub fn set_layer(&mut self, layer: Layer) {
         self.layer = layer;
-        self.selected = match (self.layer, self.selected) {
-            (Layer::FwState, Selected::None)
-            | (Layer::FwState, Selected::Router(_))
-            | (Layer::Igp, Selected::None)
-            | (Layer::Igp, Selected::Router(_))
-            | (Layer::Bgp, Selected::None)
-            | (Layer::Bgp, Selected::Router(_)) => self.selected,
-        };
     }
 
     pub fn set_prefix(&mut self, prefix: Option<Prefix>) {
@@ -50,7 +54,7 @@ impl State {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Selected {
     None,
     Router(RouterId),
@@ -62,12 +66,13 @@ impl Default for Selected {
     }
 }
 
-#[derive(Clone, Copy)]
+#[derive(Debug, Clone)]
 pub enum Hover {
     None,
     Router(RouterId),
     BgpSession(RouterId, RouterId),
     NextHop(RouterId, RouterId),
+    RouteProp(RouterId, RouterId, BgpRoute),
 }
 
 impl Default for Hover {
@@ -76,9 +81,16 @@ impl Default for Hover {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq)]
+impl Hover {
+    pub(crate) fn is_none(&self) -> bool {
+        matches!(self, Hover::None)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
 pub enum Layer {
     FwState,
+    RouteProp,
     Igp,
     Bgp,
 }
@@ -86,15 +98,22 @@ pub enum Layer {
 impl std::fmt::Display for Layer {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
-            Layer::FwState => f.write_str("Forwarding"),
-            Layer::Igp => f.write_str("IGP"),
-            Layer::Bgp => f.write_str("BGP"),
+            Layer::FwState => f.write_str("Data Plane"),
+            Layer::RouteProp => f.write_str("Control Plane"),
+            Layer::Igp => f.write_str("IGP Config"),
+            Layer::Bgp => f.write_str("BGP Config"),
         }
     }
 }
 
 impl Default for Layer {
     fn default() -> Self {
-        Self::FwState
+        Self::Igp
+    }
+}
+
+impl Layer {
+    pub fn requires_prefix(&self) -> bool {
+        matches!(self, Self::FwState | Self::RouteProp)
     }
 }

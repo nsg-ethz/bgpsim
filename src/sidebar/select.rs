@@ -1,12 +1,14 @@
 use std::marker::PhantomData;
 
 use gloo_utils::window;
+use web_sys::HtmlElement;
 use yew::prelude::*;
 
 pub struct Select<T> {
     menu_shown: bool,
-    pop_above: bool,
     phantom: PhantomData<T>,
+    pop_above: bool,
+    div_ref: NodeRef,
 }
 
 pub enum Msg<T> {
@@ -32,6 +34,7 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
             menu_shown: false,
             pop_above: false,
             phantom: PhantomData,
+            div_ref: Default::default(),
         }
     }
 
@@ -49,21 +52,26 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
         if !disabled {
             button_class = classes! {button_class, "hover:text-black", "hover:shadow", "transition", "duration-150", "ease-in-out"};
         }
+        let height = self
+            .div_ref
+            .cast::<HtmlElement>()
+            .map(|div| div.client_height() as f64)
+            .unwrap_or(24.0);
+
         let style = if self.pop_above {
-            format!(
-                "top: -{}rem",
-                (ctx.props().options.len() as f64 * 2.0).min(11.0) + 2.5
-            )
+            format!("top: -{}px", height + 28.0)
         } else {
             String::new()
         };
+        let dropdown_class =
+            "absolute w-full shadow-lg border rounded py-1 bg-white right-0 max-h-48 overflow-auto";
+        let dropdown_container_class = "relative pointer-events-none peer-checked:pointer-events-auto opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out";
         html! {
             <>
-                if self.menu_shown {
-                    <button
-                     class="absolute left-0 -top-[0rem] insert-0 h-screen w-screen cursor-default focus:outline-none"
-                     onclick={onclick_close} />
-                }
+                <input type="checkbox" value="" class="sr-only peer" checked={self.menu_shown}/>
+                <button
+                    class="absolute left-0 -top-[0rem] insert-0 h-screen w-screen cursor-default focus:outline-none pointer-events-none peer-checked:pointer-events-auto"
+                    onclick={onclick_close} />
                 <button class={button_class} {onclick} {disabled}>
                     <div class="flex-1"> <p> {&ctx.props().text} </p> </div>
                     {
@@ -74,20 +82,18 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
                         }
                     }
                 </button>
-                <div class="relative">
-                    if self.menu_shown {
-                        <div class={classes!("absolute", "w-full", "shadow-lg", "border", "rounded", "py-1", "bg-white", "right-0", "max-h-48", "overflow-auto")} {style}>
-                        {
-                            ctx.props().options.iter().map(|(val, text)| {
-                                let v = val.clone();
-                                let onclick = ctx.link().callback(move |_| Msg::OnSelect(v.clone()));
-                                html! {
-                                    <button class="flex w-full justify-between items-center px-4 py-1 hover:bg-gray-100" {onclick}>{ text }</button>
-                                }
-                            }).collect::<Html>()
-                        }
-                        </div>
+                <div class={dropdown_container_class}>
+                    <div class={dropdown_class} {style} ref={self.div_ref.clone()}>
+                    {
+                        ctx.props().options.iter().map(|(val, text)| {
+                            let v = val.clone();
+                            let onclick = ctx.link().callback(move |_| Msg::OnSelect(v.clone()));
+                            html! {
+                                <button class="flex w-full justify-between items-center px-4 py-1 hover:bg-gray-100" {onclick}>{ text }</button>
+                            }
+                        }).collect::<Html>()
                     }
+                    </div>
                 </div>
             </>
         }
@@ -97,9 +103,14 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
         match msg {
             Msg::ToggleMenu(e) => {
                 self.menu_shown = !self.menu_shown;
-                let cur_y = e.screen_y();
+                let cur_y = e.client_y();
                 let max_y = window().inner_height().unwrap().as_f64().unwrap() as i32;
-                if max_y - cur_y < 96 {
+                let height = self
+                    .div_ref
+                    .cast::<HtmlElement>()
+                    .map(|div| div.client_height() as i32 + 28i32)
+                    .unwrap_or(24);
+                if max_y - cur_y < height {
                     self.pop_above = true;
                 } else {
                     self.pop_above = false;

@@ -3,10 +3,10 @@ use std::collections::HashMap;
 use forceatlas2::{Layout, Nodes, Settings};
 use getrandom::getrandom;
 use netsim::{
-    bgp::BgpSessionType,
+    bgp::{BgpRoute, BgpSessionType},
     event::BasicEventQueue,
     network::Network,
-    types::{NetworkError, RouterId},
+    types::{NetworkDevice, NetworkError, Prefix, RouterId},
 };
 
 use crate::point::Point;
@@ -72,6 +72,55 @@ impl Net {
                             Some((src, dst, ty))
                         }
                     })
+            })
+            .collect()
+    }
+
+    pub fn get_route_propagation(&self, prefix: Prefix) -> Vec<(RouterId, RouterId, BgpRoute)> {
+        let mut results = Vec::new();
+        for id in self.net.get_topology().node_indices() {
+            match self.net.get_device(id) {
+                NetworkDevice::InternalRouter(r) => {
+                    if let Some(rib) = r.get_bgp_rib_out().get(&prefix) {
+                        results.extend(
+                            rib.iter()
+                                .map(|(dst, entry)| (id, *dst, entry.route.clone())),
+                        );
+                    }
+                }
+                NetworkDevice::ExternalRouter(r) => {
+                    if let Some(route) = r.get_advertised_routes().get(&prefix) {
+                        results.extend(
+                            r.get_bgp_sessions()
+                                .iter()
+                                .map(|dst| (id, *dst, route.clone())),
+                        );
+                    }
+                }
+                NetworkDevice::None => {}
+            }
+        }
+        results
+    }
+
+    #[allow(dead_code)]
+    pub fn get_selected_routes(&self, prefix: Prefix) -> Vec<(RouterId, Option<BgpRoute>)> {
+        self.net
+            .get_topology()
+            .node_indices()
+            .map(|src| {
+                (
+                    src,
+                    match self.net.get_device(src) {
+                        NetworkDevice::InternalRouter(r) => {
+                            r.get_bgp_rib().get(&prefix).map(|e| e.route.clone())
+                        }
+                        NetworkDevice::ExternalRouter(r) => {
+                            r.get_advertised_routes().get(&prefix).cloned()
+                        }
+                        NetworkDevice::None => None,
+                    },
+                )
             })
             .collect()
     }

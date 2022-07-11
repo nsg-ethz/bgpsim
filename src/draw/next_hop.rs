@@ -27,7 +27,7 @@ pub enum Msg {
     State(Rc<State>),
     StateDim(Rc<Dim>),
     StateNet(Rc<Net>),
-    HoverEnter(RouterId),
+    HoverEnter(MouseEvent, RouterId),
     HoverLeave,
 }
 
@@ -57,22 +57,26 @@ impl Component for NextHop {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        html! {
-            <>
-            {
-                self.next_hops.iter().cloned().map(|(dst, p3)| {
-                    let dist = self.p1.dist(p3);
-                    let p1 = self.p1.interpolate(p3, ROUTER_RADIUS / dist);
-                    let p2 = self.p1.interpolate(p3, FW_ARROW_LENGTH / dist);
-                    let on_mouse_enter = ctx.link().callback(move |_| Msg::HoverEnter(dst));
-                    let on_mouse_leave = ctx.link().callback(|_| Msg::HoverLeave);
-                    let color = SvgColor::BlueLight;
-                    html! {
-                        <Arrow {color} {p1} {p2} {on_mouse_enter} {on_mouse_leave} />
-                    }
-                }).collect::<Html>()
+        if self.next_hops.is_empty() {
+            html! {}
+        } else {
+            html! {
+                <g>
+                {
+                    self.next_hops.iter().cloned().map(|(dst, p3)| {
+                        let dist = self.p1.dist(p3);
+                        let p1 = self.p1.interpolate(p3, ROUTER_RADIUS / dist);
+                        let p2 = self.p1.interpolate(p3, FW_ARROW_LENGTH / dist);
+                        let on_mouse_enter = ctx.link().callback(move |e| Msg::HoverEnter(e, dst));
+                        let on_mouse_leave = ctx.link().callback(|_| Msg::HoverLeave);
+                        let color = SvgColor::BlueLight;
+                        html! {
+                            <Arrow {color} {p1} {p2} {on_mouse_enter} {on_mouse_leave} />
+                        }
+                    }).collect::<Html>()
+                }
+                </g>
             }
-            </>
         }
     }
 
@@ -88,15 +92,14 @@ impl Component for NextHop {
             Msg::State(_) => {
                 return false;
             }
-            Msg::HoverEnter(dst) => {
+            Msg::HoverEnter(_, dst) => {
                 let src = ctx.props().router_id;
                 self.state_dispatch
                     .reduce(move |state| state.set_hover(Hover::NextHop(src, dst)));
                 return false;
             }
             Msg::HoverLeave => {
-                self.state_dispatch
-                    .reduce(|state| state.set_hover(Hover::None));
+                self.state_dispatch.reduce(|state| state.clear_hover());
                 return false;
             }
         }

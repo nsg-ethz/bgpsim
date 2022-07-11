@@ -1,14 +1,19 @@
 use std::marker::PhantomData;
 
+use gloo_utils::window;
+use web_sys::HtmlElement;
 use yew::prelude::*;
 
 pub struct MultiSelect<T> {
     phantom: PhantomData<T>,
     menu_shown: bool,
+    pop_above: bool,
+    div_ref: NodeRef,
+    button_ref: NodeRef,
 }
 
 pub enum Msg<T> {
-    ToggleMenu,
+    ToggleMenu(MouseEvent),
     HideMenu,
     ToggleElement(T),
     RemoveElement(T),
@@ -29,25 +34,49 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
         MultiSelect {
             phantom: PhantomData,
             menu_shown: false,
+            pop_above: false,
+            div_ref: NodeRef::default(),
+            button_ref: NodeRef::default(),
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let onclick = ctx.link().callback(|_| Msg::ToggleMenu);
+        let onclick = ctx.link().callback(Msg::ToggleMenu);
         let onclick_close = ctx.link().callback(|_| Msg::HideMenu);
         let disabled = ctx.props().options.iter().filter(|(_, _, b)| !*b).count() == 0;
         let mut button_class = classes! {"w-full", "p-0.5", "flex", "border", "border-gray-300", "bg-white", "rounded"};
         if !disabled {
             button_class = classes! {button_class, "hover:shadow", "rounded", "transition", "duration-150", "ease-in-out"};
         }
+
+        let height = self
+            .div_ref
+            .cast::<HtmlElement>()
+            .map(|div| div.client_height() as f64)
+            .unwrap_or(24.0);
+        let button_height = self
+            .button_ref
+            .cast::<HtmlElement>()
+            .map(|b| b.offset_height() as f64)
+            .unwrap_or(28.0);
+
+        let style = if self.pop_above {
+            format!("top: -{}px", height + button_height)
+        } else {
+            String::new()
+        };
+
+        let dropdown_class =
+            "absolute w-full shadow-lg border rounded py-1 bg-white right-0 max-h-48 overflow-auto";
+        let dropdown_container_class = "relative pointer-events-none peer-checked:pointer-events-auto opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out";
+
         html! {
             <>
-                if self.menu_shown {
-                    <button
-                     class="absolute left-0 top-0 insert-0 h-screen w-screen cursor-default focus:outline-none"
-                     onclick={onclick_close} />
-                }
-                <div class={button_class}>
+                <input type="checkbox" value="" class="sr-only peer" checked={self.menu_shown}/>
+                <button
+                    class="absolute left-0 -top-[0rem] insert-0 h-screen w-screen cursor-default focus:outline-none pointer-events-none peer-checked:pointer-events-auto"
+                    onclick={onclick_close}/>
+                <div class={button_class} ref={self.button_ref.clone()}>
                     <div class="flex-auto flex flex-wrap">
                     {
                         ctx.props().options.iter().filter(|(_, _, b)| *b).cloned().map(|(entry, text, _)| {
@@ -63,29 +92,39 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
                     }
                     </div>
                 </div>
-                if self.menu_shown {
-                    <div class="relative">
-                        <div class={classes!("absolute", "w-full", "shadow-lg", "border", "rounded", "py-1", "bg-white", "right-0", "max-h-48", "overflow-auto")}>
-                        {
-                            ctx.props().options.iter().filter(|(_, _, b)| !*b).map(|(val, text, _)| {
-                                let v = val.clone();
-                                let onclick = ctx.link().callback(move |_| Msg::ToggleElement(v.clone()));
-                                html! {
-                                    <button class="flex w-full justify-between items-center px-4 py-1 hover:bg-gray-100" {onclick}>{ text }</button>
-                                }
-                            }).collect::<Html>()
-                        }
-                        </div>
+                <div class={dropdown_container_class}>
+                    <div class={dropdown_class} {style} ref={self.div_ref.clone()}>
+                    {
+                        ctx.props().options.iter().filter(|(_, _, b)| !*b).map(|(val, text, _)| {
+                            let v = val.clone();
+                            let onclick = ctx.link().callback(move |_| Msg::ToggleElement(v.clone()));
+                            html! {
+                                <button class="flex w-full justify-between items-center px-4 py-1 hover:bg-gray-100" {onclick}>{ text }</button>
+                            }
+                        }).collect::<Html>()
+                    }
                     </div>
-                }
+                </div>
             </>
         }
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::ToggleMenu => {
+            Msg::ToggleMenu(e) => {
                 self.menu_shown = !self.menu_shown;
+                let cur_y = e.client_y();
+                let max_y = window().inner_height().unwrap().as_f64().unwrap() as i32;
+                let height = self
+                    .div_ref
+                    .cast::<HtmlElement>()
+                    .map(|div| div.client_height() as i32 + 28i32)
+                    .unwrap_or(24);
+                if max_y - cur_y < height {
+                    self.pop_above = true;
+                } else {
+                    self.pop_above = false;
+                }
                 true
             }
             Msg::HideMenu => {

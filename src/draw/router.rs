@@ -17,7 +17,7 @@ pub enum Msg {
     StateDim(Rc<Dim>),
     StateNet(Rc<Net>),
     State(Rc<State>),
-    OnMouseEnter,
+    OnMouseEnter(MouseEvent),
     OnMouseLeave,
     OnClick,
     OnMouseDown(MouseEvent),
@@ -69,7 +69,7 @@ impl Component for Router {
             "text-white"
         };
         let onclick = ctx.link().callback(|_| Msg::OnClick);
-        let onmouseenter = ctx.link().callback(|_| Msg::OnMouseEnter);
+        let onmouseenter = ctx.link().callback(Msg::OnMouseEnter);
         let onmouseleave = ctx.link().callback(|_| Msg::OnMouseLeave);
         let onmousedown = ctx.link().callback(Msg::OnMouseDown);
         let onmouseup = ctx.link().callback(|_| Msg::OnMouseUp);
@@ -112,14 +112,16 @@ impl Component for Router {
                     false
                 }
             }
-            Msg::OnMouseEnter => {
-                let router_id = ctx.props().router_id;
-                self.state_dispatch
-                    .reduce(move |s| s.set_hover(Hover::Router(router_id)));
+            Msg::OnMouseEnter(_) => {
+                if self.dragging.is_none() {
+                    let router_id = ctx.props().router_id;
+                    self.state_dispatch
+                        .reduce(move |s| s.set_hover(Hover::Router(router_id)));
+                }
                 false
             }
             Msg::OnMouseLeave => {
-                self.state_dispatch.reduce(|s| s.set_hover(Hover::None));
+                self.state_dispatch.reduce(|s| s.clear_hover());
                 false
             }
             Msg::OnClick => {
@@ -138,10 +140,14 @@ impl Component for Router {
                         )
                         .unwrap()
                 }
+                let router_id = ctx.props().router_id;
+                self.state_dispatch
+                    .reduce(move |s| s.set_hover(Hover::Router(router_id)));
                 false
             }
             Msg::OnMouseDown(e) => {
-                self.move_p = Point::new(e.screen_x(), e.screen_y());
+                self.state_dispatch.reduce(move |s| s.clear_hover());
+                self.move_p = Point::new(e.client_x(), e.client_y());
                 let link = ctx.link().clone();
                 let listener = Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e| {
                     link.send_message(Msg::OnMouseMove(e))
@@ -157,9 +163,9 @@ impl Component for Router {
             }
             Msg::OnMouseMove(e) => {
                 if self.dragging.is_some() {
-                    let screen_p = Point::new(e.screen_x(), e.screen_y());
-                    let delta = (screen_p - self.move_p) / self.dim.canvas_size();
-                    self.move_p = screen_p;
+                    let client_p = Point::new(e.client_x(), e.client_y());
+                    let delta = (client_p - self.move_p) / self.dim.canvas_size();
+                    self.move_p = client_p;
 
                     let router_id = ctx.props().router_id;
                     self.net_dispatch.reduce(move |n| {

@@ -2,12 +2,14 @@ use crate::point::Point;
 
 pub const ROUTER_RADIUS: f64 = 10.0;
 pub const FW_ARROW_LENGTH: f64 = 60.0;
-pub const BORDER: f64 = 50.0;
+pub const BORDER: f64 = 25.0;
+pub const TOOLTIP_OFFSET: f64 = 8.0;
 
 #[derive(Clone)]
 pub struct Dim {
     pub width: f64,
     pub height: f64,
+    pub margin_top: f64,
 }
 
 impl Default for Dim {
@@ -15,6 +17,7 @@ impl Default for Dim {
         Self {
             width: 300.0,
             height: 300.0,
+            margin_top: 48.0,
         }
     }
 }
@@ -33,11 +36,14 @@ impl Dim {
 
     /// Get the size of the canvas (excluding the border)
     pub fn canvas_size(&self) -> Point {
-        Point::new(self.width - 2.0 * BORDER, self.height - 2.0 * BORDER)
+        Point::new(
+            self.width - 2.0 * BORDER,
+            self.height - 2.0 * BORDER - self.margin_top,
+        )
     }
 
     /// Get the canvas offset, e.g., Point(BORDER, BORDER)
     pub fn canvas_offset(&self) -> Point {
-        Point::new(BORDER, BORDER)
+        Point::new(BORDER, BORDER + self.margin_top)
     }
 }
