@@ -225,13 +225,13 @@ impl ForwardingState {
             .unwrap_or(false)
     }
 
-    /// Get the next hop of a router for a specific prefix. If that router does not know any route,
+    /// Get the next hops of a router for a specific prefix. If that router does not know any route,
     /// `Ok(None)` is returned.
     ///
     /// **Warning** This function may return an empty slice for internal routers that black-hole
-    /// prefixes, and for terminals. Use `ForwardingState::is_black_hole` to check if a router
+    /// prefixes, and for terminals. Use [`ForwardingState::is_black_hole`] to check if a router
     /// really is a black-hole.
-    pub fn get_next_hop(&self, router: RouterId, prefix: Prefix) -> &[RouterId] {
+    pub fn get_next_hops(&self, router: RouterId, prefix: Prefix) -> &[RouterId] {
         let nh = self
             .state
             .get(&(router, prefix))
@@ -244,6 +244,12 @@ impl ForwardingState {
         }
     }
 
+    /// *Deprecated*! Use [`ForwardingState::get_next_hops`] instead.
+    #[deprecated(since = "0.2.0", note = "Use `get_next_hops` instead!")]
+    pub fn get_next_hop(&self, router: RouterId, prefix: Prefix) -> &[RouterId] {
+        self.get_next_hops(router, prefix)
+    }
+
     /// Returns `true` if the router drops packets for that destination.
     pub fn is_black_hole(&self, router: RouterId, prefix: Prefix) -> bool {
         self.state
@@ -254,8 +260,14 @@ impl ForwardingState {
     }
 
     /// Get the set of nodes that have a next hop to `rotuer` for `prefix`.
-    pub fn get_prev_hop(&self, router: RouterId, prefix: Prefix) -> &HashSet<RouterId> {
+    pub fn get_prev_hops(&self, router: RouterId, prefix: Prefix) -> &HashSet<RouterId> {
         self.reversed.get(&(router, prefix)).unwrap_or(&EMPTY_SET)
+    }
+
+    /// *Deprecated*! Use [`ForwardingState::get_prev_hops`] instead.
+    #[deprecated(since = "0.2.0", note = "Use `get_pref_hops` instead!")]
+    pub fn get_prev_hop(&self, router: RouterId, prefix: Prefix) -> &HashSet<RouterId> {
+        self.get_prev_hops(router, prefix)
     }
 
     /// Get the difference between self and other. Each difference is stored per prefix in a
@@ -267,8 +279,16 @@ impl ForwardingState {
         for key in keys {
             let src = key.0;
             let prefix = key.1;
-            let self_target = self.get_next_hop(src, prefix);
-            let other_target = other.get_next_hop(src, prefix);
+            let self_target = self
+                .state
+                .get(&(src, prefix))
+                .map(|x| x.as_slice())
+                .unwrap_or_default();
+            let other_target = other
+                .state
+                .get(&(src, prefix))
+                .map(|x| x.as_slice())
+                .unwrap_or_default();
             if self_target != other_target {
                 result.entry(prefix).or_default().push((
                     src,
