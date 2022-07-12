@@ -647,6 +647,21 @@ impl Router {
         self.static_routes.iter()
     }
 
+    /// Get a reference to the RIB table
+    pub fn get_bgp_rib(&self) -> &HashMap<Prefix, BgpRibEntry> {
+        &self.bgp_rib
+    }
+
+    /// Get a reference to the RIB-IN table
+    pub fn get_bgp_rib_in(&self) -> &HashMap<Prefix, HashMap<RouterId, BgpRibEntry>> {
+        &self.bgp_rib_in
+    }
+
+    /// Get a reference to the RIB-OUT table
+    pub fn get_bgp_rib_out(&self) -> &HashMap<Prefix, HashMap<RouterId, BgpRibEntry>> {
+        &self.bgp_rib_out
+    }
+
     /// write forawrding table based on graph and return the set of events triggered by this action.
     /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables.
     ///

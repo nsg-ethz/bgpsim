@@ -228,14 +228,29 @@ impl ForwardingState {
     /// Get the next hop of a router for a specific prefix. If that router does not know any route,
     /// `Ok(None)` is returned.
     ///
-    /// **Warning** if this function is called on an external router, then this function may return
-    /// the router id: `u32::MAX`, which indicates that this router forwards traffic internally to
-    /// the actual destination.
+    /// **Warning** This function may return an empty slice for internal routers that black-hole
+    /// prefixes, and for terminals. Use `ForwardingState::is_black_hole` to check if a router
+    /// really is a black-hole.
     pub fn get_next_hop(&self, router: RouterId, prefix: Prefix) -> &[RouterId] {
+        let nh = self
+            .state
+            .get(&(router, prefix))
+            .map(|p| p.as_slice())
+            .unwrap_or_default();
+        if nh == [*TO_DST] {
+            &[]
+        } else {
+            nh
+        }
+    }
+
+    /// Returns `true` if the router drops packets for that destination.
+    pub fn is_black_hole(&self, router: RouterId, prefix: Prefix) -> bool {
         self.state
             .get(&(router, prefix))
             .map(|p| p.as_slice())
             .unwrap_or_default()
+            .is_empty()
     }
 
     /// Get the set of nodes that have a next hop to `rotuer` for `prefix`.
