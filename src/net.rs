@@ -150,21 +150,22 @@ impl Net {
         for id in self.net.get_topology().node_indices() {
             match self.net.get_device(id) {
                 NetworkDevice::InternalRouter(r) => {
-                    if let Some(rib) = r.get_bgp_rib_out().get(&prefix) {
+                    if let Some(rib) = r.get_bgp_rib_in().get(&prefix) {
                         results.extend(
                             rib.iter()
-                                .map(|(dst, entry)| (id, *dst, entry.route.clone())),
+                                .map(|(src, entry)| (*src, id, entry.route.clone())),
                         );
                     }
                 }
                 NetworkDevice::ExternalRouter(r) => {
-                    if let Some(route) = r.get_advertised_routes().get(&prefix) {
-                        results.extend(
-                            r.get_bgp_sessions()
-                                .iter()
-                                .map(|dst| (id, *dst, route.clone())),
-                        );
-                    }
+                    results.extend(
+                        r.get_bgp_sessions()
+                            .iter()
+                            .filter_map(|n| self.net.get_device(*n).internal().map(|r| (*n, r)))
+                            .filter_map(|(n, r)| r.get_bgp_rib_out().get(&prefix).map(|r| (n, r)))
+                            .filter_map(|(n, r)| r.get(&id).map(|e| (n, e)))
+                            .map(|(n, e)| (n, id, e.route.clone())),
+                    );
                 }
                 NetworkDevice::None => {}
             }

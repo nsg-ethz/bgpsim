@@ -122,19 +122,19 @@ fn event_cfg(props: &EventProps) -> Html {
         None => return html! {},
     };
     let dir_class = "text-gray-700 font-bold";
-    let (src, dst, content) = match props.event.clone() {
+    let (src, dst, ty, content) = match props.event.clone() {
         Event::Bgp(_, src, dst, BgpEvent::Update(route)) => {
-            (src, dst, html! { <RouteTable {route} /> })
+            (src, dst, "BGP Update", html! { <RouteTable {route} /> })
         }
         Event::Bgp(_, src, dst, BgpEvent::Withdraw(prefix)) => {
-            (src, dst, html! { <PrefixTable {prefix} />})
+            (src, dst, "BGP Withdraw", html! { <PrefixTable {prefix} />})
         }
     };
     let onmouseenter = props.on_mouse_enter.reform(move |_| (src, dst));
     let onmouseleave = props.on_mouse_leave.reform(move |_| ());
     html! {
         <div class="w-full flex flex-col" {onmouseenter} {onmouseleave}>
-            <p class={dir_class}> {props.i + 1} {": "} {src.fmt(net)} {" → "} {dst.fmt(net)} </p>
+            <p class={dir_class}> {props.i + 1} {": "} {src.fmt(net)} {" → "} {dst.fmt(net)} {": "} {ty} </p>
             {content}
         </div>
     }
