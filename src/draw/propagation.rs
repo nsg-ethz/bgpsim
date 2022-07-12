@@ -58,7 +58,7 @@ impl Component for Propagation {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let color = SvgColor::PurpleLight;
+        let color = SvgColor::YellowLight;
         let on_mouse_enter = ctx.link().callback(Msg::OnMouseEnter);
         let on_mouse_leave = ctx.link().callback(|_| Msg::OnMouseLeave);
         html! {

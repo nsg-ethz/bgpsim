@@ -2,11 +2,12 @@ use std::rc::Rc;
 
 use gloo_utils::window;
 use itertools::join;
-use netsim::{formatter::NetworkFormatter, prelude::BgpSessionType};
+use netsim::{bgp::BgpRoute, formatter::NetworkFormatter, prelude::BgpSessionType};
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::HtmlElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
+use yewdux_functional::use_store;
 
 use crate::{
     dim::{Dim, TOOLTIP_OFFSET},
@@ -94,29 +95,11 @@ impl Component for Tooltip {
                 html! {
                     <>
                         <p> {src.fmt(&self.net.net).to_string()} {" → "} {dst.fmt(&self.net.net).to_string()} </p>
-                        <table class="table-auto border-separate border-spacing-x-3">
-                        <tr> <td class="italic text-gray-400"> {"Prefix: "} </td> <td> {route.prefix} </td> </tr>
-                        <tr> <td class="italic text-gray-400"> {"Path: "} </td> <td> {join(route.as_path.iter().map(|x| x.0), ", ")} </td> </tr>
-                        <tr> <td class="italic text-gray-400"> {"Next Hop: "} </td> <td> {route.next_hop.fmt(&self.net.net).to_string()} </td> </tr>
-                        {
-                            if let Some(lp) = route.local_pref {
-                                html!{<tr> <td class="italic text-gray-400"> {"Local Pref: "} </td> <td> {lp} </td> </tr>}
-                            } else { html!{} }
-                        }
-                        {
-                            if let Some(med) = route.med {
-                                html!{<tr> <td class="italic text-gray-400"> {"MED: "} </td> <td> {med} </td> </tr>}
-                            } else { html!{} }
-                        }
-                        {
-                            if !route.community.is_empty() {
-                                html!{<tr> <td class="italic text-gray-400"> {"Communities: "} </td> <td> {join(route.community.iter(), ", ")} </td> </tr>}
-                            } else { html!{} }
-                        }
-                        </table>
+                        <RouteTable {route} />
                     </>
                 }
             }
+            Hover::Message(_, _) => return html! {},
             Hover::None => unreachable!(),
         };
 
@@ -204,5 +187,42 @@ impl Component for Tooltip {
         } else {
             self.renderer = true;
         }
+    }
+}
+
+#[derive(Properties, PartialEq, Eq)]
+pub struct RouteTableProps {
+    pub route: BgpRoute,
+}
+
+#[function_component(RouteTable)]
+pub fn route_table(props: &RouteTableProps) -> Html {
+    let net_store = use_store::<BasicStore<Net>>();
+    let net = match net_store.state() {
+        Some(n) => &n.net,
+        None => return html! {},
+    };
+
+    html! {
+        <table class="table-auto border-separate border-spacing-x-3">
+            <tr> <td class="italic text-gray-400"> {"Prefix: "} </td> <td> {props.route.prefix} </td> </tr>
+            <tr> <td class="italic text-gray-400"> {"Path: "} </td> <td> {join(props.route.as_path.iter().map(|x| x.0), ", ")} </td> </tr>
+            <tr> <td class="italic text-gray-400"> {"Next Hop: "} </td> <td> {props.route.next_hop.fmt(net).to_string()} </td> </tr>
+            {
+                if let Some(lp) = props.route.local_pref {
+                    html!{<tr> <td class="italic text-gray-400"> {"Local Pref: "} </td> <td> {lp} </td> </tr>}
+                } else { html!{} }
+            }
+            {
+                if let Some(med) = props.route.med {
+                    html!{<tr> <td class="italic text-gray-400"> {"MED: "} </td> <td> {med} </td> </tr>}
+                } else { html!{} }
+            }
+            {
+                if !props.route.community.is_empty() {
+                    html!{<tr> <td class="italic text-gray-400"> {"Communities: "} </td> <td> {join(props.route.community.iter(), ", ")} </td> </tr>}
+                } else { html!{} }
+            }
+        </table>
     }
 }

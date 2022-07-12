@@ -244,10 +244,12 @@ impl Component for RouterCfg {
                 }
             },
             Msg::AddRouteMapIn(o) => {
-                let rm = RouteMapBuilder::new()
-                    .order(o.parse().unwrap())
-                    .allow()
-                    .build();
+                let o = if let Ok(o) = o.parse() {
+                    o
+                } else {
+                    return false;
+                };
+                let rm = RouteMapBuilder::new().order(o).allow().build();
                 let r = ctx.props().router;
                 self.net_dispatch.reduce(move |net| {
                     net.net

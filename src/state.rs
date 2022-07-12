@@ -58,6 +58,7 @@ impl State {
 pub enum Selected {
     None,
     Router(RouterId),
+    Queue,
 }
 
 impl Default for Selected {
@@ -73,6 +74,7 @@ pub enum Hover {
     BgpSession(RouterId, RouterId),
     NextHop(RouterId, RouterId),
     RouteProp(RouterId, RouterId, BgpRoute),
+    Message(RouterId, RouterId),
 }
 
 impl Default for Hover {

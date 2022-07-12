@@ -53,10 +53,10 @@ impl Component for Link {
     }
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
-        let class = if self.state.layer() == Layer::Bgp {
+        let class = if matches!(self.state.layer(), Layer::Bgp | Layer::RouteProp) {
             "stroke-current stroke-1 text-gray-300"
         } else {
-            "stroke-current stroke-1 text-black"
+            "stroke-current stroke-1 text-gray-700"
         };
         html! {
             <line {class} x1={self.p1.x()} y1={self.p1.y()} x2={self.p2.x()} y2={self.p2.y()} />

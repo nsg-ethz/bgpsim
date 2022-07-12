@@ -48,20 +48,47 @@ pub struct ArrowProps {
 
 #[function_component(Arrow)]
 pub fn arrow(props: &ArrowProps) -> Html {
-    let marker_end = format!("url(#{})", props.color.arrow_tip());
     let class = classes! {
-        "stroke-current", "stroke-4", "drop-shadows-md", "hover:drop-shadows-lg", "transition", "duration-150", "ease-in-out",
-        props.color.classes()
+        "stroke-current", "stroke-4", "drop-shadows-md", "peer-hover:drop-shadows-lg", "pointer-events-none",
+        props.color.peer_classes()
     };
+    let hovered = use_state(|| false);
+    let marker_end = format!(
+        "url(#{})",
+        if *hovered {
+            props.color.arrow_tip_dark()
+        } else {
+            props.color.arrow_tip()
+        }
+    );
+    let phantom_class = "stroke-current stroke-16 opacity-0 peer";
     let p1 = props.p1;
     let p2 = props.p2;
     let dist = p1.dist(p2);
     let p2 = p1.interpolate(p2, (dist - ARROW_LENGTH) / dist);
     let onclick = props.on_click.clone();
-    let onmouseenter = props.on_mouse_enter.clone();
-    let onmouseleave = props.on_mouse_leave.clone();
+    let onmouseenter = {
+        let hovered = hovered.clone();
+        props.on_mouse_enter.clone().map(|c| {
+            c.reform(move |e| {
+                hovered.set(true);
+                e
+            })
+        })
+    };
+    let onmouseleave = {
+        props.on_mouse_leave.clone().map(|c| {
+            c.reform(move |e| {
+                hovered.set(false);
+                e
+            })
+        })
+    };
     html! {
-        <line marker-end={marker_end} {class} x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} {onclick} {onmouseenter} {onmouseleave} />
+        <g>
+            <line class={phantom_class} x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} {onclick} {onmouseenter} {onmouseleave} />
+            <line marker-end={marker_end} {class} x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} />
+        </g>
     }
 }
 
@@ -79,11 +106,20 @@ pub struct CurvedArrowProps {
 
 #[function_component(CurvedArrow)]
 pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
-    let marker_end = format!("url(#{})", props.color.arrow_tip());
+    let hovered = use_state(|| false);
+    let marker_end = format!(
+        "url(#{})",
+        if *hovered {
+            props.color.arrow_tip_dark()
+        } else {
+            props.color.arrow_tip()
+        }
+    );
     let class = classes! {
-        "stroke-current", "stroke-4", "drop-shadows-md", "hover:drop-shadows-lg", "transition", "duration-150", "ease-in-out",
-        props.color.classes()
+        "stroke-current", "stroke-4", "drop-shadows-md", "peer-hover:drop-shadows-lg", "pointer-events-none",
+        props.color.peer_classes()
     };
+    let phantom_class = "stroke-current stroke-16 opacity-0 peer";
     let p1 = props.p1;
     let p2 = props.p2;
     let pt = get_curve_point(p1, p2, props.angle);
@@ -98,23 +134,34 @@ pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
     let d = format!("M {} {} Q {} {} {} {}", p1.x, p1.y, pt.x, pt.y, p2.x, p2.y);
 
     let onclick = props.on_click.clone();
-    let onmouseenter = props.on_mouse_enter.clone();
-    let onmouseleave = props.on_mouse_leave.clone();
+    let onmouseenter = {
+        let hovered = hovered.clone();
+        props.on_mouse_enter.clone().map(|c| {
+            c.reform(move |e| {
+                hovered.set(true);
+                e
+            })
+        })
+    };
+    let onmouseleave = {
+        props.on_mouse_leave.clone().map(|c| {
+            c.reform(move |e| {
+                hovered.set(false);
+                e
+            })
+        })
+    };
     html! {
-        <path marker-end={marker_end} {d} {class} {onclick} {onmouseenter} {onmouseleave} fill="none" />
+        <g>
+            <path d={d.clone()} class={phantom_class} {onclick} {onmouseenter} {onmouseleave} fill="none" />
+            <path marker-end={marker_end} {d} {class} fill="none" />
+        </g>
     }
 }
 
 pub fn get_curve_point(p1: Point, p2: Point, angle: f64) -> Point {
     let delta = p2 - p1;
     let h = (angle * std::f64::consts::PI / 180.0).tan() * 0.5;
-    let m = p1.mid(p2);
-    m + delta.rotate() * h
-}
-
-pub fn get_mid_point(p1: Point, p2: Point, angle: f64) -> Point {
-    let delta = p2 - p1;
-    let h = (angle * std::f64::consts::PI / 180.0).tan() * 0.25;
     let m = p1.mid(p2);
     m + delta.rotate() * h
 }

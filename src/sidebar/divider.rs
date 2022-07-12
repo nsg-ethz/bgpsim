@@ -24,17 +24,21 @@ pub fn divider(props: &DividerProps) -> Html {
     }
 }
 
-#[derive(Properties, PartialEq, Eq)]
-pub struct SectionProps {
-    pub text: String,
+#[derive(Properties, PartialEq)]
+pub struct DividerButtonProps {
+    pub on_click: Callback<MouseEvent>,
+    pub children: Children,
 }
 
-#[function_component(Section)]
-pub fn section(props: &SectionProps) -> Html {
+#[function_component(DividerButton)]
+pub fn divider_button(props: &DividerButtonProps) -> Html {
     html! {
-        <div class="w-full inline-flex items-center text-gray-300">
-            <yew_lucide::ChevronRight class="w-4 h-4" />
-            <span class="flex-shrink mx-2">{&props.text}</span>
+        <div class="w-full flex py-3 items-center">
+            <div class="flex-grow border-t border-gray-300"></div>
+            <button class="rounded-full bg-white drop-shadow-md hover:drop-shadow-lg p-2" onclick={props.on_click.clone()}>
+                { for props.children.iter() }
+            </button>
+            <div class="flex-grow border-t border-gray-300"></div>
         </div>
     }
 }

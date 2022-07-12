@@ -15,9 +15,11 @@ use super::link_weight::LinkWeight;
 use super::next_hop::NextHop;
 use super::router::Router;
 use crate::dim::Dim;
+use crate::draw::arrows::CurvedArrow;
 use crate::draw::propagation::Propagation;
+use crate::draw::SvgColor;
 use crate::net::Net;
-use crate::state::{Layer, State};
+use crate::state::{Hover, Layer, State};
 
 pub enum Msg {
     UpdateSize,
@@ -28,6 +30,7 @@ pub enum Msg {
 
 pub struct Canvas {
     div_ref: NodeRef,
+    net: Rc<Net>,
     dim: Rc<Dim>,
     state: Rc<State>,
     dim_dispatch: Dispatch<BasicStore<Dim>>,
@@ -55,6 +58,7 @@ impl Component for Canvas {
         Self {
             div_ref: NodeRef::default(),
             dim_dispatch,
+            net: Default::default(),
             dim: Default::default(),
             state: Default::default(),
             net_dispatch,
@@ -71,7 +75,7 @@ impl Component for Canvas {
         self.net_dispatch.reduce(|net: &mut Net| net.init());
         let onresize = ctx.link().callback(|_| Msg::UpdateSize);
         html! {
-            <div class="flex-1 h-full p-0 bg-gray-100" ref={self.div_ref.clone()} {onresize}>
+            <div class="flex-1 h-full p-0 bg-gray-50" ref={self.div_ref.clone()} {onresize}>
                 <svg width="100%" height="100%">
                     <ArrowMarkers />
                     // draw all links
@@ -114,6 +118,13 @@ impl Component for Canvas {
                             }).collect::<Html>()
                         } else { html!{} }
                     }
+                    {
+                        if let Hover::Message(src, dst) = self.state.hover() {
+                            let p1 = self.dim.get(self.net.pos[&src]);
+                            let p2 = self.dim.get(self.net.pos[&dst]);
+                            html!{ <CurvedArrow {p1} {p2} angle={15.0} color={SvgColor::GreenLight} sub_radius={true} /> }
+                        } else { html!{} }
+                    }
                 </svg>
             </div>
         }
@@ -153,11 +164,12 @@ impl Component for Canvas {
                 true
             }
             Msg::StateNet(s) => {
-                let mut new_routers = s.net.get_topology().node_indices().collect();
+                self.net = s;
+                let mut new_routers = self.net.net.get_topology().node_indices().collect();
                 std::mem::swap(&mut self.routers, &mut new_routers);
-                let mut new_sessions = s.get_bgp_sessions();
+                let mut new_sessions = self.net.get_bgp_sessions();
                 std::mem::swap(&mut self.bgp_sessions, &mut new_sessions);
-                let g = s.net.get_topology();
+                let g = self.net.net.get_topology();
                 let mut new_links = g
                     .edge_indices()
                     .map(|e| g.edge_endpoints(e).unwrap())
@@ -171,8 +183,9 @@ impl Component for Canvas {
                     .unique()
                     .collect();
                 std::mem::swap(&mut self.links, &mut new_links);
-                let mut propagations =
-                    s.get_route_propagation(self.state.prefix().unwrap_or(Prefix(0)));
+                let mut propagations = self
+                    .net
+                    .get_route_propagation(self.state.prefix().unwrap_or(Prefix(0)));
                 std::mem::swap(&mut self.propagations, &mut propagations);
                 new_routers != self.routers
                     || new_links != self.links

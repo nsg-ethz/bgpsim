@@ -64,9 +64,9 @@ impl Component for Router {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let r = format!("{}", ROUTER_RADIUS);
         let color = if self.selected {
-            "text-blue-200"
+            "text-blue-300 stroke-blue-500 drop-shadow-lg"
         } else {
-            "text-white"
+            "text-white stroke-gray-700 drop-shadow-md"
         };
         let onclick = ctx.link().callback(|_| Msg::OnClick);
         let onmouseenter = ctx.link().callback(Msg::OnMouseEnter);
@@ -76,8 +76,7 @@ impl Component for Router {
         html! {
             <>
                 <circle
-                    stroke="black"
-                    class={classes!("fill-current", "stroke-1", "hover:text-gray-200", "drop-shadow-md", "hover:drop-shadow-lg", "transition", "duration-150", "ease-in-out" , color)}
+                    class={classes!("fill-current", "stroke-1", "hover:text-gray-200", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
                     style="cursor"
                     cx={self.p.x()} cy={self.p.y()} {r}
                     {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>

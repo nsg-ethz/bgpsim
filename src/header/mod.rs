@@ -1,3 +1,6 @@
+mod interactive;
+mod main_menu;
+
 use std::rc::Rc;
 
 use netsim::types::Prefix;
@@ -11,6 +14,8 @@ use crate::{
     net::Net,
     state::{Layer, State},
 };
+use interactive::InteractivePlayer;
+use main_menu::MainMenu;
 
 #[derive(Properties, PartialEq)]
 pub struct Properties {
@@ -27,6 +32,7 @@ pub fn header(props: &Properties) -> Html {
                     <LayerSelection />
                     <PrefixSelection />
                 </div>
+                <InteractivePlayer />
             </div>
         </>
     }
@@ -34,9 +40,9 @@ pub fn header(props: &Properties) -> Html {
 
 #[function_component(LayerSelection)]
 pub fn layer_selection() -> Html {
-    let button_class = "flex flex-1 w-40 rounded-full z-5 p-2 px-4 drop-shadow bg-white text-gray-700 hover:text-gray-900 transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
-    let content_class = "mt-2 z-4 flex flex-col space-y-2 p-4 opacity-0 rounded-xl drop-shadow bg-white peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
-    let bg_class = "absolute z-3 -top-4 -left-20 h-screen w-screen bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-150 ease-in-out";
+    let button_class = "flex flex-1 w-40 rounded-full z-10 p-2 px-4 drop-shadow bg-white text-gray-700 hover:text-gray-900 transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
+    let content_class = "absolute mt-2 z-10 w-40 flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-white peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
+    let bg_class = "absolute z-10 -top-4 -left-20 h-screen w-screen bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-150 ease-in-out";
 
     let shown = use_state(|| false);
     let toggle = {
@@ -63,7 +69,7 @@ pub fn layer_selection() -> Html {
                 s.set_layer(l);
             })
         };
-        html! { <button class="text-gray-700 hover:text-black focus:outline-none" {onclick}>{text}</button> }
+        html! { <button class="text-gray-700 hover:text-black hover:bg-gray-100 py-2 focus:outline-none" {onclick}>{text}</button> }
     }).collect::<Html>();
 
     html! {
@@ -113,7 +119,7 @@ impl Component for PrefixSelection {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let button_class = "z-5 p-2 px-4 flex justify-between items-center rounded-full drop-shadow bg-white text-gray-700 opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-auto";
+        let button_class = "z-10 p-2 px-4 flex justify-between items-center rounded-full drop-shadow bg-white text-gray-700 opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-auto";
         let text_input_class = "w-10 ml-2 px-2 border-b border-gray-300 focus:border-gray-700 peer-checked:border-red-700 focus:outline-none focus:text-black transition duration-150 ease-in-out";
 
         let text_update = ctx.link().callback(|_| Msg::OnChange);
@@ -172,33 +178,5 @@ impl Component for PrefixSelection {
                 }
             }
         }
-    }
-}
-
-#[function_component(MainMenu)]
-pub fn main_menu(props: &Properties) -> Html {
-    let button_class = "absolute rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-600 active:bg-blue-700 transition duration-150 ease-in-out";
-    let bg_class = "absolute z-6 h-screen w-screen bg-gray-900 bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-300 ease-in-out";
-    let sidebar_class = "absolute z-7 h-screen -left-96 w-96 bg-white shadow-xl peer-checked:opacity-100 pointer-events-none peer-checked:pointer-events-auto peer-checked:translate-x-full transition duration-300 ease-in-out";
-
-    let shown = use_state(|| false);
-    let show = {
-        let shown = shown.clone();
-        Callback::from(move |_| shown.set(true))
-    };
-    let hide = {
-        let shown = shown.clone();
-        Callback::from(move |_| shown.set(false))
-    };
-
-    html! {
-        <span>
-            <input type="checkbox" value="" class="sr-only peer" checked={*shown}/>
-            <button class={button_class} onclick={show} ref={props.node_ref.clone()}> <yew_lucide::Menu /> </button>
-            <button class={bg_class} onclick={hide}> </button>
-            <div class={sidebar_class}>
-
-            </div>
-        </span>
     }
 }

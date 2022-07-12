@@ -342,7 +342,7 @@ dependencies = [
 
 [[package]]
 name = "netsim"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "itertools",
  "lazy_static",
@@ -354,7 +354,7 @@ dependencies = [
 
 [[package]]
 name = "netweb"
-version = "0.1.0"
+version = "0.2.0"
 dependencies = [
  "forceatlas2",
  "getrandom",
@@ -780,9 +780,9 @@ dependencies = [
 
 [[package]]
 name = "yew-lucide"
-version = "0.61.0"
+version = "0.75.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5d4dde4587b598669cc10eb1280c677708a9139f4bd6023da1cf814d00dfcf51"
+checksum = "f8c95ef9c201a7bc7b04c9b7537f7869e0e1748b3950198e074f1a9d9ef05d7b"
 dependencies = [
  "convert_case",
  "serde",

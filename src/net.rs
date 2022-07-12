@@ -1,26 +1,95 @@
-use std::collections::HashMap;
+use std::collections::{vec_deque::Iter, HashMap, VecDeque};
 
 use forceatlas2::{Layout, Nodes, Settings};
 use getrandom::getrandom;
 use netsim::{
     bgp::{BgpRoute, BgpSessionType},
-    event::BasicEventQueue,
+    event::{Event, EventQueue},
     network::Network,
-    types::{NetworkDevice, NetworkError, Prefix, RouterId},
+    router::Router,
+    types::{IgpNetwork, NetworkDevice, NetworkError, Prefix, RouterId},
 };
 
 use crate::point::Point;
 
-#[derive(Clone, Default)]
+/// Basic event queue
+#[derive(PartialEq, Eq, Clone, Debug, Default)]
+pub struct Queue(VecDeque<Event<()>>);
+
+impl Queue {
+    /// Create a new empty event queue
+    pub fn new() -> Self {
+        Self(VecDeque::new())
+    }
+
+    pub fn swap(&mut self, i: usize, j: usize) {
+        self.0.swap(i, j)
+    }
+
+    pub fn get(&self, index: usize) -> Option<&Event<()>> {
+        self.0.get(index)
+    }
+
+    pub fn iter(&self) -> Iter<'_, Event<()>> {
+        self.0.iter()
+    }
+}
+
+impl EventQueue for Queue {
+    type Priority = ();
+
+    fn push(
+        &mut self,
+        event: Event<Self::Priority>,
+        _: &HashMap<RouterId, Router>,
+        _: &IgpNetwork,
+    ) {
+        self.0.push_back(event)
+    }
+
+    fn pop(&mut self) -> Option<Event<Self::Priority>> {
+        self.0.pop_front()
+    }
+
+    fn peek(&self) -> Option<&Event<Self::Priority>> {
+        self.0.front()
+    }
+
+    fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.0.clear()
+    }
+}
+
+#[derive(Clone)]
 pub struct Net {
-    pub net: Network<BasicEventQueue>,
+    pub net: Network<Queue>,
     pub pos: HashMap<RouterId, Point>,
     speed: HashMap<RouterId, Point>,
     is_init: bool,
 }
 
+impl Default for Net {
+    fn default() -> Self {
+        Self {
+            net: Network::new(Queue::new()),
+            pos: Default::default(),
+            speed: Default::default(),
+            is_init: Default::default(),
+        }
+    }
+}
+
 const BATCH: usize = 100;
 const SMOL: f64 = 0.00001;
+const MAX_N_ITER: usize = 1000;
 
 impl Net {
     pub fn init(&mut self) {
@@ -157,8 +226,10 @@ impl Net {
 
         let mut delta = 1.0;
         let mut old_pos = self.pos.clone();
+        let mut n_iter = 0;
 
-        while delta > SMOL {
+        while delta > SMOL && n_iter < MAX_N_ITER {
+            n_iter += 1;
             for _ in 0..BATCH {
                 layout.iteration();
             }
@@ -226,7 +297,7 @@ fn rand_uniform() -> f64 {
     x as f64 / (u32::MAX as f64)
 }
 
-fn get_test_net(net: &mut Network<BasicEventQueue>) -> Result<(), NetworkError> {
+fn get_test_net(net: &mut Network<Queue>) -> Result<(), NetworkError> {
     let e1 = net.add_external_router("E1", 100i32);
     let r1 = net.add_router("R1");
     let r2 = net.add_router("R2");

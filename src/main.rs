@@ -17,7 +17,7 @@ use yew::prelude::*;
 fn app() -> Html {
     let header_ref = use_node_ref();
     html! {
-        <div class="flex w-screen h-screen max-h-screen max-w-screen bg-gray-100 overflow-scroll">
+        <div class="flex w-screen h-screen max-h-screen max-w-screen bg-gray-50 overflow-scroll">
             <Tooltip />
             <Header node_ref={header_ref.clone()} />
             <Canvas header_ref={header_ref.clone()} />
