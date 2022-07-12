@@ -1,9 +1,9 @@
 mod interactive;
 mod main_menu;
 
-use std::rc::Rc;
+use std::{collections::HashSet, rc::Rc};
 
-use netsim::types::Prefix;
+use netsim::types::{AsId, Prefix};
 use strum::IntoEnumIterator;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
@@ -12,6 +12,7 @@ use yewdux_functional::use_store;
 
 use crate::{
     net::Net,
+    point::Point,
     state::{Layer, State},
 };
 use interactive::InteractivePlayer;
@@ -29,6 +30,7 @@ pub fn header(props: &Properties) -> Html {
             <div class="absolute flex">
                 <MainMenu node_ref={props.node_ref.clone()}/>
                 <div class="absolute mt-4 ml-20 w-full flex space-x-4">
+                    <AddRouter />
                     <LayerSelection />
                     <PrefixSelection />
                 </div>
@@ -39,7 +41,7 @@ pub fn header(props: &Properties) -> Html {
 }
 
 #[function_component(LayerSelection)]
-pub fn layer_selection() -> Html {
+fn layer_selection() -> Html {
     let button_class = "flex flex-1 w-40 rounded-full z-10 p-2 px-4 drop-shadow bg-white text-gray-700 hover:text-gray-900 transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
     let content_class = "absolute mt-2 z-10 w-40 flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-white peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
     let bg_class = "absolute z-10 -top-4 -left-20 h-screen w-screen bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-150 ease-in-out";
@@ -82,7 +84,61 @@ pub fn layer_selection() -> Html {
     }
 }
 
-pub struct PrefixSelection {
+#[function_component(AddRouter)]
+fn add_router() -> Html {
+    let button_class = "rounded-full z-10 p-2 drop-shadow bg-white text-gray-700 hover:text-gray-900 transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
+    let content_class = "absolute mt-2 z-10 w-40 flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-white peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
+    let bg_class = "absolute z-10 -top-4 -left-20 h-screen w-screen bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-150 ease-in-out";
+
+    let shown = use_state(|| false);
+    let toggle = {
+        let shown = shown.clone();
+        Callback::from(move |_| shown.set(!*shown))
+    };
+    let hide = {
+        let shown = shown.clone();
+        Callback::from(move |_| shown.set(false))
+    };
+
+    let net = use_store::<BasicStore<Net>>();
+    let add_internal = net.dispatch().reduce_callback(|n| add_router(n, true));
+    let add_external = net.dispatch().reduce_callback(|n| add_router(n, false));
+
+    html! {
+        <span class="pointer-events-none">
+            <input type="checkbox" value="" class="sr-only peer" checked={*shown}/>
+            <button class={bg_class} onclick={hide}> </button>
+            <button class={button_class} onclick={toggle}> <yew_lucide::Plus class="w-6 h-6"/> </button>
+            <div class={content_class}>
+                <button class="text-gray-700 hover:text-black hover:bg-gray-100 py-2 focus:outline-none" onclick={add_internal}>{"Internal Router"}</button>
+                <button class="text-gray-700 hover:text-black hover:bg-gray-100 py-2 focus:outline-none" onclick={add_external}>{"External Router"}</button>
+            </div>
+        </span>
+    }
+}
+
+fn add_router(net: &mut Net, internal: bool) {
+    let prefix = if internal { "R" } else { "E" };
+    let name = (1..)
+        .map(|x| format!("{}{}", prefix, x))
+        .find(|n| net.net.get_router_id(n).is_err())
+        .unwrap();
+    let router_id = if internal {
+        net.net.add_router(name)
+    } else {
+        let used_as: HashSet<AsId> = net
+            .net
+            .get_external_routers()
+            .into_iter()
+            .map(|r| net.net.get_device(r).unwrap_external().as_id())
+            .collect();
+        let as_id = (1..).map(AsId).find(|x| used_as.contains(x)).unwrap();
+        net.net.add_external_router(name, as_id)
+    };
+    net.pos.insert(router_id, Point::new(0.05, 0.05));
+}
+
+struct PrefixSelection {
     state: Rc<State>,
     shown: bool,
     text: String,
@@ -93,7 +149,7 @@ pub struct PrefixSelection {
     _net_dispatch: Dispatch<BasicStore<Net>>,
 }
 
-pub enum Msg {
+enum Msg {
     State(Rc<State>),
     StateNet(Rc<Net>),
     OnChange,
