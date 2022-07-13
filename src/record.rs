@@ -153,8 +153,9 @@ impl ConvergenceRecording {
 
     /// Perform a single step for an individual prefix. If the forwarding state is already in the
     /// final state for the specifiied prefix, then this function will return `None`. Otherwise, it
-    /// will return a slice containing all deltas that were applied during this function call.
-    pub fn step(&mut self, prefix: Prefix) -> Option<&[FwDelta]> {
+    /// will return a slice containing all deltas that were applied during this function call, and
+    /// a mutable reference to the new `ForwardingState`.
+    pub fn step(&mut self, prefix: Prefix) -> Option<(&[FwDelta], &mut ForwardingState)> {
         let pointer = self.pointers.get_mut(&prefix)?;
         let trace = self.trace.get(&prefix)?;
         if *pointer >= trace.len() {
@@ -171,14 +172,14 @@ impl ConvergenceRecording {
         *pointer += 1;
 
         // return the applied deltas
-        Some(deltas)
+        Some((deltas, &mut self.state))
     }
 
     /// Undo a single step for an individual prefix. If the forwarding state is already in the
     /// initial state for the specifiied prefix, then this function will return `None`. Otherwise, it
     /// will return a slice containing all deltas that applied *in reverse direction* during this
-    /// function call.
-    pub fn back(&mut self, prefix: Prefix) -> Option<&[FwDelta]> {
+    /// function call, and a mutable reference to the new `ForwardingState`.
+    pub fn back(&mut self, prefix: Prefix) -> Option<(&[FwDelta], &mut ForwardingState)> {
         let pointer = self.pointers.get_mut(&prefix)?;
         let trace = self.trace.get(&prefix)?;
         if *pointer == 0 {
@@ -194,7 +195,7 @@ impl ConvergenceRecording {
         }
 
         // return the applied deltas
-        Some(deltas)
+        Some((deltas, &mut self.state))
     }
 
     /// Get the position of the recording for the given prefix.
