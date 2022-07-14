@@ -86,7 +86,8 @@ pub enum FwPolicy {
     NotReachable(RouterId, Prefix),
     /// `PathCondition` to be met, if the prefix can be reached. If there is a `BlackHole` or
     /// `ForwardingLoop`, the `PathCondition` is satisfied.
-    PathCondition(RouterId, Prefix, PathCondition), }
+    PathCondition(RouterId, Prefix, PathCondition),
+}
 
 impl Policy for FwPolicy {
     type Err = PolicyError;
