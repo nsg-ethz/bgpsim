@@ -87,6 +87,9 @@ pub enum FwPolicy {
     /// `PathCondition` to be met, if the prefix can be reached. If there is a `BlackHole` or
     /// `ForwardingLoop`, the `PathCondition` is satisfied.
     PathCondition(RouterId, Prefix, PathCondition),
+    /// The `LoopFree` policy verifies that traffic from this router toward a prefix does not run
+    /// in a loop. Note that this does not imply reachability, as a `BlackHole` might still occur.
+    LoopFree(RouterId, Prefix),
 }
 
 impl Policy for FwPolicy {
@@ -118,7 +121,14 @@ impl Policy for FwPolicy {
             },
             Self::PathCondition(r, p, c) => match fw_state.get_route(*r, *p) {
                 Ok(paths) => paths.iter().try_for_each(|path| c.check(path, *p)),
-                _ => Ok(()),
+                _ => Ok(())
+            },
+            Self::LoopFree(r, p) => match fw_state.get_route(*r, *p) {
+                Err(NetworkError::ForwardingLoop(path)) => Err(PolicyError::ForwardingLoop {
+                    path: prepare_loop_path(path),
+                    prefix: *p,
+                }),
+                _ => Ok(())
             },
         }
     }
@@ -128,6 +138,7 @@ impl Policy for FwPolicy {
             FwPolicy::Reachable(r, _) => *r,
             FwPolicy::NotReachable(r, _) => *r,
             FwPolicy::PathCondition(r, _, _) => *r,
+            FwPolicy::LoopFree(r, _) => *r,
         })
     }
 
@@ -136,6 +147,7 @@ impl Policy for FwPolicy {
             FwPolicy::Reachable(_, p) => *p,
             FwPolicy::NotReachable(_, p) => *p,
             FwPolicy::PathCondition(_, p, _) => *p,
+            FwPolicy::LoopFree(_, p) => *p,
         })
     }
 }

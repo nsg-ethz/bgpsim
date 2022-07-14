@@ -506,6 +506,9 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for FwPolicy {
                     c.fmt(net)
                 )
             }
+            Self::LoopFree(r, p) => {
+                format!("LoopFree({}, {})", r.fmt(net), p)
+            }
         }
     }
 }
