@@ -118,8 +118,8 @@ impl Policy for FwPolicy {
             },
             Self::PathCondition(r, p, c) => match fw_state.get_route(*r, *p) {
                 Ok(paths) => paths.iter().try_for_each(|path| c.check(path, *p)),
-                _ => Ok(())
-            }
+                _ => Ok(()),
+            },
         }
     }
 
@@ -178,7 +178,7 @@ impl PathCondition {
                     }
                 }
                 found
-            },
+            }
             Self::Positional(v) => {
                 // algorithm to check if the positional condition matches the path
                 let mut p = path.iter();
@@ -238,7 +238,7 @@ impl PathCondition {
                         }
                     }
                 }
-            },
+            }
         } {
             // check was successful
             Ok(())

@@ -496,7 +496,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for FwPolicy {
         match self {
             Self::Reachable(r, p) => {
                 format!("Reachability({}, {})", r.fmt(net), p)
-            },
+            }
             Self::NotReachable(r, p) => format!("Isolation({}, {})", r.fmt(net), p),
             Self::PathCondition(r, p, c) => {
                 format!(
@@ -505,7 +505,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for FwPolicy {
                     p,
                     c.fmt(net)
                 )
-            },
+            }
         }
     }
 }
