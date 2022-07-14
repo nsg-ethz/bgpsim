@@ -87,7 +87,7 @@ impl<Q: Clone> Clone for Network<Q> {
             known_prefixes: self.known_prefixes.clone(),
             stop_after: self.stop_after,
             queue: self.queue.clone(),
-            skip_queue: false,
+            skip_queue: self.skip_queue,
             verbose: self.verbose,
             #[cfg(feature = "undo")]
             undo_stack: self.undo_stack.clone(),
