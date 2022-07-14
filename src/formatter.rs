@@ -522,6 +522,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for PathCondition {
             Self::Or(v) if v.is_empty() => String::from("(false)"),
             Self::Or(v) => format!("({})", v.iter().map(|c| c.fmt(net)).join(" || ")),
             Self::Not(c) => format!("!{}", c.fmt(net)),
+            Self::LoopFree => String::from("(loop-free)"),
             Self::Positional(v) => format!("[{}]", v.iter().map(|p| p.fmt(net)).join(" ")),
         }
     }

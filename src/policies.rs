@@ -55,7 +55,7 @@ use crate::{
     types::{NetworkError, Prefix, RouterId},
 };
 
-use std::{collections::VecDeque, error::Error};
+use std::{collections::{VecDeque, HashSet}, error::Error};
 use thiserror::Error;
 
 use itertools::iproduct;
@@ -139,6 +139,8 @@ impl Policy for FwPolicy {
 /// node, or that the path traverses a specific edge.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PathCondition {
+    /// Condition that a path may not visit any node twice under any circumstance
+    LoopFree,
     /// Condition that a specific node must be traversed by the path
     Node(RouterId),
     /// Condition that a specific edge must be traversed by the path
@@ -173,7 +175,12 @@ impl PathCondition {
                     }
                 }
                 found
-            }
+            },
+            Self::LoopFree => {
+                // path: &[RouterId], prefix: Prefix
+                let mut visited_routers = HashSet::new();
+                path.iter().any(|x| !visited_routers.insert(*x))
+            },
             Self::Positional(v) => {
                 // algorithm to check if the positional condition matches the path
                 let mut p = path.iter();
@@ -233,7 +240,7 @@ impl PathCondition {
                         }
                     }
                 }
-            }
+            },
         } {
             // check was successful
             Ok(())
@@ -255,6 +262,7 @@ impl PathCondition {
         match self {
             Self::Node(a) => vec![(vec![Self::Node(a)], vec![])],
             Self::Edge(a, b) => vec![(vec![Self::Edge(a, b)], vec![])],
+            Self::LoopFree => vec![(vec![Self::LoopFree], vec![])],
             Self::Positional(v) => vec![(vec![Self::Positional(v)], vec![])],
             Self::And(v) => {
                 // convert all elements in v, and then combine the outer AND expression into one
@@ -292,6 +300,7 @@ impl PathCondition {
             Self::Not(e) => match *e {
                 Self::Node(a) => vec![(vec![], vec![Self::Node(a)])],
                 Self::Edge(a, b) => vec![(vec![], vec![Self::Edge(a, b)])],
+                Self::LoopFree => vec![(vec![], vec![Self::LoopFree])],
                 Self::Positional(v) => vec![(vec![], vec![Self::Positional(v)])],
                 // Doube negation
                 Self::Not(e) => e.into_cnf_recursive(),
