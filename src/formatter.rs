@@ -494,18 +494,18 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for FwPolicy {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         match self {
-            Self::Reachable(r, p, Some(c)) => {
+            Self::Reachable(r, p) => {
+                format!("Reachability({}, {})", r.fmt(net), p)
+            },
+            Self::NotReachable(r, p) => format!("Isolation({}, {})", r.fmt(net), p),
+            Self::PathCondition(r, p, c) => {
                 format!(
-                    "Reachability({}, {}, condition {})",
+                    "PathCondition({}, {}, condition {})",
                     r.fmt(net),
                     p,
                     c.fmt(net)
                 )
-            }
-            Self::Reachable(r, p, None) => {
-                format!("Reachability({}, {})", r.fmt(net), p)
-            }
-            Self::NotReachable(r, p) => format!("Isolation({}, {})", r.fmt(net), p),
+            },
         }
     }
 }
@@ -522,7 +522,6 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for PathCondition {
             Self::Or(v) if v.is_empty() => String::from("(false)"),
             Self::Or(v) => format!("({})", v.iter().map(|c| c.fmt(net)).join(" || ")),
             Self::Not(c) => format!("!{}", c.fmt(net)),
-            Self::LoopFree => String::from("(loop-free)"),
             Self::Positional(v) => format!("[{}]", v.iter().map(|p| p.fmt(net)).join(" ")),
         }
     }

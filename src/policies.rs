@@ -55,7 +55,7 @@ use crate::{
     types::{NetworkError, Prefix, RouterId},
 };
 
-use std::{collections::{VecDeque, HashSet}, error::Error};
+use std::{collections::VecDeque, error::Error};
 use thiserror::Error;
 
 use itertools::iproduct;
@@ -79,24 +79,22 @@ pub trait Policy {
 /// Condition that can be checked for either being true or false.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum FwPolicy {
-    /// Condition that a router can reach a prefix, with optional conditions to the path that is
-    /// taken.
-    Reachable(RouterId, Prefix, Option<PathCondition>),
+    /// Condition that a router can reach a prefix.
+    Reachable(RouterId, Prefix),
     /// Condition that the rotuer cannot reach the prefix, which means that there exists a black
     /// hole somewhere in between the path.
     NotReachable(RouterId, Prefix),
-}
+    /// `PathCondition` to be met, if the prefix can be reached. If there is a `BlackHole` or
+    /// `ForwardingLoop`, the `PathCondition` is satisfied.
+    PathCondition(RouterId, Prefix, PathCondition), }
 
 impl Policy for FwPolicy {
     type Err = PolicyError;
 
     fn check(&self, fw_state: &mut ForwardingState) -> Result<(), Self::Err> {
         match self {
-            Self::Reachable(r, p, c) => match fw_state.get_route(*r, *p) {
-                Ok(paths) => match c {
-                    None => Ok(()),
-                    Some(c) => paths.iter().try_for_each(|path| c.check(path, *p)),
-                },
+            Self::Reachable(r, p) => match fw_state.get_route(*r, *p) {
+                Ok(_) => Ok(()),
                 Err(NetworkError::ForwardingLoop(path)) => Err(PolicyError::ForwardingLoop {
                     path: prepare_loop_path(path),
                     prefix: *p,
@@ -117,20 +115,26 @@ impl Policy for FwPolicy {
                     paths,
                 }),
             },
+            Self::PathCondition(r, p, c) => match fw_state.get_route(*r, *p) {
+                Ok(paths) => paths.iter().try_for_each(|path| c.check(path, *p)),
+                _ => Ok(())
+            }
         }
     }
 
     fn router(&self) -> Option<RouterId> {
         Some(match self {
-            FwPolicy::Reachable(r, _, _) => *r,
+            FwPolicy::Reachable(r, _) => *r,
             FwPolicy::NotReachable(r, _) => *r,
+            FwPolicy::PathCondition(r, _, _) => *r,
         })
     }
 
     fn prefix(&self) -> Option<Prefix> {
         Some(match self {
-            FwPolicy::Reachable(_, p, _) => *p,
+            FwPolicy::Reachable(_, p) => *p,
             FwPolicy::NotReachable(_, p) => *p,
+            FwPolicy::PathCondition(_, p, _) => *p,
         })
     }
 }
@@ -139,8 +143,6 @@ impl Policy for FwPolicy {
 /// node, or that the path traverses a specific edge.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 pub enum PathCondition {
-    /// Condition that a path may not visit any node twice under any circumstance
-    LoopFree,
     /// Condition that a specific node must be traversed by the path
     Node(RouterId),
     /// Condition that a specific edge must be traversed by the path
@@ -175,11 +177,6 @@ impl PathCondition {
                     }
                 }
                 found
-            },
-            Self::LoopFree => {
-                // path: &[RouterId], prefix: Prefix
-                let mut visited_routers = HashSet::new();
-                path.iter().any(|x| !visited_routers.insert(*x))
             },
             Self::Positional(v) => {
                 // algorithm to check if the positional condition matches the path
@@ -262,7 +259,6 @@ impl PathCondition {
         match self {
             Self::Node(a) => vec![(vec![Self::Node(a)], vec![])],
             Self::Edge(a, b) => vec![(vec![Self::Edge(a, b)], vec![])],
-            Self::LoopFree => vec![(vec![Self::LoopFree], vec![])],
             Self::Positional(v) => vec![(vec![Self::Positional(v)], vec![])],
             Self::And(v) => {
                 // convert all elements in v, and then combine the outer AND expression into one
@@ -300,7 +296,6 @@ impl PathCondition {
             Self::Not(e) => match *e {
                 Self::Node(a) => vec![(vec![], vec![Self::Node(a)])],
                 Self::Edge(a, b) => vec![(vec![], vec![Self::Edge(a, b)])],
-                Self::LoopFree => vec![(vec![], vec![Self::LoopFree])],
                 Self::Positional(v) => vec![(vec![], vec![Self::Positional(v)])],
                 // Doube negation
                 Self::Not(e) => e.into_cnf_recursive(),
