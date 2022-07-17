@@ -29,6 +29,7 @@ use rand_distr::{Beta, Distribution};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde")]
+#[cfg(feature = "rand_queue")]
 use serde_with::serde_as;
 
 use crate::{
