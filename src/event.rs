@@ -26,6 +26,10 @@ use rand::prelude::ThreadRng;
 use rand::{thread_rng, Rng};
 #[cfg(feature = "rand_queue")]
 use rand_distr::{Beta, Distribution};
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde_with::serde_as;
 
 use crate::{
     bgp::BgpEvent,
@@ -36,6 +40,7 @@ use std::collections::{HashMap, VecDeque};
 
 /// Event to handle
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Event<P> {
     /// BGP Event from `#1` to `#2`.
     Bgp(P, RouterId, RouterId, BgpEvent),
@@ -101,6 +106,7 @@ pub trait EventQueue {
 
 /// Basic event queue
 #[derive(PartialEq, Eq, Clone, Debug, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BasicEventQueue(VecDeque<Event<()>>);
 
 impl BasicEventQueue {
@@ -146,12 +152,17 @@ impl EventQueue for BasicEventQueue {
 /// Model Queue
 #[derive(Debug, Clone)]
 #[cfg(feature = "rand_queue")]
+#[cfg_attr(feature = "serde", serde_as)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SimpleTimingModel {
     q: PriorityQueue<Event<NotNan<f64>>, NotNan<f64>>,
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     model: HashMap<(RouterId, RouterId), ModelParams>,
     default_params: ModelParams,
     current_time: NotNan<f64>,
+    #[cfg_attr(feature = "serde", serde(skip))]
     rng: ThreadRng,
 }
 
@@ -191,7 +202,7 @@ impl EventQueue for SimpleTimingModel {
             Event::Bgp(ref mut t, src, dst, _) => {
                 let key = (src, dst);
                 // compute the next time
-                let beta = self.model.get(&key).unwrap_or(&self.default_params);
+                let beta = self.model.get_mut(&key).unwrap_or(&mut self.default_params);
                 next_time += NotNan::new(beta.sample(&mut self.rng)).unwrap();
                 // check if there is already something enqueued for this session
                 if let Some((ref mut num, ref mut time)) = self.messages.get_mut(&key) {
@@ -254,6 +265,7 @@ impl PartialEq for SimpleTimingModel {
 /// t = offset + scale * Beta[alpha, beta]
 #[cfg(feature = "rand_queue")]
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ModelParams {
     /// Offset factor
     pub offset: f64,
@@ -267,7 +279,8 @@ pub struct ModelParams {
     /// next event.
     pub collision: NotNan<f64>,
     /// Distribution
-    dist: Beta<f64>,
+    #[cfg_attr(feature = "serde", serde(skip))]
+    dist: Option<Beta<f64>>,
 }
 
 #[cfg(feature = "rand_queue")]
@@ -291,13 +304,16 @@ impl ModelParams {
             alpha,
             beta,
             collision: NotNan::new(collision).unwrap(),
-            dist: Beta::new(alpha, beta).unwrap(),
+            dist: Some(Beta::new(alpha, beta).unwrap()),
         }
     }
 
     /// Sample a new value
-    pub fn sample<R: Rng + ?Sized>(&self, rng: &mut R) -> f64 {
-        (self.dist.sample(rng) * self.scale) + self.offset
+    pub fn sample<R: Rng + ?Sized>(&mut self, rng: &mut R) -> f64 {
+        if self.dist.is_none() {
+            self.dist = Some(Beta::new(self.alpha, self.beta).unwrap());
+        }
+        (self.dist.map(|s| s.sample(rng)).unwrap() * self.scale) + self.offset
     }
 }
 
