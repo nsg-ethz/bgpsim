@@ -25,6 +25,8 @@ use crate::{
 use itertools::Itertools;
 use petgraph::graph::Graph;
 use petgraph::prelude::*;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 type IndexType = u32;
@@ -32,6 +34,7 @@ type IndexType = u32;
 pub type RouterId = NodeIndex<IndexType>;
 /// IP Prefix (simple representation)
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Prefix(pub u32);
 
 impl std::fmt::Display for Prefix {
@@ -87,6 +90,7 @@ where
 
 /// AS Number
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct AsId(pub u32);
 
 impl std::fmt::Display for AsId {
@@ -147,6 +151,7 @@ pub type IgpNetwork = Graph<(), LinkWeight, Directed, IndexType>;
 
 /// How does the next hop change after a BGP event has been processed?
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct StepUpdate {
     /// Which prefix was affected
     pub prefix: Option<Prefix>,
@@ -201,6 +206,7 @@ impl StepUpdate {
 
 /// Configuration Error
 #[derive(Error, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ConfigError {
     /// The added expression would overwrite an existing expression
     #[error("The new ConfigExpr would overwrite an existing one!")]
@@ -468,6 +474,7 @@ impl<'a> NetworkDeviceMut<'a> {
 
 /// Router Errors
 #[derive(Error, Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum DeviceError {
     /// BGP session is already established
     #[error("BGP Session with {0:?} is already created!")]
@@ -497,6 +504,7 @@ pub enum DeviceError {
 
 /// Network Errors
 #[derive(Error, Debug, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum NetworkError {
     /// Device Error which cannot be handled
     #[error("Device Error: {0}")]

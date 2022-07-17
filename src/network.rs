@@ -39,11 +39,14 @@ use crate::{
 use log::*;
 use petgraph::algo::{floyd_warshall, FloatMeasure};
 use petgraph::visit::EdgeRef;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 100_000;
 
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// # Network struct
 /// The struct contains all information about the underlying physical network (Links), a manages
 /// all (both internal and external) routers, and handles all events between them.
@@ -79,6 +82,7 @@ pub struct Network<Q = BasicEventQueue> {
 impl<Q: Clone> Clone for Network<Q> {
     /// Cloning the network does not clone the event history.
     fn clone(&self) -> Self {
+        log::debug!("Cloning the network!");
         // for the new queue, remove the history of all enqueued events
         Self {
             net: self.net.clone(),
@@ -982,6 +986,7 @@ pub struct UndoMark {
 /// Undo action on the Network
 #[cfg(feature = "undo")]
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) enum UndoAction {
     /// Update an edge weight or remove the edge entirely.
     UpdateIGP(RouterId, RouterId, Option<LinkWeight>),

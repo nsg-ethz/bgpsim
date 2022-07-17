@@ -28,6 +28,8 @@ use crate::{
 use itertools::Itertools;
 use log::*;
 use petgraph::visit::EdgeRef;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::{
     collections::{hash_map::Iter, HashMap, HashSet},
     fmt::Write,
@@ -37,6 +39,7 @@ use std::{
 
 /// Bgp Router
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Router {
     /// Name of the router
     name: String,
@@ -1143,6 +1146,7 @@ impl PartialEq for Router {
 
 #[cfg(feature = "undo")]
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum UndoAction {
     BgpRibIn(Prefix, RouterId, Option<BgpRibEntry>),
     BgpRib(Prefix, Option<BgpRibEntry>),
@@ -1161,6 +1165,7 @@ enum UndoAction {
 /// Static route description that can either point to the direct link to the target, or to use the
 /// IGP for getting the path to the target.
 #[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum StaticRoute {
     /// Use the direct edge. If the edge no longer exists, then a black-hole will be created.
     Direct(RouterId),

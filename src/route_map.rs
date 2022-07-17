@@ -23,6 +23,9 @@ use crate::{
     bgp::BgpRibEntry,
     types::{AsId, LinkWeight, Prefix, RouterId},
 };
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::fmt;
 
 /// # Main RouteMap structure
@@ -44,6 +47,7 @@ use std::fmt;
 ///     .build();
 /// ```
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct RouteMap {
     /// In which order should the route maps be checked. Lower values mean that they are checked
     /// earlier.
@@ -331,6 +335,7 @@ impl RouteMapBuilder {
 
 /// State of a route map, which can either be allow or deny
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum RouteMapState {
     /// Set the state to allow
     Allow,
@@ -352,6 +357,7 @@ impl RouteMapState {
 
 /// Match statement of the route map. Can be combined to generate complex match statements
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum RouteMapMatch {
     /// Matches on the neighbor (exact value only)
     Neighbor(RouterId),
@@ -380,6 +386,7 @@ impl RouteMapMatch {
 
 /// Generic RouteMapMatchClause to match on all, a range or on a specific element
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum RouteMapMatchClause<T> {
     /// Matches a range of values (inclusive)
     Range(T, T),
@@ -420,6 +427,7 @@ where
 
 /// Clause to match on the as path
 #[derive(Debug, Clone, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum RouteMapMatchAsPath {
     /// Contains a specific AsId
     Contains(AsId),
@@ -450,6 +458,7 @@ impl fmt::Display for RouteMapMatchAsPath {
 
 /// Set action, if a route map matches
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum RouteMapSet {
     /// overwrite the next hop
     NextHop(RouterId),
@@ -489,6 +498,7 @@ impl RouteMapSet {
 
 /// Direction of the Route Map
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum RouteMapDirection {
     /// Incoming Route Map
     Incoming,

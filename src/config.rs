@@ -84,6 +84,8 @@ use crate::{
 };
 
 use petgraph::algo::FloatMeasure;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::ops::Index;
 
@@ -99,6 +101,7 @@ use std::ops::Index;
 /// expression to set a specific link weight to 1, and another expression setting the same link to
 /// 2.0.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Config {
     /// All lines of configuration
     pub expr: HashMap<ConfigExprKey, ConfigExpr>,
@@ -299,6 +302,7 @@ impl PartialEq for Config {
 /// # Single configuration expression
 /// The expression sets a specific thing in the network.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ConfigExpr {
     /// Sets the link weight of a single link (directional)
     /// TODO make sure that the weight is strictly smaller than infinity.
@@ -430,6 +434,7 @@ impl ConfigExpr {
 /// `Config` is indexed, and which expressions represent the same key. In addition, it does not
 /// require us to reimplement `Eq` and `Hash`.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ConfigExprKey {
     /// Sets the link weight of a single link (directional)
     IgpLinkWeight {
@@ -487,6 +492,7 @@ impl ConfigExprKey {
 /// A single patch to apply on a configuration. The modifier can either insert a new expression,
 /// update an existing expression or remove an old expression.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum ConfigModifier {
     /// Insert a new expression
     Insert(ConfigExpr),
@@ -535,6 +541,7 @@ impl ConfigModifier {
 /// A series of `ConfigModifiers` which can be applied on a `Config` to get a new `Config`. The
 /// series is an ordered list, and the modifiers are applied in the order they were added.
 #[derive(Debug, Clone, PartialEq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ConfigPatch {
     /// List of all modifiers, in the order in which they are applied.
     pub modifiers: Vec<ConfigModifier>,

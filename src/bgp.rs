@@ -18,6 +18,9 @@
 //! Module containing definitions for BGP
 
 use crate::types::{AsId, LinkWeight, Prefix, RouterId};
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::BTreeSet};
 
 /// Bgp Route
@@ -26,6 +29,7 @@ use std::{cmp::Ordering, collections::BTreeSet};
 /// - ATOMIC_AGGREGATE: not used
 /// - AGGREGATOR: not used
 #[derive(Debug, Clone, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BgpRoute {
     /// IP PREFIX (represented as a simple number)
     pub prefix: Prefix,
@@ -89,6 +93,7 @@ impl std::hash::Hash for BgpRoute {
 
 /// Type of a BGP session
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BgpSessionType {
     /// iBGP session with a peer (or from a client with a Route Reflector)
     IBgpPeer,
@@ -122,6 +127,7 @@ impl BgpSessionType {
 
 /// BGP Events
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum BgpEvent {
     /// Withdraw a previously advertised route
     Withdraw(Prefix),
@@ -141,6 +147,7 @@ impl BgpEvent {
 
 /// BGP RIB Table entry
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct BgpRibEntry {
     /// the actual bgp route
     pub route: BgpRoute,

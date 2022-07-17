@@ -55,10 +55,11 @@ use crate::{
     types::{NetworkError, Prefix, RouterId},
 };
 
+use itertools::iproduct;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, error::Error};
 use thiserror::Error;
-
-use itertools::iproduct;
 
 /// Extendable trait for policies. Each type that implements `Policy` is something that can *at
 /// least* be checked on the forwarding state of a network.
@@ -78,6 +79,7 @@ pub trait Policy {
 
 /// Condition that can be checked for either being true or false.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FwPolicy {
     /// Condition that a router can reach a prefix.
     Reachable(RouterId, Prefix),
@@ -121,14 +123,14 @@ impl Policy for FwPolicy {
             },
             Self::PathCondition(r, p, c) => match fw_state.get_route(*r, *p) {
                 Ok(paths) => paths.iter().try_for_each(|path| c.check(path, *p)),
-                _ => Ok(())
+                _ => Ok(()),
             },
             Self::LoopFree(r, p) => match fw_state.get_route(*r, *p) {
                 Err(NetworkError::ForwardingLoop(path)) => Err(PolicyError::ForwardingLoop {
                     path: prepare_loop_path(path),
                     prefix: *p,
                 }),
-                _ => Ok(())
+                _ => Ok(()),
             },
         }
     }
@@ -155,6 +157,7 @@ impl Policy for FwPolicy {
 /// Condition on the path, which may be either to require that the path passes through a specirif
 /// node, or that the path traverses a specific edge.
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PathCondition {
     /// Condition that a specific node must be traversed by the path
     Node(RouterId),
@@ -331,6 +334,7 @@ impl From<PathCondition> for PathConditionCNF {
 
 /// Part of the positional waypointing argument
 #[derive(Clone, Debug, PartialEq, Eq, Hash, Copy)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum Waypoint {
     /// The next node is always allowed, no matter what it is. This is equivalent to the regular
     /// expression `.` (UNIX style)
@@ -348,6 +352,7 @@ pub enum Waypoint {
 /// case if positional requirements are used (like requiring the path * A * B *). In this case,
 /// is_cnf is set to false.
 #[derive(Clone, Debug, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct PathConditionCNF {
     /// Expression in the CNF form. The first vector contains all groups, which are finally combined
     /// with a logical AND. Every group consists of two vectors, the first containing the non-
@@ -421,6 +426,7 @@ impl From<PathConditionCNF> for PathCondition {
 /// # Hard Policy Error
 /// This indicates which policy resulted in the policy failing.
 #[derive(Debug, Error, PartialEq, Eq, Hash, Clone)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum PolicyError {
     /// Forwarding Black Hole occured
     #[error("Black Hole at router {router:?} for {prefix:?}")]
