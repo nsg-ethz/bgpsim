@@ -27,6 +27,7 @@ pub enum Msg {
 
 pub struct Router {
     dim: Rc<Dim>,
+    net: Rc<Net>,
     selected: bool,
     p: Point,
     move_p: Point,
@@ -51,6 +52,7 @@ impl Component for Router {
         let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         Self {
             dim: Default::default(),
+            net: Default::default(),
             selected: false,
             p: Default::default(),
             move_p: Default::default(),
@@ -86,30 +88,16 @@ impl Component for Router {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::StateDim(s) => {
-                self.dim = s;
-                true
-            }
-            Msg::StateNet(n) => {
-                let router_id = ctx.props().router_id;
-                let p = self
-                    .dim
-                    .get(n.pos().get(&router_id).copied().unwrap_or_default());
-                if p != self.p {
-                    self.p = p;
-                    true
-                } else {
-                    false
-                }
-            }
+            Msg::StateDim(s) => self.dim = s,
+            Msg::StateNet(n) => self.net = n,
             Msg::State(s) => {
                 let new_selected = s.selected() == Selected::Router(ctx.props().router_id);
-                if new_selected != self.selected {
+                return if new_selected != self.selected {
                     self.selected = new_selected;
                     true
                 } else {
                     false
-                }
+                };
             }
             Msg::OnMouseEnter(_) => {
                 if self.dragging.is_none() {
@@ -117,18 +105,18 @@ impl Component for Router {
                     self.state_dispatch
                         .reduce_mut(move |s| s.set_hover(Hover::Router(router_id)));
                 }
-                false
+                return false;
             }
             Msg::OnMouseLeave => {
                 self.state_dispatch.reduce_mut(|s| s.clear_hover());
-                false
+                return false;
             }
             Msg::OnClick => {
                 let router_id = ctx.props().router_id;
                 self.state_dispatch
                     .reduce_mut(move |s| s.set_selected(Selected::Router(router_id)));
                 // This triggers the event Msg::State(new)
-                false
+                return false;
             }
             Msg::OnMouseUp => {
                 if let Some(listener) = self.dragging.take() {
@@ -142,7 +130,7 @@ impl Component for Router {
                 let router_id = ctx.props().router_id;
                 self.state_dispatch
                     .reduce_mut(move |s| s.set_hover(Hover::Router(router_id)));
-                false
+                return false;
             }
             Msg::OnMouseDown(e) => {
                 self.state_dispatch.reduce_mut(move |s| s.clear_hover());
@@ -158,7 +146,7 @@ impl Component for Router {
                     Ok(()) => self.dragging = Some(listener),
                     Err(e) => log::error!("Could not add event listener! {:?}", e),
                 }
-                false
+                return false;
             }
             Msg::OnMouseMove(e) => {
                 if self.dragging.is_some() {
@@ -171,8 +159,19 @@ impl Component for Router {
                         *n.pos_mut().get_mut(&router_id).unwrap() += delta;
                     });
                 }
-                false
+                return false;
             }
+        }
+
+        let router_id = ctx.props().router_id;
+        let p = self
+            .dim
+            .get(self.net.pos().get(&router_id).copied().unwrap_or_default());
+        if p != self.p {
+            self.p = p;
+            true
+        } else {
+            false
         }
     }
 }

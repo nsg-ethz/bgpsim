@@ -1,9 +1,12 @@
 use std::rc::Rc;
 
+use gloo_utils::window;
 use itertools::Itertools;
 use netsim::bgp::BgpRoute;
 use netsim::prelude::BgpSessionType;
 use netsim::types::{Prefix, RouterId};
+use wasm_bindgen::prelude::Closure;
+use wasm_bindgen::JsCast;
 use web_sys::{HtmlDivElement, HtmlElement};
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -40,6 +43,7 @@ pub struct Canvas {
     links: Vec<(RouterId, RouterId)>,
     bgp_sessions: Vec<(RouterId, RouterId, BgpSessionType)>,
     propagations: Vec<(RouterId, RouterId, BgpRoute)>,
+    resize_listener: Option<Closure<dyn Fn(MouseEvent)>>,
 }
 
 #[derive(Properties, PartialEq)]
@@ -67,15 +71,15 @@ impl Component for Canvas {
             links: Vec::new(),
             bgp_sessions: Vec::new(),
             propagations: Vec::new(),
+            resize_listener: None,
         }
     }
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
+    fn view(&self, _ctx: &Context<Self>) -> Html {
         // initialize the network
         self.net_dispatch.reduce_mut(|net: &mut Net| net.init());
-        let onresize = ctx.link().callback(|_| Msg::UpdateSize);
         html! {
-            <div class="flex-1 h-full p-0 bg-gray-50" ref={self.div_ref.clone()} {onresize}>
+            <div class="flex-1 h-full p-0 bg-gray-50" ref={self.div_ref.clone()}>
                 <svg width="100%" height="100%">
                     <ArrowMarkers />
                     // draw all links
@@ -150,53 +154,50 @@ impl Component for Canvas {
                         dim.height = h;
                         dim.margin_top = mt;
                     });
-                    true
-                } else {
-                    false
                 }
+                return false;
             }
-            Msg::StateDim(s) => {
-                self.dim = s;
-                true
-            }
-            Msg::State(s) => {
-                self.state = s;
-                true
-            }
-            Msg::StateNet(s) => {
-                self.net = s;
-                let mut new_routers = self.net.net().get_topology().node_indices().collect();
-                std::mem::swap(&mut self.routers, &mut new_routers);
-                let mut new_sessions = self.net.get_bgp_sessions();
-                std::mem::swap(&mut self.bgp_sessions, &mut new_sessions);
-                let net_borrow = self.net.net();
-                let g = net_borrow.get_topology();
-                let mut new_links = g
-                    .edge_indices()
-                    .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
-                    .map(|(a, b)| {
-                        if a.index() > b.index() {
-                            (b, a)
-                        } else {
-                            (a, b)
-                        }
-                    })
-                    .unique()
-                    .collect();
-                std::mem::swap(&mut self.links, &mut new_links);
-                let mut propagations = self
-                    .net
-                    .get_route_propagation(self.state.prefix().unwrap_or(Prefix(0)));
-                std::mem::swap(&mut self.propagations, &mut propagations);
-                new_routers != self.routers
-                    || new_links != self.links
-                    || new_sessions != self.bgp_sessions
-                    || propagations != self.propagations
-            }
+            Msg::StateDim(s) => self.dim = s,
+            Msg::State(s) => self.state = s,
+            Msg::StateNet(s) => self.net = s,
         }
+        self.routers = self.net.net().get_topology().node_indices().collect();
+        self.bgp_sessions = self.net.get_bgp_sessions();
+        let net_borrow = self.net.net();
+        let g = net_borrow.get_topology();
+        self.links = g
+            .edge_indices()
+            .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
+            .map(|(a, b)| {
+                if a.index() > b.index() {
+                    (b, a)
+                } else {
+                    (a, b)
+                }
+            })
+            .unique()
+            .collect();
+        self.propagations = self
+            .net
+            .get_route_propagation(self.state.prefix().unwrap_or(Prefix(0)));
+        true
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, _first_render: bool) {
+        // set the resize listener callback
+        if self.resize_listener.is_none() {
+            let link = ctx.link().clone();
+            let listener = Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |_| {
+                link.send_message(Msg::UpdateSize)
+            }));
+            match window()
+                .add_event_listener_with_callback("resize", listener.as_ref().unchecked_ref())
+            {
+                Ok(()) => self.resize_listener = Some(listener),
+                Err(e) => log::error!("Could not add event listener! {:?}", e),
+            }
+        }
+
         ctx.link().send_message(Msg::UpdateSize);
     }
 }

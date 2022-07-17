@@ -19,6 +19,7 @@ pub enum Msg {
 
 pub struct Link {
     dim: Rc<Dim>,
+    net: Rc<Net>,
     state: Rc<State>,
     p1: Point,
     p2: Point,
@@ -43,6 +44,7 @@ impl Component for Link {
         let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         Self {
             dim: Default::default(),
+            net: Default::default(),
             state: Default::default(),
             p1: Default::default(),
             p2: Default::default(),
@@ -64,30 +66,27 @@ impl Component for Link {
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+        let is_state_update = matches!(msg, Msg::State(_));
         match msg {
-            Msg::State(s) => {
-                self.state = s;
-                true
-            }
-            Msg::StateDim(s) => {
-                self.dim = s;
-                true
-            }
-            Msg::StateNet(n) => {
-                let from = ctx.props().from;
-                let to = ctx.props().to;
-                let p1 = self
-                    .dim
-                    .get(n.pos().get(&from).copied().unwrap_or_default());
-                let p2 = self.dim.get(n.pos().get(&to).copied().unwrap_or_default());
-                if p1 != self.p1 || p2 != self.p2 {
-                    self.p1 = p1;
-                    self.p2 = p2;
-                    true
-                } else {
-                    false
-                }
-            }
+            Msg::State(s) => self.state = s,
+            Msg::StateDim(s) => self.dim = s,
+            Msg::StateNet(n) => self.net = n,
+        }
+
+        let from = ctx.props().from;
+        let to = ctx.props().to;
+        let p1 = self
+            .dim
+            .get(self.net.pos().get(&from).copied().unwrap_or_default());
+        let p2 = self
+            .dim
+            .get(self.net.pos().get(&to).copied().unwrap_or_default());
+        if p1 != self.p1 || p2 != self.p2 {
+            self.p1 = p1;
+            self.p2 = p2;
+            true
+        } else {
+            is_state_update
         }
     }
 }

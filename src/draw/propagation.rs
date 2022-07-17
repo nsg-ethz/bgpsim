@@ -72,7 +72,7 @@ impl Component for Propagation {
         match msg {
             Msg::StateNet(n) => self.net = n,
             Msg::StateDim(d) => self.dim = d,
-            Msg::State(_) => return false,
+            Msg::State(_) => return true,
             Msg::OnMouseEnter(_) => {
                 let (src, dst, route) =
                     (ctx.props().src, ctx.props().dst, ctx.props().route.clone());
