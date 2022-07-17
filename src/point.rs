@@ -1,6 +1,7 @@
+use serde::{Deserialize, Serialize};
 use std::ops::{Add, AddAssign, Div, DivAssign, Mul, Sub, SubAssign};
 
-#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default)]
+#[derive(Debug, Clone, Copy, PartialEq, PartialOrd, Default, Deserialize, Serialize)]
 pub struct Point {
     pub x: f64,
     pub y: f64,
@@ -113,10 +114,6 @@ impl Point {
 
     pub fn dist(&self, other: Point) -> f64 {
         self.dist2(other).sqrt()
-    }
-
-    pub fn abs(&self) -> f64 {
-        (self.x * self.x + self.y * self.y).sqrt()
     }
 
     pub fn mid(&self, other: Point) -> Point {
