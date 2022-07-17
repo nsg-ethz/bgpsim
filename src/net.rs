@@ -16,6 +16,8 @@ use netsim::{
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
+use wasm_bindgen::JsCast;
+use web_sys::HtmlElement;
 use yewdux::{mrc::Mrc, prelude::*};
 
 use crate::point::Point;
@@ -294,6 +296,57 @@ impl Net {
             .map(|(r, p)| (p, new.get(r).unwrap()))
             .map(|(p1, p2)| p1.dist2(*p2))
             .sum::<f64>()
+    }
+
+    /// export the current file and download it.
+    pub fn export(&self) {
+        let json_data = net_to_string(self);
+        let document = gloo_utils::document();
+        // create the a link
+        let element: HtmlElement = match document.create_element("a") {
+            Ok(e) => e.dyn_into().unwrap(),
+            Err(e) => {
+                log::error!("Could not create an \"a\" element! {:?}", e);
+                return;
+            }
+        };
+        // set the file destination
+        if let Err(e) = element.set_attribute(
+            "href",
+            &format!(
+                "data:text/json;charset=utf-8,{}",
+                js_sys::encode_uri_component(&json_data)
+            ),
+        ) {
+            log::error!("Could not set the \"href\" attribute! {:?}", e);
+            return;
+        }
+        // set the filename
+        if let Err(e) = element.set_attribute("download", "netsim.json") {
+            log::error!("Could not set the \"download\" attribute! {:?}", e);
+            return;
+        }
+        // hide the link
+        if let Err(e) = element.set_attribute("class", "hidden") {
+            log::error!("Could not set the \"class\" attribute! {:?}", e);
+            return;
+        }
+
+        element.click();
+
+        let _ = document.body().map(|b| {
+            let _ = b.remove_child(&element);
+        });
+    }
+
+    pub fn import(&mut self, file: &str) {
+        match net_from_str(file) {
+            Ok(n) => {
+                self.net = n.net;
+                self.pos = n.pos;
+            }
+            Err(e) => log::error!("Could not read the stored file! {}", e),
+        }
     }
 }
 

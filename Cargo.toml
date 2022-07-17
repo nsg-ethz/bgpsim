@@ -10,7 +10,8 @@ netsim = { path = "../netsim", features = ["serde"] }
 yew = { git = "https://github.com/yewstack/yew.git", features = ["csr"] }
 yewdux = { git = "https://github.com/intendednull/yewdux.git", rev = "7b50745" }
 yew-lucide = { path = "./yew-lucide" }
-web-sys = { version = "0.3", features = [ "HtmlDivElement", "SvgGraphicsElement", "SvgRect", "Window", "KeyboardEvent" ] }
+web-sys = { version = "0.3", features = [ "HtmlDivElement", "SvgGraphicsElement", "SvgRect", "Window", "KeyboardEvent", "Document", "Element", "HtmlElement", "FileList", "FileReader", "Blob", "ProgressEvent" ] }
+js-sys = "0.3"
 log = "0.4.17"
 wasm-logger = "0.2.0"
 ordered-float = "3.0.0"

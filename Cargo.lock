@@ -519,6 +519,7 @@ dependencies = [
  "gloo-timers",
  "gloo-utils",
  "itertools",
+ "js-sys",
  "log",
  "netsim",
  "ordered-float",

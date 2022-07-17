@@ -1,6 +1,8 @@
 use std::rc::Rc;
 
 use netsim::interactive::InteractiveNetwork;
+use wasm_bindgen::{prelude::Closure, JsCast};
+use web_sys::{Blob, FileReader, HtmlElement, HtmlInputElement};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -11,11 +13,16 @@ pub struct MainMenu {
     auto_simulate: bool,
     net: Rc<Net>,
     net_dispatch: Dispatch<Net>,
+    file_ref: NodeRef,
+    file_listener: Option<Closure<dyn Fn(ProgressEvent)>>,
 }
 
 pub enum Msg {
     StateNet(Rc<Net>),
     ToggleSimulationMode,
+    Export,
+    ImportClick,
+    Import,
     OpenMenu,
     CloseMenu,
 }
@@ -36,6 +43,8 @@ impl Component for MainMenu {
             auto_simulate: true,
             net: Default::default(),
             net_dispatch,
+            file_ref: NodeRef::default(),
+            file_listener: None,
         }
     }
 
@@ -49,13 +58,15 @@ impl Component for MainMenu {
 
         let toggle_auto_simulate = ctx.link().callback(|_| Msg::ToggleSimulationMode);
         let auto_layout = self.net_dispatch.reduce_mut_callback(|n| n.spring_layout());
-        let export = Callback::from(|_| ());
-        let import = Callback::from(|_| ());
+        let export = ctx.link().callback(|_| Msg::Export);
 
         let link_class = "border-b border-gray-200 hover:border-blue-600 hover:text-blue-600 transition duration-150 ease-in-out";
         let target = "_blank";
 
         let element_class = "w-full flex items-center py-4 px-6 h-12 overflow-hidden text-gray-700 text-ellipsis whitespace-nowrap rounded hover:text-blue-600 hover:bg-blue-50 transition duration-200 ease-in-out cursor-pointer active:ring-none";
+
+        let on_file_import = ctx.link().callback(|_| Msg::Import);
+        let import = ctx.link().callback(|_| Msg::ImportClick);
 
         html! {
             <span>
@@ -87,6 +98,7 @@ impl Component for MainMenu {
                             <yew_lucide::Import class="h-6 mr-4" />
                             {"Import From File"}
                         </button>
+                        <input class="hidden" type="file" ref={self.file_ref.clone()} onchange={on_file_import} />
                     </div>
                 </div>
             </span>
@@ -120,6 +132,60 @@ impl Component for MainMenu {
                 true
             }
             Msg::CloseMenu => {
+                self.shown = false;
+                true
+            }
+            Msg::Export => {
+                self.net.export();
+                self.shown = false;
+                true
+            }
+            Msg::ImportClick => {
+                let _ = self.file_ref.cast::<HtmlElement>().map(|e| e.click());
+                false
+            }
+            Msg::Import => {
+                let file = if let Some(f) = self.file_ref.cast::<HtmlInputElement>() {
+                    f
+                } else {
+                    log::error!("Could not get the input element!");
+                    return false;
+                };
+
+                let file_blob: Blob = if let Some(f) = file.files().and_then(|l| l.get(0)) {
+                    f.into()
+                } else {
+                    log::error!("Could not get the file from the file list!");
+                    return false;
+                };
+
+                let reader = FileReader::new().unwrap();
+                if let Err(e) = reader.read_as_text(&file_blob) {
+                    log::error!("Could not read the file! {:?}", e);
+                    return false;
+                }
+
+                let update_net = self
+                    .net_dispatch
+                    .reduce_mut_callback_with(|net, file: String| net.import(&file));
+                let listener = {
+                    let reader = reader.clone();
+                    Closure::<dyn Fn(ProgressEvent)>::wrap(Box::new(move |_| {
+                        let data = match reader.result() {
+                            Ok(v) => v.as_string().unwrap(),
+                            Err(e) => {
+                                log::error!("Could not read the file! {:?}", e);
+                                return;
+                            }
+                        };
+                        update_net.emit(data)
+                    }))
+                };
+
+                reader.set_onload(Some(listener.as_ref().unchecked_ref()));
+
+                self.file_listener = Some(listener);
+
                 self.shown = false;
                 true
             }
