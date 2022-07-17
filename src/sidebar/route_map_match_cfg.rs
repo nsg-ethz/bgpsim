@@ -23,7 +23,7 @@ pub struct RouteMapMatchCfg {
     v1c: bool,
     v2c: bool,
     net: Rc<Net>,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
+    _net_dispatch: Dispatch<Net>,
 }
 
 pub enum Msg {
@@ -49,7 +49,7 @@ impl Component for RouteMapMatchCfg {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         let mut s = RouteMapMatchCfg {
             v1r: NodeRef::default(),
             v2r: NodeRef::default(),
@@ -70,7 +70,7 @@ impl Component for RouteMapMatchCfg {
         // first, get the network store.
         let peers: Vec<RouterId> = self
             .net
-            .net
+            .net()
             .get_device(ctx.props().router)
             .internal()
             .map(|r| r.get_bgp_sessions().map(|(r, _)| *r).collect())
@@ -85,14 +85,14 @@ impl Component for RouteMapMatchCfg {
             let options: Vec<(RouterId, String)> = if is_peer {
                 peers
                     .iter()
-                    .map(|n| (*n, n.fmt(&self.net.net).to_string()))
+                    .map(|n| (*n, n.fmt(&self.net.net()).to_string()))
                     .collect()
             } else {
                 self.net
-                    .net
+                    .net()
                     .get_topology()
                     .node_indices()
-                    .map(|n| (n, n.fmt(&self.net.net).to_string()))
+                    .map(|n| (n, n.fmt(&self.net.net()).to_string()))
                     .collect::<Vec<_>>()
             };
             let current_text = self.v1v.fmt(&self.net);
@@ -154,7 +154,7 @@ impl Component for RouteMapMatchCfg {
             Msg::KindUpdate(k) => ctx.props().on_update.emit((ctx.props().index, Some(k))),
             Msg::ValueUpdateRouter(r) => {
                 self.v1v = MatchValue::Router(r);
-                self.update(ctx, Msg::ValueUpdate);
+                Component::update(self, ctx, Msg::ValueUpdate);
             }
             Msg::ValueUpdate => {
                 if let Some(m) = match_update(&ctx.props().m, self.v1v, self.v2v) {
@@ -171,7 +171,7 @@ impl Component for RouteMapMatchCfg {
                 if let Some(val) = self.v1v.update(&self.v1s) {
                     self.v1v = val;
                     self.v1c = true;
-                    self.update(ctx, Msg::ValueUpdate);
+                    Component::update(self, ctx, Msg::ValueUpdate);
                 } else {
                     self.v1c = false;
                 }
@@ -185,7 +185,7 @@ impl Component for RouteMapMatchCfg {
                 if let Some(val) = self.v2v.update(&self.v2s) {
                     self.v2v = val;
                     self.v2c = true;
-                    self.update(ctx, Msg::ValueUpdate);
+                    Component::update(self, ctx, Msg::ValueUpdate);
                 } else {
                     self.v2c = false;
                 }
@@ -231,7 +231,7 @@ impl MatchValue {
         match self {
             MatchValue::None => String::new(),
             MatchValue::Integer(x) => x.to_string(),
-            MatchValue::Router(r) => r.fmt(&net.net).to_string(),
+            MatchValue::Router(r) => r.fmt(&net.net()).to_string(),
         }
     }
 }

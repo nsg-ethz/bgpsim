@@ -13,7 +13,7 @@ use super::{multi_select::MultiSelect, Divider, Element, TextField};
 
 pub struct TopologyCfg {
     net: Rc<Net>,
-    net_dispatch: Dispatch<BasicStore<Net>>,
+    net_dispatch: Dispatch<Net>,
 }
 
 pub enum Msg {
@@ -33,7 +33,7 @@ impl Component for TopologyCfg {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         TopologyCfg {
             net: Default::default(),
             net_dispatch,
@@ -41,7 +41,8 @@ impl Component for TopologyCfg {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let g = self.net.net.get_topology();
+        let net_borrow = self.net.net();
+        let g = net_borrow.get_topology();
         let neigh = g
             .neighbors(ctx.props().router)
             .collect::<HashSet<RouterId>>();
@@ -49,9 +50,9 @@ impl Component for TopologyCfg {
             .node_indices()
             .filter(|r| {
                 *r != ctx.props().router
-                    && (!ctx.props().only_internal || self.net.net.get_device(*r).is_internal())
+                    && (!ctx.props().only_internal || self.net.net().get_device(*r).is_internal())
             })
-            .map(|r| (r, r.fmt(&self.net.net).to_string(), neigh.contains(&r)))
+            .map(|r| (r, r.fmt(&self.net.net()).to_string(), neigh.contains(&r)))
             .collect();
         link_options.sort_by(|(_, n1, _), (_, n2, _)| n1.cmp(n2));
         #[allow(clippy::needless_collect)]
@@ -86,12 +87,12 @@ impl Component for TopologyCfg {
             }
             Msg::AddLink(neighbor) => {
                 self.net_dispatch
-                    .reduce(move |n| n.net.add_link(router, neighbor));
+                    .reduce_mut(move |n| n.net_mut().add_link(router, neighbor));
                 false
             }
             Msg::RemoveLink(neighbor) => {
                 self.net_dispatch
-                    .reduce(move |n| n.net.remove_link(router, neighbor));
+                    .reduce_mut(move |n| n.net_mut().remove_link(router, neighbor));
                 false
             }
         }
@@ -100,7 +101,7 @@ impl Component for TopologyCfg {
 
 struct LinkWeightCfg {
     net: Rc<Net>,
-    net_dispatch: Dispatch<BasicStore<Net>>,
+    net_dispatch: Dispatch<Net>,
     inp_correct: bool,
 }
 
@@ -121,7 +122,7 @@ impl Component for LinkWeightCfg {
     type Properties = LinkWeightProperties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::bridge_state(ctx.link().callback(LinkWeightMsg::StateNet));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(LinkWeightMsg::StateNet));
         LinkWeightCfg {
             net: Default::default(),
             net_dispatch,
@@ -131,8 +132,9 @@ impl Component for LinkWeightCfg {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let (src, dst) = (ctx.props().src, ctx.props().dst);
-        let element_text = format!("→ {}", dst.fmt(&self.net.net));
-        let g = self.net.net.get_topology();
+        let element_text = format!("→ {}", dst.fmt(&self.net.net()));
+        let net_borrow = self.net.net();
+        let g = net_borrow.get_topology();
         let text = g
             .find_edge(src, dst)
             .and_then(|e| g.edge_weight(e))
@@ -167,7 +169,7 @@ impl Component for LinkWeightCfg {
                     return true;
                 };
                 self.net_dispatch
-                    .reduce(move |net| net.net.set_link_weight(src, dst, weight));
+                    .reduce_mut(move |net| net.net_mut().set_link_weight(src, dst, weight));
                 false
             }
         }

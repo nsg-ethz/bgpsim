@@ -8,7 +8,6 @@ use strum::IntoEnumIterator;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
-use yewdux_functional::use_store;
 
 use crate::{
     net::Net,
@@ -56,17 +55,14 @@ fn layer_selection() -> Html {
         Callback::from(move |_| shown.set(false))
     };
 
-    let state = use_store::<BasicStore<State>>();
-    let layer = state
-        .state()
-        .map(|s| s.layer().to_string())
-        .unwrap_or_default();
+    let (state, state_dispatch) = use_store::<State>();
+    let layer = state.layer().to_string();
 
     let layer_options = Layer::iter().map(|l| {
         let text = l.to_string();
         let onclick = {
             let shown = shown.clone();
-            state.dispatch().reduce_callback(move |s| {
+            state_dispatch.reduce_mut_callback(move |s| {
                 shown.set(false);
                 s.set_layer(l);
             })
@@ -100,9 +96,9 @@ fn add_router() -> Html {
         Callback::from(move |_| shown.set(false))
     };
 
-    let net = use_store::<BasicStore<Net>>();
-    let add_internal = net.dispatch().reduce_callback(|n| add_router(n, true));
-    let add_external = net.dispatch().reduce_callback(|n| add_router(n, false));
+    let (_, net_dispatch) = use_store::<Net>();
+    let add_internal = net_dispatch.reduce_mut_callback(|n| add_new_router(n, true));
+    let add_external = net_dispatch.reduce_mut_callback(|n| add_new_router(n, false));
 
     html! {
         <span class="pointer-events-none">
@@ -117,26 +113,26 @@ fn add_router() -> Html {
     }
 }
 
-fn add_router(net: &mut Net, internal: bool) {
+fn add_new_router(net: &mut Net, internal: bool) {
     let prefix = if internal { "R" } else { "E" };
     let name = (1..)
         .map(|x| format!("{}{}", prefix, x))
-        .find(|n| net.net.get_router_id(n).is_err())
+        .find(|n| net.net().get_router_id(n).is_err())
         .unwrap(); // safety: This unwrap is ok because of the infinite iterator!
     let router_id = if internal {
-        net.net.add_router(name)
+        net.net_mut().add_router(name)
     } else {
         let used_as: HashSet<AsId> = net
-            .net
+            .net()
             .get_external_routers()
             .into_iter()
-            .map(|r| net.net.get_device(r).unwrap_external().as_id())
+            .map(|r| net.net().get_device(r).unwrap_external().as_id())
             .collect();
         // safety: this unwrap is ok because of the infinite iterator!
         let as_id = (1..).map(AsId).find(|x| used_as.contains(x)).unwrap();
-        net.net.add_external_router(name, as_id)
+        net.net_mut().add_external_router(name, as_id)
     };
-    net.pos.insert(router_id, Point::new(0, 0));
+    net.pos_mut().insert(router_id, Point::new(0, 0));
 }
 
 struct PrefixSelection {
@@ -146,8 +142,8 @@ struct PrefixSelection {
     input_ref: NodeRef,
     input_wrong: bool,
     last_prefix: Option<Prefix>,
-    state_dispatch: Dispatch<BasicStore<State>>,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
+    state_dispatch: Dispatch<State>,
+    _net_dispatch: Dispatch<Net>,
 }
 
 enum Msg {
@@ -161,8 +157,8 @@ impl Component for PrefixSelection {
     type Properties = ();
 
     fn create(ctx: &Context<Self>) -> Self {
-        let state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
+        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         PrefixSelection {
             state: Default::default(),
             text: 0.to_string(),
@@ -211,10 +207,10 @@ impl Component for PrefixSelection {
             }
             Msg::StateNet(n) => {
                 if self.last_prefix.is_none() {
-                    let new_prefix = n.net.get_known_prefixes().iter().next().cloned();
+                    let new_prefix = n.net().get_known_prefixes().iter().next().cloned();
                     if new_prefix != self.last_prefix {
                         self.state_dispatch
-                            .reduce(move |s| s.set_prefix(new_prefix));
+                            .reduce_mut(move |s| s.set_prefix(new_prefix));
                     }
                 }
                 false
@@ -228,7 +224,8 @@ impl Component for PrefixSelection {
                 if let Ok(p) = self.text.parse::<u32>().map(Prefix) {
                     if Some(p) != self.last_prefix {
                         self.input_wrong = false;
-                        self.state_dispatch.reduce(move |s| s.set_prefix(Some(p)));
+                        self.state_dispatch
+                            .reduce_mut(move |s| s.set_prefix(Some(p)));
                         true
                     } else {
                         false

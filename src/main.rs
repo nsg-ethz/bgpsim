@@ -11,7 +11,7 @@ use header::Header;
 use sidebar::Sidebar;
 use tooltip::Tooltip;
 
-use yew::prelude::*;
+use yew::{prelude::*, Renderer};
 
 #[function_component(App)]
 fn app() -> Html {
@@ -28,5 +28,5 @@ fn app() -> Html {
 
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
-    yew::start_app::<App>();
+    Renderer::<App>::new().render();
 }

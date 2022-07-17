@@ -38,8 +38,8 @@ use crate::{
 pub struct Sidebar {
     state: Rc<State>,
     net: Rc<Net>,
-    _state_dispatch: Dispatch<BasicStore<State>>,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
+    _state_dispatch: Dispatch<State>,
+    _net_dispatch: Dispatch<Net>,
 }
 
 pub enum Msg {
@@ -52,8 +52,8 @@ impl Component for Sidebar {
     type Properties = ();
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
+        let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         Sidebar {
             state: Default::default(),
             net: Default::default(),
@@ -69,7 +69,7 @@ impl Component for Sidebar {
                     <p class="text-gray-300 italic"> { "nothing selected!" } </p>
                 </div>
             },
-            Selected::Router(r) if self.net.net.get_device(r).is_internal() => {
+            Selected::Router(r) if self.net.net().get_device(r).is_internal() => {
                 html! { <RouterCfg router={r} /> }
             }
             Selected::Router(r) => html! { <ExternalRouterCfg router={r} /> },

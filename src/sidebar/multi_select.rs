@@ -85,10 +85,8 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
                     }
                     </div>
                     <div class="text-gray-500 w-8 ml-0.5 py-1 pl-2 pr-1 border-l flex items-center border-gray-300">
-                    {
-                        if !disabled {
-                            html!{<button class="" {onclick} {disabled}> <yew_lucide::ChevronDown class="w-4 h-4" /> </button>}
-                        } else { html! {} }
+                    if !disabled {
+                        <button class="" {onclick} {disabled}> <yew_lucide::ChevronDown class="w-4 h-4" /> </button>
                     }
                     </div>
                 </div>

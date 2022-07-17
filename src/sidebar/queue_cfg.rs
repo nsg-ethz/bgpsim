@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{ops::Deref, rc::Rc};
 
 use netsim::{
     bgp::BgpEvent,
@@ -9,7 +9,6 @@ use netsim::{
 };
 use yew::prelude::*;
 use yewdux::prelude::*;
-use yewdux_functional::use_store;
 
 use crate::{
     net::{Net, Queue},
@@ -21,8 +20,8 @@ use super::divider::{Divider, DividerButton};
 
 pub struct QueueCfg {
     net: Rc<Net>,
-    net_dispatch: Dispatch<BasicStore<Net>>,
-    state_dispatch: Dispatch<BasicStore<State>>,
+    net_dispatch: Dispatch<Net>,
+    state_dispatch: Dispatch<State>,
 }
 
 pub enum Msg {
@@ -37,8 +36,8 @@ impl Component for QueueCfg {
     type Properties = ();
 
     fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        let state_dispatch = Dispatch::bridge_state(Callback::from(|_: Rc<State>| ()));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let state_dispatch = Dispatch::<State>::subscribe(Callback::from(|_: Rc<State>| ()));
         QueueCfg {
             net: Default::default(),
             net_dispatch,
@@ -47,7 +46,8 @@ impl Component for QueueCfg {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let queue = self.net.net.queue();
+        let net = self.net.net();
+        let queue = net.queue();
         let content = queue
             .iter()
             .cloned()
@@ -89,17 +89,17 @@ impl Component for QueueCfg {
             }
             Msg::Swap(pos) => {
                 self.net_dispatch
-                    .reduce(move |n| n.net.queue_mut().swap(pos, pos + 1));
+                    .reduce_mut(move |n| n.net_mut().queue_mut().swap(pos, pos + 1));
                 false
             }
             Msg::HoverEnter((src, dst)) => {
                 self.state_dispatch
-                    .reduce(move |s| s.set_hover(Hover::Message(src, dst)));
+                    .reduce_mut(move |s| s.set_hover(Hover::Message(src, dst)));
                 false
             }
             Msg::HoverExit => {
                 self.state_dispatch
-                    .reduce(move |s| s.set_hover(Hover::None));
+                    .reduce_mut(move |s| s.set_hover(Hover::None));
                 false
             }
         }
@@ -116,11 +116,9 @@ struct EventProps {
 
 #[function_component(EventCfg)]
 fn event_cfg(props: &EventProps) -> Html {
-    let net_store = use_store::<BasicStore<Net>>();
-    let net = match net_store.state() {
-        Some(n) => &n.net,
-        None => return html! {},
-    };
+    let (net, _) = use_store::<Net>();
+    let net_borrow = net.net();
+    let net = net_borrow.deref();
     let dir_class = "text-gray-700 font-bold";
     let (src, dst, ty, content) = match props.event.clone() {
         Event::Bgp(_, src, dst, BgpEvent::Update(route)) => {

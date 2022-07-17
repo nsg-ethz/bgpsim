@@ -3,7 +3,7 @@ use std::rc::Rc;
 use super::text::Text;
 use netsim::types::RouterId;
 use yew::prelude::*;
-use yewdux::prelude::{BasicStore, Dispatch};
+use yewdux::prelude::*;
 
 use crate::{
     dim::{Dim, ROUTER_RADIUS},
@@ -23,8 +23,8 @@ pub struct LinkWeight {
     p2: Point,
     w1: String,
     w2: String,
-    _dim_dispatch: Dispatch<BasicStore<Dim>>,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
+    _dim_dispatch: Dispatch<Dim>,
+    _net_dispatch: Dispatch<Net>,
 }
 
 #[derive(PartialEq, Eq, Properties)]
@@ -38,8 +38,8 @@ impl Component for LinkWeight {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
+        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         Self {
             dim: Default::default(),
             net: Default::default(),
@@ -74,11 +74,12 @@ impl Component for LinkWeight {
         }
         let p1 = self
             .dim
-            .get(self.net.pos.get(&src).copied().unwrap_or_default());
+            .get(self.net.pos().get(&src).copied().unwrap_or_default());
         let p2 = self
             .dim
-            .get(self.net.pos.get(&dst).copied().unwrap_or_default());
-        let g = self.net.net.get_topology();
+            .get(self.net.pos().get(&dst).copied().unwrap_or_default());
+        let net_borrow = self.net.net();
+        let g = net_borrow.get_topology();
         let w1 = g
             .find_edge(src, dst)
             .map(|e| g.edge_weight(e).unwrap()) // safety: ok because we used find_edge

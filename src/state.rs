@@ -3,8 +3,9 @@ use netsim::{
     types::{Prefix, RouterId},
 };
 use strum_macros::EnumIter;
+use yewdux::prelude::Store;
 
-#[derive(Clone, Default, Debug)]
+#[derive(Clone, Default, Debug, PartialEq, Eq, Store)]
 pub struct State {
     selected: Selected,
     hover: Hover,
@@ -67,7 +68,7 @@ impl Default for Selected {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Hover {
     None,
     Router(RouterId),

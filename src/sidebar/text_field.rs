@@ -104,7 +104,8 @@ impl Component for TextField {
                 ctx.props().on_set.emit(self.current_text.clone());
                 false
             }
-            Msg::Keypress(e) => self.update(
+            Msg::Keypress(e) => Component::update(
+                self,
                 ctx,
                 if e.code() == "Enter" {
                     Msg::Set

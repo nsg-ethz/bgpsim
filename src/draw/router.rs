@@ -4,7 +4,7 @@ use gloo_utils::window;
 use netsim::types::RouterId;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use yew::prelude::*;
-use yewdux::prelude::{BasicStore, Dispatch, Dispatcher};
+use yewdux::prelude::*;
 
 use crate::{
     dim::{Dim, ROUTER_RADIUS},
@@ -31,9 +31,9 @@ pub struct Router {
     p: Point,
     move_p: Point,
     dragging: Option<Closure<dyn Fn(MouseEvent)>>,
-    _dim_dispatch: Dispatch<BasicStore<Dim>>,
-    net_dispatch: Dispatch<BasicStore<Net>>,
-    state_dispatch: Dispatch<BasicStore<State>>,
+    _dim_dispatch: Dispatch<Dim>,
+    net_dispatch: Dispatch<Net>,
+    state_dispatch: Dispatch<State>,
 }
 
 #[derive(PartialEq, Eq, Properties)]
@@ -46,9 +46,9 @@ impl Component for Router {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
-        let net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        let state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
+        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         Self {
             dim: Default::default(),
             selected: false,
@@ -94,7 +94,7 @@ impl Component for Router {
                 let router_id = ctx.props().router_id;
                 let p = self
                     .dim
-                    .get(n.pos.get(&router_id).copied().unwrap_or_default());
+                    .get(n.pos().get(&router_id).copied().unwrap_or_default());
                 if p != self.p {
                     self.p = p;
                     true
@@ -115,18 +115,18 @@ impl Component for Router {
                 if self.dragging.is_none() {
                     let router_id = ctx.props().router_id;
                     self.state_dispatch
-                        .reduce(move |s| s.set_hover(Hover::Router(router_id)));
+                        .reduce_mut(move |s| s.set_hover(Hover::Router(router_id)));
                 }
                 false
             }
             Msg::OnMouseLeave => {
-                self.state_dispatch.reduce(|s| s.clear_hover());
+                self.state_dispatch.reduce_mut(|s| s.clear_hover());
                 false
             }
             Msg::OnClick => {
                 let router_id = ctx.props().router_id;
                 self.state_dispatch
-                    .reduce(move |s| s.set_selected(Selected::Router(router_id)));
+                    .reduce_mut(move |s| s.set_selected(Selected::Router(router_id)));
                 // This triggers the event Msg::State(new)
                 false
             }
@@ -141,11 +141,11 @@ impl Component for Router {
                 }
                 let router_id = ctx.props().router_id;
                 self.state_dispatch
-                    .reduce(move |s| s.set_hover(Hover::Router(router_id)));
+                    .reduce_mut(move |s| s.set_hover(Hover::Router(router_id)));
                 false
             }
             Msg::OnMouseDown(e) => {
-                self.state_dispatch.reduce(move |s| s.clear_hover());
+                self.state_dispatch.reduce_mut(move |s| s.clear_hover());
                 self.move_p = Point::new(e.client_x(), e.client_y());
                 let link = ctx.link().clone();
                 let listener = Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e| {
@@ -167,8 +167,8 @@ impl Component for Router {
                     self.move_p = client_p;
 
                     let router_id = ctx.props().router_id;
-                    self.net_dispatch.reduce(move |n| {
-                        *n.pos.get_mut(&router_id).unwrap() += delta;
+                    self.net_dispatch.reduce_mut(move |n| {
+                        *n.pos_mut().get_mut(&router_id).unwrap() += delta;
                     });
                 }
                 false

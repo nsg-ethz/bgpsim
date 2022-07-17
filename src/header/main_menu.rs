@@ -10,7 +10,7 @@ pub struct MainMenu {
     shown: bool,
     auto_simulate: bool,
     net: Rc<Net>,
-    net_dispatch: Dispatch<BasicStore<Net>>,
+    net_dispatch: Dispatch<Net>,
 }
 
 pub enum Msg {
@@ -30,7 +30,7 @@ impl Component for MainMenu {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         MainMenu {
             shown: false,
             auto_simulate: true,
@@ -48,7 +48,7 @@ impl Component for MainMenu {
         let hide = ctx.link().callback(|_| Msg::CloseMenu);
 
         let toggle_auto_simulate = ctx.link().callback(|_| Msg::ToggleSimulationMode);
-        let auto_layout = self.net_dispatch.reduce_callback(|n| n.spring_layout());
+        let auto_layout = self.net_dispatch.reduce_mut_callback(|n| n.spring_layout());
         let export = Callback::from(|_| ());
         let import = Callback::from(|_| ());
 
@@ -97,7 +97,7 @@ impl Component for MainMenu {
         match msg {
             Msg::StateNet(n) => {
                 self.net = n;
-                let auto_simulate = self.net.net.auto_simulation_enabled();
+                let auto_simulate = self.net.net().auto_simulation_enabled();
                 if auto_simulate != (self.auto_simulate) {
                     self.auto_simulate = auto_simulate;
                     true
@@ -107,9 +107,11 @@ impl Component for MainMenu {
             }
             Msg::ToggleSimulationMode => {
                 if self.auto_simulate {
-                    self.net_dispatch.reduce(|n| n.net.manual_simulation())
+                    self.net_dispatch
+                        .reduce_mut(|n| n.net_mut().manual_simulation())
                 } else {
-                    self.net_dispatch.reduce(|n| n.net.auto_simulation())
+                    self.net_dispatch
+                        .reduce_mut(|n| n.net_mut().auto_simulation())
                 }
                 false
             }

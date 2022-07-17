@@ -19,7 +19,7 @@ use super::{
 
 pub struct ExternalRouterCfg {
     net: Rc<Net>,
-    net_dispatch: Dispatch<BasicStore<Net>>,
+    net_dispatch: Dispatch<Net>,
     name_input_correct: bool,
     as_input_correct: bool,
     route_add_input_correct: bool,
@@ -49,7 +49,7 @@ impl Component for ExternalRouterCfg {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         ExternalRouterCfg {
             net: Default::default(),
             net_dispatch,
@@ -61,7 +61,7 @@ impl Component for ExternalRouterCfg {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router_id = ctx.props().router;
-        let n = &self.net.net;
+        let n = &self.net.net();
         let name_text = n
             .get_router_name(ctx.props().router)
             .unwrap_or("Err")
@@ -153,7 +153,7 @@ impl Component for ExternalRouterCfg {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::OnNameChange(new_name) => {
-                self.name_input_correct = match self.net.net.get_router_id(&new_name) {
+                self.name_input_correct = match self.net.net().get_router_id(&new_name) {
                     Err(_) => true,
                     Ok(r) if r == ctx.props().router => true,
                     Ok(_) => false,
@@ -163,7 +163,7 @@ impl Component for ExternalRouterCfg {
             Msg::OnNameSet(new_name) => {
                 let router_id = ctx.props().router;
                 self.net_dispatch
-                    .reduce(move |n| n.net.set_router_name(router_id, new_name).unwrap());
+                    .reduce_mut(move |n| n.net_mut().set_router_name(router_id, new_name).unwrap());
                 false
             }
             Msg::OnAsChange(new_as) => {
@@ -187,7 +187,7 @@ impl Component for ExternalRouterCfg {
                 .unwrap()
                 .into();
                 self.net_dispatch
-                    .reduce(move |n| n.net.set_as_id(router_id, new_as));
+                    .reduce_mut(move |n| n.net_mut().set_as_id(router_id, new_as));
                 false
             }
             Msg::StateNet(n) => {
@@ -196,8 +196,8 @@ impl Component for ExternalRouterCfg {
             }
             Msg::AddBgpSession(neighbor) => {
                 let router = ctx.props().router;
-                self.net_dispatch.reduce(move |net| {
-                    net.net
+                self.net_dispatch.reduce_mut(move |net| {
+                    net.net_mut()
                         .set_bgp_session(router, neighbor, Some(BgpSessionType::EBgp))
                 });
                 false
@@ -205,23 +205,27 @@ impl Component for ExternalRouterCfg {
             Msg::RemoveBgpSession(neighbor) => {
                 let router = ctx.props().router;
                 self.net_dispatch
-                    .reduce(move |net| net.net.set_bgp_session(router, neighbor, None));
+                    .reduce_mut(move |net| net.net_mut().set_bgp_session(router, neighbor, None));
                 false
             }
             Msg::DeleteRoute(prefix) => {
                 let router = ctx.props().router;
-                self.net_dispatch.reduce(move |net| {
-                    net.net.retract_external_route(router, prefix).unwrap();
+                self.net_dispatch.reduce_mut(move |net| {
+                    net.net_mut()
+                        .retract_external_route(router, prefix)
+                        .unwrap();
                 });
                 false
             }
             Msg::UpdateRoute((prefix, route)) => {
                 let router = ctx.props().router;
-                self.net_dispatch.reduce(move |net| {
+                self.net_dispatch.reduce_mut(move |net| {
                     if prefix != route.prefix {
-                        net.net.retract_external_route(router, prefix).unwrap();
+                        net.net_mut()
+                            .retract_external_route(router, prefix)
+                            .unwrap();
                     }
-                    net.net
+                    net.net_mut()
                         .advertise_external_route(
                             router,
                             route.prefix,
@@ -243,7 +247,7 @@ impl Component for ExternalRouterCfg {
                     .map(Prefix)
                 {
                     self.net
-                        .net
+                        .net()
                         .get_device(ctx.props().router)
                         .external()
                         .map(|r| !r.advertised_prefixes().contains(&p))
@@ -267,8 +271,8 @@ impl Component for ExternalRouterCfg {
                     self.route_add_input_correct = false;
                     return true;
                 };
-                self.net_dispatch.reduce(move |net| {
-                    net.net
+                self.net_dispatch.reduce_mut(move |net| {
+                    net.net_mut()
                         .advertise_external_route::<Option<AsId>, Option<u32>>(
                             router, p, None, None, None,
                         )

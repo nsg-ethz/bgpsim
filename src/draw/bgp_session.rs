@@ -18,9 +18,9 @@ pub struct BgpSession {
     p2: Point,
     net: Rc<Net>,
     dim: Rc<Dim>,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
-    _dim_dispatch: Dispatch<BasicStore<Dim>>,
-    state_dispatch: Dispatch<BasicStore<State>>,
+    _net_dispatch: Dispatch<Net>,
+    _dim_dispatch: Dispatch<Dim>,
+    state_dispatch: Dispatch<State>,
 }
 
 pub enum Msg {
@@ -44,9 +44,9 @@ impl Component for BgpSession {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        let _dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
-        let state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
+        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         BgpSession {
             p1: Default::default(),
             p2: Default::default(),
@@ -94,11 +94,11 @@ impl Component for BgpSession {
                 let src = ctx.props().src;
                 let dst = ctx.props().dst;
                 self.state_dispatch
-                    .reduce(move |s| s.set_hover(Hover::BgpSession(src, dst)));
+                    .reduce_mut(move |s| s.set_hover(Hover::BgpSession(src, dst)));
                 return false;
             }
             Msg::OnMouseLeave => {
-                self.state_dispatch.reduce(|s| s.clear_hover());
+                self.state_dispatch.reduce_mut(|s| s.clear_hover());
                 return false;
             }
             Msg::OnClick => {
@@ -110,10 +110,10 @@ impl Component for BgpSession {
         let r2 = ctx.props().dst;
         let p1 = self
             .dim
-            .get(self.net.pos.get(&r1).copied().unwrap_or_default());
+            .get(self.net.pos().get(&r1).copied().unwrap_or_default());
         let p2 = self
             .dim
-            .get(self.net.pos.get(&r2).copied().unwrap_or_default());
+            .get(self.net.pos().get(&r2).copied().unwrap_or_default());
         if (p1, p2) != (self.p1, self.p2) {
             self.p1 = p1;
             self.p2 = p2;

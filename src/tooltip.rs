@@ -1,4 +1,4 @@
-use std::rc::Rc;
+use std::{ops::Deref, rc::Rc};
 
 use gloo_utils::window;
 use itertools::join;
@@ -7,7 +7,6 @@ use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::HtmlElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
-use yewdux_functional::use_store;
 
 use crate::{
     dim::{Dim, TOOLTIP_OFFSET},
@@ -25,9 +24,9 @@ pub struct Tooltip {
     renderer: bool,
     dragging: Option<Closure<dyn Fn(MouseEvent)>>,
     node_ref: NodeRef,
-    _state_dispatch: Dispatch<BasicStore<State>>,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
-    _dim_dispatch: Dispatch<BasicStore<Dim>>,
+    _state_dispatch: Dispatch<State>,
+    _net_dispatch: Dispatch<Net>,
+    _dim_dispatch: Dispatch<Dim>,
 }
 
 pub enum Msg {
@@ -46,9 +45,9 @@ impl Component for Tooltip {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        let _dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
+        let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
         Tooltip {
             state: Default::default(),
             net: Default::default(),
@@ -71,12 +70,12 @@ impl Component for Tooltip {
         }
         let content: Html = match hover {
             Hover::Router(r) => {
-                html! {<p> {r.fmt(&self.net.net).to_string()} </p> }
+                html! {<p> {r.fmt(&self.net.net()).to_string()} </p> }
             }
             Hover::BgpSession(src, dst) => {
                 let ty = self
                     .net
-                    .net
+                    .net()
                     .get_device(src)
                     .internal()
                     .and_then(|r| r.get_bgp_session_type(dst))
@@ -86,15 +85,15 @@ impl Component for Tooltip {
                     BgpSessionType::IBgpClient => "iBGP RR",
                     BgpSessionType::EBgp => "eBGP",
                 };
-                html! {<p> {src.fmt(&self.net.net).to_string()} {" → "} {dst.fmt(&self.net.net).to_string()} {": "} {ty} </p>}
+                html! {<p> {src.fmt(&self.net.net()).to_string()} {" → "} {dst.fmt(&self.net.net()).to_string()} {": "} {ty} </p>}
             }
             Hover::NextHop(src, dst) => {
-                html! {<p> {src.fmt(&self.net.net).to_string()} {" → "} {dst.fmt(&self.net.net).to_string()} </p>}
+                html! {<p> {src.fmt(&self.net.net()).to_string()} {" → "} {dst.fmt(&self.net.net()).to_string()} </p>}
             }
             Hover::RouteProp(src, dst, route) => {
                 html! {
                     <>
-                        <p> {src.fmt(&self.net.net).to_string()} {" → "} {dst.fmt(&self.net.net).to_string()} </p>
+                        <p> {src.fmt(&self.net.net()).to_string()} {" → "} {dst.fmt(&self.net.net()).to_string()} </p>
                         <RouteTable {route} />
                     </>
                 }
@@ -197,17 +196,15 @@ pub struct RouteTableProps {
 
 #[function_component(RouteTable)]
 pub fn route_table(props: &RouteTableProps) -> Html {
-    let net_store = use_store::<BasicStore<Net>>();
-    let net = match net_store.state() {
-        Some(n) => &n.net,
-        None => return html! {},
-    };
+    let (net, _) = use_store::<Net>();
+    let net = net.net();
+    let n = net.deref();
 
     html! {
         <table class="table-auto border-separate border-spacing-x-3">
             <tr> <td class="italic text-gray-400"> {"Prefix: "} </td> <td> {props.route.prefix} </td> </tr>
             <tr> <td class="italic text-gray-400"> {"Path: "} </td> <td> {join(props.route.as_path.iter().map(|x| x.0), ", ")} </td> </tr>
-            <tr> <td class="italic text-gray-400"> {"Next Hop: "} </td> <td> {props.route.next_hop.fmt(net).to_string()} </td> </tr>
+            <tr> <td class="italic text-gray-400"> {"Next Hop: "} </td> <td> {props.route.next_hop.fmt(n).to_string()} </td> </tr>
             {
                 if let Some(lp) = props.route.local_pref {
                     html!{<tr> <td class="italic text-gray-400"> {"Local Pref: "} </td> <td> {lp} </td> </tr>}

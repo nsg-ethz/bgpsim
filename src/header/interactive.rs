@@ -14,9 +14,9 @@ pub struct InteractivePlayer {
     shown: bool,
     net: Rc<Net>,
     dim: Rc<Dim>,
-    net_dispatch: Dispatch<BasicStore<Net>>,
-    _dim_dispatch: Dispatch<BasicStore<Dim>>,
-    state_dispatch: Dispatch<BasicStore<State>>,
+    net_dispatch: Dispatch<Net>,
+    _dim_dispatch: Dispatch<Dim>,
+    state_dispatch: Dispatch<State>,
 }
 
 pub enum Msg {
@@ -35,9 +35,9 @@ impl Component for InteractivePlayer {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        let state_dispatch = Dispatch::bridge_state(Callback::from(|_: Rc<State>| ()));
-        let _dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
+        let state_dispatch = Dispatch::<State>::subscribe(Callback::from(|_: Rc<State>| ()));
         InteractivePlayer {
             shown: false,
             net: Default::default(),
@@ -61,7 +61,7 @@ impl Component for InteractivePlayer {
         let step = ctx.link().callback(|_| Msg::Step);
         let open_queue = ctx.link().callback(|_| Msg::ShowQueue);
 
-        let queue_size = self.net.net.queue().len();
+        let queue_size = self.net.net().queue().len();
         let queue_empty = queue_size == 0;
         let queue_size_s = if queue_size > 1_000_000 {
             format!("{}m", queue_size / 1_000_000)
@@ -99,7 +99,7 @@ impl Component for InteractivePlayer {
         match msg {
             Msg::StateNet(n) => {
                 self.net = n;
-                self.shown = !self.net.net.auto_simulation_enabled();
+                self.shown = !self.net.net().auto_simulation_enabled();
                 true
             }
             Msg::StateDim(d) => {
@@ -107,16 +107,18 @@ impl Component for InteractivePlayer {
                 true
             }
             Msg::PlayAll => {
-                self.net_dispatch.reduce(|n| n.net.simulate().unwrap());
+                self.net_dispatch
+                    .reduce_mut(|n| n.net_mut().simulate().unwrap());
                 false
             }
             Msg::Step => {
-                self.net_dispatch.reduce(|n| n.net.simulate_step().unwrap());
+                self.net_dispatch
+                    .reduce_mut(|n| n.net_mut().simulate_step().unwrap());
                 false
             }
             Msg::ShowQueue => {
                 self.state_dispatch
-                    .reduce(|s| s.set_selected(Selected::Queue));
+                    .reduce_mut(|s| s.set_selected(Selected::Queue));
                 false
             }
         }

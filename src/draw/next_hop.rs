@@ -18,9 +18,9 @@ pub struct NextHop {
     p1: Point,
     net: Rc<Net>,
     dim: Rc<Dim>,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
-    _dim_dispatch: Dispatch<BasicStore<Dim>>,
-    state_dispatch: Dispatch<BasicStore<State>>,
+    _net_dispatch: Dispatch<Net>,
+    _dim_dispatch: Dispatch<Dim>,
+    state_dispatch: Dispatch<State>,
 }
 
 pub enum Msg {
@@ -42,9 +42,9 @@ impl Component for NextHop {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        let _dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
-        let state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
+        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         NextHop {
             next_hops: Default::default(),
             p1: Default::default(),
@@ -95,18 +95,18 @@ impl Component for NextHop {
             Msg::HoverEnter(_, dst) => {
                 let src = ctx.props().router_id;
                 self.state_dispatch
-                    .reduce(move |state| state.set_hover(Hover::NextHop(src, dst)));
+                    .reduce_mut(move |state| state.set_hover(Hover::NextHop(src, dst)));
                 return false;
             }
             Msg::HoverLeave => {
-                self.state_dispatch.reduce(|state| state.clear_hover());
+                self.state_dispatch.reduce_mut(|state| state.clear_hover());
                 return false;
             }
         }
 
         let new_p1 = self
             .dim
-            .get(self.net.pos.get(&r).copied().unwrap_or_default());
+            .get(self.net.pos().get(&r).copied().unwrap_or_default());
         let new_next_hops = get_next_hop(
             &self.net,
             &self.dim,
@@ -124,10 +124,10 @@ impl Component for NextHop {
 }
 
 fn get_next_hop(net: &Net, dim: &Dim, router: RouterId, prefix: Prefix) -> Vec<(RouterId, Point)> {
-    if let Some(r) = net.net.get_device(router).internal() {
+    if let Some(r) = net.net().get_device(router).internal() {
         r.get_next_hop(prefix)
             .into_iter()
-            .map(|r| (r, dim.get(net.pos.get(&r).copied().unwrap_or_default())))
+            .map(|r| (r, dim.get(net.pos().get(&r).copied().unwrap_or_default())))
             .collect()
     } else {
         Vec::new()

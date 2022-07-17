@@ -1,4 +1,4 @@
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, ops::Deref, rc::Rc};
 
 use netsim::{
     formatter::NetworkFormatter,
@@ -18,7 +18,7 @@ use super::{
 
 pub struct RouterCfg {
     net: Rc<Net>,
-    net_dispatch: Dispatch<BasicStore<Net>>,
+    net_dispatch: Dispatch<Net>,
     name_input_correct: bool,
     rm_in_order_correct: bool,
     rm_out_order_correct: bool,
@@ -48,7 +48,7 @@ impl Component for RouterCfg {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         RouterCfg {
             net: Default::default(),
             net_dispatch,
@@ -60,7 +60,7 @@ impl Component for RouterCfg {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
-        let n = &self.net.net;
+        let n = &self.net.net();
         let name_text = router.fmt(n).to_string();
         let on_name_change = ctx.link().callback(Msg::OnNameChange);
         let on_name_set = ctx.link().callback(Msg::OnNameSet);
@@ -87,9 +87,7 @@ impl Component for RouterCfg {
 
         let on_in_order_change = ctx.link().callback(Msg::AddRouteMapInOrderChange);
         let on_in_route_map_add = ctx.link().callback(Msg::AddRouteMapIn);
-        let incoming_rms: Vec<(usize, RouteMap)> = self
-            .net
-            .net
+        let incoming_rms: Vec<(usize, RouteMap)> = n
             .get_device(router)
             .internal()
             .map(|r| {
@@ -103,9 +101,7 @@ impl Component for RouterCfg {
 
         let on_out_order_change = ctx.link().callback(Msg::AddRouteMapOutOrderChange);
         let on_out_route_map_add = ctx.link().callback(Msg::AddRouteMapOut);
-        let outgoing_rms: Vec<(usize, RouteMap)> = self
-            .net
-            .net
+        let outgoing_rms: Vec<(usize, RouteMap)> = n
             .get_device(router)
             .internal()
             .map(|r| {
@@ -170,7 +166,7 @@ impl Component for RouterCfg {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::OnNameChange(new_name) => {
-                self.name_input_correct = match self.net.net.get_router_id(&new_name) {
+                self.name_input_correct = match self.net.net().get_router_id(&new_name) {
                     Err(_) => true,
                     Ok(r) if r == ctx.props().router => true,
                     Ok(_) => false,
@@ -180,7 +176,7 @@ impl Component for RouterCfg {
             Msg::OnNameSet(new_name) => {
                 let router_id = ctx.props().router;
                 self.net_dispatch
-                    .reduce(move |n| n.net.set_router_name(router_id, new_name).unwrap());
+                    .reduce_mut(move |n| n.net_mut().set_router_name(router_id, new_name).unwrap());
                 true
             }
             Msg::StateNet(n) => {
@@ -188,14 +184,14 @@ impl Component for RouterCfg {
                 true
             }
             Msg::AddBgpSession(dst) => {
-                let session_type = match self.net.net.get_device(dst) {
+                let session_type = match self.net.net().get_device(dst) {
                     NetworkDevice::InternalRouter(_) => BgpSessionType::IBgpPeer,
                     NetworkDevice::ExternalRouter(_) => BgpSessionType::EBgp,
                     NetworkDevice::None => unreachable!(),
                 };
                 let src = ctx.props().router;
-                self.net_dispatch.reduce(move |net| {
-                    net.net
+                self.net_dispatch.reduce_mut(move |n| {
+                    n.net_mut()
                         .set_bgp_session(src, dst, Some(session_type))
                         .unwrap()
                 });
@@ -204,32 +200,42 @@ impl Component for RouterCfg {
             Msg::RemoveBgpSession(dst) => {
                 let src = ctx.props().router;
                 self.net_dispatch
-                    .reduce(move |net| net.net.set_bgp_session(src, dst, None).unwrap());
+                    .reduce_mut(move |n| n.net_mut().set_bgp_session(src, dst, None).unwrap());
                 false
             }
             Msg::UpdateBgpSession(neighbor, ty) => {
                 let router = ctx.props().router;
                 match ty {
-                    BgpSessionTypeSymmetric::EBgp => self.net_dispatch.reduce(move |net| {
-                        net.net
+                    BgpSessionTypeSymmetric::EBgp => self.net_dispatch.reduce_mut(move |n| {
+                        n.net_mut()
                             .set_bgp_session(router, neighbor, Some(BgpSessionType::EBgp))
                     }),
-                    BgpSessionTypeSymmetric::IBgpPeer => self.net_dispatch.reduce(move |net| {
-                        net.net
-                            .set_bgp_session(router, neighbor, Some(BgpSessionType::IBgpPeer))
+                    BgpSessionTypeSymmetric::IBgpPeer => self.net_dispatch.reduce_mut(move |n| {
+                        n.net_mut().set_bgp_session(
+                            router,
+                            neighbor,
+                            Some(BgpSessionType::IBgpPeer),
+                        )
                     }),
-                    BgpSessionTypeSymmetric::IBgpRR => self.net_dispatch.reduce(move |net| {
-                        net.net
-                            .set_bgp_session(router, neighbor, Some(BgpSessionType::IBgpClient))
+                    BgpSessionTypeSymmetric::IBgpRR => self.net_dispatch.reduce_mut(move |n| {
+                        n.net_mut().set_bgp_session(
+                            router,
+                            neighbor,
+                            Some(BgpSessionType::IBgpClient),
+                        )
                     }),
-                    BgpSessionTypeSymmetric::IBgpClient => self.net_dispatch.reduce(move |net| {
-                        net.net
-                            .set_bgp_session(neighbor, router, Some(BgpSessionType::IBgpClient))
+                    BgpSessionTypeSymmetric::IBgpClient => self.net_dispatch.reduce_mut(move |n| {
+                        n.net_mut().set_bgp_session(
+                            neighbor,
+                            router,
+                            Some(BgpSessionType::IBgpClient),
+                        )
                     }),
                 }
                 false
             }
-            Msg::AddRouteMapInOrderChange(o) => match self.net.net.get_device(ctx.props().router) {
+            Msg::AddRouteMapInOrderChange(o) => match self.net.net().get_device(ctx.props().router)
+            {
                 NetworkDevice::InternalRouter(r) => {
                     self.rm_in_order_correct = o
                         .parse::<usize>()
@@ -252,15 +258,15 @@ impl Component for RouterCfg {
                 };
                 let rm = RouteMapBuilder::new().order(o).allow().build();
                 let r = ctx.props().router;
-                self.net_dispatch.reduce(move |net| {
-                    net.net
+                self.net_dispatch.reduce_mut(move |n| {
+                    n.net_mut()
                         .set_bgp_route_map(r, rm, RouteMapDirection::Incoming)
                         .unwrap()
                 });
                 false
             }
             Msg::AddRouteMapOutOrderChange(o) => {
-                match self.net.net.get_device(ctx.props().router) {
+                match self.net.net().get_device(ctx.props().router) {
                     NetworkDevice::InternalRouter(r) => {
                         self.rm_out_order_correct = o
                             .parse::<usize>()
@@ -284,8 +290,8 @@ impl Component for RouterCfg {
                 };
                 let rm = RouteMapBuilder::new().order(o).allow().build();
                 let r = ctx.props().router;
-                self.net_dispatch.reduce(move |net| {
-                    net.net
+                self.net_dispatch.reduce_mut(move |n| {
+                    n.net_mut()
                         .set_bgp_route_map(r, rm, RouteMapDirection::Outgoing)
                         .unwrap()
                 });
@@ -293,16 +299,18 @@ impl Component for RouterCfg {
             }
             Msg::UpdateRouteMap(order, map, direction) => {
                 let router = ctx.props().router;
-                self.net_dispatch.reduce(move |net| {
+                self.net_dispatch.reduce_mut(move |n| {
                     if let Some(map) = map {
                         if order != map.order {
-                            net.net
+                            n.net_mut()
                                 .remove_bgp_route_map(router, order, direction)
                                 .unwrap();
                         }
-                        net.net.set_bgp_route_map(router, map, direction).unwrap();
+                        n.net_mut()
+                            .set_bgp_route_map(router, map, direction)
+                            .unwrap();
                     } else {
-                        net.net
+                        n.net_mut()
                             .remove_bgp_route_map(router, order, direction)
                             .unwrap();
                     }
@@ -347,40 +355,36 @@ fn get_sessions(
     router: RouterId,
     net: &Rc<Net>,
 ) -> Vec<(RouterId, String, BgpSessionTypeSymmetric)> {
+    let net_borrow = net.net();
+    let n = net_borrow.deref();
     let mut bgp_sessions: Vec<(RouterId, String, BgpSessionTypeSymmetric)> = net
         .get_bgp_sessions()
         .into_iter()
         .filter_map(|(src, dst, ty)| match ty {
             BgpSessionType::IBgpPeer if src == router => Some((
                 dst,
-                dst.fmt(&net.net).to_string(),
+                dst.fmt(n).to_string(),
                 BgpSessionTypeSymmetric::IBgpPeer,
             )),
             BgpSessionType::IBgpPeer if dst == router => Some((
                 src,
-                src.fmt(&net.net).to_string(),
+                src.fmt(n).to_string(),
                 BgpSessionTypeSymmetric::IBgpPeer,
             )),
-            BgpSessionType::IBgpClient if src == router => Some((
-                dst,
-                dst.fmt(&net.net).to_string(),
-                BgpSessionTypeSymmetric::IBgpRR,
-            )),
+            BgpSessionType::IBgpClient if src == router => {
+                Some((dst, dst.fmt(n).to_string(), BgpSessionTypeSymmetric::IBgpRR))
+            }
             BgpSessionType::IBgpClient if dst == router => Some((
                 src,
-                src.fmt(&net.net).to_string(),
+                src.fmt(n).to_string(),
                 BgpSessionTypeSymmetric::IBgpClient,
             )),
-            BgpSessionType::EBgp if src == router => Some((
-                dst,
-                dst.fmt(&net.net).to_string(),
-                BgpSessionTypeSymmetric::EBgp,
-            )),
-            BgpSessionType::EBgp if dst == router => Some((
-                src,
-                src.fmt(&net.net).to_string(),
-                BgpSessionTypeSymmetric::EBgp,
-            )),
+            BgpSessionType::EBgp if src == router => {
+                Some((dst, dst.fmt(n).to_string(), BgpSessionTypeSymmetric::EBgp))
+            }
+            BgpSessionType::EBgp if dst == router => {
+                Some((src, src.fmt(n).to_string(), BgpSessionTypeSymmetric::EBgp))
+            }
             _ => None,
         })
         .collect();

@@ -15,7 +15,7 @@ pub struct RouteMapSetCfg {
     v_v: SetValue,
     v_c: bool,
     net: Rc<Net>,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
+    _net_dispatch: Dispatch<Net>,
 }
 
 pub enum Msg {
@@ -40,7 +40,7 @@ impl Component for RouteMapSetCfg {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         let mut s = RouteMapSetCfg {
             v_r: NodeRef::default(),
             v_s: String::new(),
@@ -62,10 +62,10 @@ impl Component for RouteMapSetCfg {
         let value_html = if is_nh {
             let options = self
                 .net
-                .net
+                .net()
                 .get_topology()
                 .node_indices()
-                .map(|n| (n, n.fmt(&self.net.net).to_string()))
+                .map(|n| (n, n.fmt(&self.net.net()).to_string()))
                 .collect::<Vec<_>>();
             let current_text = self.v_v.fmt(&self.net);
             let on_select = ctx.link().callback(Msg::ValueUpdateRouter);
@@ -113,7 +113,7 @@ impl Component for RouteMapSetCfg {
             Msg::KindUpdate(k) => ctx.props().on_update.emit((ctx.props().index, Some(k))),
             Msg::ValueUpdateRouter(r) => {
                 self.v_v = SetValue::Router(r);
-                self.update(ctx, Msg::ValueUpdate);
+                Component::update(self, ctx, Msg::ValueUpdate);
             }
             Msg::ValueUpdate => {
                 if let Some(set) = set_update(&ctx.props().set, self.v_v) {
@@ -130,7 +130,7 @@ impl Component for RouteMapSetCfg {
                 if let Some(val) = self.v_v.update(&self.v_s) {
                     self.v_v = val;
                     self.v_c = true;
-                    self.update(ctx, Msg::ValueUpdate);
+                    Component::update(self, ctx, Msg::ValueUpdate);
                 } else {
                     self.v_c = false;
                 }
@@ -176,7 +176,7 @@ impl SetValue {
             SetValue::None => String::new(),
             SetValue::Integer(x) => x.to_string(),
             SetValue::Float(x) => x.to_string(),
-            SetValue::Router(r) => r.fmt(&net.net).to_string(),
+            SetValue::Router(r) => r.fmt(&net.net()).to_string(),
         }
     }
 }

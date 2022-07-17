@@ -1,4 +1,7 @@
-use std::collections::{vec_deque::Iter, HashMap, VecDeque};
+use std::{
+    collections::{vec_deque::Iter, HashMap, VecDeque},
+    ops::{Deref, DerefMut},
+};
 
 use forceatlas2::{Layout, Nodes, Settings};
 use getrandom::getrandom;
@@ -9,6 +12,7 @@ use netsim::{
     router::Router,
     types::{IgpNetwork, NetworkDevice, NetworkError, Prefix, RouterId},
 };
+use yewdux::{mrc::Mrc, prelude::*};
 
 use crate::point::Point;
 
@@ -68,18 +72,18 @@ impl EventQueue for Queue {
     }
 }
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Store)]
 pub struct Net {
-    pub net: Network<Queue>,
-    pub pos: HashMap<RouterId, Point>,
-    speed: HashMap<RouterId, Point>,
+    pub net: Mrc<Network<Queue>>,
+    pub pos: Mrc<HashMap<RouterId, Point>>,
+    speed: Mrc<HashMap<RouterId, Point>>,
     is_init: bool,
 }
 
 impl Default for Net {
     fn default() -> Self {
         Self {
-            net: Network::new(Queue::new()),
+            net: Mrc::new(Network::new(Queue::new())),
             pos: Default::default(),
             speed: Default::default(),
             is_init: Default::default(),
@@ -92,23 +96,41 @@ const SMOL: f64 = 0.00001;
 const MAX_N_ITER: usize = 1000;
 
 impl Net {
+    pub fn net(&self) -> impl Deref<Target = Network<Queue>> + '_ {
+        self.net.borrow()
+    }
+
+    pub fn net_mut(&mut self) -> impl DerefMut<Target = Network<Queue>> + '_ {
+        self.net.borrow_mut()
+    }
+
+    pub fn pos(&self) -> impl Deref<Target = HashMap<RouterId, Point>> + '_ {
+        self.pos.borrow()
+    }
+
+    pub fn pos_mut(&mut self) -> impl DerefMut<Target = HashMap<RouterId, Point>> + '_ {
+        self.pos.borrow_mut()
+    }
+
     pub fn init(&mut self) {
         if !self.is_init {
-            get_test_net(&mut self.net).unwrap();
-            self.pos = self
-                .net
-                .get_topology()
-                .node_indices()
-                .map(|r| {
-                    (
-                        r,
-                        Point {
-                            x: rand_uniform(),
-                            y: rand_uniform(),
-                        },
-                    )
-                })
-                .collect();
+            get_test_net(&mut self.net.borrow_mut()).unwrap();
+            self.pos = Mrc::new(
+                self.net
+                    .borrow()
+                    .get_topology()
+                    .node_indices()
+                    .map(|r| {
+                        (
+                            r,
+                            Point {
+                                x: rand_uniform(),
+                                y: rand_uniform(),
+                            },
+                        )
+                    })
+                    .collect(),
+            );
             self.speed = Default::default();
             self.is_init = true;
             self.spring_layout();
@@ -116,19 +138,18 @@ impl Net {
     }
 
     pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {
-        self.net
-            .get_routers()
+        let net_borrow = self.net.borrow();
+        let net = net_borrow.deref();
+        net.get_routers()
             .into_iter()
             .flat_map(|src| {
-                self.net
-                    .get_device(src)
+                net.get_device(src)
                     .unwrap_internal()
                     .get_bgp_sessions()
                     .map(|(target, ty)| (*target, *ty))
                     .filter_map(move |(dst, ty)| {
                         if ty == BgpSessionType::IBgpPeer {
-                            self.net
-                                .get_device(dst)
+                            net.get_device(dst)
                                 .internal()
                                 .and_then(|d| d.get_bgp_session_type(src))
                                 .and_then(|other_ty| match other_ty {
@@ -146,9 +167,10 @@ impl Net {
     }
 
     pub fn get_route_propagation(&self, prefix: Prefix) -> Vec<(RouterId, RouterId, BgpRoute)> {
+        let net = self.net.borrow();
         let mut results = Vec::new();
-        for id in self.net.get_topology().node_indices() {
-            match self.net.get_device(id) {
+        for id in net.get_topology().node_indices() {
+            match net.get_device(id) {
                 NetworkDevice::InternalRouter(r) => {
                     if let Some(rib) = r.get_bgp_rib_in().get(&prefix) {
                         results.extend(
@@ -161,7 +183,7 @@ impl Net {
                     results.extend(
                         r.get_bgp_sessions()
                             .iter()
-                            .filter_map(|n| self.net.get_device(*n).internal().map(|r| (*n, r)))
+                            .filter_map(|n| net.get_device(*n).internal().map(|r| (*n, r)))
                             .filter_map(|(n, r)| r.get_bgp_rib_out().get(&prefix).map(|r| (n, r)))
                             .filter_map(|(n, r)| r.get(&id).map(|e| (n, e)))
                             .map(|(n, e)| (n, id, e.route.clone())),
@@ -173,31 +195,12 @@ impl Net {
         results
     }
 
-    #[allow(dead_code)]
-    pub fn get_selected_routes(&self, prefix: Prefix) -> Vec<(RouterId, Option<BgpRoute>)> {
-        self.net
-            .get_topology()
-            .node_indices()
-            .map(|src| {
-                (
-                    src,
-                    match self.net.get_device(src) {
-                        NetworkDevice::InternalRouter(r) => {
-                            r.get_bgp_rib().get(&prefix).map(|e| e.route.clone())
-                        }
-                        NetworkDevice::ExternalRouter(r) => {
-                            r.get_advertised_routes().get(&prefix).cloned()
-                        }
-                        NetworkDevice::None => None,
-                    },
-                )
-            })
-            .collect()
-    }
-
     pub fn spring_layout(&mut self) {
+        let net = self.net.borrow();
+        let mut pos_borrow = self.pos.borrow_mut();
+        let pos = pos_borrow.deref_mut();
         // while self.spring_step() {}
-        let g = self.net.get_topology();
+        let g = net.get_topology();
         let edges = g
             .edge_indices()
             .map(|e| g.edge_endpoints(e).unwrap())
@@ -226,7 +229,7 @@ impl Net {
         let mut layout: Layout<f64> = Layout::from_graph(edges, nodes, None, settings);
 
         let mut delta = 1.0;
-        let mut old_pos = self.pos.clone();
+        let mut old_pos = pos.clone();
         let mut n_iter = 0;
 
         while delta > SMOL && n_iter < MAX_N_ITER {
@@ -235,16 +238,16 @@ impl Net {
                 layout.iteration();
             }
 
-            std::mem::swap(&mut old_pos, &mut self.pos);
+            std::mem::swap(&mut old_pos, pos);
 
-            for (r, p) in self.pos.iter_mut() {
+            for (r, p) in pos.iter_mut() {
                 let computed_points = layout.points.get(r.index());
                 p.x = computed_points[0];
                 p.y = computed_points[1];
             }
 
-            Self::normalize_pos(&mut self.pos);
-            delta = Self::compute_delta(&old_pos, &self.pos);
+            Self::normalize_pos(pos);
+            delta = Self::compute_delta(&old_pos, pos);
         }
     }
 

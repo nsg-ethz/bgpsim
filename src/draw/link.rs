@@ -2,7 +2,7 @@ use std::rc::Rc;
 
 use netsim::types::RouterId;
 use yew::prelude::*;
-use yewdux::prelude::{BasicStore, Dispatch};
+use yewdux::prelude::*;
 
 use crate::{
     dim::Dim,
@@ -22,9 +22,9 @@ pub struct Link {
     state: Rc<State>,
     p1: Point,
     p2: Point,
-    _dim_dispatch: Dispatch<BasicStore<Dim>>,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
-    _state_dispatch: Dispatch<BasicStore<State>>,
+    _dim_dispatch: Dispatch<Dim>,
+    _net_dispatch: Dispatch<Net>,
+    _state_dispatch: Dispatch<State>,
 }
 
 #[derive(PartialEq, Eq, Properties)]
@@ -38,9 +38,9 @@ impl Component for Link {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        let _state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
+        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         Self {
             dim: Default::default(),
             state: Default::default(),
@@ -76,8 +76,10 @@ impl Component for Link {
             Msg::StateNet(n) => {
                 let from = ctx.props().from;
                 let to = ctx.props().to;
-                let p1 = self.dim.get(n.pos.get(&from).copied().unwrap_or_default());
-                let p2 = self.dim.get(n.pos.get(&to).copied().unwrap_or_default());
+                let p1 = self
+                    .dim
+                    .get(n.pos().get(&from).copied().unwrap_or_default());
+                let p2 = self.dim.get(n.pos().get(&to).copied().unwrap_or_default());
                 if p1 != self.p1 || p2 != self.p2 {
                     self.p1 = p1;
                     self.p2 = p2;

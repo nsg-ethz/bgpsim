@@ -18,9 +18,9 @@ pub struct Propagation {
     dim: Rc<Dim>,
     p_src: Point,
     p_dst: Point,
-    _net_dispatch: Dispatch<BasicStore<Net>>,
-    _dim_dispatch: Dispatch<BasicStore<Dim>>,
-    state_dispatch: Dispatch<BasicStore<State>>,
+    _net_dispatch: Dispatch<Net>,
+    _dim_dispatch: Dispatch<Dim>,
+    state_dispatch: Dispatch<State>,
 }
 
 pub enum Msg {
@@ -43,9 +43,9 @@ impl Component for Propagation {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let _dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
-        let _net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        let state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
+        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         Propagation {
             net: Default::default(),
             dim: Default::default(),
@@ -77,23 +77,23 @@ impl Component for Propagation {
                 let (src, dst, route) =
                     (ctx.props().src, ctx.props().dst, ctx.props().route.clone());
                 self.state_dispatch
-                    .reduce(move |s| s.set_hover(Hover::RouteProp(src, dst, route)));
+                    .reduce_mut(move |s| s.set_hover(Hover::RouteProp(src, dst, route)));
                 return false;
             }
             Msg::OnMouseLeave => {
-                self.state_dispatch.reduce(|s| s.clear_hover());
+                self.state_dispatch.reduce_mut(|s| s.clear_hover());
                 return false;
             }
         }
         let p_src = self
             .net
-            .pos
+            .pos()
             .get(&ctx.props().src)
             .map(|p| self.dim.get(*p))
             .unwrap_or_default();
         let p_dst = self
             .net
-            .pos
+            .pos()
             .get(&ctx.props().dst)
             .map(|p| self.dim.get(*p))
             .unwrap_or_default();

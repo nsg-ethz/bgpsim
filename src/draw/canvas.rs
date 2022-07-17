@@ -6,7 +6,7 @@ use netsim::prelude::BgpSessionType;
 use netsim::types::{Prefix, RouterId};
 use web_sys::{HtmlDivElement, HtmlElement};
 use yew::prelude::*;
-use yewdux::prelude::{BasicStore, Dispatch, Dispatcher};
+use yewdux::prelude::*;
 
 use super::arrows::ArrowMarkers;
 use super::bgp_session::BgpSession;
@@ -33,9 +33,9 @@ pub struct Canvas {
     net: Rc<Net>,
     dim: Rc<Dim>,
     state: Rc<State>,
-    dim_dispatch: Dispatch<BasicStore<Dim>>,
-    net_dispatch: Dispatch<BasicStore<Net>>,
-    _state_dispatch: Dispatch<BasicStore<State>>,
+    dim_dispatch: Dispatch<Dim>,
+    net_dispatch: Dispatch<Net>,
+    _state_dispatch: Dispatch<State>,
     routers: Vec<RouterId>,
     links: Vec<(RouterId, RouterId)>,
     bgp_sessions: Vec<(RouterId, RouterId, BgpSessionType)>,
@@ -52,9 +52,9 @@ impl Component for Canvas {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let dim_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateDim));
-        let net_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::StateNet));
-        let _state_dispatch = Dispatch::bridge_state(ctx.link().callback(Msg::State));
+        let dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         Self {
             div_ref: NodeRef::default(),
             dim_dispatch,
@@ -72,7 +72,7 @@ impl Component for Canvas {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         // initialize the network
-        self.net_dispatch.reduce(|net: &mut Net| net.init());
+        self.net_dispatch.reduce_mut(|net: &mut Net| net.init());
         let onresize = ctx.link().callback(|_| Msg::UpdateSize);
         html! {
             <div class="flex-1 h-full p-0 bg-gray-50" ref={self.div_ref.clone()} {onresize}>
@@ -120,8 +120,8 @@ impl Component for Canvas {
                     }
                     {
                         if let Hover::Message(src, dst) = self.state.hover() {
-                            let p1 = self.dim.get(self.net.pos[&src]);
-                            let p2 = self.dim.get(self.net.pos[&dst]);
+                            let p1 = self.dim.get(self.net.pos()[&src]);
+                            let p2 = self.dim.get(self.net.pos()[&dst]);
                             html!{ <CurvedArrow {p1} {p2} angle={15.0} color={SvgColor::GreenLight} sub_radius={true} /> }
                         } else { html!{} }
                     }
@@ -145,7 +145,7 @@ impl Component for Canvas {
                     .map(|div| (div.client_width() as f64, div.client_height() as f64))
                     .unwrap_or((self.dim.width, self.dim.height));
                 if (w, h, mt) != (self.dim.width, self.dim.height, self.dim.margin_top) {
-                    self.dim_dispatch.reduce(move |dim: &mut Dim| {
+                    self.dim_dispatch.reduce_mut(move |dim: &mut Dim| {
                         dim.width = w;
                         dim.height = h;
                         dim.margin_top = mt;
@@ -165,11 +165,12 @@ impl Component for Canvas {
             }
             Msg::StateNet(s) => {
                 self.net = s;
-                let mut new_routers = self.net.net.get_topology().node_indices().collect();
+                let mut new_routers = self.net.net().get_topology().node_indices().collect();
                 std::mem::swap(&mut self.routers, &mut new_routers);
                 let mut new_sessions = self.net.get_bgp_sessions();
                 std::mem::swap(&mut self.bgp_sessions, &mut new_sessions);
-                let g = self.net.net.get_topology();
+                let net_borrow = self.net.net();
+                let g = net_borrow.get_topology();
                 let mut new_links = g
                     .edge_indices()
                     .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
