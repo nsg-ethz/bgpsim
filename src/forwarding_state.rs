@@ -27,6 +27,10 @@ use crate::{
 use itertools::Itertools;
 use lazy_static::lazy_static;
 use log::*;
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
 use std::vec::IntoIter;
 use thiserror::Error;
@@ -48,16 +52,21 @@ lazy_static! {
 /// In addition, the `ForwardingState` caches the already computed results of any path for faster
 /// access.
 #[derive(Debug, Clone)]
+#[cfg_attr(feature = "serde", serde_as)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ForwardingState {
     /// The forwarding state
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     pub(crate) state: HashMap<(RouterId, Prefix), Vec<RouterId>>,
     /// The reversed forwarding state.
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     pub(crate) reversed: HashMap<(RouterId, Prefix), HashSet<RouterId>>,
     /// Cache storing the result from the last computation. The outer most vector is the corresponds
     /// to the router id, and the next is the prefix. Then, if `cache[r, p]` is `None`, we have not
     /// yet computed the result there, But if `cache[r, p]` is true, then it will store the result
     /// which was computed last time.
     #[allow(clippy::type_complexity)]
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     pub(crate) cache: HashMap<(RouterId, Prefix), Result<Vec<Vec<RouterId>>, CacheError>>,
 }
 
@@ -350,6 +359,7 @@ impl ForwardingState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Error)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) enum CacheError {
     #[error("Black hole: {0:?}")]
     BlackHole(Vec<RouterId>),

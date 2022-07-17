@@ -27,6 +27,8 @@ use crate::{
 };
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde_with::serde_as;
 use std::collections::hash_map::Keys;
 use std::collections::{HashMap, HashSet};
 
@@ -41,12 +43,14 @@ use std::collections::{HashMap, HashSet};
 ///   often. In this case, we need to iterate over the `active_routes`, which is faster than using a
 ///   `HashMap`. Also, cloning the External Router is faster when we have a vector.
 #[derive(Debug, PartialEq, Eq)]
+#[cfg_attr(feature = "serde", serde_as)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExternalRouter {
     name: String,
     router_id: RouterId,
     as_id: AsId,
     neighbors: HashSet<RouterId>,
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     active_routes: HashMap<Prefix, BgpRoute>,
     #[cfg(feature = "undo")]
     undo_stack: Vec<Vec<UndoAction>>,

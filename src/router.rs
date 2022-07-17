@@ -30,6 +30,8 @@ use log::*;
 use petgraph::visit::EdgeRef;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde_with::serde_as;
 use std::{
     collections::{hash_map::Iter, HashMap, HashSet},
     fmt::Write,
@@ -39,6 +41,7 @@ use std::{
 
 /// Bgp Router
 #[derive(Debug)]
+#[cfg_attr(feature = "serde", serde_as)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Router {
     /// Name of the router
@@ -50,20 +53,26 @@ pub struct Router {
     /// Neighbors of that node. This updates with any IGP update
     neighbors: HashSet<RouterId>,
     /// forwarding table for IGP messages
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     pub igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Static Routes for Prefixes
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     static_routes: HashMap<Prefix, StaticRoute>,
     /// hashmap of all bgp sessions
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     bgp_sessions: HashMap<RouterId, BgpSessionType>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
     /// to another hashmap, which maps the received router id to the entry. This way, we can store
     /// one entry for every prefix and every session.
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     bgp_rib_in: HashMap<Prefix, HashMap<RouterId, BgpRibEntry>>,
     /// Table containing all selected best routes. It is represented as a hashmap, mapping the
     /// prefixes to the table entry
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     bgp_rib: HashMap<Prefix, BgpRibEntry>,
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     bgp_rib_out: HashMap<Prefix, HashMap<RouterId, BgpRibEntry>>,
     /// Set of known bgp prefixes
     bgp_known_prefixes: HashSet<Prefix>,

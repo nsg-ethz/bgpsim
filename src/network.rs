@@ -41,12 +41,12 @@ use petgraph::algo::{floyd_warshall, FloatMeasure};
 use petgraph::visit::EdgeRef;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 100_000;
 
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 /// # Network struct
 /// The struct contains all information about the underlying physical network (Links), a manages
 /// all (both internal and external) routers, and handles all events between them.
@@ -66,9 +66,14 @@ static DEFAULT_STOP_AFTER: usize = 100_000;
 /// undo a single event by calling [`crate::interactive::InteractiveNetwork::undo_step`]. Finally,
 /// you can create an undo-mark by calling [`Network::get_undo_mark`], and undo up to this mark
 /// using [`Network::undo_to_mark`].
+#[derive(Debug)]
+#[cfg_attr(feature = "serde", serde_as)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Network<Q = BasicEventQueue> {
     pub(crate) net: IgpNetwork,
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     pub(crate) routers: HashMap<RouterId, Router>,
+    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     pub(crate) external_routers: HashMap<RouterId, ExternalRouter>,
     pub(crate) known_prefixes: HashSet<Prefix>,
     pub(crate) stop_after: Option<usize>,
