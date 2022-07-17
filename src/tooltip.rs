@@ -122,21 +122,21 @@ impl Component for Tooltip {
                     let listener = Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e| {
                         link.send_message(Msg::UpdateMouse(e))
                     }));
-                    window()
-                        .add_event_listener_with_callback(
-                            "mousemove",
-                            listener.as_ref().unchecked_ref(),
-                        )
-                        .unwrap();
-                    self.dragging = Some(listener);
+                    match window().add_event_listener_with_callback(
+                        "mousemove",
+                        listener.as_ref().unchecked_ref(),
+                    ) {
+                        Ok(()) => self.dragging = Some(listener),
+                        Err(e) => log::error!("Could not add event listener! {:?}", e),
+                    }
                 } else if !self.state.is_hover() {
                     if let Some(listener) = self.dragging.take() {
-                        window()
-                            .remove_event_listener_with_callback(
-                                "mousemove",
-                                listener.as_ref().unchecked_ref(),
-                            )
-                            .unwrap()
+                        if let Err(e) = window().remove_event_listener_with_callback(
+                            "mousemove",
+                            listener.as_ref().unchecked_ref(),
+                        ) {
+                            log::error!("Could not remove event listener! {:?}", e)
+                        }
                     }
                 }
             }

@@ -160,7 +160,12 @@ impl Component for LinkWeightCfg {
             }
             LinkWeightMsg::OnSet(val) => {
                 let (src, dst) = (ctx.props().src, ctx.props().dst);
-                let weight = val.parse::<LinkWeight>().unwrap();
+                let weight = if let Ok(w) = val.parse::<LinkWeight>() {
+                    w
+                } else {
+                    self.inp_correct = false;
+                    return true;
+                };
                 self.net_dispatch
                     .reduce(move |net| net.net.set_link_weight(src, dst, weight));
                 false

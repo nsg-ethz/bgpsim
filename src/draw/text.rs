@@ -93,9 +93,15 @@ where
 
     fn rendered(&mut self, ctx: &Context<Self>, _: bool) {
         if self.rerender {
-            let text_elem = self.text_ref.cast::<SvgGraphicsElement>().unwrap();
-            let bbox = text_elem.get_b_box().unwrap();
-            ctx.link().send_message(Msg::UpdateSize(bbox));
+            if let Some(bbox) = self
+                .text_ref
+                .cast::<SvgGraphicsElement>()
+                .and_then(|e| e.get_b_box().ok())
+            {
+                ctx.link().send_message(Msg::UpdateSize(bbox));
+            } else {
+                log::error!("Could not get the bounding box of the text!")
+            }
         } else {
             self.rerender = true;
         }

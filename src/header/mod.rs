@@ -122,7 +122,7 @@ fn add_router(net: &mut Net, internal: bool) {
     let name = (1..)
         .map(|x| format!("{}{}", prefix, x))
         .find(|n| net.net.get_router_id(n).is_err())
-        .unwrap();
+        .unwrap(); // safety: This unwrap is ok because of the infinite iterator!
     let router_id = if internal {
         net.net.add_router(name)
     } else {
@@ -132,10 +132,11 @@ fn add_router(net: &mut Net, internal: bool) {
             .into_iter()
             .map(|r| net.net.get_device(r).unwrap_external().as_id())
             .collect();
+        // safety: this unwrap is ok because of the infinite iterator!
         let as_id = (1..).map(AsId).find(|x| used_as.contains(x)).unwrap();
         net.net.add_external_router(name, as_id)
     };
-    net.pos.insert(router_id, Point::new(0.05, 0.05));
+    net.pos.insert(router_id, Point::new(0, 0));
 }
 
 struct PrefixSelection {
@@ -219,7 +220,11 @@ impl Component for PrefixSelection {
                 false
             }
             Msg::OnChange => {
-                self.text = self.input_ref.cast::<HtmlInputElement>().unwrap().value();
+                self.text = self
+                    .input_ref
+                    .cast::<HtmlInputElement>()
+                    .map(|e| e.value())
+                    .unwrap_or_default();
                 if let Ok(p) = self.text.parse::<u32>().map(Prefix) {
                     if Some(p) != self.last_prefix {
                         self.input_wrong = false;

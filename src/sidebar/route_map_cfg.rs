@@ -121,7 +121,12 @@ impl Component for RouteMapCfg {
             }
             Msg::OrderSet(o) => {
                 let mut map = ctx.props().map.clone();
-                map.order = o.parse::<usize>().unwrap();
+                map.order = if let Ok(o) = o.parse::<usize>() {
+                    o
+                } else {
+                    self.order_input_correct = false;
+                    return true;
+                };
                 ctx.props().on_update.emit((ctx.props().order, map));
                 false
             }

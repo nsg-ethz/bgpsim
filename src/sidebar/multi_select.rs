@@ -114,7 +114,11 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
             Msg::ToggleMenu(e) => {
                 self.menu_shown = !self.menu_shown;
                 let cur_y = e.client_y();
-                let max_y = window().inner_height().unwrap().as_f64().unwrap() as i32;
+                let max_y = window()
+                    .inner_height()
+                    .ok()
+                    .and_then(|h| h.as_f64())
+                    .unwrap_or(600.0) as i32;
                 let height = self
                     .div_ref
                     .cast::<HtmlElement>()
@@ -136,15 +140,14 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
                 }
             }
             Msg::ToggleElement(e) => {
-                if ctx
-                    .props()
-                    .options
-                    .iter()
-                    .filter(|(t, _, _)| t == &e)
-                    .map(|(_, _, b)| !*b)
-                    .next()
-                    .unwrap()
-                {
+                let elem_added =
+                    if let Some((_, _, b)) = ctx.props().options.iter().find(|(t, _, _)| t == &e) {
+                        !*b
+                    } else {
+                        log::error!("Toggled an unknown element!");
+                        return false;
+                    };
+                if elem_added {
                     ctx.props().on_add.emit(e);
                 } else {
                     ctx.props().on_remove.emit(e);

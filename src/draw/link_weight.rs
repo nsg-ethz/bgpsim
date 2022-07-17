@@ -81,12 +81,12 @@ impl Component for LinkWeight {
         let g = self.net.net.get_topology();
         let w1 = g
             .find_edge(src, dst)
-            .map(|e| g.edge_weight(e).unwrap())
+            .map(|e| g.edge_weight(e).unwrap()) // safety: ok because we used find_edge
             .map(|e| e.to_string())
             .unwrap_or_else(|| "Err".to_string());
         let w2 = g
             .find_edge(dst, src)
-            .map(|e| g.edge_weight(e).unwrap())
+            .map(|e| g.edge_weight(e).unwrap()) // safety: ok because we used find_edge
             .map(|e| e.to_string())
             .unwrap_or_else(|| "Err".to_string());
         if (p1, p2, &w1, &w2) != (self.p1, self.p2, &self.w1, &self.w2) {

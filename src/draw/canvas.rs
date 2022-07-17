@@ -172,7 +172,7 @@ impl Component for Canvas {
                 let g = self.net.net.get_topology();
                 let mut new_links = g
                     .edge_indices()
-                    .map(|e| g.edge_endpoints(e).unwrap())
+                    .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
                     .map(|(a, b)| {
                         if a.index() > b.index() {
                             (b, a)

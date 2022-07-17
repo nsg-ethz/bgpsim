@@ -256,13 +256,17 @@ impl Component for ExternalRouterCfg {
             Msg::OnRouteAdd(p) => {
                 let p = p.to_lowercase();
                 let router = ctx.props().router;
-                let p = Prefix(
-                    p.strip_prefix("prefix(")
-                        .and_then(|p| p.strip_suffix(')'))
-                        .unwrap_or(p.as_str())
-                        .parse::<u32>()
-                        .unwrap(),
-                );
+                let p = if let Ok(p) = p
+                    .strip_prefix("prefix(")
+                    .and_then(|p| p.strip_suffix(')'))
+                    .unwrap_or(p.as_str())
+                    .parse::<u32>()
+                {
+                    Prefix(p)
+                } else {
+                    self.route_add_input_correct = false;
+                    return true;
+                };
                 self.net_dispatch.reduce(move |net| {
                     net.net
                         .advertise_external_route::<Option<AsId>, Option<u32>>(
@@ -376,9 +380,14 @@ impl Component for AdvertisedRouteCfg {
                 true
             }
             AdvertisedRouteMsg::PrefixSet(p) => {
-                let p = p.parse::<u32>().unwrap();
+                let p = if let Ok(p) = p.parse::<u32>() {
+                    Prefix(p)
+                } else {
+                    self.prefix_input_correct = false;
+                    return true;
+                };
                 let mut r = ctx.props().route.clone();
-                r.prefix = p.into();
+                r.prefix = p;
                 ctx.props().on_update.emit((ctx.props().prefix, r));
                 false
             }
@@ -396,7 +405,7 @@ impl Component for AdvertisedRouteCfg {
                     .split(';')
                     .flat_map(|s| s.split(','))
                     .map(|s| s.trim())
-                    .map(|s| AsId(s.parse::<u32>().unwrap()))
+                    .filter_map(|s| s.parse::<u32>().map(AsId).ok())
                     .collect();
                 let mut r = ctx.props().route.clone();
                 r.as_path = path;
@@ -417,7 +426,7 @@ impl Component for AdvertisedRouteCfg {
                 let med = if med.as_str() == "none" {
                     None
                 } else {
-                    Some(med.parse::<u32>().unwrap())
+                    med.parse::<u32>().ok()
                 };
                 let mut r = ctx.props().route.clone();
                 r.med = med;
@@ -440,7 +449,7 @@ impl Component for AdvertisedRouteCfg {
                     .split(';')
                     .flat_map(|s| s.split(','))
                     .map(|s| s.trim())
-                    .map(|s| s.parse::<u32>().unwrap())
+                    .filter_map(|s| s.parse::<u32>().ok())
                     .collect();
                 let mut r = ctx.props().route.clone();
                 r.community = community;

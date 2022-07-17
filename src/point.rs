@@ -101,8 +101,8 @@ impl Point {
         T::Error: std::fmt::Debug,
     {
         Self {
-            x: x.try_into().unwrap(),
-            y: y.try_into().unwrap(),
+            x: x.try_into().unwrap_or_default(),
+            y: y.try_into().unwrap_or_default(),
         }
     }
 

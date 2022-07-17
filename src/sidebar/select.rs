@@ -104,7 +104,11 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
             Msg::ToggleMenu(e) => {
                 self.menu_shown = !self.menu_shown;
                 let cur_y = e.client_y();
-                let max_y = window().inner_height().unwrap().as_f64().unwrap() as i32;
+                let max_y = window()
+                    .inner_height()
+                    .ok()
+                    .and_then(|h| h.as_f64())
+                    .unwrap_or(600.0) as i32;
                 let height = self
                     .div_ref
                     .cast::<HtmlElement>()

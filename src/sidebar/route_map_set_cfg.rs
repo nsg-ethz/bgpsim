@@ -122,7 +122,11 @@ impl Component for RouteMapSetCfg {
             }
             Msg::Delete => ctx.props().on_update.emit((ctx.props().index, None)),
             Msg::InputUpdate => {
-                self.v_s = self.v_r.cast::<HtmlInputElement>().unwrap().value();
+                self.v_s = self
+                    .v_r
+                    .cast::<HtmlInputElement>()
+                    .map(|e| e.value())
+                    .unwrap_or_default();
                 if let Some(val) = self.v_v.update(&self.v_s) {
                     self.v_v = val;
                     self.v_c = true;

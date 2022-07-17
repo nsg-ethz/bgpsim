@@ -247,6 +247,7 @@ impl Component for RouterCfg {
                 let o = if let Ok(o) = o.parse() {
                     o
                 } else {
+                    self.rm_in_order_correct = false;
                     return false;
                 };
                 let rm = RouteMapBuilder::new().order(o).allow().build();
@@ -275,10 +276,13 @@ impl Component for RouterCfg {
                 }
             }
             Msg::AddRouteMapOut(o) => {
-                let rm = RouteMapBuilder::new()
-                    .order(o.parse().unwrap())
-                    .allow()
-                    .build();
+                let o = if let Ok(o) = o.parse::<usize>() {
+                    o
+                } else {
+                    self.rm_out_order_correct = false;
+                    return true;
+                };
+                let rm = RouteMapBuilder::new().order(o).allow().build();
                 let r = ctx.props().router;
                 self.net_dispatch.reduce(move |net| {
                     net.net

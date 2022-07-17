@@ -89,8 +89,11 @@ impl Component for TextField {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::Change => {
-                let elem = self.node_ref.cast::<HtmlInputElement>().unwrap();
-                let val = elem.value();
+                let val = self
+                    .node_ref
+                    .cast::<HtmlInputElement>()
+                    .map(|e| e.value())
+                    .unwrap_or_default();
                 let updated = val != self.current_text;
                 self.current_text = val;
                 // call the callback

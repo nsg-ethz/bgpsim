@@ -163,7 +163,11 @@ impl Component for RouteMapMatchCfg {
             }
             Msg::Delete => ctx.props().on_update.emit((ctx.props().index, None)),
             Msg::Input1Update => {
-                self.v1s = self.v1r.cast::<HtmlInputElement>().unwrap().value();
+                self.v1s = self
+                    .v1r
+                    .cast::<HtmlInputElement>()
+                    .map(|e| e.value())
+                    .unwrap_or_default();
                 if let Some(val) = self.v1v.update(&self.v1s) {
                     self.v1v = val;
                     self.v1c = true;
@@ -173,7 +177,11 @@ impl Component for RouteMapMatchCfg {
                 }
             }
             Msg::Input2Update => {
-                self.v2s = self.v2r.cast::<HtmlInputElement>().unwrap().value();
+                self.v2s = self
+                    .v2r
+                    .cast::<HtmlInputElement>()
+                    .map(|e| e.value())
+                    .unwrap_or_default();
                 if let Some(val) = self.v2v.update(&self.v2s) {
                     self.v2v = val;
                     self.v2c = true;
