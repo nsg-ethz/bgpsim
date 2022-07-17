@@ -24,6 +24,41 @@
 //! This library was created during the Master Thesis: "Synthesizing Network-Wide Configuration
 //! Updates" by Tibor Schneider, supervised by Laurent Vanbever and Rüdiker Birkener.
 //!
+//! ## Main Concepts
+//!
+//! The [`network::Network`] is the main datastructure to operate on. It allows you to generate,
+//! modify, and simulate network behavior. A network consists of many routers (either
+//! [`router::Router`] or [`external_router::ExternalRouter`]) connected with links. The `Network`
+//! stores all routers, as well as how they are connected, on a graph (see
+//! [Petgraph](https://docs.rs/petgraph/latest/petgraph/index.html)).
+//!
+//! The network simulates IGP as an instantaneous computation using shortest path algorithms from
+//! Petgraph. BGP however is simulated using a message passing technique. The reason is that one can
+//! assume IGP converges much faster than BGP does.
+//!
+//! The network can be configured using functions directly on the instance itself. However, it can
+//! also be configured using a configuration language. For that, make sure to `use` the trait
+//! [`config::NetworkConfig`]. If you wish to step through the events one-by-one, and potentially
+//! modify the queue along the way, `use` the trait [`interactive::InteractiveNetwork`]. Finally,
+//! use [`record::RecordNetwork`] to record an individual convergence process, and replay its effect
+//! on the forwarding state.
+//!
+//! The default queue in the network is a simple FIFO queue ([`event::BasicEventQueue`]). However,
+//! the queue can be replaced by any other queue implementation by implementing the trait
+//! [`event::EventQueue`]. [`event::SimpleTimingModel`] is an example of such a queue that schedules
+//! events based on randomness (only available with the `rand_queue` feature).
+//!
+//! ## Optional Features
+//!
+//! - `undo`: This feature enables undo capabilities. Every change in the network is recorded and
+//!   can be reversed later, by calling [`network::Network::undo_action`] (or interactively by
+//!   calling [`interactive::InteractiveNetwork::undo_step`]. However, enabling this feature will
+//!   come at a significant performance cost, as every event needs to be recorded.
+//! - `rand_queue`: This feature enables the [`event::SimpleTimingModel`], and adds
+//!   [rand](https://docs.rs/rand/latest/rand/index.html) as a dependency (requiring `std`).
+//! - `serde`: This feature adds serialize and deserialize functionality to (almost) every type in
+//!   this crate. Enabling this significantly impact build times.
+//!
 //! ## Example usage
 //!
 //! The following example generates a network with two border routers `B0` and `B1`, two route
