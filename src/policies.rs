@@ -78,6 +78,7 @@ pub trait Policy {
 }
 
 /// Condition that can be checked for either being true or false.
+#[non_exhaustive]
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum FwPolicy {
@@ -92,6 +93,14 @@ pub enum FwPolicy {
     /// The `LoopFree` policy verifies that traffic from this router toward a prefix does not run
     /// in a loop. Note that this does not imply reachability, as a `BlackHole` might still occur.
     LoopFree(RouterId, Prefix),
+    /// Condition that there exist `k` paths from the router to the prefix.
+    LoadBalancing(RouterId, Prefix, usize),
+    /// Condition that there exist `k` vertex-disjoint paths from the router to the prefix.
+    /// CAUTION: Currently not implemented!
+    LoadBalancingVertexDisjoint(RouterId, Prefix, usize),
+    /// Condition that there exist `k` edge-disjoint paths from the router to the prefix.
+    /// CAUTION: Currently not implemented!
+    LoadBalancingEdgeDisjoint(RouterId, Prefix, usize),
 }
 
 impl Policy for FwPolicy {
@@ -132,6 +141,16 @@ impl Policy for FwPolicy {
                 }),
                 _ => Ok(()),
             },
+            Self::LoadBalancing(r, p, k) => match fw_state.get_route(*r, *p) {
+                Ok(paths) if paths.len() >= *k => Ok(()),
+                _ => Err(PolicyError::InsufficientPathsExist {
+                    router: *r,
+                    prefix: *p,
+                    k: *k,
+                }),
+            },
+            Self::LoadBalancingVertexDisjoint(_, _, _)
+            | Self::LoadBalancingEdgeDisjoint(_, _, _) => unimplemented!(),
         }
     }
 
@@ -141,6 +160,9 @@ impl Policy for FwPolicy {
             FwPolicy::NotReachable(r, _) => *r,
             FwPolicy::PathCondition(r, _, _) => *r,
             FwPolicy::LoopFree(r, _) => *r,
+            FwPolicy::LoadBalancing(r, _, _) => *r,
+            FwPolicy::LoadBalancingVertexDisjoint(r, _, _) => *r,
+            FwPolicy::LoadBalancingEdgeDisjoint(r, _, _) => *r,
         })
     }
 
@@ -150,6 +172,9 @@ impl Policy for FwPolicy {
             FwPolicy::NotReachable(_, p) => *p,
             FwPolicy::PathCondition(_, p, _) => *p,
             FwPolicy::LoopFree(_, p) => *p,
+            FwPolicy::LoadBalancing(_, p, _) => *p,
+            FwPolicy::LoadBalancingVertexDisjoint(_, p, _) => *p,
+            FwPolicy::LoadBalancingEdgeDisjoint(_, p, _) => *p,
         })
     }
 }
@@ -453,7 +478,7 @@ pub enum PolicyError {
         path: Vec<RouterId>,
         /// The expected path
         condition: PathCondition,
-        /// the prefix for which the wrong path exists.
+        /// The prefix for which the wrong path exists.
         prefix: Prefix,
     },
 
@@ -464,8 +489,19 @@ pub enum PolicyError {
         router: RouterId,
         /// The prefix which should not be reached
         prefix: Prefix,
-        /// the path with which the router can reach the prefix
+        /// The path with which the router can reach the prefix
         paths: Vec<Vec<RouterId>>,
+    },
+
+    /// Not enough routes are present, where we require load balancing
+    #[error("Router {router:?} should be able to reach {prefix:?} by at least {k:?} paths")]
+    InsufficientPathsExist {
+        /// The router who should not be able to reach the prefix
+        router: RouterId,
+        /// The prefix which should be reached with k paths
+        prefix: Prefix,
+        /// The k
+        k: usize,
     },
 
     /// No Convergence

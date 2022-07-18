@@ -509,6 +509,13 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for FwPolicy {
             Self::LoopFree(r, p) => {
                 format!("LoopFree({}, {})", r.fmt(net), p)
             }
+            Self::LoadBalancing(r, p, k) => format!("LoadBalancing({}, {}, {})", r.fmt(net), p, k),
+            Self::LoadBalancingVertexDisjoint(r, p, k) => {
+                format!("LoadBalancingVertexDisjoint({}, {}, {})", r.fmt(net), p, k)
+            }
+            Self::LoadBalancingEdgeDisjoint(r, p, k) => {
+                format!("LoadBalancingEdgeDisjoint({}, {}, {})", r.fmt(net), p, k)
+            }
         }
     }
 }
@@ -583,6 +590,12 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for PolicyError {
                 router.fmt(net),
                 prefix,
                 paths.fmt(net)
+            ),
+            PolicyError::InsufficientPathsExist { router, prefix, k } => format!(
+                "{} cannot reach {} via {} paths",
+                router.fmt(net),
+                prefix,
+                k
             ),
             PolicyError::NoConvergence => String::from("No Convergence"),
         }
