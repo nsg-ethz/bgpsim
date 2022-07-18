@@ -338,10 +338,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConfigExpr {
                 "Static Route: {}: {} via {}",
                 router.fmt(net),
                 prefix,
-                match target {
-                    StaticRoute::Direct(target) => target.fmt(net).to_string(),
-                    StaticRoute::Indirect(target) => format!("{} (indirect)", target.fmt(net)),
-                }
+                target.fmt(net)
             ),
             ConfigExpr::LoadBalancing { router } => {
                 format!("Load Balancing: {}", router.fmt(net))
@@ -598,6 +595,17 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for PolicyError {
                 k
             ),
             PolicyError::NoConvergence => String::from("No Convergence"),
+        }
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for StaticRoute {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        match self {
+            StaticRoute::Direct(r) => r.fmt(net).to_string(),
+            StaticRoute::Indirect(r) => format!("{} (indirect)", r.fmt(net)),
         }
     }
 }
