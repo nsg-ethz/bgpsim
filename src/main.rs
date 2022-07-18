@@ -12,6 +12,10 @@ use sidebar::Sidebar;
 use tooltip::Tooltip;
 
 use yew::{prelude::*, Renderer};
+use yew_router::prelude::*;
+use yewdux::prelude::*;
+
+use crate::net::Net;
 
 #[function_component(App)]
 fn app() -> Html {
@@ -26,7 +30,36 @@ fn app() -> Html {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq, Routable)]
+enum Route {
+    #[not_found]
+    #[at("/")]
+    Home,
+    #[at("/i/:d")]
+    ImportNet { d: String },
+}
+
+fn switch(route: Route) -> Html {
+    match route {
+        Route::Home => html! {<App />},
+        Route::ImportNet { d } => {
+            let net_dispatch = Dispatch::<Net>::new();
+            net_dispatch.reduce_mut(|n| n.import_url(d));
+            html! { <Redirect<Route> to={Route::Home} /> }
+        }
+    }
+}
+
+#[function_component(Entry)]
+fn entry() -> Html {
+    html! {
+        <BrowserRouter>
+            <Switch<Route> render={switch} />
+        </BrowserRouter>
+    }
+}
+
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
-    Renderer::<App>::new().render();
+    Renderer::<Entry>::new().render();
 }

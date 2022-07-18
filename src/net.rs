@@ -6,9 +6,10 @@ use std::{
 use forceatlas2::{Layout, Nodes, Settings};
 use getrandom::getrandom;
 use itertools::Itertools;
+use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
 use netsim::{
     bgp::{BgpRoute, BgpSessionType},
-    config::{Config, ConfigExpr, ConfigModifier, NetworkConfig},
+    config::{ConfigExpr, ConfigModifier, NetworkConfig},
     event::{Event, EventQueue},
     network::Network,
     router::Router,
@@ -17,7 +18,7 @@ use netsim::{
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
 use wasm_bindgen::JsCast;
-use web_sys::HtmlElement;
+use web_sys::{window, HtmlElement};
 use yewdux::{mrc::Mrc, prelude::*};
 
 use crate::point::Point;
@@ -120,6 +121,7 @@ impl Net {
 
     pub fn init(&mut self) {
         if !self.is_init {
+            log::debug!("Initializing network");
             get_test_net(&mut self.net.borrow_mut()).unwrap();
             self.pos = Mrc::new(
                 self.net
@@ -300,7 +302,7 @@ impl Net {
 
     /// export the current file and download it.
     pub fn export(&self) {
-        let json_data = net_to_string(self);
+        let json_data = net_to_string(self, false);
         let document = gloo_utils::document();
         // create the a link
         let element: HtmlElement = match document.create_element("a") {
@@ -340,14 +342,56 @@ impl Net {
     }
 
     pub fn import(&mut self, file: &str) {
+        log::debug!("Import a network");
         match net_from_str(file) {
             Ok(n) => {
                 self.net = n.net;
                 self.pos = n.pos;
+                self.is_init = true;
             }
-            Err(e) => log::error!("Could not read the stored file! {}", e),
+            Err(e) => log::error!("Could not import the network! {}", e),
         }
     }
+
+    pub fn import_url(&mut self, data: impl AsRef<str>) {
+        let data = data.as_ref();
+        let decoded_compressed = match base64::decode_config(data.as_bytes(), base64_config()) {
+            Ok(d) => d,
+            Err(e) => {
+                log::error!("Could not decode base64 data: {}", e);
+                return;
+            }
+        };
+        let decoded = match decompress_to_vec(&decoded_compressed) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Could not decompress the data: {:?}", e);
+                return;
+            }
+        };
+        let json_data = match String::from_utf8(decoded) {
+            Ok(s) => s,
+            Err(e) => {
+                log::error!("Could not interpret data as utf-8: {}", e);
+                return;
+            }
+        };
+        self.import(&json_data);
+    }
+
+    pub fn export_url(&self) -> String {
+        let json_data = net_to_string(self, true);
+        let compressed_data = compress_to_vec(json_data.as_bytes(), 8);
+        let encoded_data = base64::encode_config(&compressed_data, base64_config());
+        let url = window()
+            .and_then(|w| w.location().href().ok())
+            .unwrap_or_else(|| String::from("netsim.ethz.ch/"));
+        format!("{}i/{}", url, encoded_data)
+    }
+}
+
+fn base64_config() -> base64::Config {
+    base64::Config::new(base64::CharacterSet::UrlSafe, false)
 }
 
 fn rand_uniform() -> f64 {
@@ -413,7 +457,7 @@ fn get_test_net(net: &mut Network<Queue>) -> Result<(), NetworkError> {
     Ok(())
 }
 
-fn net_to_string(net: &Net) -> String {
+fn net_to_string(net: &Net, compact: bool) -> String {
     let config = Vec::from_iter(net.net().get_config().unwrap().iter().cloned());
     let net_borrow = net.net();
     let n = net_borrow.deref();
@@ -437,17 +481,25 @@ fn net_to_string(net: &Net) -> String {
                 .map(move |route| (id, route.clone()))
         })
         .collect();
-    serde_json::to_string(&json!({
-        "net": serde_json::to_value(n).unwrap(),
-        "config_nodes_routes": serde_json::to_value(&(config, nodes, routes)).unwrap(),
-        "pos": serde_json::to_value(p).unwrap(),
-    }))
+    serde_json::to_string(&if compact {
+        json!({
+            "config_nodes_routes": serde_json::to_value(&(config, nodes, routes)).unwrap(),
+            "pos": serde_json::to_value(p).unwrap(),
+        })
+    } else {
+        json!({
+            "net": serde_json::to_value(n).unwrap(),
+            "config_nodes_routes": serde_json::to_value(&(config, nodes, routes)).unwrap(),
+            "pos": serde_json::to_value(p).unwrap(),
+        })
+    })
     .unwrap()
 }
 
 fn net_from_str(s: &str) -> Result<Net, String> {
     // first, try to deserialize the network. If that works, ignore the config
-    let content: Value = serde_json::from_str(s).map_err(|e| e.to_string())?;
+    let content: Value =
+        serde_json::from_str(s).map_err(|e| format!("cannot parse json file! {}", e))?;
     let net: Network<Queue> = if let Some(net) = content
         .get("net")
         .and_then(|v| serde_json::from_value(v.clone()).ok())
@@ -507,11 +559,12 @@ fn net_from_config_nodes(
     nodes: Value,
     routes: Value,
 ) -> Result<Network<Queue>, String> {
-    let config: Config = serde_json::from_value(config).map_err(|e| e.to_string())?;
+    let config: Vec<ConfigExpr> =
+        serde_json::from_value(config).map_err(|e| format!("Cannot parse config: {}", e))?;
     let nodes: Vec<(RouterId, String, Option<AsId>)> =
-        serde_json::from_value(nodes).map_err(|e| e.to_string())?;
+        serde_json::from_value(nodes).map_err(|e| format!("Cannot parse nodes: {}", e))?;
     let routes: Vec<(RouterId, BgpRoute)> =
-        serde_json::from_value(routes).map_err(|e| e.to_string())?;
+        serde_json::from_value(routes).map_err(|e| format!("Cannot parse rotues: {}", e))?;
     let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();
     let links: Vec<(RouterId, RouterId)> = config
         .iter()
@@ -588,11 +641,11 @@ fn net_from_config_nodes(
             },
         };
         net.apply_modifier(&ConfigModifier::Insert(expr))
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("cannot apply modifier! {}", e))?;
     }
     for (src, route) in routes.into_iter() {
         net.advertise_external_route(src, route.prefix, route.as_path, route.med, route.community)
-            .map_err(|e| e.to_string())?;
+            .map_err(|e| format!("Cannot advertise rotue: {}", e))?;
     }
     Ok(net)
 }

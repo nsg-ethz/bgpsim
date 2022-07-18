@@ -15,12 +15,14 @@ pub struct MainMenu {
     net_dispatch: Dispatch<Net>,
     file_ref: NodeRef,
     file_listener: Option<Closure<dyn Fn(ProgressEvent)>>,
+    url_network: Option<String>,
 }
 
 pub enum Msg {
     StateNet(Rc<Net>),
     ToggleSimulationMode,
     Export,
+    ExportCopyUrl,
     ImportClick,
     Import,
     OpenMenu,
@@ -45,6 +47,7 @@ impl Component for MainMenu {
             net_dispatch,
             file_ref: NodeRef::default(),
             file_listener: None,
+            url_network: None,
         }
     }
 
@@ -59,6 +62,7 @@ impl Component for MainMenu {
         let toggle_auto_simulate = ctx.link().callback(|_| Msg::ToggleSimulationMode);
         let auto_layout = self.net_dispatch.reduce_mut_callback(|n| n.spring_layout());
         let export = ctx.link().callback(|_| Msg::Export);
+        let export_copy_url = ctx.link().callback(|_| Msg::ExportCopyUrl);
 
         let link_class = "border-b border-gray-200 hover:border-blue-600 hover:text-blue-600 transition duration-150 ease-in-out";
         let target = "_blank";
@@ -99,6 +103,15 @@ impl Component for MainMenu {
                             {"Import From File"}
                         </button>
                         <input class="hidden" type="file" ref={self.file_ref.clone()} onchange={on_file_import} />
+                        <button class={element_class} onclick={export_copy_url}>
+                            <yew_lucide::Copy class="h-6 mr-4" />
+                            {"Copy Network URL"}
+                        </button>
+                        if self.url_network.is_some() {
+                            <div class="m-2 px-4 rounded-md bg-gray-50 border border-gray-300 drop-shadow break-all select-all text-xs h-32 overflow-y-scroll">
+                                {self.url_network.as_ref().unwrap()}
+                            </div>
+                        }
                     </div>
                 </div>
             </span>
@@ -110,6 +123,7 @@ impl Component for MainMenu {
             Msg::StateNet(n) => {
                 self.net = n;
                 let auto_simulate = self.net.net().auto_simulation_enabled();
+                self.url_network = None;
                 if auto_simulate != (self.auto_simulate) {
                     self.auto_simulate = auto_simulate;
                     true
@@ -138,6 +152,10 @@ impl Component for MainMenu {
             Msg::Export => {
                 self.net.export();
                 self.shown = false;
+                true
+            }
+            Msg::ExportCopyUrl => {
+                self.url_network = Some(self.net.export_url());
                 true
             }
             Msg::ImportClick => {
