@@ -1,5 +1,5 @@
 use std::{
-    collections::{vec_deque::Iter, HashMap, VecDeque},
+    collections::{vec_deque::Iter, HashMap, HashSet, VecDeque},
     ops::{Deref, DerefMut},
 };
 
@@ -458,9 +458,9 @@ fn get_test_net(net: &mut Network<Queue>) -> Result<(), NetworkError> {
 }
 
 fn net_to_string(net: &Net, compact: bool) -> String {
-    let config = Vec::from_iter(net.net().get_config().unwrap().iter().cloned());
     let net_borrow = net.net();
     let n = net_borrow.deref();
+    let config = Vec::from_iter(n.get_config().unwrap().iter().cloned());
     let pos_borrow = net.pos();
     let p = pos_borrow.deref();
     let node_indices = n.get_topology().node_indices().sorted();
@@ -566,11 +566,15 @@ fn net_from_config_nodes(
     let routes: Vec<(RouterId, BgpRoute)> =
         serde_json::from_value(routes).map_err(|e| format!("Cannot parse rotues: {}", e))?;
     let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();
-    let links: Vec<(RouterId, RouterId)> = config
+    let links: HashSet<(RouterId, RouterId)> = config
         .iter()
         .filter_map(|e| {
             if let ConfigExpr::IgpLinkWeight { source, target, .. } = e {
-                Some((*source, *target))
+                if source.index() < target.index() {
+                    Some((*target, *source))
+                } else {
+                    Some((*source, *target))
+                }
             } else {
                 None
             }
