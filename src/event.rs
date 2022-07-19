@@ -21,9 +21,7 @@ use ordered_float::NotNan;
 #[cfg(feature = "rand_queue")]
 use priority_queue::PriorityQueue;
 #[cfg(feature = "rand_queue")]
-use rand::{Rng, SeedableRng};
-#[cfg(feature = "rand_queue")]
-use rand_chacha::ChaCha20Rng;
+use rand::prelude::*;
 #[cfg(feature = "rand_queue")]
 use rand_distr::{Beta, Distribution};
 #[cfg(feature = "serde")]
@@ -163,7 +161,6 @@ pub struct SimpleTimingModel {
     model: HashMap<(RouterId, RouterId), ModelParams>,
     default_params: ModelParams,
     current_time: NotNan<f64>,
-    rng: ChaCha20Rng,
 }
 
 #[cfg(feature = "rand_queue")]
@@ -176,18 +173,12 @@ impl SimpleTimingModel {
             model: HashMap::new(),
             default_params,
             current_time: NotNan::default(),
-            rng: ChaCha20Rng::from_entropy(),
         }
     }
 
     /// Set the parameters of a specific router pair.
     pub fn set_parameters(&mut self, src: RouterId, dst: RouterId, params: ModelParams) {
         self.model.insert((src, dst), params);
-    }
-
-    /// reset the RNG to a random state
-    pub fn entropy(&mut self) {
-        self.rng = ChaCha20Rng::from_entropy();
     }
 }
 
@@ -202,13 +193,14 @@ impl EventQueue for SimpleTimingModel {
         _net: &IgpNetwork,
     ) {
         let mut next_time = self.current_time;
+        let mut rng = thread_rng();
         // match on the event
         match event {
             Event::Bgp(ref mut t, src, dst, _) => {
                 let key = (src, dst);
                 // compute the next time
                 let beta = self.model.get_mut(&key).unwrap_or(&mut self.default_params);
-                next_time += NotNan::new(beta.sample(&mut self.rng)).unwrap();
+                next_time += NotNan::new(beta.sample(&mut rng)).unwrap();
                 // check if there is already something enqueued for this session
                 if let Some((ref mut num, ref mut time)) = self.messages.get_mut(&key) {
                     if *num > 0 && *time > next_time {
