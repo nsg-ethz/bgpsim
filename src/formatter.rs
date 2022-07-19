@@ -606,6 +606,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for StaticRoute {
         match self {
             StaticRoute::Direct(r) => r.fmt(net).to_string(),
             StaticRoute::Indirect(r) => format!("{} (indirect)", r.fmt(net)),
+            StaticRoute::Drop => "drop".to_string(),
         }
     }
 }

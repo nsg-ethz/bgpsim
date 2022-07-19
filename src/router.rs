@@ -364,6 +364,7 @@ impl Router {
                         .map(|r| vec![*r])
                         .unwrap_or_default(),
                     StaticRoute::Indirect(target) => self.igp_table[&target].0.clone(),
+                    StaticRoute::Drop => vec![],
                 }
             } else {
                 // then, check the bgp table
@@ -398,6 +399,11 @@ impl Router {
     /// Returns the selected bgp route for the prefix, or returns None
     pub fn get_selected_bgp_route(&self, prefix: Prefix) -> Option<BgpRibEntry> {
         self.bgp_rib.get(&prefix).cloned()
+    }
+
+    /// Check if load balancing is enabled
+    pub fn get_load_balancing(&self) -> bool {
+        self.do_load_balancing
     }
 
     /// Update the load balancing config value to something new, and return the old value. If load
@@ -1180,4 +1186,6 @@ pub enum StaticRoute {
     Direct(RouterId),
     /// Use IGP to route traffic towards that target.
     Indirect(RouterId),
+    /// Drop all traffic for the given destination
+    Drop,
 }
