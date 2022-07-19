@@ -21,9 +21,9 @@ use ordered_float::NotNan;
 #[cfg(feature = "rand_queue")]
 use priority_queue::PriorityQueue;
 #[cfg(feature = "rand_queue")]
-use rand::prelude::ThreadRng;
+use rand::{Rng, SeedableRng};
 #[cfg(feature = "rand_queue")]
-use rand::{thread_rng, Rng};
+use rand_chacha::ChaCha20Rng;
 #[cfg(feature = "rand_queue")]
 use rand_distr::{Beta, Distribution};
 #[cfg(feature = "serde")]
@@ -163,8 +163,7 @@ pub struct SimpleTimingModel {
     model: HashMap<(RouterId, RouterId), ModelParams>,
     default_params: ModelParams,
     current_time: NotNan<f64>,
-    #[cfg_attr(feature = "serde", serde(skip))]
-    rng: ThreadRng,
+    rng: ChaCha20Rng,
 }
 
 #[cfg(feature = "rand_queue")]
@@ -177,7 +176,7 @@ impl SimpleTimingModel {
             model: HashMap::new(),
             default_params,
             current_time: NotNan::default(),
-            rng: thread_rng(),
+            rng: ChaCha20Rng::from_entropy(),
         }
     }
 
