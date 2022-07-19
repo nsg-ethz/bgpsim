@@ -216,6 +216,28 @@ impl ConvergenceRecording {
             .map(|t| t.is_empty())
             .unwrap_or(true)
     }
+
+    /// Reverts to and releases the initial `ForwardingState` held by `self`, while consuming
+    /// `self`.
+    pub fn into_initial_fw_state(self) -> ForwardingState {
+        let mut state = self.state;
+        for (prefix, mut ptr) in self.pointers.into_iter() {
+            let trace = if let Some(t) = self.trace.get(&prefix) {
+                t
+            } else {
+                continue;
+            };
+
+            while ptr > 0 {
+                ptr -= 1;
+                let deltas = trace.get(ptr).unwrap();
+                for (router, old_nh, _) in deltas {
+                    state.update(*router, prefix, old_nh.clone());
+                }
+            }
+        }
+        state
+    }
 }
 
 /// This structure captures the essence of a trace, that is, the entire evolution of the forwarding
