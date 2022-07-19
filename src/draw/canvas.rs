@@ -83,17 +83,8 @@ impl Component for Canvas {
                 <svg width="100%" height="100%">
                     <ArrowMarkers />
                     // draw all links
-                    {
-                        self.links.iter().cloned().map(|(from, to)| {
-                            html!{<Link {from} {to} />}
-                        }).collect::<Html>()
-                    }
-                    // draw all routers
-                    {
-                        self.routers.iter().cloned().map(|router_id| {
-                            html!{<Router {router_id} />}
-                        }).collect::<Html>()
-                    }
+                    { for self.links.iter().cloned().map(|(from, to)| html_nested!{<Link {from} {to} />}) }
+                    { for self.routers.iter().cloned().map(|router_id| html_nested!{<Router {router_id} />}) }
                     {
                         if self.state.layer() == Layer::FwState && self.state.prefix().is_some() {
                             self.routers.iter().cloned().map(|router_id| {
@@ -161,7 +152,7 @@ impl Component for Canvas {
             Msg::State(s) => self.state = s,
             Msg::StateNet(s) => self.net = s,
         }
-        self.routers = self.net.net().get_topology().node_indices().collect();
+        self.routers = self.net.net().get_topology().node_indices().rev().collect();
         self.bgp_sessions = self.net.get_bgp_sessions();
         let net_borrow = self.net.net();
         let g = net_borrow.get_topology();

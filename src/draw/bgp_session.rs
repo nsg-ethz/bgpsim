@@ -18,6 +18,7 @@ pub struct BgpSession {
     p2: Point,
     net: Rc<Net>,
     dim: Rc<Dim>,
+    old_session_type: Option<BgpSessionType>,
     _net_dispatch: Dispatch<Net>,
     _dim_dispatch: Dispatch<Dim>,
     state_dispatch: Dispatch<State>,
@@ -52,6 +53,7 @@ impl Component for BgpSession {
             p2: Default::default(),
             net: Default::default(),
             dim: Default::default(),
+            old_session_type: Default::default(),
             _net_dispatch,
             _dim_dispatch,
             state_dispatch,
@@ -106,6 +108,10 @@ impl Component for BgpSession {
             }
         }
 
+        Component::changed(self, ctx)
+    }
+
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let r1 = ctx.props().src;
         let r2 = ctx.props().dst;
         let p1 = self
@@ -114,9 +120,10 @@ impl Component for BgpSession {
         let p2 = self
             .dim
             .get(self.net.pos().get(&r2).copied().unwrap_or_default());
-        if (p1, p2) != (self.p1, self.p2) {
+        if (p1, p2, self.old_session_type) != (self.p1, self.p2, Some(ctx.props().session_type)) {
             self.p1 = p1;
             self.p2 = p2;
+            self.old_session_type = Some(ctx.props().session_type);
             true
         } else {
             false

@@ -73,6 +73,11 @@ impl Component for Link {
             Msg::StateNet(n) => self.net = n,
         }
 
+        let component_changed = Component::changed(self, ctx);
+        component_changed || is_state_update
+    }
+
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let from = ctx.props().from;
         let to = ctx.props().to;
         let p1 = self
@@ -86,7 +91,7 @@ impl Component for Link {
             self.p2 = p2;
             true
         } else {
-            is_state_update
+            false
         }
     }
 }

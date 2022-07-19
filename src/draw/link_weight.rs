@@ -66,12 +66,17 @@ impl Component for LinkWeight {
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        let src = ctx.props().src;
-        let dst = ctx.props().dst;
         match msg {
             Msg::StateDim(s) => self.dim = s,
             Msg::StateNet(n) => self.net = n,
         }
+
+        Component::changed(self, ctx)
+    }
+
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let src = ctx.props().src;
+        let dst = ctx.props().dst;
         let p1 = self
             .dim
             .get(self.net.pos().get(&src).copied().unwrap_or_default());

@@ -81,7 +81,6 @@ impl Component for NextHop {
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        let r = ctx.props().router_id;
         match msg {
             Msg::StateDim(d) => {
                 self.dim = d;
@@ -104,6 +103,11 @@ impl Component for NextHop {
             }
         }
 
+        Component::changed(self, ctx)
+    }
+
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+        let r = ctx.props().router_id;
         let new_p1 = self
             .dim
             .get(self.net.pos().get(&r).copied().unwrap_or_default());

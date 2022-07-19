@@ -97,8 +97,18 @@ fn add_router() -> Html {
     };
 
     let (_, net_dispatch) = use_store::<Net>();
-    let add_internal = net_dispatch.reduce_mut_callback(|n| add_new_router(n, true));
-    let add_external = net_dispatch.reduce_mut_callback(|n| add_new_router(n, false));
+    let add_internal = {
+        let shown = shown.clone();
+        net_dispatch
+            .reduce_mut_callback(|n| add_new_router(n, true))
+            .reform(move |_| shown.set(false))
+    };
+    let add_external = {
+        let shown = shown.clone();
+        net_dispatch
+            .reduce_mut_callback(|n| add_new_router(n, false))
+            .reform(move |_| shown.set(false))
+    };
 
     html! {
         <span class="pointer-events-none">

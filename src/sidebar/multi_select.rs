@@ -70,6 +70,10 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
             "absolute w-full shadow-lg border rounded py-1 bg-white right-0 max-h-48 overflow-auto";
         let dropdown_container_class = "relative pointer-events-none peer-checked:pointer-events-auto opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out";
 
+        if ctx.props().options.is_empty() {
+            return html! { <p class="w-full mt-0.5 text-gray-400 text-center"> {"Empty!"} </p> };
+        }
+
         html! {
             <>
                 <input type="checkbox" value="" class="sr-only peer" checked={self.menu_shown}/>

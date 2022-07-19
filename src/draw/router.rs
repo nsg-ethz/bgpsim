@@ -163,6 +163,10 @@ impl Component for Router {
             }
         }
 
+        Component::changed(self, ctx)
+    }
+
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let router_id = ctx.props().router_id;
         let p = self
             .dim

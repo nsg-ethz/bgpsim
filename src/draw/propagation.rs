@@ -85,6 +85,11 @@ impl Component for Propagation {
                 return false;
             }
         }
+
+        Component::changed(self, ctx)
+    }
+
+    fn changed(&mut self, ctx: &Context<Self>) -> bool {
         let p_src = self
             .net
             .pos()
