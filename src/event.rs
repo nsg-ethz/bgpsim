@@ -184,6 +184,11 @@ impl SimpleTimingModel {
     pub fn set_parameters(&mut self, src: RouterId, dst: RouterId, params: ModelParams) {
         self.model.insert((src, dst), params);
     }
+
+    /// reset the RNG to a random state
+    pub fn entropy(&mut self) {
+        self.rng = ChaCha20Rng::from_entropy();
+    }
 }
 
 #[cfg(feature = "rand_queue")]
