@@ -4,16 +4,17 @@ use netsim::{
     formatter::NetworkFormatter,
     prelude::BgpSessionType,
     route_map::{RouteMap, RouteMapBuilder, RouteMapDirection},
-    types::{NetworkDevice, RouterId},
+    router::StaticRoute,
+    types::{NetworkDevice, Prefix, RouterId},
 };
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::net::Net;
+use crate::{draw::SvgColor, net::Net};
 
 use super::{
-    route_map_cfg::RouteMapCfg, topology_cfg::TopologyCfg, Divider, Element, ExpandableDivider,
-    MultiSelect, Select, TextField,
+    route_map_cfg::RouteMapCfg, static_route_cfg::StaticRouteCfg, topology_cfg::TopologyCfg,
+    Divider, Element, ExpandableDivider, MultiSelect, Select, TextField, Toggle,
 };
 
 pub struct RouterCfg {
@@ -22,6 +23,7 @@ pub struct RouterCfg {
     name_input_correct: bool,
     rm_in_order_correct: bool,
     rm_out_order_correct: bool,
+    new_sr_correct: bool,
 }
 
 pub enum Msg {
@@ -36,6 +38,11 @@ pub enum Msg {
     AddRouteMapIn(String),
     AddRouteMapOutOrderChange(String),
     AddRouteMapOut(String),
+    ChangeLoadBalancing(bool),
+    NewStaticRouteChange(String),
+    InsertStaticRoute(String),
+    UpdateStaticRoute((Prefix, StaticRoute)),
+    RemoveStaticRoute(Prefix),
 }
 
 #[derive(Properties, PartialEq, Eq)]
@@ -55,12 +62,19 @@ impl Component for RouterCfg {
             name_input_correct: true,
             rm_in_order_correct: true,
             rm_out_order_correct: true,
+            new_sr_correct: true,
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let n = &self.net.net();
+        let r = if let Some(r) = n.get_device(router).internal() {
+            r
+        } else {
+            return html! {};
+        };
+
         let name_text = router.fmt(n).to_string();
         let on_name_change = ctx.link().callback(Msg::OnNameChange);
         let on_name_set = ctx.link().callback(Msg::OnNameSet);
@@ -87,37 +101,40 @@ impl Component for RouterCfg {
 
         let on_in_order_change = ctx.link().callback(Msg::AddRouteMapInOrderChange);
         let on_in_route_map_add = ctx.link().callback(Msg::AddRouteMapIn);
-        let incoming_rms: Vec<(usize, RouteMap)> = n
-            .get_device(router)
-            .internal()
-            .map(|r| {
-                r.get_bgp_route_maps_in()
-                    .map(|r| (r.order, r.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let incoming_rms: Vec<(usize, RouteMap)> = r
+            .get_bgp_route_maps_in()
+            .map(|r| (r.order, r.clone()))
+            .collect();
         let incoming_existing: Rc<HashSet<usize>> =
             Rc::new(incoming_rms.iter().map(|(o, _)| *o).collect());
 
         let on_out_order_change = ctx.link().callback(Msg::AddRouteMapOutOrderChange);
         let on_out_route_map_add = ctx.link().callback(Msg::AddRouteMapOut);
-        let outgoing_rms: Vec<(usize, RouteMap)> = n
-            .get_device(router)
-            .internal()
-            .map(|r| {
-                r.get_bgp_route_maps_out()
-                    .map(|r| (r.order, r.clone()))
-                    .collect()
-            })
-            .unwrap_or_default();
+        let outgoing_rms: Vec<(usize, RouteMap)> = r
+            .get_bgp_route_maps_out()
+            .map(|r| (r.order, r.clone()))
+            .collect();
         let outgoing_existing: Rc<HashSet<usize>> =
             Rc::new(outgoing_rms.iter().map(|(o, _)| *o).collect());
+
+        let change_lb = ctx.link().callback(Msg::ChangeLoadBalancing);
+        let lb_enabled = r.get_load_balancing();
+        let lb_text = if lb_enabled { "enabled" } else { "disabled" };
+
+        let on_new_sr_change = ctx.link().callback(Msg::NewStaticRouteChange);
+        let on_new_sr = ctx.link().callback(Msg::InsertStaticRoute);
+        let static_routes: Vec<_> = r.get_static_routes().map(|(k, v)| (*k, *v)).collect();
+        let existing_sr: Rc<HashSet<Prefix>> =
+            Rc::new(static_routes.iter().map(|(p, _)| *p).collect());
 
         html! {
             <div class="w-full space-y-2">
                 <Divider text={format!("Router {}", name_text)} />
                 <Element text={"Name"}>
                     <TextField text={name_text} on_change={on_name_change} on_set={on_name_set} correct={self.name_input_correct}/>
+                </Element>
+                <Element text={"load balancing"}>
+                    <Toggle text={lb_text} checked={lb_enabled} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} on_click={change_lb} />
                 </Element>
                 <TopologyCfg {router} only_internal={false}/>
                 <Divider text={"BGP Sessions"} />
@@ -151,10 +168,22 @@ impl Component for RouterCfg {
                         <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"}/>
                     </Element>
                     {
-                        outgoing_rms.into_iter().map(|(order, map)|  {
+                        outgoing_rms.into_iter().map(|(order, map)| {
                             let on_update = ctx.link().callback(|(order, map)| Msg::UpdateRouteMap(order, Some(map), RouteMapDirection::Outgoing));
                             let on_remove = ctx.link().callback(|order| Msg::UpdateRouteMap(order, None, RouteMapDirection::Outgoing));
                             html!{ <RouteMapCfg {router} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove}/> }
+                        }).collect::<Html>()
+                    }
+                </ExpandableDivider>
+                <ExpandableDivider text={String::from("Static Routes")} >
+                    <Element text={"New static route"} >
+                        <TextField text={""} placeholder={"prefix"} on_change={on_new_sr_change} on_set={on_new_sr} correct={self.new_sr_correct} button_text={"Add"}/>
+                    </Element>
+                    {
+                        static_routes.into_iter().map(|(prefix, target)| {
+                            let on_update = ctx.link().callback(Msg::UpdateStaticRoute);
+                            let on_remove = ctx.link().callback(Msg::RemoveStaticRoute);
+                            html!{ <StaticRouteCfg {router} {prefix} {target} existing={existing_sr.clone()} {on_update} {on_remove}/> }
                         }).collect::<Html>()
                     }
                 </ExpandableDivider>
@@ -164,19 +193,19 @@ impl Component for RouterCfg {
     }
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
+        let router = ctx.props().router;
         match msg {
             Msg::OnNameChange(new_name) => {
                 self.name_input_correct = match self.net.net().get_router_id(&new_name) {
                     Err(_) => true,
-                    Ok(r) if r == ctx.props().router => true,
+                    Ok(r) if r == router => true,
                     Ok(_) => false,
                 };
                 true
             }
             Msg::OnNameSet(new_name) => {
-                let router_id = ctx.props().router;
                 self.net_dispatch
-                    .reduce_mut(move |n| n.net_mut().set_router_name(router_id, new_name).unwrap());
+                    .reduce_mut(move |n| n.net_mut().set_router_name(router, new_name).unwrap());
                 true
             }
             Msg::StateNet(n) => {
@@ -189,22 +218,19 @@ impl Component for RouterCfg {
                     NetworkDevice::ExternalRouter(_) => BgpSessionType::EBgp,
                     NetworkDevice::None => unreachable!(),
                 };
-                let src = ctx.props().router;
                 self.net_dispatch.reduce_mut(move |n| {
                     n.net_mut()
-                        .set_bgp_session(src, dst, Some(session_type))
+                        .set_bgp_session(router, dst, Some(session_type))
                         .unwrap()
                 });
                 false
             }
             Msg::RemoveBgpSession(dst) => {
-                let src = ctx.props().router;
                 self.net_dispatch
-                    .reduce_mut(move |n| n.net_mut().set_bgp_session(src, dst, None).unwrap());
+                    .reduce_mut(move |n| n.net_mut().set_bgp_session(router, dst, None).unwrap());
                 false
             }
             Msg::UpdateBgpSession(neighbor, ty) => {
-                let router = ctx.props().router;
                 match ty {
                     BgpSessionTypeSymmetric::EBgp => self.net_dispatch.reduce_mut(move |n| {
                         n.net_mut()
@@ -234,8 +260,7 @@ impl Component for RouterCfg {
                 }
                 false
             }
-            Msg::AddRouteMapInOrderChange(o) => match self.net.net().get_device(ctx.props().router)
-            {
+            Msg::AddRouteMapInOrderChange(o) => match self.net.net().get_device(router) {
                 NetworkDevice::InternalRouter(r) => {
                     self.rm_in_order_correct = o
                         .parse::<usize>()
@@ -257,30 +282,27 @@ impl Component for RouterCfg {
                     return false;
                 };
                 let rm = RouteMapBuilder::new().order(o).allow().build();
-                let r = ctx.props().router;
                 self.net_dispatch.reduce_mut(move |n| {
                     n.net_mut()
-                        .set_bgp_route_map(r, rm, RouteMapDirection::Incoming)
+                        .set_bgp_route_map(router, rm, RouteMapDirection::Incoming)
                         .unwrap()
                 });
                 false
             }
-            Msg::AddRouteMapOutOrderChange(o) => {
-                match self.net.net().get_device(ctx.props().router) {
-                    NetworkDevice::InternalRouter(r) => {
-                        self.rm_out_order_correct = o
-                            .parse::<usize>()
-                            .ok()
-                            .map(|o| r.get_bgp_route_map_out(o).is_none())
-                            .unwrap_or(false);
-                        true
-                    }
-                    _ => {
-                        self.rm_out_order_correct = false;
-                        false
-                    }
+            Msg::AddRouteMapOutOrderChange(o) => match self.net.net().get_device(router) {
+                NetworkDevice::InternalRouter(r) => {
+                    self.rm_out_order_correct = o
+                        .parse::<usize>()
+                        .ok()
+                        .map(|o| r.get_bgp_route_map_out(o).is_none())
+                        .unwrap_or(false);
+                    true
                 }
-            }
+                _ => {
+                    self.rm_out_order_correct = false;
+                    false
+                }
+            },
             Msg::AddRouteMapOut(o) => {
                 let o = if let Ok(o) = o.parse::<usize>() {
                     o
@@ -289,16 +311,14 @@ impl Component for RouterCfg {
                     return true;
                 };
                 let rm = RouteMapBuilder::new().order(o).allow().build();
-                let r = ctx.props().router;
                 self.net_dispatch.reduce_mut(move |n| {
                     n.net_mut()
-                        .set_bgp_route_map(r, rm, RouteMapDirection::Outgoing)
+                        .set_bgp_route_map(router, rm, RouteMapDirection::Outgoing)
                         .unwrap()
                 });
                 false
             }
             Msg::UpdateRouteMap(order, map, direction) => {
-                let router = ctx.props().router;
                 self.net_dispatch.reduce_mut(move |n| {
                     if let Some(map) = map {
                         if order != map.order {
@@ -314,6 +334,55 @@ impl Component for RouterCfg {
                             .remove_bgp_route_map(router, order, direction)
                             .unwrap();
                     }
+                });
+                false
+            }
+            Msg::ChangeLoadBalancing(value) => {
+                self.net_dispatch
+                    .reduce_mut(move |n| n.net_mut().set_load_balancing(router, value).unwrap());
+                false
+            }
+            Msg::NewStaticRouteChange(s) => {
+                self.new_sr_correct = if let Ok(p) = s.parse::<u32>() {
+                    self.net
+                        .net()
+                        .get_device(router)
+                        .internal()
+                        .and_then(|r| {
+                            r.get_static_routes()
+                                .find(|(prefix, _)| Prefix(p) == **prefix)
+                        })
+                        .is_none()
+                } else {
+                    false
+                };
+                true
+            }
+            Msg::InsertStaticRoute(s) => {
+                let prefix = if let Ok(p) = s.parse::<u32>() {
+                    Prefix(p)
+                } else {
+                    self.new_sr_correct = false;
+                    return true;
+                };
+                self.net_dispatch.reduce_mut(move |n| {
+                    n.net_mut()
+                        .set_static_route(router, prefix, Some(StaticRoute::Drop))
+                        .unwrap()
+                });
+                false
+            }
+            Msg::UpdateStaticRoute((prefix, target)) => {
+                self.net_dispatch.reduce_mut(move |n| {
+                    n.net_mut()
+                        .set_static_route(router, prefix, Some(target))
+                        .unwrap()
+                });
+                false
+            }
+            Msg::RemoveStaticRoute(prefix) => {
+                self.net_dispatch.reduce_mut(move |n| {
+                    n.net_mut().set_static_route(router, prefix, None).unwrap()
                 });
                 false
             }

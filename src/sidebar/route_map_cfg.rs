@@ -9,7 +9,7 @@ use yew::prelude::*;
 use crate::draw::SvgColor;
 
 use super::{
-    route_map_match_cfg::RouteMapMatchCfg, route_map_set_cfg::RouteMapSetCfg, Element,
+    route_map_match_cfg::RouteMapMatchCfg, route_map_set_cfg::RouteMapSetCfg, Button, Element,
     ExpandableSection, TextField, Toggle,
 };
 
@@ -70,6 +70,11 @@ impl Component for RouteMapCfg {
                 .callback(move |_| Msg::UpdateSet((n, Some(RouteMapSet::SetCommunity(0)))))
         };
 
+        let on_remove = {
+            let order = ctx.props().order;
+            ctx.props().on_remove.reform(move |_| order)
+        };
+
         html! {
             <>
                 <ExpandableSection text={section_text}>
@@ -105,6 +110,9 @@ impl Component for RouteMapCfg {
                                 <RouteMapSetCfg {router} {index} {set} {on_update} />
                             }}).collect::<Html>()
                     }
+                    <Element text={""}>
+                        <Button text="Delete" color={SvgColor::RedLight} on_click={on_remove} />
+                    </Element>
                 </ExpandableSection>
             </>
         }

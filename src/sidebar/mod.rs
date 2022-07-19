@@ -9,6 +9,7 @@ mod route_map_match_cfg;
 mod route_map_set_cfg;
 pub mod router_cfg;
 pub mod select;
+mod static_route_cfg;
 pub mod text_field;
 pub mod toggle;
 pub mod topology_cfg;
