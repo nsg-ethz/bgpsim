@@ -22,7 +22,7 @@
 //! This is a library for simulating specific network topologies and configuration.
 //!
 //! This library was created during the Master Thesis: "Synthesizing Network-Wide Configuration
-//! Updates" by Tibor Schneider, supervised by Laurent Vanbever and Rüdiker Birkener.
+//! Updates" by Tibor Schneider, supervised by Laurent Vanbever and Rüdiger Birkner.
 //!
 //! ## Main Concepts
 //!
@@ -147,3 +147,4 @@ pub mod types;
 #[cfg(test)]
 #[cfg(not(tarpaulin_include))]
 mod test;
+pub mod topology_zoo;

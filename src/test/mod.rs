@@ -95,3 +95,4 @@ mod test_network_config;
 mod test_record;
 mod test_route_map;
 mod test_router;
+mod test_topology_zoo;
