@@ -55,6 +55,8 @@
 //!   can be reversed later, by calling [`network::Network::undo_action`] (or interactively by
 //!   calling [`interactive::InteractiveNetwork::undo_step`]. However, enabling this feature will
 //!   come at a significant performance cost, as every event needs to be recorded.
+//! - `rand`: This feature enables helper functions in the [`generator`] for generating random
+//!   configurations.
 //! - `rand_queue`: This feature enables the [`event::SimpleTimingModel`], and adds
 //!   [rand](https://docs.rs/rand/latest/rand/index.html) as a dependency (requiring `std`).
 //! - `serde`: This feature adds serialize and deserialize functionality to (almost) every type in
@@ -130,15 +132,13 @@
 //! - MED should only be compared for the same AS
 
 pub mod bgp;
+pub mod builder;
 pub mod config;
 pub mod event;
 pub mod external_router;
 #[cfg(not(tarpaulin_include))]
 pub mod formatter;
 pub mod forwarding_state;
-#[cfg(feature = "generator")]
-#[cfg_attr(docsrs, doc(cfg(feature = "generator")))]
-pub mod generator;
 pub mod interactive;
 pub mod network;
 pub mod policies;
