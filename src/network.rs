@@ -782,6 +782,7 @@ where
     ///
     /// **Note**: This funtion is only available with the `undo` feature.
     #[cfg(feature = "undo")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
     pub fn undo_action(&mut self) -> Result<(), NetworkError> {
         let num_actions = self.undo_stack.len();
         if num_actions == 0 {
@@ -800,6 +801,7 @@ where
     ///
     /// **Note**: This funtion is only available with the `undo` feature.
     #[cfg(feature = "undo")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
     pub fn get_undo_mark(&self) -> UndoMark {
         UndoMark {
             major: self.undo_stack.len(),
@@ -810,6 +812,7 @@ where
     ///
     /// **Note**: This funtion is only available with the `undo` feature.
     #[cfg(feature = "undo")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
     pub fn undo_to_mark(&mut self, mark: UndoMark) -> Result<(), NetworkError> {
         loop {
             // Check if the mark has been reached
@@ -983,6 +986,7 @@ where
 
 /// Marker that caputres the information to undo to a specific point in time.
 #[cfg(feature = "undo")]
+#[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
 pub struct UndoMark {
     major: usize,
@@ -990,6 +994,7 @@ pub struct UndoMark {
 
 /// Undo action on the Network
 #[cfg(feature = "undo")]
+#[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
 #[derive(Debug, Clone, PartialEq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub(crate) enum UndoAction {

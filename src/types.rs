@@ -457,6 +457,7 @@ impl<'a> NetworkDeviceMut<'a> {
     /// Undo the last event on the network device. If the device does not exist, then raise an
     /// error.
     #[cfg(feature = "undo")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
     pub(crate) fn undo_event<P: Default>(&mut self) -> Result<(), NetworkError> {
         match self {
             NetworkDeviceMut::InternalRouter(r) => {

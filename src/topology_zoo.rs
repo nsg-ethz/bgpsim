@@ -15,7 +15,14 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-//! Module for importing topology zoo files.
+//! Module for importing [topology zoo](http://www.topology-zoo.org/dataset.html) files. This module
+//! imports `*.graphml` files and generates a topology given the nodes and edges found in the file.
+//!
+//! Right now, only node names and types, as well as edges are exported. In the future, we may also
+//! include reading speed of the links to deduce link weights.
+//!
+//! Use the [`super::generator`] module (enabling the `generator` feature) to create a random
+//! configuration.
 
 use std::collections::HashMap;
 

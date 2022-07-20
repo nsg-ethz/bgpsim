@@ -16,6 +16,7 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 #![deny(missing_docs, missing_debug_implementations)]
+#![cfg_attr(docsrs, feature(doc_cfg))]
 
 //! # NetSim
 //!
@@ -135,6 +136,9 @@ pub mod external_router;
 #[cfg(not(tarpaulin_include))]
 pub mod formatter;
 pub mod forwarding_state;
+#[cfg(feature = "generator")]
+#[cfg_attr(docsrs, doc(cfg(feature = "generator")))]
+pub mod generator;
 pub mod interactive;
 pub mod network;
 pub mod policies;
@@ -142,9 +146,9 @@ pub mod prelude;
 pub mod record;
 pub mod route_map;
 pub mod router;
+pub mod topology_zoo;
 pub mod types;
 
 #[cfg(test)]
 #[cfg(not(tarpaulin_include))]
 mod test;
-pub mod topology_zoo;

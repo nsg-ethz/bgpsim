@@ -151,6 +151,7 @@ impl EventQueue for BasicEventQueue {
 /// Model Queue
 #[derive(Debug, Clone)]
 #[cfg(feature = "rand_queue")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 #[cfg_attr(feature = "serde", serde_as)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SimpleTimingModel {
@@ -164,6 +165,7 @@ pub struct SimpleTimingModel {
 }
 
 #[cfg(feature = "rand_queue")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 impl SimpleTimingModel {
     /// Create a new, empty model queue with given default parameters
     pub fn new(default_params: ModelParams) -> Self {
@@ -183,6 +185,7 @@ impl SimpleTimingModel {
 }
 
 #[cfg(feature = "rand_queue")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 impl EventQueue for SimpleTimingModel {
     type Priority = NotNan<f64>;
 
@@ -251,6 +254,7 @@ impl EventQueue for SimpleTimingModel {
 }
 
 #[cfg(feature = "rand_queue")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 impl PartialEq for SimpleTimingModel {
     fn eq(&self, other: &Self) -> bool {
         self.q.iter().collect::<Vec<_>>() == other.q.iter().collect::<Vec<_>>()
@@ -261,6 +265,7 @@ impl PartialEq for SimpleTimingModel {
 ///
 /// t = offset + scale * Beta[alpha, beta]
 #[cfg(feature = "rand_queue")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ModelParams {
@@ -281,6 +286,7 @@ pub struct ModelParams {
 }
 
 #[cfg(feature = "rand_queue")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 impl PartialEq for ModelParams {
     fn eq(&self, other: &Self) -> bool {
         self.offset == other.offset
@@ -292,6 +298,7 @@ impl PartialEq for ModelParams {
 }
 
 #[cfg(feature = "rand_queue")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 impl ModelParams {
     /// Create a new distribution
     pub fn new(offset: f64, scale: f64, alpha: f64, beta: f64, collision: f64) -> Self {

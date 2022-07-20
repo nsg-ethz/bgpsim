@@ -77,6 +77,7 @@ where
     ///
     /// **Note**: This funtion is only available with the `undo` feature.
     #[cfg(feature = "undo")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
     fn undo_step(&mut self) -> Result<(), NetworkError>;
 
     /// Get a reference to the queue
@@ -150,6 +151,7 @@ where
     }
 
     #[cfg(feature = "undo")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
     fn undo_step(&mut self) -> Result<(), NetworkError> {
         if let Some(event) = self.undo_stack.last_mut().and_then(|s| s.pop()) {
             for e in event {

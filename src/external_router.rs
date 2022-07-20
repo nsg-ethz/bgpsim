@@ -105,6 +105,7 @@ impl ExternalRouter {
 
     /// Undo the last event on the stack
     #[cfg(feature = "undo")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
     pub(crate) fn undo_event(&mut self) {
         if let Some(actions) = self.undo_stack.pop() {
             for action in actions {
@@ -320,6 +321,7 @@ impl ExternalRouter {
 }
 
 #[cfg(feature = "undo")]
+#[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 enum UndoAction {
