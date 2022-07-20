@@ -231,7 +231,7 @@ pub enum NetworkDevice<'a> {
     /// External Router
     ExternalRouter(&'a ExternalRouter),
     /// None was found
-    None,
+    None(RouterId),
 }
 
 #[cfg(not(tarpaulin_include))]
@@ -243,7 +243,7 @@ impl<'a> NetworkDevice<'a> {
             Self::ExternalRouter(_) => {
                 panic!("`unwrap_internal()` called on a `NetworkDevice::ExternalRouter`")
             }
-            Self::None => panic!("`unwrap_internal()` called on a `NetworkDevice::None`"),
+            Self::None(_) => panic!("`unwrap_internal()` called on a `NetworkDevice::None`"),
         }
     }
 
@@ -254,7 +254,7 @@ impl<'a> NetworkDevice<'a> {
                 panic!("`unwrap_external()` called on a `NetworkDevice::InternalRouter`")
             }
             Self::ExternalRouter(r) => r,
-            Self::None => panic!("`unwrap_external()` called on a `NetworkDevice::None`"),
+            Self::None(_) => panic!("`unwrap_external()` called on a `NetworkDevice::None`"),
         }
     }
 
@@ -267,7 +267,7 @@ impl<'a> NetworkDevice<'a> {
             Self::ExternalRouter(_) => {
                 panic!("`unwrap_none()` called on a `NetworkDevice::ExternalRouter`")
             }
-            Self::None => (),
+            Self::None(_) => (),
         }
     }
 
@@ -283,7 +283,7 @@ impl<'a> NetworkDevice<'a> {
 
     /// Returns true if and only if self contains `NetworkDevice::None`.
     pub fn is_none(&self) -> bool {
-        matches!(self, Self::None)
+        matches!(self, Self::None(_))
     }
 
     /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `InternalRouter`.
@@ -324,8 +324,28 @@ impl<'a> NetworkDevice<'a> {
     /// not `None`, then the provided error is returned.
     pub fn none_or<E: std::error::Error>(self, error: E) -> Result<(), E> {
         match self {
-            Self::None => Ok(()),
+            Self::None(_) => Ok(()),
             _ => Err(error),
+        }
+    }
+
+    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
+    /// `InternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`].
+    pub fn internal_or_err(self) -> Result<&'a Router, NetworkError> {
+        match self {
+            Self::InternalRouter(r) => Ok(r),
+            Self::ExternalRouter(r) => Err(NetworkError::DeviceIsExternalRouter(r.router_id())),
+            Self::None(r) => Err(NetworkError::DeviceNotFound(r)),
+        }
+    }
+
+    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
+    /// `ExternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`]
+    pub fn external_or_err(self) -> Result<&'a ExternalRouter, NetworkError> {
+        match self {
+            Self::ExternalRouter(r) => Ok(r),
+            Self::InternalRouter(r) => Err(NetworkError::DeviceIsInternalRouter(r.router_id())),
+            Self::None(r) => Err(NetworkError::DeviceNotFound(r)),
         }
     }
 }
@@ -440,6 +460,26 @@ impl<'a> NetworkDeviceMut<'a> {
         }
     }
 
+    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
+    /// `InternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`].
+    pub fn internal_or_err(self) -> Result<&'a mut Router, NetworkError> {
+        match self {
+            Self::InternalRouter(r) => Ok(r),
+            Self::ExternalRouter(r) => Err(NetworkError::DeviceIsExternalRouter(r.router_id())),
+            Self::None(r) => Err(NetworkError::DeviceNotFound(r)),
+        }
+    }
+
+    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
+    /// `ExternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`]
+    pub fn external_or_err(self) -> Result<&'a mut ExternalRouter, NetworkError> {
+        match self {
+            Self::ExternalRouter(r) => Ok(r),
+            Self::InternalRouter(r) => Err(NetworkError::DeviceIsInternalRouter(r.router_id())),
+            Self::None(r) => Err(NetworkError::DeviceNotFound(r)),
+        }
+    }
+
     /// handle an `Event`. This function returns all events triggered by this function, and a
     /// boolean to check if there was an update or not. If the device does not exist, then raise an
     /// error.
@@ -522,6 +562,9 @@ pub enum NetworkError {
     /// Device must be an internal router, but an external router was passed
     #[error("Netowrk device cannot be an external router: {0:?}")]
     DeviceIsExternalRouter(RouterId),
+    /// Device must be an external router, but an internal router was passed
+    #[error("Netowrk device cannot be an internal router: {0:?}")]
+    DeviceIsInternalRouter(RouterId),
     /// Device name is not present in the topology
     #[error("Link does not exist: {0:?} -- {1:?}")]
     LinkNotFound(RouterId, RouterId),

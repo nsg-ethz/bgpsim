@@ -17,7 +17,11 @@
 
 //! Module for generating random configurations for networks, according to parameters.
 
-use std::{cmp::Reverse, collections::HashSet};
+use std::{
+    cmp::Reverse,
+    collections::HashSet,
+    iter::{once, repeat},
+};
 
 #[cfg(feature = "rand")]
 use rand::{
@@ -29,10 +33,39 @@ use crate::{
     event::{EventQueue, FmtPriority},
     network::Network,
     prelude::BgpSessionType,
-    types::{LinkWeight, NetworkError, RouterId},
+    types::{AsId, LinkWeight, NetworkError, Prefix, RouterId},
 };
 
-/// Trait for generating random configurations quickly.
+/// Trait for generating random configurations quickly. The following example shows how you can
+/// quickly setup a basic configuration:
+///
+/// ```
+/// # use std::error::Error;
+/// use netsim::prelude::*;
+/// # use netsim::topology_zoo::TopologyZoo;
+/// # use netsim::event::BasicEventQueue as Queue;
+/// use netsim::builder::*;
+/// # fn main() -> Result<(), Box<dyn Error>> {
+/// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
+/// # let prefix = Prefix(0);
+///
+/// // let mut net = ...
+/// // let prefix = ...
+///
+/// // create a route reflection topology with the two route reflectors of the highest degree
+/// net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
+/// // setup all external bgp sessions
+/// net.build_ebgp_sessions()?;
+/// // create random link weights between 10 and 100
+/// # #[cfg(not(feature = "rand"))]
+/// # net.set_link_weights(constant_link_weight, 20.0)?;
+/// # #[cfg(feature = "rand")]
+/// net.set_link_weights(uniform_link_weight, (10.0, 100.0))?;
+/// // advertise 3 routes with unique preferences for a single prefix
+/// let _ = net.build_advertisements(prefix, unique_preferences, 3)?;
+/// # Ok(())
+/// # }
+/// ```
 pub trait NetworkBuilder<Q> {
     /// Setup an iBGP full-mesh. This function will create a BGP peering session between every pair
     /// of internal router, removing old sessions in the process.
@@ -56,7 +89,7 @@ pub trait NetworkBuilder<Q> {
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
     /// # use netsim::event::BasicEventQueue as Queue;
-    /// use netsim::generator::{NetworkBuilder, k_highest_degree_nodes};
+    /// use netsim::builder::{NetworkBuilder, k_highest_degree_nodes};
     /// # fn main() -> Result<(), Box<dyn Error>> {
     /// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
     ///
@@ -77,7 +110,7 @@ pub trait NetworkBuilder<Q> {
 
     /// Establish all eBGP sessions between internal and external routerse that are connected by an
     /// edge.
-    fn establish_ebgp_sessions(&mut self) -> Result<(), NetworkError>;
+    fn build_ebgp_sessions(&mut self) -> Result<(), NetworkError>;
 
     /// Set all link weights according to the function `link_weight`. For each pair of nodes
     /// connected by a link, the function `link_weight` will be called. This function first takes
@@ -90,7 +123,7 @@ pub trait NetworkBuilder<Q> {
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
     /// # use netsim::event::BasicEventQueue as Queue;
-    /// use netsim::generator::{NetworkBuilder, constant_link_weight};
+    /// use netsim::builder::{NetworkBuilder, constant_link_weight};
     /// # fn main() -> Result<(), Box<dyn Error>> {
     /// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
     ///
@@ -104,6 +137,60 @@ pub trait NetworkBuilder<Q> {
     where
         A: Clone,
         F: FnMut(RouterId, RouterId, &Network<Q>, A) -> LinkWeight;
+
+    /// Advertise routes with a given preference. The function `preferences` will return the
+    /// description (preference list) of which routers should advertise the route with which
+    /// preference. The same list will then also be returned from `build_advertisements` itself to
+    /// use the results for evaluation.
+    ///
+    /// The preference list `<Vec<Vec<RouterId>>` encodes the different preferences (of decreasing
+    /// preferences). For instance, `vec![vec![e1, e2, e3]]` will make `e1`, `e2` and `e3` advertise
+    /// the same prefix with the same preference, while `vec![vec![e1], vec![e2, e3]]` will make
+    /// `e1` advertise the most preferred route, and `e2` and `e3` advertise a route with the same
+    /// preference (but lower than the one from `e1`).
+    ///
+    /// The function `preference` takes a reference to the network, as well as the argument `a`, and
+    /// must produce the preference list. See the function [`equal_preferences`] and
+    /// [`unique_preferences`] for examples on how to use this method.
+    ///
+    /// The preference will be achieved by varying the AS path in the advertisement. No route-maps
+    /// will be created! The most preferred route will have an AS path length of 2, while each
+    /// subsequent preference will have a path length with one number more than the previous
+    /// preference. The AS path will be determined by combining the AS id of the neighbor `k-1`
+    /// times, and appending the AS number from the prefix (plus 100).
+    ///
+    /// ```
+    /// # use std::error::Error;
+    /// use netsim::prelude::*;
+    /// # use netsim::topology_zoo::TopologyZoo;
+    /// # use netsim::event::BasicEventQueue as Queue;
+    /// use netsim::builder::{NetworkBuilder, unique_preferences};
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
+    /// # let prefix = Prefix(0);
+    /// # let e1 = net.add_external_router("e1", AsId(1));
+    /// # let e2 = net.add_external_router("e2", AsId(2));
+    /// # let e3 = net.add_external_router("e3", AsId(3));
+    ///
+    /// // let mut net = ...
+    /// // let prefix = ...
+    ///
+    /// // Use the `unique_preference` function for three routers
+    /// let _ = net.build_advertisements(prefix, unique_preferences, 3)?;
+    ///
+    /// // Or create a vector manually and pass that into build_advertisements:
+    /// let _ = net.build_advertisements(prefix, |_, _| vec![vec![e1], vec![e2, e3]], ())?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn build_advertisements<F, A>(
+        &mut self,
+        prefix: Prefix,
+        preferences: F,
+        a: A,
+    ) -> Result<Vec<Vec<RouterId>>, NetworkError>
+    where
+        F: FnOnce(&Network<Q>, A) -> Vec<Vec<RouterId>>;
 }
 
 impl<Q> NetworkBuilder<Q> for Network<Q>
@@ -163,7 +250,7 @@ where
         Ok(())
     }
 
-    fn establish_ebgp_sessions(&mut self) -> Result<(), NetworkError> {
+    fn build_ebgp_sessions(&mut self) -> Result<(), NetworkError> {
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;
 
@@ -194,6 +281,34 @@ where
         }
         self.skip_queue = old_skip_queue;
         Ok(())
+    }
+
+    fn build_advertisements<F, A>(
+        &mut self,
+        prefix: Prefix,
+        preferences: F,
+        a: A,
+    ) -> Result<Vec<Vec<RouterId>>, NetworkError>
+    where
+        F: FnOnce(&Network<Q>, A) -> Vec<Vec<RouterId>>,
+    {
+        let prefs = preferences(self, a);
+        let last_as = AsId(prefix.0 + 100);
+
+        let old_skip_queue = self.skip_queue;
+        self.skip_queue = false;
+
+        for (i, routers) in prefs.iter().enumerate() {
+            let own_as_num = i + 1;
+            for router in routers {
+                let router_as = self.get_device(*router).external_or_err()?.as_id();
+                let as_path = repeat(router_as).take(own_as_num).chain(once(last_as));
+                self.advertise_external_route(*router, prefix, as_path, None, None)?;
+            }
+        }
+
+        self.skip_queue = old_skip_queue;
+        Ok(prefs)
     }
 }
 
@@ -251,5 +366,41 @@ pub fn uniform_link_weight<Q>(
         dist.sample(&mut rng)
     } else {
         1.0
+    }
+}
+
+/// Generate the preference list, where each of the `k` routes have equal preference. The routes are
+/// advertised at random locations if the feature `rand` is enabled. Otherwise, they are advertised
+/// at the external routers with increasing router id.
+pub fn equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
+    let mut routers = net.get_external_routers();
+    #[cfg(feature = "rand")]
+    {
+        let mut rng = thread_rng();
+        routers.shuffle(&mut rng);
+    }
+    routers.truncate(k);
+    vec![routers]
+}
+
+/// Generate the preference list, where each of the `k` routes have unique preference. The routes
+/// are advertised at random locations if the feature `rand` is enabled. Otherwise, they are
+/// advertised at the external routers with increasing router id.
+pub fn unique_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
+    #[cfg(feature = "rand")]
+    {
+        let mut routers = net.get_external_routers();
+        let mut rng = thread_rng();
+        routers.shuffle(&mut rng);
+        Vec::from_iter(routers.into_iter().take(k).map(|r| vec![r]))
+    }
+    #[cfg(not(feature = "rand"))]
+    {
+        Vec::from_iter(
+            net.get_external_routers()
+                .into_iter()
+                .take(k)
+                .map(|r| vec![r]),
+        )
     }
 }

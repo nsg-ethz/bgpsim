@@ -222,7 +222,7 @@ impl<Q> Network<Q> {
             Some(r) => NetworkDevice::InternalRouter(r),
             None => match self.external_routers.get(&id) {
                 Some(r) => NetworkDevice::ExternalRouter(r),
-                None => NetworkDevice::None,
+                None => NetworkDevice::None(id),
             },
         }
     }
@@ -319,7 +319,7 @@ impl<Q> Network<Q> {
         as_id: impl Into<AsId>,
     ) -> Result<(), NetworkError> {
         self.get_device_mut(router_id)
-            .external_or(NetworkError::DeviceNotFound(router_id))?
+            .external_or_err()?
             .set_as_id(as_id.into());
         Ok(())
     }
@@ -373,7 +373,7 @@ impl<Q> Network<Q> {
         println!(
             "{}",
             self.get_device(router_id)
-                .internal_or(NetworkError::DeviceNotFound(router_id))?
+                .internal_or_err()?
                 .fmt_igp_table(self)
         );
         Ok(())

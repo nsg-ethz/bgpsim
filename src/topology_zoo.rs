@@ -19,10 +19,8 @@
 //! imports `*.graphml` files and generates a topology given the nodes and edges found in the file.
 //!
 //! Right now, only node names and types, as well as edges are exported. In the future, we may also
-//! include reading speed of the links to deduce link weights.
-//!
-//! Use the [`super::generator`] module (enabling the `generator` feature) to create a random
-//! configuration.
+//! include reading speed of the links to deduce link weights. Use the [`super::builder`] module to
+//! quickly create a configuration for that network.
 
 use std::collections::HashMap;
 
