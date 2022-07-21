@@ -52,15 +52,17 @@ use crate::{
 /// // let mut net = ...
 /// // let prefix = ...
 ///
+/// // Make sure that at least 3 external routers exist
+/// net.build_external_routers(extend_to_k_external_routers, 3)?;
 /// // create a route reflection topology with the two route reflectors of the highest degree
 /// net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
 /// // setup all external bgp sessions
 /// net.build_ebgp_sessions()?;
 /// // create random link weights between 10 and 100
 /// # #[cfg(not(feature = "rand"))]
-/// # net.set_link_weights(constant_link_weight, 20.0)?;
+/// # net.build_link_weights(constant_link_weight, 20.0)?;
 /// # #[cfg(feature = "rand")]
-/// net.set_link_weights(uniform_link_weight, (10.0, 100.0))?;
+/// net.build_link_weights(uniform_link_weight, (10.0, 100.0))?;
 /// // advertise 3 routes with unique preferences for a single prefix
 /// let _ = net.build_advertisements(prefix, unique_preferences, 3)?;
 /// # Ok(())
@@ -129,11 +131,11 @@ pub trait NetworkBuilder<Q> {
     ///
     /// // let mut net = ...
     ///
-    /// net.set_link_weights(constant_link_weight, 1.0)?;
+    /// net.build_link_weights(constant_link_weight, 1.0)?;
     /// # Ok(())
     /// # }
     /// ```
-    fn set_link_weights<F, A>(&mut self, link_weight: F, a: A) -> Result<(), NetworkError>
+    fn build_link_weights<F, A>(&mut self, link_weight: F, a: A) -> Result<(), NetworkError>
     where
         A: Clone,
         F: FnMut(RouterId, RouterId, &Network<Q>, A) -> LinkWeight;
@@ -191,6 +193,43 @@ pub trait NetworkBuilder<Q> {
     ) -> Result<Vec<Vec<RouterId>>, NetworkError>
     where
         F: FnOnce(&Network<Q>, A) -> Vec<Vec<RouterId>>;
+
+    /// Add external routers as described by the provided function `connected_to`. The function
+    /// should return an iterator over `RouterId`s to where the newly added external routers should
+    /// be connected to. Every new external router will be connected to precisely one internal
+    /// router. See the functions [`extend_to_k_external_routers`], [`k_random_nodes`] (requires
+    /// the feature `rand`) or [`k_highest_degree_nodes`] (requires the feature `rand`) as an
+    /// example of how to use it.
+    ///
+    /// The newly created external routers will be called `"R{x}"`, where `x` is the `RouterId` of
+    /// the newly created router. Similarly, the AS number will be `x`. Only the link connecting the
+    /// new external router and the chosen internal router will be added. The link weight will be
+    /// set to infinity, and no external BGP session will be created.
+    ///
+    /// ```
+    /// # use std::error::Error;
+    /// use netsim::prelude::*;
+    /// # use netsim::topology_zoo::TopologyZoo;
+    /// # use netsim::event::BasicEventQueue as Queue;
+    /// use netsim::builder::{NetworkBuilder, extend_to_k_external_routers};
+    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
+    ///
+    /// // let mut net = ...
+    ///
+    /// // Use the `unique_preference` function for three routers
+    /// let _ = net.build_external_routers(extend_to_k_external_routers, 3)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    fn build_external_routers<F, A, R>(
+        &mut self,
+        connected_to: F,
+        a: A,
+    ) -> Result<Vec<RouterId>, NetworkError>
+    where
+        F: FnOnce(&Network<Q>, A) -> R,
+        R: IntoIterator<Item = RouterId>;
 }
 
 impl<Q> NetworkBuilder<Q> for Network<Q>
@@ -267,7 +306,7 @@ where
         Ok(())
     }
 
-    fn set_link_weights<F, A>(&mut self, mut link_weight: F, a: A) -> Result<(), NetworkError>
+    fn build_link_weights<F, A>(&mut self, mut link_weight: F, a: A) -> Result<(), NetworkError>
     where
         A: Clone,
         F: FnMut(RouterId, RouterId, &Network<Q>, A) -> LinkWeight,
@@ -310,9 +349,38 @@ where
         self.skip_queue = old_skip_queue;
         Ok(prefs)
     }
+
+    fn build_external_routers<F, A, R>(
+        &mut self,
+        connected_to: F,
+        a: A,
+    ) -> Result<Vec<RouterId>, NetworkError>
+    where
+        F: FnOnce(&Network<Q>, A) -> R,
+        R: IntoIterator<Item = RouterId>,
+    {
+        let old_skip_queue = self.skip_queue;
+        self.skip_queue = false;
+
+        let new_routers = connected_to(self, a)
+            .into_iter()
+            .map(|neighbor| {
+                let id = self.add_external_router("tmp", AsId(42));
+                let r = self.get_device_mut(id).unwrap_external();
+                r.set_as_id(AsId(id.index() as u32));
+                r.set_name(format!("R{}", id.index()));
+                self.add_link(id, neighbor);
+                id
+            })
+            .collect();
+
+        self.skip_queue = old_skip_queue;
+        Ok(new_routers)
+    }
 }
 
-/// Select completely random route nodes from the network
+/// Select completely random internal nodes from the network. This can be used for the function
+/// [`NetworkBuilder::build_ibgp_route_reflection`] or [`NetworkBuilder::build_external_routers`].
 #[cfg(feature = "rand")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
 pub fn k_random_nodes<Q>(net: &Network<Q>, k: usize) -> impl Iterator<Item = RouterId> {
@@ -322,8 +390,10 @@ pub fn k_random_nodes<Q>(net: &Network<Q>, k: usize) -> impl Iterator<Item = Rou
     internal_nodes.into_iter().take(k)
 }
 
-/// Select k nodes of highest degree in the network. If some nodes have equal degree, then they will
-/// picked randomly if the feature `rand` is enabled. Otherwise, the function will be deterministic.
+/// Select k internal routers of highest degree in the network. If some nodes have equal degree, then they will
+/// picked randomly if the feature `rand` is enabled. Otherwise, the function will be
+/// deterministic. This function can be used for [`NetworkBuilder::build_ibgp_route_reflection`] or
+/// [`NetworkBuilder::build_external_routers`].
 pub fn k_highest_degree_nodes<Q>(net: &Network<Q>, k: usize) -> impl Iterator<Item = RouterId> {
     #[cfg(feature = "rand")]
     let mut rng = thread_rng();
@@ -336,7 +406,8 @@ pub fn k_highest_degree_nodes<Q>(net: &Network<Q>, k: usize) -> impl Iterator<It
 }
 
 /// This function will simply return the `weight`, if `src` and `dst` are both internal
-/// routers. Otherwise, it will return `1.0`.
+/// routers. Otherwise, it will return `1.0`. This function can be used for the function
+/// [`NetworkBuilder::build_link_weights`].
 pub fn constant_link_weight<Q>(
     src: RouterId,
     dst: RouterId,
@@ -351,7 +422,8 @@ pub fn constant_link_weight<Q>(
 }
 
 /// This function will return a number uniformly distributed inside of the `range` if both `src` and
-/// `dst` are internal routers. Otherwise, it will return `1.0`.
+/// `dst` are internal routers. Otherwise, it will return `1.0`. This function can be used for the
+/// function [`NetworkBuilder::build_link_weights`].
 #[cfg(feature = "rand")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
 pub fn uniform_link_weight<Q>(
@@ -371,7 +443,8 @@ pub fn uniform_link_weight<Q>(
 
 /// Generate the preference list, where each of the `k` routes have equal preference. The routes are
 /// advertised at random locations if the feature `rand` is enabled. Otherwise, they are advertised
-/// at the external routers with increasing router id.
+/// at the external routers with increasing router id. This function can be used for the function
+/// [`NetworkBuilder::build_advertisements`].
 pub fn equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
     let mut routers = net.get_external_routers();
     #[cfg(feature = "rand")]
@@ -385,7 +458,8 @@ pub fn equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
 
 /// Generate the preference list, where each of the `k` routes have unique preference. The routes
 /// are advertised at random locations if the feature `rand` is enabled. Otherwise, they are
-/// advertised at the external routers with increasing router id.
+/// advertised at the external routers with increasing router id. This function can be used for the
+/// function [`NetworkBuilder::build_advertisements`].
 pub fn unique_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
     #[cfg(feature = "rand")]
     {
@@ -403,4 +477,30 @@ pub fn unique_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
                 .map(|r| vec![r]),
         )
     }
+}
+/// Compute the number number of external routers to add such that the network contains precisely
+/// `k` routers. If this number is less than 0, this function will return an empty
+/// iterator. Otherwise, it will return `x` internal routers in the network. If the `rand` feature
+/// is enabled, then the internal routers will be random. Otherwise, they will be
+/// deterministic. This function may be used with the function
+/// [`NetworkBuilder::build_external_routers`].
+pub fn extend_to_k_external_routers<Q>(net: &Network<Q>, k: usize) -> Vec<RouterId> {
+    let num_externals = net.get_external_routers().len();
+    let x = if num_externals >= k {
+        0
+    } else {
+        k - num_externals
+    };
+
+    let mut internal_nodes = net.get_routers();
+
+    // shuffle if random is enabled
+    #[cfg(feature = "rand")]
+    {
+        let mut rng = thread_rng();
+        internal_nodes.shuffle(&mut rng);
+    }
+
+    let num = internal_nodes.len();
+    Vec::from_iter(repeat(0..num).flatten().take(x).map(|i| internal_nodes[i]))
 }
