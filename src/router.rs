@@ -73,7 +73,7 @@ pub struct Router {
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
     #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
-    bgp_rib_out: HashMap<Prefix, HashMap<RouterId, BgpRibEntry>>,
+    bgp_rib_out: HashMap<(Prefix, RouterId), BgpRibEntry>,
     /// Set of known bgp prefixes
     bgp_known_prefixes: HashSet<Prefix>,
     /// BGP Route-Maps for Input
@@ -283,15 +283,10 @@ impl Router {
                         self.bgp_rib.remove(&prefix);
                     }
                     UndoAction::BgpRibOut(prefix, peer, Some(entry)) => {
-                        self.bgp_rib_out
-                            .entry(prefix)
-                            .or_default()
-                            .insert(peer, entry);
+                        self.bgp_rib_out.insert((prefix, peer), entry);
                     }
                     UndoAction::BgpRibOut(prefix, peer, None) => {
-                        self.bgp_rib_out
-                            .get_mut(&prefix)
-                            .map(|rib| rib.remove(&peer));
+                        self.bgp_rib_out.remove(&(prefix, peer));
                     }
                     UndoAction::BgpRouteMap(RouteMapDirection::Incoming, order, map) => {
                         match self
@@ -484,11 +479,7 @@ impl Router {
                         .unwrap()
                         .push(UndoAction::BgpRibIn(*prefix, target, Some(_rib)))
                 }
-                if let Some(_rib) = self
-                    .bgp_rib_out
-                    .get_mut(prefix)
-                    .and_then(|rib| rib.remove(&target))
-                {
+                if let Some(_rib) = self.bgp_rib_out.remove(&(*prefix, target)) {
                     // add the undo action
                     #[cfg(feature = "undo")]
                     self.undo_stack
@@ -679,7 +670,7 @@ impl Router {
     }
 
     /// Get a reference to the RIB-OUT table
-    pub fn get_bgp_rib_out(&self) -> &HashMap<Prefix, HashMap<RouterId, BgpRibEntry>> {
+    pub fn get_bgp_rib_out(&self) -> &HashMap<(Prefix, RouterId), BgpRibEntry> {
         &self.bgp_rib_out
     }
 
@@ -768,14 +759,11 @@ impl Router {
         if self.bgp_rib != other.bgp_rib {
             return false;
         }
+        if self.bgp_rib_out != other.bgp_rib_out {
+            return false;
+        }
         for prefix in self.bgp_known_prefixes.union(&other.bgp_known_prefixes) {
             match (self.bgp_rib_in.get(prefix), other.bgp_rib_in.get(prefix)) {
-                (Some(x), None) if !x.is_empty() => return false,
-                (None, Some(x)) if !x.is_empty() => return false,
-                (Some(a), Some(b)) if a != b => return false,
-                _ => {}
-            }
-            match (self.bgp_rib_out.get(prefix), other.bgp_rib_out.get(prefix)) {
                 (Some(x), None) if !x.is_empty() => return false,
                 (None, Some(x)) if !x.is_empty() => return false,
                 (Some(a), Some(b)) if a != b => return false,
@@ -841,66 +829,51 @@ impl Router {
         prefix: Prefix,
     ) -> Result<Vec<Event<P>>, DeviceError> {
         let mut events = Vec::new();
-        self.bgp_rib_out.entry(prefix).or_default();
+
+        let rib_best = self.bgp_rib.get(&prefix);
 
         for (peer, peer_type) in self.bgp_sessions.iter() {
-            // apply the route for the specific peer
-            let best_route: Option<BgpRibEntry> = self
-                .bgp_rib
-                .get(&prefix)
-                .map(|e| self.process_bgp_rib_out_route(e.clone(), *peer))
-                .transpose()?
-                .flatten();
-            // check if the current information is the same
-            let current_route: Option<&BgpRibEntry> = self
-                .bgp_rib_out
-                .get_mut(&prefix)
-                .and_then(|rib| rib.get(peer));
-            let event = match (best_route, current_route) {
-                (Some(best_r), Some(current_r)) if best_r.route == current_r.route => {
-                    // Nothing to do, no new route received
-                    None
-                }
-                (Some(best_r), Some(_)) => {
-                    // Route information was changed
-                    if self.should_export_route(best_r.from_id, *peer, *peer_type)? {
-                        // update the route
-                        let _old = self
-                            .bgp_rib_out
-                            .get_mut(&prefix)
-                            .and_then(|rib| rib.insert(*peer, best_r.clone()))
-                            .unwrap();
-                        // add the undo action
-                        #[cfg(feature = "undo")]
-                        self.undo_stack
-                            .last_mut()
-                            .unwrap()
-                            .push(UndoAction::BgpRibOut(prefix, *peer, Some(_old)));
-                        Some(BgpEvent::Update(best_r.route))
-                    } else {
-                        // send a withdraw of the old route.
-                        let _old = self
-                            .bgp_rib_out
-                            .get_mut(&prefix)
-                            .and_then(|rib| rib.remove(peer))
-                            .unwrap();
-                        // add the undo action
-                        #[cfg(feature = "undo")]
-                        self.undo_stack
-                            .last_mut()
-                            .unwrap()
-                            .push(UndoAction::BgpRibOut(prefix, *peer, Some(_old)));
-                        Some(BgpEvent::Withdraw(prefix))
+            // get the current route
+            let current_route: Option<&BgpRibEntry> = self.bgp_rib_out.get(&(prefix, *peer));
+            // before applying route maps, we check if neither the old, nor the new routes should be
+            // advertised
+            let will_advertise = rib_best
+                .map(|r| should_export_route(r.from_id, r.from_type, *peer, *peer_type))
+                .unwrap_or(false);
+
+            // early exit if nothing will change
+            if !will_advertise && current_route.is_none() {
+                continue;
+            }
+
+            // early exit if we must simply retract the old route, so the new one does not need to
+            // be edited
+            let event = if !will_advertise && current_route.is_some() {
+                // send a withdraw of the old route.
+                let _old = self.bgp_rib_out.remove(&(prefix, *peer));
+                // add the undo action
+                #[cfg(feature = "undo")]
+                self.undo_stack
+                    .last_mut()
+                    .unwrap()
+                    .push(UndoAction::BgpRibOut(prefix, *peer, _old));
+                Some(BgpEvent::Withdraw(prefix))
+            } else {
+                // here, we know that will_advertise is true!
+                // apply the route for the specific peer
+                let best_route: Option<BgpRibEntry> = match rib_best {
+                    Some(e) => self.process_bgp_rib_out_route(e.clone(), *peer)?,
+                    None => None,
+                };
+                match (best_route, current_route) {
+                    (Some(best_r), Some(current_r)) if best_r.route == current_r.route => {
+                        // Nothing to do, no new route received
+                        None
                     }
-                }
-                (Some(best_r), None) => {
-                    // New route information received
-                    if self.should_export_route(best_r.from_id, *peer, *peer_type)? {
-                        // send the route
-                        let _old = self
-                            .bgp_rib_out
-                            .get_mut(&prefix)
-                            .and_then(|rib| rib.insert(*peer, best_r.clone()));
+                    (Some(best_r), _) => {
+                        // Route information was changed
+                        // update the route
+                        let _old = self.bgp_rib_out.insert((prefix, *peer), best_r.clone());
                         // add the undo action
                         #[cfg(feature = "undo")]
                         self.undo_stack
@@ -908,28 +881,22 @@ impl Router {
                             .unwrap()
                             .push(UndoAction::BgpRibOut(prefix, *peer, _old));
                         Some(BgpEvent::Update(best_r.route))
-                    } else {
+                    }
+                    (None, Some(_)) => {
+                        // Current route must be WITHDRAWN, since we do no longer know any route
+                        let _old = self.bgp_rib_out.remove(&(prefix, *peer));
+                        // add the undo action
+                        #[cfg(feature = "undo")]
+                        self.undo_stack
+                            .last_mut()
+                            .unwrap()
+                            .push(UndoAction::BgpRibOut(prefix, *peer, _old));
+                        Some(BgpEvent::Withdraw(prefix))
+                    }
+                    (None, None) => {
+                        // Nothing to do
                         None
                     }
-                }
-                (None, Some(_)) => {
-                    // Current route must be WITHDRAWN, since we do no longer know any route
-                    let _old = self
-                        .bgp_rib_out
-                        .get_mut(&prefix)
-                        .and_then(|rib| rib.remove(peer))
-                        .unwrap();
-                    // add the undo action
-                    #[cfg(feature = "undo")]
-                    self.undo_stack
-                        .last_mut()
-                        .unwrap()
-                        .push(UndoAction::BgpRibOut(prefix, *peer, Some(_old)));
-                    Some(BgpEvent::Withdraw(prefix))
-                }
-                (None, None) => {
-                    // Nothing to do
-                    None
                 }
             };
             // add the event to the queue
@@ -938,6 +905,7 @@ impl Router {
             }
         }
 
+        // check if the current information is the same
         Ok(events)
     }
 
@@ -1056,6 +1024,7 @@ impl Router {
 
     /// Process a route from bgp_rib for sending it to bgp peers, and storing it into bgp_rib_out.
     /// The entry is cloned and modified
+    #[inline(always)]
     fn process_bgp_rib_out_route(
         &self,
         mut entry: BgpRibEntry,
@@ -1095,37 +1064,33 @@ impl Router {
         Ok(Some(entry))
     }
 
-    /// returns a bool which tells to export the route to the target, which was advertised by the
-    /// source.
-    fn should_export_route(
-        &self,
-        from: RouterId,
-        to: RouterId,
-        to_type: BgpSessionType,
-    ) -> Result<bool, DeviceError> {
-        // never advertise a route to the receiver
-        if from == to {
-            return Ok(false);
-        }
-        // check the types
-        let from_type = self
-            .bgp_sessions
-            .get(&from)
-            .ok_or(DeviceError::NoBgpSession(from))?;
-
-        Ok(matches!(
-            (from_type, to_type),
-            (BgpSessionType::EBgp, _)
-                | (BgpSessionType::IBgpClient, _)
-                | (_, BgpSessionType::EBgp)
-                | (_, BgpSessionType::IBgpClient)
-        ))
-    }
-
     /// Set the name of the router.
     pub(crate) fn set_name(&mut self, name: String) {
         self.name = name;
     }
+}
+
+/// returns a bool which tells to export the route to the target, which was advertised by the
+/// source.
+#[inline(always)]
+fn should_export_route(
+    from: RouterId,
+    from_type: BgpSessionType,
+    to: RouterId,
+    to_type: BgpSessionType,
+) -> bool {
+    // never advertise a route to the receiver
+    if from == to {
+        return false;
+    }
+
+    matches!(
+        (from_type, to_type),
+        (BgpSessionType::EBgp, _)
+            | (BgpSessionType::IBgpClient, _)
+            | (_, BgpSessionType::EBgp)
+            | (_, BgpSessionType::IBgpClient)
+    )
 }
 
 impl PartialEq for Router {
@@ -1153,10 +1118,6 @@ impl PartialEq for Router {
             assert_eq!(
                 self.bgp_rib_in.get(prefix).unwrap_or(&HashMap::new()),
                 other.bgp_rib_in.get(prefix).unwrap_or(&HashMap::new())
-            );
-            assert_eq!(
-                self.bgp_rib_out.get(prefix).unwrap_or(&HashMap::new()),
-                other.bgp_rib_out.get(prefix).unwrap_or(&HashMap::new())
             );
         }
 
