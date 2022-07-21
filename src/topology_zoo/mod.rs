@@ -17,11 +17,30 @@
 
 //! Module for importing [topology zoo](http://www.topology-zoo.org/dataset.html) files. This module
 //! imports `*.graphml` files and generates a topology given the nodes and edges found in the file.
+//! Use the [`TopologyZooParser`] to parse your own TopologyZoo files.
+//!
+//! In addition, we provide every a structure of every single topology zoo file
 //!
 //! Right now, only node names and types, as well as edges are exported. In the future, we may also
 //! include reading speed of the links to deduce link weights. Use the [`super::builder`] module to
 //! quickly create a configuration for that network.
-
+//!
+//! If you use the TopologyZoo dataset, please add the following citation:
+//!
+//! ```bibtex
+//! @ARTICLE{6027859,
+//! author={Knight, S. and Nguyen, H.X. and Falkner, N. and Bowden, R. and Roughan, M.},
+//! journal={Selected Areas in Communications, IEEE Journal on}, title={The Internet Topology Zoo},
+//! year={2011},
+//! month={october },
+//! volume={29},
+//! number={9},
+//! pages={1765 -1775},
+//! keywords={Internet Topology Zoo;PoP-level topology;meta-data;network data;network designs;network structure;network topology;Internet;meta data;telecommunication network topology;},
+//! doi={10.1109/JSAC.2011.111002},
+//! ISSN={0733-8716},}
+//! ```
+#[rustfmt::skip]
 mod topos;
 pub use topos::*;
 
@@ -34,24 +53,6 @@ use crate::{
     network::Network,
     types::{NetworkError, RouterId},
 };
-
-/// Trait for interacting with TopologyZoo.
-pub trait TopologyZoo {
-    /// Generate the network.
-    fn build<Q>(queue: Q) -> Network<Q>;
-    /// Get the number of internal routers
-    fn num_internals() -> usize;
-    /// Get the number of external routers
-    fn num_externals() -> usize;
-    /// Get the number of routers in total
-    fn num_routers() -> usize {
-        Self::num_internals() + Self::num_externals()
-    }
-    /// Get the number of edges in total
-    fn num_edges() -> usize;
-    /// Get the number of internal edges
-    fn num_internal_edges() -> usize;
-}
 
 /// Structure to read the topology zoo GraphMl file.
 #[derive(Debug)]

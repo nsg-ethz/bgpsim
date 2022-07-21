@@ -7,6 +7,10 @@ edition = "2021"
 all-features = true
 rustdoc-args = ["--cfg", "docsrs"]
 
+[[bin]]
+name = "generate-topology-zoo"
+path = "generate_topology_zoo.rs"
+
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
 undo = []

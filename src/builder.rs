@@ -46,7 +46,7 @@ use crate::{
 /// # use netsim::event::BasicEventQueue as Queue;
 /// use netsim::builder::*;
 /// # fn main() -> Result<(), Box<dyn Error>> {
-/// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
+/// # let mut net = TopologyZoo::Abilene.build(Queue::new());
 /// # let prefix = Prefix(0);
 ///
 /// // let mut net = ...
@@ -93,7 +93,7 @@ pub trait NetworkBuilder<Q> {
     /// # use netsim::event::BasicEventQueue as Queue;
     /// use netsim::builder::{NetworkBuilder, k_highest_degree_nodes};
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
+    /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     ///
     /// // let mut net = ...
     ///
@@ -127,7 +127,7 @@ pub trait NetworkBuilder<Q> {
     /// # use netsim::event::BasicEventQueue as Queue;
     /// use netsim::builder::{NetworkBuilder, constant_link_weight};
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
+    /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     ///
     /// // let mut net = ...
     ///
@@ -168,7 +168,7 @@ pub trait NetworkBuilder<Q> {
     /// # use netsim::event::BasicEventQueue as Queue;
     /// use netsim::builder::{NetworkBuilder, unique_preferences};
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
+    /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     /// # let prefix = Prefix(0);
     /// # let e1 = net.add_external_router("e1", AsId(1));
     /// # let e2 = net.add_external_router("e2", AsId(2));
@@ -213,7 +213,7 @@ pub trait NetworkBuilder<Q> {
     /// # use netsim::event::BasicEventQueue as Queue;
     /// use netsim::builder::{NetworkBuilder, extend_to_k_external_routers};
     /// # fn main() -> Result<(), Box<dyn Error>> {
-    /// # let mut net = TopologyZoo::new(include_str!("test/files/Epoch.graphml"))?.get_network(Queue::new())?;
+    /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     ///
     /// // let mut net = ...
     ///
@@ -492,14 +492,16 @@ pub fn extend_to_k_external_routers<Q>(net: &Network<Q>, k: usize) -> Vec<Router
         k - num_externals
     };
 
+    #[cfg(feature = "rand")]
     let mut internal_nodes = net.get_routers();
+    #[cfg(not(feature = "rand"))]
+    let internal_nodes = net.get_routers();
 
     // shuffle if random is enabled
     #[cfg(feature = "rand")]
-    {
-        let mut rng = thread_rng();
-        internal_nodes.shuffle(&mut rng);
-    }
+    let mut rng = thread_rng();
+    #[cfg(feature = "rand")]
+    internal_nodes.shuffle(&mut rng);
 
     let num = internal_nodes.len();
     Vec::from_iter(repeat(0..num).flatten().take(x).map(|i| internal_nodes[i]))
