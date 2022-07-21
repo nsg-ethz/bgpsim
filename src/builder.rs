@@ -116,7 +116,8 @@ pub trait NetworkBuilder<Q> {
     /// connected by a link, the function `link_weight` will be called. This function first takes
     /// the source and destination `RouterId`, but also a reference to the network itself and the
     /// arguments `a`, and returns the link weight for that link (directional). See
-    /// [`constant_link_weight`] and [`uniform_link_weight`] (requires the feature `rand`).
+    /// [`constant_link_weight`], [`uniform_link_weight`] (requires the feature `rand`), or
+    /// [`uniform_integer_link_weight`] (requires the feature `rand`).
     ///
     /// ```
     /// # #[cfg(feature = "topology_zoo")]
@@ -273,7 +274,7 @@ pub trait NetworkBuilder<Q> {
     /// Generate a random graph using Barabási-Albert preferential attachment. A complete graph with
     /// `m` nodes is grown by attaching new nodes each with `m` edges that are preferentially
     /// attached to existing nodes with high degree. Each router will be called `"R{x}"`, where `x`
-    /// is the router id.
+    /// is the router id. The resulting graph will always be connected.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
     fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Network<Q>;
@@ -421,7 +422,7 @@ where
                 let id = self.add_external_router("tmp", AsId(42));
                 let r = self.get_device_mut(id).unwrap_external();
                 r.set_as_id(AsId(id.index() as u32));
-                r.set_name(format!("R{}", id.index()));
+                r.set_name(format!("E{}", id.index()));
                 self.add_link(id, neighbor);
                 id
             })
@@ -474,7 +475,7 @@ where
     fn build_gnm(queue: Q, n: usize, mut m: usize) -> Network<Q> {
         // check if we should create a complete graph.
         let max_edges = n * (n - 1) / 2;
-        if max_edges >= m {
+        if max_edges <= m {
             return Self::build_complete_graph(queue, n);
         }
 
@@ -653,6 +654,26 @@ pub fn constant_link_weight<Q>(
     }
 }
 
+/// This function will return an integer uniformly distributed inside of the `range` if both `src` and
+/// `dst` are internal routers. Otherwise, it will return `1.0`. This function can be used for the
+/// function [`NetworkBuilder::build_link_weights`].
+#[cfg(feature = "rand")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+pub fn uniform_integer_link_weight<Q>(
+    src: RouterId,
+    dst: RouterId,
+    net: &Network<Q>,
+    range: (usize, usize),
+) -> LinkWeight {
+    if net.get_device(src).is_internal() && net.get_device(dst).is_internal() {
+        let mut rng = thread_rng();
+        let dist = Uniform::from(range.0..range.1);
+        dist.sample(&mut rng) as LinkWeight
+    } else {
+        1.0
+    }
+}
+
 /// This function will return a number uniformly distributed inside of the `range` if both `src` and
 /// `dst` are internal routers. Otherwise, it will return `1.0`. This function can be used for the
 /// function [`NetworkBuilder::build_link_weights`].
@@ -710,6 +731,7 @@ pub fn unique_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
         )
     }
 }
+
 /// Compute the number number of external routers to add such that the network contains precisely
 /// `k` routers. If this number is less than 0, this function will return an empty
 /// iterator. Otherwise, it will return `x` internal routers in the network. If the `rand` feature
