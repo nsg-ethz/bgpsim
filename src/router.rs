@@ -156,21 +156,23 @@ impl Router {
             if r == self.router_id {
                 continue;
             }
-            let next_hops = self
+            let (next_hops, cost, found) = self
                 .igp_table
                 .get(&r)
-                .map(|(x, _)| x.as_slice())
-                .unwrap_or_default();
+                .map(|(x, cost)| (x.as_slice(), cost, true))
+                .unwrap_or((Default::default(), &LinkWeight::INFINITY, false));
             writeln!(
                 f,
-                "{} -> {}: {}",
+                "{} -> {}: {}, cost = {:.2}{}",
                 self.name,
                 r.fmt(net),
                 if next_hops.is_empty() {
                     String::from("X")
                 } else {
                     next_hops.iter().map(|x| x.fmt(net)).join("|")
-                }
+                },
+                cost,
+                if found { "" } else { " (missing)" }
             )
             .unwrap();
         }
@@ -728,7 +730,9 @@ impl Router {
             let next_hops = neighbors
                 .iter()
                 .copied()
-                .filter(|(r, w)| cost == apsp[&(*r, target)] + w)
+                .filter(|(r, w)| {
+                    (cost - (apsp[&(*r, target)] + w)).abs() <= LinkWeight::EPSILON * 1024.0
+                })
                 .map(|(r, _)| r)
                 .collect::<Vec<_>>();
 
