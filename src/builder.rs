@@ -42,20 +42,11 @@ use crate::{
 /// quickly setup a basic configuration:
 ///
 /// ```
-/// # #[cfg(feature = "topology_zoo")]
-/// # {
-/// # use std::error::Error;
 /// use netsim::prelude::*;
-/// # use netsim::topology_zoo::TopologyZoo;
-/// # use netsim::event::BasicEventQueue as Queue;
 /// use netsim::builder::*;
-/// # fn main() -> Result<(), Box<dyn Error>> {
-/// # let mut net = TopologyZoo::Abilene.build(Queue::new());
-/// # let prefix = Prefix(0);
-///
-/// // let mut net = ...
-/// // let prefix = ...
-///
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// // Create a complete graph with 10 nodes.
+/// let mut net = Network::build_complete_graph(BasicEventQueue::new(), 10);
 /// // Make sure that at least 3 external routers exist
 /// net.build_external_routers(extend_to_k_external_routers, 3)?;
 /// // create a route reflection topology with the two route reflectors of the highest degree
@@ -68,9 +59,8 @@ use crate::{
 /// # #[cfg(feature = "rand")]
 /// net.build_link_weights(uniform_link_weight, (10.0, 100.0))?;
 /// // advertise 3 routes with unique preferences for a single prefix
-/// let _ = net.build_advertisements(prefix, unique_preferences, 3)?;
+/// let _ = net.build_advertisements(Prefix(0), unique_preferences, 3)?;
 /// # Ok(())
-/// # }
 /// # }
 /// ```
 pub trait NetworkBuilder<Q> {
@@ -81,7 +71,8 @@ pub trait NetworkBuilder<Q> {
     /// Setup an iBGP route-reflector topology. Every non-route-reflector in the network will be a
     /// client of every route-reflector, and all route-reflectors will establish a full-mesh Peering
     /// between each other. In the process of establishing the session, this function will remove
-    /// any iBGP session between internal routers.
+    /// any iBGP session between internal routers. This function will return the route selected
+    /// route reflectors.
     ///
     /// The set of route reflectors are chosen by the function `rotue-reflectors`, which takes as an
     /// input the network topology, and returns a collection of router. The argument `a` will be
@@ -94,12 +85,11 @@ pub trait NetworkBuilder<Q> {
     /// ```
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
-    /// # use std::error::Error;
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
     /// # use netsim::event::BasicEventQueue as Queue;
     /// use netsim::builder::{NetworkBuilder, k_highest_degree_nodes};
-    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     ///
     /// // let mut net = ...
@@ -113,7 +103,7 @@ pub trait NetworkBuilder<Q> {
         &mut self,
         route_reflectors: F,
         a: A,
-    ) -> Result<(), NetworkError>
+    ) -> Result<HashSet<RouterId>, NetworkError>
     where
         F: FnOnce(&Network<Q>, A) -> R,
         R: IntoIterator<Item = RouterId>;
@@ -131,12 +121,11 @@ pub trait NetworkBuilder<Q> {
     /// ```
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
-    /// # use std::error::Error;
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
     /// # use netsim::event::BasicEventQueue as Queue;
     /// use netsim::builder::{NetworkBuilder, constant_link_weight};
-    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     ///
     /// // let mut net = ...
@@ -175,12 +164,11 @@ pub trait NetworkBuilder<Q> {
     /// ```
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
-    /// # use std::error::Error;
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
     /// # use netsim::event::BasicEventQueue as Queue;
     /// use netsim::builder::{NetworkBuilder, unique_preferences};
-    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     /// # let prefix = Prefix(0);
     /// # let e1 = net.add_external_router("e1", AsId(1));
@@ -223,12 +211,11 @@ pub trait NetworkBuilder<Q> {
     /// ```
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
-    /// # use std::error::Error;
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
     /// # use netsim::event::BasicEventQueue as Queue;
     /// use netsim::builder::{NetworkBuilder, extend_to_k_external_routers};
-    /// # fn main() -> Result<(), Box<dyn Error>> {
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     ///
     /// // let mut net = ...
@@ -248,9 +235,13 @@ pub trait NetworkBuilder<Q> {
         F: FnOnce(&Network<Q>, A) -> R,
         R: IntoIterator<Item = RouterId>;
 
+    /// Generate a complete graph with `n` nodes. Each router will be called `"R{x}"`, where `x`
+    /// is the router id.
+    fn build_complete_graph(queue: Q, n: usize) -> Network<Q>;
+
     /// Generate a random graph with `n` nodes. Two nodes are connected with probability `p`. This
     /// function will only create internal routers. Each router will be called `"R{x}"`, where `x`
-    /// is the router id.
+    /// is the router id. By setting `p = 1.0`, you will get a complete graph.
     ///
     /// **Warning** This may not create a connected graph! Use `GraphBuilder::build_connected_graph`
     /// after calling this function to ensure that the resulting graph is connected.
@@ -318,7 +309,7 @@ where
         &mut self,
         route_reflectors: F,
         a: A,
-    ) -> Result<(), NetworkError>
+    ) -> Result<HashSet<RouterId>, NetworkError>
     where
         F: FnOnce(&Network<Q>, A) -> R,
         R: IntoIterator<Item = RouterId>,
@@ -348,7 +339,7 @@ where
             }
         }
         self.skip_queue = old_skip_queue;
-        Ok(())
+        Ok(route_reflectors)
     }
 
     fn build_ebgp_sessions(&mut self) -> Result<(), NetworkError> {
@@ -440,8 +431,27 @@ where
         Ok(new_routers)
     }
 
+    fn build_complete_graph(queue: Q, n: usize) -> Network<Q> {
+        let mut net = Network::new(queue);
+        // create all routers
+        (0..n).for_each(|i| {
+            net.add_router(format!("R{}", i));
+        });
+        for j in 1..n {
+            for i in 0..j {
+                let (i, j) = (i as IndexType, j as IndexType);
+                net.add_link(i.into(), j.into());
+            }
+        }
+        net
+    }
+
     #[cfg(feature = "rand")]
     fn build_gnp(queue: Q, n: usize, p: f64) -> Network<Q> {
+        // check if we should build a complete graph,
+        if p >= 1.0 {
+            return Self::build_complete_graph(queue, n);
+        }
         let mut rng = thread_rng();
         let mut net = Network::new(queue);
         // create all routers
@@ -462,6 +472,12 @@ where
 
     #[cfg(feature = "rand")]
     fn build_gnm(queue: Q, n: usize, mut m: usize) -> Network<Q> {
+        // check if we should create a complete graph.
+        let max_edges = n * (n - 1) / 2;
+        if max_edges >= m {
+            return Self::build_complete_graph(queue, n);
+        }
+
         let mut rng = thread_rng();
         let mut net = Network::new(queue);
         // create all routers
@@ -470,21 +486,11 @@ where
         });
 
         // early exit condition
-        if n == 1 {
+        if n <= 1 {
             return net;
         }
 
         // pick the complete graph if m is bigger than max_edges or equal to
-        let max_edges = n * (n - 1) / 2;
-        if max_edges >= m {
-            for j in 1..n {
-                for i in 0..j {
-                    let (i, j) = (i as IndexType, j as IndexType);
-                    net.add_link(i.into(), j.into());
-                }
-            }
-            return net;
-        }
 
         while m > 0 {
             let i: RouterId = (rng.gen_range(0..n) as IndexType).into();

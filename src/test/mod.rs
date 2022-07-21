@@ -84,6 +84,7 @@ macro_rules! test_bad_route {
     };
 }
 
+mod test_builder;
 mod test_config;
 mod test_forwarding_state;
 mod test_network;

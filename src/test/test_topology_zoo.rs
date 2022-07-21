@@ -18,6 +18,17 @@
 use crate::{event::BasicEventQueue, topology_zoo::TopologyZoo};
 
 #[test]
+fn test_all() {
+    for topo in TopologyZoo::topologies_increasing_nodes() {
+        let n = topo.build(BasicEventQueue::new());
+        assert_eq!(n.get_routers().len(), topo.num_internals());
+        assert_eq!(n.get_external_routers().len(), topo.num_externals());
+        assert_eq!(n.get_topology().node_indices().len(), topo.num_routers());
+        assert_eq!(n.get_topology().edge_indices().len() / 2, topo.num_edges());
+    }
+}
+
+#[test]
 fn test_extract() {
     let n = TopologyZoo::Epoch.build(BasicEventQueue::new());
 
