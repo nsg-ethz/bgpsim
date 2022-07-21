@@ -15,13 +15,13 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use crate::{event::BasicEventQueue, topology_zoo::TopologyZoo};
+use crate::{event::BasicEventQueue, topology_zoo::TopologyZooParser};
 
 const EPOCH_GRAPHML: &str = include_str!("files/Epoch.graphml");
 
 #[test]
 fn test_extract() {
-    let n = TopologyZoo::new(EPOCH_GRAPHML)
+    let n = TopologyZooParser::new(EPOCH_GRAPHML)
         .unwrap()
         .get_network(BasicEventQueue::new())
         .unwrap();

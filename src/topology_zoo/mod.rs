@@ -22,6 +22,9 @@
 //! include reading speed of the links to deduce link weights. Use the [`super::builder`] module to
 //! quickly create a configuration for that network.
 
+mod topos;
+pub use topos::*;
+
 use std::collections::HashMap;
 
 use thiserror::Error;
@@ -32,16 +35,34 @@ use crate::{
     types::{NetworkError, RouterId},
 };
 
+/// Trait for interacting with TopologyZoo.
+pub trait TopologyZoo {
+    /// Generate the network.
+    fn build<Q>(queue: Q) -> Network<Q>;
+    /// Get the number of internal routers
+    fn num_internals() -> usize;
+    /// Get the number of external routers
+    fn num_externals() -> usize;
+    /// Get the number of routers in total
+    fn num_routers() -> usize {
+        Self::num_internals() + Self::num_externals()
+    }
+    /// Get the number of edges in total
+    fn num_edges() -> usize;
+    /// Get the number of internal edges
+    fn num_internal_edges() -> usize;
+}
+
 /// Structure to read the topology zoo GraphMl file.
 #[derive(Debug)]
-pub struct TopologyZoo {
+pub struct TopologyZooParser {
     xml: Element,
     keys: Vec<TopologyZooKey>,
     key_id_lut: HashMap<String, usize>,
     key_name_lut: HashMap<String, usize>,
 }
 
-impl TopologyZoo {
+impl TopologyZooParser {
     /// interpret the content of a graphml file.
     pub fn new(graphml_content: &str) -> Result<Self, TopologyZooError> {
         let xml = Element::parse(graphml_content.as_bytes())?;
