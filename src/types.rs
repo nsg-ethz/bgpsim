@@ -145,7 +145,7 @@ where
 }
 
 /// Link Weight for the IGP graph
-pub type LinkWeight = f32;
+pub type LinkWeight = f64;
 /// IGP Network graph
 pub type IgpNetwork = Graph<(), LinkWeight, Directed, IndexType>;
 
@@ -517,30 +517,12 @@ impl<'a> NetworkDeviceMut<'a> {
 #[derive(Error, Debug, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum DeviceError {
-    /// BGP session is already established
-    #[error("BGP Session with {0:?} is already created!")]
-    SessionAlreadyExists(RouterId),
     /// No BGP session is established
     #[error("BGP Session with {0:?} is not yet created!")]
     NoBgpSession(RouterId),
     /// Router was not found in the IGP forwarding table
     #[error("Router {0:?} is not known in the IGP forwarding table")]
     RouterNotFound(RouterId),
-    /// Router is marked as not reachable in the IGP forwarding table.
-    #[error("Router {0:?} is not reachable in IGP topology")]
-    RouterNotReachable(RouterId),
-    /// Static Route already exists
-    #[error("Static route for {0:?} does already exist")]
-    StaticRouteAlreadyExists(Prefix),
-    /// Static Route doesn't exists
-    #[error("Static route for {0:?} does not yet exist")]
-    NoStaticRoute(Prefix),
-    /// Bgp Route Map with the same order already exists
-    #[error("Bgp Route Map at order {0} already exists")]
-    BgpRouteMapAlreadyExists(usize),
-    /// Bgp Route Map with the chosen order does not exist
-    #[error("Bgp Route Map at order {0} doesn't exists")]
-    NoBgpRouteMap(usize),
 }
 
 /// Network Errors
@@ -585,22 +567,12 @@ pub enum NetworkError {
     /// Convergence Problem
     #[error("Network cannot converge in the given time!")]
     NoConvergence,
-    /// Two routers are not adjacent
-    #[error("Network link does not exist: {0:?} -> {1:?}")]
-    RoutersNotConnected(RouterId, RouterId),
     /// The BGP table is invalid
     #[error("Invalid BGP table for router {0:?}")]
     InvalidBgpTable(RouterId),
-    /// Error encountered while finding convergence loop. Enqueued event does not match the
-    /// expectation.
-    #[error("Unexpected event during convergence loop extraction")]
-    UnexpectedEventConvergenceLoop,
     /// Undo stack is empty
     #[error("Undo stack is empty")]
     EmptyUndoStack,
-    /// Undo marks are empty
-    #[error("Undo marks are empty")]
-    EmptyUndoMarks,
     /// Some undo error happened.
     #[error("Undo error: {0}")]
     UndoError(String),

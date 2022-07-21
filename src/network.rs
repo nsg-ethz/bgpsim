@@ -496,7 +496,7 @@ where
         self.do_queue_maybe_skip()
     }
 
-    /// set the link weight to the desired value. `NetworkError::RoutersNotConnected` is returned if
+    /// set the link weight to the desired value. `NetworkError::LinkNotFound` is returned if
     /// the link does not exist. Otherwise, the old link weight is returned. Note, that this
     /// function only sets the *directed* link weight, and the other direction (from `target` to
     /// `source`) is not affected.
@@ -517,7 +517,7 @@ where
         let edge = self
             .net
             .find_edge(source, target)
-            .ok_or(NetworkError::RoutersNotConnected(source, target))?;
+            .ok_or(NetworkError::LinkNotFound(source, target))?;
         std::mem::swap(&mut self.net[edge], &mut weight);
 
         // add the undo action
@@ -965,12 +965,12 @@ where
         if self_ns != other_ns {
             return false;
         }
-        let self_es = HashSet::<(RouterId, RouterId, NotNan<f32>)>::from_iter(
+        let self_es = HashSet::<(RouterId, RouterId, NotNan<LinkWeight>)>::from_iter(
             self.net
                 .edge_references()
                 .map(|e| (e.source(), e.target(), NotNan::new(*e.weight()).unwrap())),
         );
-        let other_es = HashSet::<(RouterId, RouterId, NotNan<f32>)>::from_iter(
+        let other_es = HashSet::<(RouterId, RouterId, NotNan<LinkWeight>)>::from_iter(
             other
                 .net
                 .edge_references()

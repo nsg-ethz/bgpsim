@@ -31,7 +31,7 @@ use crate::{
     record::{ConvergenceRecording, ConvergenceTrace, FwDelta},
     route_map::{RouteMap, RouteMapDirection, RouteMapMatch, RouteMapSet, RouteMapState},
     router::StaticRoute,
-    types::RouterId,
+    types::{ConfigError, DeviceError, NetworkError, RouterId},
 };
 
 /// Trait to format a type that contains RouterIds
@@ -607,6 +607,96 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for StaticRoute {
             StaticRoute::Direct(r) => r.fmt(net).to_string(),
             StaticRoute::Indirect(r) => format!("{} (indirect)", r.fmt(net)),
             StaticRoute::Drop => "drop".to_string(),
+        }
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for NetworkError {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        match self {
+            NetworkError::DeviceError(e) => e.fmt(net),
+            NetworkError::ConfigError(e) => e.fmt(net),
+            NetworkError::DeviceNotFound(r) => format!("Device with id={} not found!", r.index()),
+            NetworkError::DeviceNameNotFound(n) => format!("Device with name={} not found!", n),
+            NetworkError::DeviceIsExternalRouter(r) => {
+                format!("{} is an external router!", r.fmt(net))
+            }
+            NetworkError::DeviceIsInternalRouter(r) => {
+                format!("{} is an internal router!", r.fmt(net))
+            }
+            NetworkError::LinkNotFound(src, dst) => format!(
+                "No link between {} and {} exists!",
+                src.fmt(net),
+                dst.fmt(net)
+            ),
+            NetworkError::ForwardingLoop(p) => format!("Forwarding loop found! {}", p.fmt(net)),
+            NetworkError::ForwardingBlackHole(p) => format!("Black hole found! {}", p.fmt(net)),
+            NetworkError::InvalidBgpSessionType(src, dst, ty) => format!(
+                "BGP session of type {} cannot be established from {} to {}!",
+                ty,
+                src.fmt(net),
+                dst.fmt(net)
+            ),
+            NetworkError::InconsistentBgpSession(src, dst) => format!(
+                "{} and {} maintain an inconsistent BGP session!",
+                src.fmt(net),
+                dst.fmt(net)
+            ),
+            NetworkError::NoConvergence => String::from("Network could not converge!"),
+            NetworkError::InvalidBgpTable(r) => {
+                format!("Router {} has an invalid BGP table!", r.fmt(net))
+            }
+            NetworkError::EmptyUndoStack => String::from("Undo stack is empty!"),
+            NetworkError::UndoError(s) => format!("Undo error occurred: {}", s),
+        }
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for DeviceError {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        match self {
+            DeviceError::RouterNotFound(r) => {
+                format!("Router {} was not found in the IGP table!", r.fmt(net))
+            }
+            DeviceError::NoBgpSession(r) => {
+                format!("No BGP session established with {}!", r.fmt(net))
+            }
+        }
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConfigError {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        match self {
+            ConfigError::ConfigExprOverload => {
+                String::from("Adding this config expression would overwrite an old expression!")
+            }
+            ConfigError::ConfigModifierError(m) => {
+                format!("Could not apply modifier {}!", m.fmt(net))
+            }
+        }
+    }
+}
+
+impl<'a, 'n, Q, T, E> NetworkFormatter<'a, 'n, Q> for Result<T, E>
+where
+    T: NetworkFormatter<'a, 'n, Q>,
+    T::Formatter: std::fmt::Display,
+    E: NetworkFormatter<'a, 'n, Q>,
+    E::Formatter: std::fmt::Display,
+{
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        match self {
+            Ok(t) => t.fmt(net).to_string(),
+            Err(e) => format!("Error: {}", e.fmt(net)),
         }
     }
 }
