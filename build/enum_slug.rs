@@ -15,8 +15,8 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-//! This module contains all topologies from topology zoo. It will be generated automatically
-//! during the build.
+//! Module containing the [TopologyZoo](http://www.topology-zoo.org/dataset.html) dataset. This file
+//! is automatically generated.
 //!
 //! If you use the TopologyZoo dataset, please add the following citation:
 //!
@@ -38,8 +38,8 @@
 use super::TopologyZooParser;
 use crate::network::Network;
 
-/// Topologies from Topology Zoo. The following example code creates an Abilene network and
-/// configures it with random configuration:
+/// Topologies from [TopologyZoo](http://www.topology-zoo.org/dataset.html). The following example
+/// code creates an Abilene network and configures it with random configuration:
 ///
 /// ```
 /// # use std::error::Error;
@@ -72,17 +72,17 @@ use crate::network::Network;
 /// If you use the TopologyZoo dataset, please add the following citation:
 ///
 /// ```bibtex
-/// @ARTICLE{6027859,
-/// author={Knight, S. and Nguyen, H.X. and Falkner, N. and Bowden, R. and Roughan, M.},
-/// journal={Selected Areas in Communications, IEEE Journal on}, title={The Internet Topology Zoo},
-/// year={2011},
-/// month={october },
-/// volume={29},
-/// number={9},
-/// pages={1765 -1775},
-/// keywords={Internet Topology Zoo;PoP-level topology;meta-data;network data;network designs;network structure;network topology;Internet;meta data;telecommunication network topology;},
-/// doi={10.1109/JSAC.2011.111002},
-/// ISSN={0733-8716},}
+/// @ARTICLE{knight2011topologyzoo,
+///   author={Knight, S. and Nguyen, H.X. and Falkner, N. and Bowden, R. and Roughan, M.},
+///   journal={Selected Areas in Communications, IEEE Journal on}, title={The Internet Topology Zoo},
+///   year=2011,
+///   month=oct,
+///   volume=29,
+///   number=9,
+///   pages={1765 - 1775},
+///   keywords={Internet Topology Zoo;PoP-level topology;meta-data;network data;network designs;network structure;network topology;Internet;meta data;telecommunication network topology;},
+///   doi={10.1109/JSAC.2011.111002},
+///   ISSN={0733-8716},
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum TopologyZoo {
