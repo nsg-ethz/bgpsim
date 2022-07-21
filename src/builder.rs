@@ -19,7 +19,7 @@
 
 use std::{
     cmp::Reverse,
-    collections::HashSet,
+    collections::{BTreeSet, HashSet},
     iter::{once, repeat},
 };
 
@@ -29,6 +29,8 @@ use rand::{
     prelude::*,
 };
 
+#[cfg(feature = "rand")]
+use crate::types::IndexType;
 use crate::{
     event::{EventQueue, FmtPriority},
     network::Network,
@@ -245,6 +247,51 @@ pub trait NetworkBuilder<Q> {
     where
         F: FnOnce(&Network<Q>, A) -> R,
         R: IntoIterator<Item = RouterId>;
+
+    /// Generate a random graph with `n` nodes. Two nodes are connected with probability `p`. This
+    /// function will only create internal routers. Each router will be called `"R{x}"`, where `x`
+    /// is the router id.
+    ///
+    /// **Warning** This may not create a connected graph! Use `GraphBuilder::build_connected_graph`
+    /// after calling this function to ensure that the resulting graph is connected.
+    #[cfg(feature = "rand")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    fn build_gnp(queue: Q, n: usize, p: f64) -> Network<Q>;
+
+    /// Generate a random graph with `n` nodes and `m` edges. The graph is chosen uniformly at
+    /// random from the set of all graphs with `n` nodes and `m` edges. Each router will be called
+    /// `"R{x}"`, where `x` is the router id.
+    ///
+    /// **Warning** This may not create a connected graph! Use `GraphBuilder::build_connected_graph`
+    /// after calling this function to ensure that the resulting graph is connected.
+    #[cfg(feature = "rand")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    fn build_gnm(queue: Q, n: usize, m: usize) -> Network<Q>;
+
+    /// Generate a random graph with `n` nodes. Then, place them randomly on a `dim`-dimensional
+    /// euclidean space, where each component is within the range `0.0` to `1.0`. Then, connect two
+    /// nodes if and only if their euclidean distance is less than `dist`. Each router will be
+    /// called `"R{x}"`, where `x` is the router id.
+    ///
+    /// **Warning** This may not create a connected graph! Use `GraphBuilder::build_connected_graph`
+    /// after calling this function to ensure that the resulting graph is connected.
+    #[cfg(feature = "rand")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize) -> Network<Q>;
+
+    /// Generate a random graph using Barabási-Albert preferential attachment. A complete graph with
+    /// `m` nodes is grown by attaching new nodes each with `m` edges that are preferentially
+    /// attached to existing nodes with high degree. Each router will be called `"R{x}"`, where `x`
+    /// is the router id.
+    #[cfg(feature = "rand")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Network<Q>;
+
+    /// Make sure the graph is connected. This is done by first computing the set of all connected
+    /// components. Then, it iterates over all components (skipping the first one), and adds an edge
+    /// between a node of the current component and a node of any of the previous components. If the
+    /// feature `rand` is enabled, the nodes will be picked at random.
+    fn build_connected_graph(&mut self);
 }
 
 impl<Q> NetworkBuilder<Q> for Network<Q>
@@ -391,6 +438,170 @@ where
 
         self.skip_queue = old_skip_queue;
         Ok(new_routers)
+    }
+
+    #[cfg(feature = "rand")]
+    fn build_gnp(queue: Q, n: usize, p: f64) -> Network<Q> {
+        let mut rng = thread_rng();
+        let mut net = Network::new(queue);
+        // create all routers
+        (0..n).for_each(|i| {
+            net.add_router(format!("R{}", i));
+        });
+        // iterate over all pairs of nodes
+        for j in 1..n {
+            for i in 0..j {
+                let (i, j) = (i as IndexType, j as IndexType);
+                if rng.gen_bool(p) {
+                    net.add_link(i.into(), j.into());
+                }
+            }
+        }
+        net
+    }
+
+    #[cfg(feature = "rand")]
+    fn build_gnm(queue: Q, n: usize, mut m: usize) -> Network<Q> {
+        let mut rng = thread_rng();
+        let mut net = Network::new(queue);
+        // create all routers
+        (0..n).for_each(|i| {
+            net.add_router(format!("R{}", i));
+        });
+
+        // early exit condition
+        if n == 1 {
+            return net;
+        }
+
+        // pick the complete graph if m is bigger than max_edges or equal to
+        let max_edges = n * (n - 1) / 2;
+        if max_edges >= m {
+            for j in 1..n {
+                for i in 0..j {
+                    let (i, j) = (i as IndexType, j as IndexType);
+                    net.add_link(i.into(), j.into());
+                }
+            }
+            return net;
+        }
+
+        while m > 0 {
+            let i: RouterId = (rng.gen_range(0..n) as IndexType).into();
+            let j: RouterId = (rng.gen_range(0..n) as IndexType).into();
+            if !(i == j || net.get_topology().find_edge(i, j).is_some()) {
+                net.add_link(i, j);
+                m -= 1;
+            }
+        }
+        net
+    }
+
+    #[cfg(feature = "rand")]
+    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize) -> Network<Q> {
+        let mut rng = thread_rng();
+        let mut net = Network::new(queue);
+        // create all routers
+        (0..n).for_each(|i| {
+            net.add_router(format!("R{}", i));
+        });
+        let positions = Vec::from_iter(
+            (0..n).map(|_| Vec::from_iter((0..dim).map(|_| rng.gen_range(0.0..1.0)))),
+        );
+        // cache the square distance
+        let dist2 = dist * dist;
+        // iterate over all pairs of nodes
+        for j in 1..n {
+            for i in 0..j {
+                let pi = &positions[i];
+                let pj = &positions[j];
+                let distance: f64 = (0..dim).map(|x| (pi[x] - pj[x])).map(|x| x * x).sum();
+                let (i, j) = (i as IndexType, j as IndexType);
+                if distance < dist2 {
+                    net.add_link(i.into(), j.into());
+                }
+            }
+        }
+        net
+    }
+
+    #[cfg(feature = "rand")]
+    fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Network<Q> {
+        let mut rng = thread_rng();
+        let mut net = Network::new(queue);
+        // create all routers
+        (0..n).for_each(|i| {
+            net.add_router(format!("R{}", i));
+        });
+
+        // first, create a complete graph with min(n, m + 1) nodes
+        let x = n.min(m + 1);
+        for j in 1..x {
+            for i in 0..j {
+                let (i, j) = (i as IndexType, j as IndexType);
+                net.add_link(i.into(), j.into());
+            }
+        }
+
+        // if n <= (m + 1), then just create a complete graph with n nodes.
+        if n <= (m + 1) {
+            return net;
+        }
+
+        // build the preference list
+        let mut preference_list: Vec<RouterId> = net
+            .net
+            .node_indices()
+            .flat_map(|r| repeat(r).take(net.net.neighbors(r).count()))
+            .collect();
+
+        for i in (m + 1)..n {
+            let i = RouterId::from(i as IndexType);
+            for _ in 0..m {
+                let j = preference_list[rng.gen_range(0..preference_list.len())];
+                net.add_link(i, j);
+                preference_list.push(i);
+                preference_list.push(j);
+            }
+        }
+
+        net
+    }
+
+    fn build_connected_graph(&mut self) {
+        if self.get_routers().is_empty() {
+            return;
+        }
+
+        #[cfg(feature = "rand")]
+        let mut rng = thread_rng();
+        let g = &self.net;
+
+        // compute the set of connected components
+        let mut nodes_missing: BTreeSet<RouterId> = g.node_indices().collect();
+        let mut components: Vec<Vec<RouterId>> = Vec::new();
+        while let Some(r) = nodes_missing.iter().next().cloned() {
+            let r = nodes_missing.take(&r).unwrap();
+            let mut current_component = vec![r];
+            let mut to_explore = vec![r];
+            while let Some(r) = to_explore.pop() {
+                for x in g.neighbors(r) {
+                    if nodes_missing.remove(&x) {
+                        current_component.push(x);
+                        to_explore.push(x);
+                    }
+                }
+            }
+            #[cfg(feature = "rand")]
+            current_component.shuffle(&mut rng);
+            components.push(current_component);
+        }
+
+        let mut main_component = components.pop().unwrap();
+        for (idx, mut component) in components.into_iter().enumerate() {
+            self.add_link(*component.last().unwrap(), main_component[idx]);
+            main_component.append(&mut component);
+        }
     }
 }
 
