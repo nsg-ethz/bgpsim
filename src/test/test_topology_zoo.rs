@@ -15,19 +15,17 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use crate::{event::BasicEventQueue, topology_zoo::TopologyZooParser};
-
-const EPOCH_GRAPHML: &str = include_str!("files/Epoch.graphml");
+use crate::{event::BasicEventQueue, topology_zoo::TopologyZoo};
 
 #[test]
 fn test_extract() {
-    let n = TopologyZooParser::new(EPOCH_GRAPHML)
-        .unwrap()
-        .get_network(BasicEventQueue::new())
-        .unwrap();
+    let n = TopologyZoo::Epoch.build(BasicEventQueue::new());
 
     assert_eq!(n.get_device(0.into()).unwrap_internal().name(), "Palo Alto");
-    assert_eq!(n.get_device(1.into()).unwrap_internal().name(), "LA");
+    assert_eq!(
+        n.get_device(1.into()).unwrap_internal().name(),
+        "Los Angeles"
+    );
     assert_eq!(n.get_device(2.into()).unwrap_internal().name(), "Denver");
     assert_eq!(n.get_device(3.into()).unwrap_internal().name(), "Chicago");
     assert_eq!(n.get_device(4.into()).unwrap_internal().name(), "Vienna");

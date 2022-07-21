@@ -61,6 +61,8 @@
 //!   [rand](https://docs.rs/rand/latest/rand/index.html) as a dependency (requiring `std`).
 //! - `serde`: This feature adds serialize and deserialize functionality to (almost) every type in
 //!   this crate. Enabling this significantly impact build times.
+//! - `topology_zoo`: This adds the module `topology_zoo` including a `*.graphml` parser, and a
+//!   prepared list of all Topologies in topology zoo.
 //!
 //! ## Example usage
 //!
@@ -146,6 +148,8 @@ pub mod prelude;
 pub mod record;
 pub mod route_map;
 pub mod router;
+#[cfg(feature = "topology_zoo")]
+#[cfg_attr(docsrs, doc(cfg(feature = "topology_zoo")))]
 pub mod topology_zoo;
 pub mod types;
 

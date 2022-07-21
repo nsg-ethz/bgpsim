@@ -40,6 +40,8 @@ use crate::{
 /// quickly setup a basic configuration:
 ///
 /// ```
+/// # #[cfg(feature = "topology_zoo")]
+/// # {
 /// # use std::error::Error;
 /// use netsim::prelude::*;
 /// # use netsim::topology_zoo::TopologyZoo;
@@ -67,6 +69,7 @@ use crate::{
 /// let _ = net.build_advertisements(prefix, unique_preferences, 3)?;
 /// # Ok(())
 /// # }
+/// # }
 /// ```
 pub trait NetworkBuilder<Q> {
     /// Setup an iBGP full-mesh. This function will create a BGP peering session between every pair
@@ -87,6 +90,8 @@ pub trait NetworkBuilder<Q> {
     /// iterator.
     ///
     /// ```
+    /// # #[cfg(feature = "topology_zoo")]
+    /// # {
     /// # use std::error::Error;
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
@@ -99,6 +104,7 @@ pub trait NetworkBuilder<Q> {
     ///
     /// net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
     /// # Ok(())
+    /// # }
     /// # }
     /// ```
     fn build_ibgp_route_reflection<F, A, R>(
@@ -121,6 +127,8 @@ pub trait NetworkBuilder<Q> {
     /// [`constant_link_weight`] and [`uniform_link_weight`] (requires the feature `rand`).
     ///
     /// ```
+    /// # #[cfg(feature = "topology_zoo")]
+    /// # {
     /// # use std::error::Error;
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
@@ -133,6 +141,7 @@ pub trait NetworkBuilder<Q> {
     ///
     /// net.build_link_weights(constant_link_weight, 1.0)?;
     /// # Ok(())
+    /// # }
     /// # }
     /// ```
     fn build_link_weights<F, A>(&mut self, link_weight: F, a: A) -> Result<(), NetworkError>
@@ -162,6 +171,8 @@ pub trait NetworkBuilder<Q> {
     /// times, and appending the AS number from the prefix (plus 100).
     ///
     /// ```
+    /// # #[cfg(feature = "topology_zoo")]
+    /// # {
     /// # use std::error::Error;
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
@@ -183,6 +194,7 @@ pub trait NetworkBuilder<Q> {
     /// // Or create a vector manually and pass that into build_advertisements:
     /// let _ = net.build_advertisements(prefix, |_, _| vec![vec![e1], vec![e2, e3]], ())?;
     /// # Ok(())
+    /// # }
     /// # }
     /// ```
     fn build_advertisements<F, A>(
@@ -207,6 +219,8 @@ pub trait NetworkBuilder<Q> {
     /// set to infinity, and no external BGP session will be created.
     ///
     /// ```
+    /// # #[cfg(feature = "topology_zoo")]
+    /// # {
     /// # use std::error::Error;
     /// use netsim::prelude::*;
     /// # use netsim::topology_zoo::TopologyZoo;
@@ -220,6 +234,7 @@ pub trait NetworkBuilder<Q> {
     /// // Use the `unique_preference` function for three routers
     /// let _ = net.build_external_routers(extend_to_k_external_routers, 3)?;
     /// # Ok(())
+    /// # }
     /// # }
     /// ```
     fn build_external_routers<F, A, R>(

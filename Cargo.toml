@@ -10,6 +10,7 @@ rustdoc-args = ["--cfg", "docsrs"]
 [[bin]]
 name = "generate-topology-zoo"
 path = "generate_topology_zoo.rs"
+required-features = ["topology_zoo"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
@@ -17,6 +18,7 @@ undo = []
 rand = ["dep:rand"]
 rand_queue = ["dep:rand", "dep:rand_distr", "dep:priority-queue"]
 serde = ["dep:serde", "dep:serde_with", "petgraph/serde-1", "ordered-float/serde", "priority-queue?/serde"]
+topology_zoo = ["dep:xmltree"]
 
 [dependencies]
 thiserror = "1"
@@ -30,7 +32,7 @@ rand = { version = "0.8.4", optional = true }
 rand_distr = { version = "0.4.3", optional = true }
 serde = { version = "1", features = [ "derive" ], optional = true }
 serde_with = { version = "1.14", features = [], optional = true }
-xmltree = "0.10"
+xmltree = { version = "0.10", optional = true }
 
 [dev-dependencies]
 rand = "0.8.4"

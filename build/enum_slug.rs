@@ -21,17 +21,18 @@
 //! If you use the TopologyZoo dataset, please add the following citation:
 //!
 //! ```bibtex
-//! @ARTICLE{6027859, 
-//! author={Knight, S. and Nguyen, H.X. and Falkner, N. and Bowden, R. and Roughan, M.}, 
-//! journal={Selected Areas in Communications, IEEE Journal on}, title={The Internet Topology Zoo}, 
-//! year={2011}, 
-//! month={october }, 
-//! volume={29}, 
-//! number={9}, 
-//! pages={1765 -1775}, 
-//! keywords={Internet Topology Zoo;PoP-level topology;meta-data;network data;network designs;network structure;network topology;Internet;meta data;telecommunication network topology;}, 
-//! doi={10.1109/JSAC.2011.111002}, 
-//! ISSN={0733-8716},}
+//! @ARTICLE{knight2011topologyzoo,
+//!   author={Knight, S. and Nguyen, H.X. and Falkner, N. and Bowden, R. and Roughan, M.},
+//!   journal={Selected Areas in Communications, IEEE Journal on}, title={The Internet Topology Zoo},
+//!   year=2011,
+//!   month=oct,
+//!   volume=29,
+//!   number=9,
+//!   pages={1765 - 1775},
+//!   keywords={Internet Topology Zoo;PoP-level topology;meta-data;network data;network designs;network structure;network topology;Internet;meta data;telecommunication network topology;},
+//!   doi={10.1109/JSAC.2011.111002},
+//!   ISSN={0733-8716},
+//! }
 //! ```
 
 use super::TopologyZooParser;

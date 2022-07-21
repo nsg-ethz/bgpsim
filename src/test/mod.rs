@@ -95,4 +95,5 @@ mod test_network_config;
 mod test_record;
 mod test_route_map;
 mod test_router;
+#[cfg(feature = "topology_zoo")]
 mod test_topology_zoo;
