@@ -223,7 +223,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for BgpRibEntry {
             path = self.route.as_path.iter().map(|x| x.0).collect::<Vec<u32>>(),
             lp = self.route.local_pref.unwrap_or(100),
             med = self.route.med.unwrap_or(0),
-            cost = self.igp_cost.unwrap_or(0.0),
+            cost = self.igp_cost.unwrap_or_default(),
             nh = self.route.next_hop.fmt(net),
             next = self.from_id.fmt(net),
         )

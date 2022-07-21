@@ -878,17 +878,14 @@ where
         self.simulate()
     }
 
-    pub(crate) fn log_event(&self, e: &Event<Q::Priority>) -> Result<(), NetworkError> {
-        trace!("{}", e.fmt(self));
-        Ok(())
-    }
-
     /// Enqueue the event
+    #[inline(always)]
     fn enqueue_event(&mut self, event: Event<Q::Priority>) {
         self.queue.push(event, &self.routers, &self.net)
     }
 
     /// Enqueue all events
+    #[inline(always)]
     pub(crate) fn enqueue_events(&mut self, events: Vec<Event<Q::Priority>>) {
         events.into_iter().for_each(|e| self.enqueue_event(e))
     }

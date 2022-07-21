@@ -38,8 +38,10 @@ pub fn setup_net() -> Result<Network<BasicEventQueue>, NetworkError> {
 
 pub fn main() {
     let net = setup_net().unwrap();
-    for _ in 0..1000 {
-        let _ = simulate_event(net.clone());
+    let iters = 10000;
+    let mut result = Vec::with_capacity(iters);
+    for _ in 0..iters {
+        result.push(simulate_event(net.clone()));
     }
-    drop(net);
+    drop(result);
 }

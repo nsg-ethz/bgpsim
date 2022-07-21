@@ -120,7 +120,7 @@ where
     fn simulate_step(&mut self) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError> {
         if let Some(event) = self.queue.pop() {
             // log the job
-            self.log_event(&event)?;
+            log::trace!("{}", event.fmt(self));
             // execute the event
             let (step_update, events) = self
                 .get_device_mut(event.router())

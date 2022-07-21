@@ -24,6 +24,7 @@ use crate::{
     types::{AsId, LinkWeight, Prefix, RouterId},
 };
 
+use ordered_float::NotNan;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::fmt;
@@ -485,7 +486,7 @@ impl RouteMapSet {
             }
             Self::LocalPref(lp) => entry.route.local_pref = Some(lp.unwrap_or(100)),
             Self::Med(med) => entry.route.med = Some(med.unwrap_or(0)),
-            Self::IgpCost(w) => entry.igp_cost = Some(*w),
+            Self::IgpCost(w) => entry.igp_cost = Some(NotNan::new(*w).unwrap()),
             Self::SetCommunity(c) => {
                 entry.route.community.insert(*c);
             }

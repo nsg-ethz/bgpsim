@@ -19,6 +19,7 @@
 
 use crate::types::{AsId, LinkWeight, Prefix, RouterId};
 
+use ordered_float::NotNan;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::BTreeSet};
@@ -43,6 +44,12 @@ pub struct BgpRoute {
     pub med: Option<u32>,
     /// Community
     pub community: BTreeSet<u32>,
+}
+
+impl Ord for BgpRoute {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
 }
 
 impl BgpRoute {
@@ -79,6 +86,36 @@ impl PartialEq for BgpRoute {
     }
 }
 
+impl PartialOrd for BgpRoute {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        let s = self.clone_default();
+        let o = other.clone_default();
+
+        match s.local_pref.unwrap().cmp(&o.local_pref.unwrap()) {
+            Ordering::Equal => {}
+            o => return Some(o),
+        }
+
+        match s.as_path.len().cmp(&o.as_path.len()) {
+            Ordering::Equal => {}
+            Ordering::Greater => return Some(Ordering::Less),
+            Ordering::Less => return Some(Ordering::Greater),
+        }
+
+        match s.med.unwrap().cmp(&o.med.unwrap()) {
+            Ordering::Equal => {}
+            Ordering::Greater => return Some(Ordering::Less),
+            Ordering::Less => return Some(Ordering::Greater),
+        }
+
+        match s.next_hop.cmp(&o.next_hop) {
+            Ordering::Equal => Some(Ordering::Equal),
+            Ordering::Greater => Some(Ordering::Less),
+            Ordering::Less => Some(Ordering::Greater),
+        }
+    }
+}
+
 impl std::hash::Hash for BgpRoute {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         let s = self.clone_default();
@@ -101,6 +138,28 @@ pub enum BgpSessionType {
     IBgpClient,
     /// eBGP session
     EBgp,
+}
+
+impl Ord for BgpSessionType {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl PartialOrd for BgpSessionType {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        match (self, other) {
+            (BgpSessionType::EBgp, BgpSessionType::EBgp)
+            | (BgpSessionType::IBgpPeer, BgpSessionType::IBgpPeer)
+            | (BgpSessionType::IBgpPeer, BgpSessionType::IBgpClient)
+            | (BgpSessionType::IBgpClient, BgpSessionType::IBgpPeer)
+            | (BgpSessionType::IBgpClient, BgpSessionType::IBgpClient) => Some(Ordering::Equal),
+            (BgpSessionType::IBgpClient, BgpSessionType::EBgp)
+            | (BgpSessionType::IBgpPeer, BgpSessionType::EBgp) => Some(Ordering::Less),
+            (BgpSessionType::EBgp, BgpSessionType::IBgpPeer)
+            | (BgpSessionType::EBgp, BgpSessionType::IBgpClient) => Some(Ordering::Less),
+        }
+    }
 }
 
 impl std::fmt::Display for BgpSessionType {
@@ -158,8 +217,16 @@ pub struct BgpRibEntry {
     /// the client to which the route is distributed (only in RibOut)
     pub to_id: Option<RouterId>,
     /// the igp cost to the next_hop
-    pub igp_cost: Option<LinkWeight>,
+    pub igp_cost: Option<NotNan<LinkWeight>>,
 }
+
+impl Ord for BgpRibEntry {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
+    }
+}
+
+impl Eq for BgpRibEntry {}
 
 impl PartialEq for BgpRibEntry {
     fn eq(&self, other: &Self) -> bool {

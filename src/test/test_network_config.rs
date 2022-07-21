@@ -1656,7 +1656,7 @@ fn change_ibgp_topology_2() {
     );
 
     test_route!(net, r1, prefix, [r1, e1, p1]);
-    test_route!(net, r2, prefix, [r2, e1, p1]);
+    test_route!(net, r2, prefix, [r2, e2, p2]);
     test_route!(net, r3, prefix, [r3, e2, p2]);
     test_route!(net, rr, prefix, [rr, e1, p1]);
 

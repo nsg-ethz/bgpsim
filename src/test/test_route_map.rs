@@ -15,6 +15,8 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use ordered_float::NotNan;
+
 use crate::{
     bgp::{BgpRibEntry, BgpRoute, BgpSessionType::*},
     route_map::{
@@ -38,7 +40,7 @@ fn simple_matches() {
         from_type: IBgpClient,
         from_id: 0.into(),
         to_id: None,
-        igp_cost: Some(10.0),
+        igp_cost: Some(NotNan::new(10.0).unwrap()),
     };
 
     // Match on NextHop
@@ -173,7 +175,7 @@ fn complex_matches() {
         from_type: IBgpClient,
         from_id: 0.into(),
         to_id: None,
-        igp_cost: Some(10.0),
+        igp_cost: Some(NotNan::new(10.0).unwrap()),
     };
 
     // And Clause
@@ -219,7 +221,7 @@ fn overwrite() {
         from_type: IBgpClient,
         from_id: 0.into(),
         to_id: None,
-        igp_cost: Some(10.0),
+        igp_cost: Some(NotNan::new(10.0).unwrap()),
     };
 
     // Next Hop
@@ -262,7 +264,7 @@ fn overwrite() {
     let map = RouteMap::new(10, Allow, vec![], vec![Set::IgpCost(20.0)]);
     assert_eq!(
         map.apply(default_entry.clone()).1.unwrap().igp_cost,
-        Some(20.0)
+        Some(NotNan::new(20.0).unwrap())
     );
 
     // set everything together
@@ -289,7 +291,10 @@ fn overwrite() {
         map.apply(default_entry.clone()).1.unwrap().route.med,
         Some(5)
     );
-    assert_eq!(map.apply(default_entry).1.unwrap().igp_cost, Some(20.0));
+    assert_eq!(
+        map.apply(default_entry).1.unwrap().igp_cost,
+        Some(NotNan::new(20.0).unwrap())
+    );
 }
 
 #[test]

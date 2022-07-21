@@ -27,6 +27,7 @@ use crate::{
 };
 use itertools::Itertools;
 use log::*;
+use ordered_float::NotNan;
 use petgraph::visit::EdgeRef;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -783,24 +784,13 @@ impl Router {
     fn run_bgp_decision_process_for_prefix(&mut self, prefix: Prefix) -> Result<(), DeviceError> {
         // search the best route and compare
         let old_entry = self.bgp_rib.get(&prefix);
-        let mut new_entry = None;
 
         // find the new best route
-        if let Some(rib_in) = self.bgp_rib_in.get(&prefix) {
-            for entry_unprocessed in rib_in.values() {
-                let entry = match self.process_bgp_rib_in_route(entry_unprocessed.clone())? {
-                    Some(e) => e,
-                    None => continue,
-                };
-                let mut better = true;
-                if let Some(current_best) = new_entry.as_ref() {
-                    better = &entry > current_best;
-                }
-                if better {
-                    new_entry = Some(entry)
-                }
-            }
-        }
+        let new_entry = self.bgp_rib_in.get(&prefix).and_then(|rib| {
+            rib.values()
+                .filter_map(|e| self.process_bgp_rib_in_route(e.clone()).ok().flatten())
+                .max()
+        });
 
         // check if the entry will get changed
         if new_entry.as_ref() != old_entry {
@@ -1003,7 +993,7 @@ impl Router {
                     .1
                 {
                     cost if cost.is_infinite() => return Ok(None),
-                    cost => cost,
+                    cost => NotNan::new(cost).unwrap(),
                 },
             ),
         );
