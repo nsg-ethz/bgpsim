@@ -166,6 +166,16 @@ fn test_build_link_weights() {
             assert_eq!(*weight, 1.0);
         }
     }
+
+    for src in net.get_routers() {
+        let r = net.get_device(src).unwrap_internal();
+        let igp_table = r.get_igp_fw_table();
+        assert!(igp_table
+            .iter()
+            .all(|(_, (nh, cost))| !nh.is_empty() && cost.is_finite()))
+    }
+
+    assert_igp_reachability(&net);
 }
 
 #[cfg(feature = "rand")]
@@ -188,15 +198,46 @@ fn test_build_link_weights_random() {
             assert_eq!(*weight, 1.0);
         }
     }
+
+    assert_igp_reachability(&net);
+}
+
+#[cfg(feature = "rand")]
+#[test]
+fn test_build_link_weights_random_integer() {
+    use crate::types::LinkWeight;
+
+    let mut net = Network::<Queue>::build_complete_graph(Queue::new(), 10);
+    net.build_external_routers(extend_to_k_external_routers, 3)
+        .unwrap();
+    net.build_link_weights(uniform_integer_link_weight, (10, 100))
+        .unwrap();
+
+    let g = net.get_topology();
+    for e in g.edge_indices() {
+        let (a, b) = g.edge_endpoints(e).unwrap();
+        let weight = g.edge_weight(e).unwrap();
+        if net.get_device(a).is_internal() && net.get_device(b).is_internal() {
+            assert!(*weight >= 10.0);
+            assert!(*weight <= 100.0);
+            assert!((*weight - weight.round()).abs() < LinkWeight::EPSILON);
+        } else {
+            assert_eq!(*weight, 1.0);
+        }
+    }
+
+    assert_igp_reachability(&net);
 }
 
 #[test]
 fn test_build_advertisements() {
     let mut net = Network::<Queue>::build_complete_graph(Queue::new(), 10);
+
     net.build_external_routers(extend_to_k_external_routers, 3)
         .unwrap();
     net.build_link_weights(uniform_link_weight, (10.0, 100.0))
         .unwrap();
+
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
     let p = Prefix(0);
@@ -208,6 +249,8 @@ fn test_build_advertisements() {
         advertisements[1][0],
         advertisements[2][0],
     );
+
+    assert_igp_reachability(&net);
 
     let mut fw_state = net.get_forwarding_state();
     for src in net.get_routers() {
@@ -251,5 +294,90 @@ fn test_build_advertisements() {
             fw_state.get_route(src, p),
             Err(NetworkError::ForwardingBlackHole(vec![src]))
         )
+    }
+}
+
+#[cfg(feature = "rand")]
+#[test]
+fn test_build_connected_graph() {
+    use petgraph::algo::connected_components;
+
+    let mut i = 0;
+    while i < 10 {
+        let mut net = Network::<Queue>::build_gnp(Queue::new(), 100, 0.03);
+        let num_components = connected_components(net.get_topology());
+        if num_components == 1 {
+            continue;
+        }
+        i += 1;
+
+        let num_edges_before = net.get_topology().edge_indices().count() / 2;
+        net.build_connected_graph();
+
+        let num_edges_after = net.get_topology().edge_indices().count() / 2;
+        let num_components_after = connected_components(net.get_topology());
+        assert_eq!(num_components_after, 1);
+        assert_eq!(num_edges_after - num_edges_before, num_components - 1);
+    }
+}
+
+#[cfg(feature = "rand")]
+#[test]
+fn test_build_gnm() {
+    for _ in 0..10 {
+        let net = Network::<Queue>::build_gnm(Queue::new(), 100, 100);
+        assert_eq!(net.get_routers().len(), 100);
+        assert_eq!(net.get_external_routers().len(), 0);
+        assert_eq!(net.get_topology().edge_indices().count(), 100 * 2);
+    }
+}
+
+#[cfg(feature = "rand")]
+#[test]
+fn test_build_geometric_complete_graph() {
+    for _ in 0..10 {
+        let net = Network::<Queue>::build_geometric(Queue::new(), 100, 2.0_f64.sqrt(), 2);
+        assert_eq!(net.get_routers().len(), 100);
+        assert_eq!(net.get_external_routers().len(), 0);
+        assert_eq!(net.get_topology().edge_indices().count(), 100 * 99);
+    }
+}
+
+#[cfg(feature = "rand")]
+#[test]
+fn test_build_geometric_less_complete() {
+    for _ in 0..10 {
+        let net = Network::<Queue>::build_geometric(Queue::new(), 100, 0.5, 2);
+        assert_eq!(net.get_routers().len(), 100);
+        assert_eq!(net.get_external_routers().len(), 0);
+        assert!(net.get_topology().edge_indices().count() < 100 * 99);
+        assert!(net.get_topology().edge_indices().count() > 100 * 10);
+    }
+}
+
+#[cfg(feature = "rand")]
+#[test]
+fn test_build_barabasi_albert() {
+    use petgraph::algo::connected_components;
+
+    for _ in 0..10 {
+        let net = Network::<Queue>::build_barabasi_albert(Queue::new(), 100, 3);
+        assert_eq!(net.get_routers().len(), 100);
+        assert_eq!(net.get_external_routers().len(), 0);
+        assert_eq!(
+            net.get_topology().edge_indices().count(),
+            (3 + (100 - 3) * 3) * 2
+        );
+        assert_eq!(connected_components(net.get_topology()), 1);
+    }
+}
+
+fn assert_igp_reachability<Q>(net: &Network<Q>) {
+    for src in net.get_routers() {
+        let r = net.get_device(src).unwrap_internal();
+        let igp_table = r.get_igp_fw_table();
+        assert!(igp_table
+            .iter()
+            .all(|(_, (nh, cost))| !nh.is_empty() && cost.is_finite()))
     }
 }
