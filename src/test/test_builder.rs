@@ -16,12 +16,8 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use crate::{
-    builder::*,
-    event::BasicEventQueue as Queue,
-    network::Network,
-    prelude::BgpSessionType,
-    topology_zoo::TopologyZoo,
-    types::{AsId, NetworkError, Prefix},
+    builder::*, event::BasicEventQueue as Queue, network::Network, prelude::BgpSessionType,
+    topology_zoo::TopologyZoo, types::AsId,
 };
 
 #[test]
@@ -229,8 +225,11 @@ fn test_build_link_weights_random_integer() {
     assert_igp_reachability(&net);
 }
 
+#[cfg(feature = "rand")]
 #[test]
 fn test_build_advertisements() {
+    use crate::types::{NetworkError, Prefix};
+
     let mut net = Network::<Queue>::build_complete_graph(Queue::new(), 10);
 
     net.build_external_routers(extend_to_k_external_routers, 3)

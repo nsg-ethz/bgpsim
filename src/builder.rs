@@ -29,12 +29,11 @@ use rand::{
     prelude::*,
 };
 
-#[cfg(feature = "rand")]
-use crate::types::IndexType;
 use crate::{
     event::{EventQueue, FmtPriority},
     network::Network,
     prelude::BgpSessionType,
+    types::IndexType,
     types::{AsId, LinkWeight, NetworkError, Prefix, RouterId},
 };
 
