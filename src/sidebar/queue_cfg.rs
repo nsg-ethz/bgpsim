@@ -1,5 +1,6 @@
 use std::{ops::Deref, rc::Rc};
 
+use gloo_timers::callback::Timeout;
 use netsim::{
     bgp::BgpEvent,
     event::{Event, EventQueue},
@@ -22,6 +23,9 @@ pub struct QueueCfg {
     net: Rc<Net>,
     net_dispatch: Dispatch<Net>,
     state_dispatch: Dispatch<State>,
+    last_transition: Option<usize>,
+    next_checked: bool,
+    checked: bool,
 }
 
 pub enum Msg {
@@ -29,6 +33,7 @@ pub enum Msg {
     HoverEnter((RouterId, RouterId)),
     HoverExit,
     Swap(usize),
+    ToggleChecked,
 }
 
 impl Component for QueueCfg {
@@ -42,6 +47,9 @@ impl Component for QueueCfg {
             net: Default::default(),
             net_dispatch,
             state_dispatch,
+            last_transition: None,
+            next_checked: false,
+            checked: false,
         }
     }
 
@@ -55,18 +63,26 @@ impl Component for QueueCfg {
             .map(|(i, event)| {
                 let on_mouse_enter = ctx.link().callback(Msg::HoverEnter);
                 let on_mouse_leave = ctx.link().callback(|()| Msg::HoverExit);
+                let checked = self.next_checked;
+                let translate = if Some(i) == self.last_transition {
+                    1
+                } else if Some(i - 1) == self.last_transition {
+                    -1
+                } else {
+                    0
+                };
                 if allow_swap(queue, i) {
                     let on_click = ctx.link().callback(move |_| Msg::Swap(i));
                     html! {
                         <>
-                            <EventCfg {i} {event} {on_mouse_enter} {on_mouse_leave} />
+                            <EventCfg {i} {event} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
                             <DividerButton {on_click}> <yew_lucide::ArrowLeftRight class="w-6 h-6 rotate-90"/> </DividerButton>
                         </>
                     }
                 } else {
                     html! {
                         <>
-                            <EventCfg {i} {event} {on_mouse_enter} {on_mouse_leave} />
+                            <EventCfg {i} {event} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
                             <Divider />
                         </>
                     }
@@ -75,13 +91,14 @@ impl Component for QueueCfg {
             .collect::<Html>();
         html! {
             <div class="w-full space-y-2">
+                <input type="checkbox" value="" class="sr-only peer" checked={self.checked}/>
                 <Divider text="Event Queue" />
                 {content}
             </div>
         }
     }
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             Msg::StateNet(n) => {
                 self.net = n;
@@ -90,6 +107,13 @@ impl Component for QueueCfg {
             Msg::Swap(pos) => {
                 self.net_dispatch
                     .reduce_mut(move |n| n.net_mut().queue_mut().swap(pos, pos + 1));
+                self.last_transition = Some(pos);
+                self.next_checked = !self.checked;
+                let link = ctx.link().clone();
+                let timeout = Timeout::new(80, move || {
+                    link.send_message(Msg::ToggleChecked);
+                });
+                timeout.forget();
                 false
             }
             Msg::HoverEnter((src, dst)) => {
@@ -102,6 +126,10 @@ impl Component for QueueCfg {
                     .reduce_mut(move |s| s.set_hover(Hover::None));
                 false
             }
+            Msg::ToggleChecked => {
+                self.checked = !self.checked;
+                true
+            }
         }
     }
 }
@@ -112,6 +140,8 @@ struct EventProps {
     event: Event<()>,
     on_mouse_enter: Callback<(RouterId, RouterId)>,
     on_mouse_leave: Callback<()>,
+    translate: isize,
+    checked: bool,
 }
 
 #[function_component(EventCfg)]
@@ -130,8 +160,44 @@ fn event_cfg(props: &EventProps) -> Html {
     };
     let onmouseenter = props.on_mouse_enter.reform(move |_| (src, dst));
     let onmouseleave = props.on_mouse_leave.reform(move |_| ());
+    let div_class = "w-full flex flex-col";
+    let div_class = match (props.translate, props.checked) {
+        (t, false) if t > 0 => classes!(
+            "transition",
+            "duration-200",
+            "ease-out",
+            "peer-checked:translate-y-full",
+            "translate-y-0",
+            div_class
+        ),
+        (t, true) if t > 0 => classes!(
+            "transition",
+            "duration-200",
+            "ease-out",
+            "translate-y-full",
+            "peer-checked:translate-y-0",
+            div_class
+        ),
+        (t, false) if t < 0 => classes!(
+            "transition",
+            "duration-200",
+            "ease-out",
+            "peer-checked:-translate-y-full",
+            "translate-y-0",
+            div_class
+        ),
+        (t, true) if t < 0 => classes!(
+            "transition",
+            "duration-200",
+            "ease-out",
+            "-translate-y-full",
+            "peer-checked:translate-y-0",
+            div_class
+        ),
+        _ => classes!(div_class),
+    };
     html! {
-        <div class="w-full flex flex-col" {onmouseenter} {onmouseleave}>
+        <div class={div_class} {onmouseenter} {onmouseleave}>
             <p class={dir_class}> {props.i + 1} {": "} {src.fmt(net)} {" → "} {dst.fmt(net)} {": "} {ty} </p>
             {content}
         </div>
