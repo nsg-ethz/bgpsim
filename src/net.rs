@@ -192,12 +192,13 @@ impl Net {
                         r.get_bgp_sessions()
                             .iter()
                             .filter_map(|n| net.get_device(*n).internal().map(|r| (*n, r)))
-                            .filter_map(|(n, r)| r.get_bgp_rib_out().get(&prefix).map(|r| (n, r)))
-                            .filter_map(|(n, r)| r.get(&id).map(|e| (n, e)))
+                            .filter_map(|(n, r)| {
+                                r.get_bgp_rib_out().get(&(prefix, id)).map(|r| (n, r))
+                            })
                             .map(|(n, e)| (n, id, e.route.clone())),
                     );
                 }
-                NetworkDevice::None => {}
+                NetworkDevice::None(_) => {}
             }
         }
         results
@@ -468,7 +469,7 @@ fn net_to_string(net: &Net, compact: bool) -> String {
         .map(|id| match n.get_device(id) {
             NetworkDevice::InternalRouter(r) => (id, r.name().to_string(), None),
             NetworkDevice::ExternalRouter(r) => (id, r.name().to_string(), Some(r.as_id())),
-            NetworkDevice::None => unreachable!(),
+            NetworkDevice::None(_) => unreachable!(),
         })
         .collect();
     let routes: Vec<(RouterId, BgpRoute)> = n

@@ -157,7 +157,7 @@ impl RouteMapSetCfg {
 enum SetValue {
     None,
     Integer(u32),
-    Float(f32),
+    Float(f64),
     Router(RouterId),
 }
 

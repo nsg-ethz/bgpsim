@@ -216,7 +216,7 @@ impl Component for RouterCfg {
                 let session_type = match self.net.net().get_device(dst) {
                     NetworkDevice::InternalRouter(_) => BgpSessionType::IBgpPeer,
                     NetworkDevice::ExternalRouter(_) => BgpSessionType::EBgp,
-                    NetworkDevice::None => unreachable!(),
+                    NetworkDevice::None(_) => unreachable!(),
                 };
                 self.net_dispatch.reduce_mut(move |n| {
                     n.net_mut()
