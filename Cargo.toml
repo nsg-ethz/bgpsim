@@ -41,7 +41,7 @@ priority-queue = { version = "1.2.2", optional = true }
 rand = { version = "0.8.4", optional = true }
 rand_distr = { version = "0.4.3", optional = true }
 serde = { version = "1", features = [ "derive" ], optional = true }
-serde_with = { version = "1.14", features = [], optional = true }
+serde_with = { version = "2.0", features = [], optional = true }
 xmltree = { version = "0.10", optional = true }
 
 [dev-dependencies]

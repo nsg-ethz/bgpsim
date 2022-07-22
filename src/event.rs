@@ -26,9 +26,6 @@ use rand::prelude::*;
 use rand_distr::{Beta, Distribution};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde")]
-#[cfg(feature = "rand_queue")]
-use serde_with::serde_as;
 
 use crate::{
     bgp::BgpEvent,
@@ -152,13 +149,10 @@ impl EventQueue for BasicEventQueue {
 #[derive(Debug, Clone)]
 #[cfg(feature = "rand_queue")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
-#[cfg_attr(feature = "serde", serde_as)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct SimpleTimingModel {
     q: PriorityQueue<Event<NotNan<f64>>, NotNan<f64>>,
-    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
-    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     model: HashMap<(RouterId, RouterId), ModelParams>,
     default_params: ModelParams,
     current_time: NotNan<f64>,

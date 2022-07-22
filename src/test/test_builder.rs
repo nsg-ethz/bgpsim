@@ -17,7 +17,7 @@
 
 use crate::{
     builder::*, event::BasicEventQueue as Queue, network::Network, prelude::BgpSessionType,
-    topology_zoo::TopologyZoo, types::AsId,
+    types::AsId,
 };
 
 #[test]
@@ -98,6 +98,7 @@ fn test_build_ibgp_rr() {
 #[cfg(feature = "topology_zoo")]
 #[test]
 fn test_build_ibgp_rr_most_important() {
+    use crate::topology_zoo::TopologyZoo;
     let mut net = TopologyZoo::Cesnet200511.build(Queue::new());
     let reflectors = net
         .build_ibgp_route_reflection(k_highest_degree_nodes, 3)

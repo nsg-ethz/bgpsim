@@ -86,8 +86,6 @@ use crate::{
 use petgraph::algo::FloatMeasure;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde")]
-use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
 use std::ops::Index;
 
@@ -103,11 +101,9 @@ use std::ops::Index;
 /// expression to set a specific link weight to 1, and another expression setting the same link to
 /// 2.0.
 #[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", serde_as)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Config {
     /// All lines of configuration
-    #[cfg_attr(feature = "serde", serde_as(as = "Vec<(_, _)>"))]
     pub expr: HashMap<ConfigExprKey, ConfigExpr>,
 }
 
