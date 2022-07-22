@@ -563,11 +563,18 @@ where
 
         for i in (m + 1)..n {
             let i = RouterId::from(i as IndexType);
+            let mut added_edges: HashSet<RouterId> = HashSet::new();
             for _ in 0..m {
-                let j = preference_list[rng.gen_range(0..preference_list.len())];
+                let p: Vec<_> = preference_list
+                    .iter()
+                    .cloned()
+                    .filter(|r| !added_edges.contains(r) && *r != i)
+                    .collect();
+                let j = p[rng.gen_range(0..p.len())];
                 net.add_link(i, j);
                 preference_list.push(i);
                 preference_list.push(j);
+                added_edges.insert(j);
             }
         }
 

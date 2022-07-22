@@ -45,7 +45,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
 
-static DEFAULT_STOP_AFTER: usize = 100_000;
+static DEFAULT_STOP_AFTER: usize = 1_000_000;
 
 /// # Network struct
 /// The struct contains all information about the underlying physical network (Links), a manages
@@ -169,7 +169,8 @@ impl<Q> Network<Q> {
 
     /// This function creates an link in the network The link will have infinite weight for both
     /// directions. The network needs to be configured such that routers can use the link, since
-    /// a link with infinte weight is treated as not connected.
+    /// a link with infinte weight is treated as not connected. If the link does already exist,
+    /// this function will do nothing!
     ///
     /// ```rust
     /// # use netsim::prelude::*;
@@ -186,15 +187,20 @@ impl<Q> Network<Q> {
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn add_link(&mut self, source: RouterId, target: RouterId) {
-        self.net.add_edge(source, target, LinkWeight::infinite());
-        self.net.add_edge(target, source, LinkWeight::infinite());
-
-        // undo the action as an
+        // prepare undo stack
         #[cfg(feature = "undo")]
-        self.undo_stack.push(vec![vec![
-            UndoAction::UpdateIGP(source, target, None),
-            UndoAction::UpdateIGP(target, source, None),
-        ]]);
+        self.undo_stack.push(Vec::new());
+
+        for (a, b) in [(source, target), (target, source)] {
+            if !self.net.contains_edge(a, b) {
+                self.net.add_edge(a, b, LinkWeight::infinite());
+                #[cfg(feature = "undo")]
+                self.undo_stack
+                    .last_mut()
+                    .unwrap()
+                    .push(vec![UndoAction::UpdateIGP(a, b, None)]);
+            }
+        }
     }
 
     /// Compute and return the current forwarding state.
