@@ -20,28 +20,9 @@ use std::time::Instant;
 
 use criterion::black_box;
 use criterion::{criterion_group, criterion_main, Criterion};
-use netsim::builder::*;
-use netsim::prelude::*;
-use netsim::topology_zoo::TopologyZoo;
 
-pub fn simulate_event(mut net: Network<BasicEventQueue>) -> Network<BasicEventQueue> {
-    let e1 = net.get_external_routers()[0];
-    net.retract_external_route(e1, Prefix(0)).unwrap();
-    net
-}
-
-pub fn setup_net() -> Result<Network<BasicEventQueue>, NetworkError> {
-    let mut net = TopologyZoo::Internetmci.build(BasicEventQueue::new());
-    net.build_connected_graph();
-    net.build_external_routers(k_highest_degree_nodes, 5)?;
-    net.build_link_weights(constant_link_weight, 10.0)?;
-    net.build_ibgp_full_mesh()?;
-    net.build_ebgp_sessions()?;
-    for i in 0..1 {
-        net.build_advertisements(Prefix(i), unique_preferences, 5)?;
-    }
-    Ok(net)
-}
+mod common;
+use common::*;
 
 pub fn benchmark_generation(c: &mut Criterion) {
     c.bench_function("retract", |b| {
@@ -49,7 +30,7 @@ pub fn benchmark_generation(c: &mut Criterion) {
     });
 }
 
-pub fn clone_network(net: &Network<BasicEventQueue>) -> Network<BasicEventQueue> {
+pub fn clone_network(net: &Net) -> Net {
     net.clone()
 }
 
@@ -60,7 +41,7 @@ pub fn benchmark_clone(c: &mut Criterion) {
 
 pub fn setup_measure<F>(iters: u64, function: F) -> Duration
 where
-    F: Fn(Network<BasicEventQueue>) -> Network<BasicEventQueue>,
+    F: Fn(Net) -> Net,
 {
     let mut dur = Duration::default();
     for _ in 0..iters {
