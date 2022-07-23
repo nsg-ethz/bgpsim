@@ -82,12 +82,19 @@ fn test_build_ibgp_rr() {
                     );
                 }
             } else {
-                for other in rrs.iter() {
+                for other in net.get_routers() {
+                    let expected_ty = if r == other {
+                        None
+                    } else if rrs.contains(&other) {
+                        Some(BgpSessionType::IBgpPeer)
+                    } else {
+                        None
+                    };
                     assert_eq!(
                         net.get_device(r)
                             .unwrap_internal()
-                            .get_bgp_session_type(*other),
-                        Some(BgpSessionType::IBgpPeer)
+                            .get_bgp_session_type(other),
+                        expected_ty
                     );
                 }
             }

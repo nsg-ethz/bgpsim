@@ -232,13 +232,17 @@ impl Router {
 
                 // phase 2
                 let old = self.get_next_hop(prefix);
-                self.run_bgp_decision_process_for_prefix(prefix)?;
-                let new = self.get_next_hop(prefix);
-                // phase 3
-                Ok((
-                    StepUpdate::new(prefix, old, new),
-                    self.run_bgp_route_dissemination_for_prefix(prefix)?,
-                ))
+                let changed = self.run_bgp_decision_process_for_prefix(prefix)?;
+                if changed {
+                    let new = self.get_next_hop(prefix);
+                    // phase 3
+                    Ok((
+                        StepUpdate::new(prefix, old, new),
+                        self.run_bgp_route_dissemination_for_prefix(prefix)?,
+                    ))
+                } else {
+                    Ok((StepUpdate::new(prefix, old.clone(), old), Vec::new()))
+                }
             }
             Event::Bgp(_, _, _, bgp_event) => {
                 error!(
@@ -495,7 +499,8 @@ impl Router {
             .push(UndoAction::BgpSession(target, old_type));
 
         // udpate the tables
-        self.update_bgp_tables().map(|events| (old_type, events))
+        self.update_bgp_tables(true)
+            .map(|events| (old_type, events))
     }
 
     /// Returns an interator over all BGP sessions
@@ -568,7 +573,7 @@ impl Router {
             .unwrap()
             .push(UndoAction::BgpRouteMap(direction, _order, old_map.clone()));
 
-        self.update_bgp_tables().map(|events| (old_map, events))
+        self.update_bgp_tables(true).map(|events| (old_map, events))
     }
 
     /// Remove any route map that has the specified order and direction. If the route-map does not
@@ -619,7 +624,7 @@ impl Router {
                 Some(old_map.clone()),
             ));
 
-        self.update_bgp_tables()
+        self.update_bgp_tables(true)
             .map(|events| (Some(old_map), events))
     }
 
@@ -730,21 +735,25 @@ impl Router {
 
             self.igp_table.insert(target, (next_hops, cost));
         }
-        self.update_bgp_tables()
+        self.update_bgp_tables(false)
     }
 
-    /// Update the bgp tables only.
+    /// Update the bgp tables only. If `force_dissemination` is set to true, then this function will
+    /// always perform route dissemionation, no matter if the route has changed.
     ///
     /// *Undo Functionality*: this function will push some actions to the last undo event.
-    fn update_bgp_tables<P: Default>(&mut self) -> Result<Vec<Event<P>>, DeviceError> {
+    fn update_bgp_tables<P: Default>(
+        &mut self,
+        force_dissemination: bool,
+    ) -> Result<Vec<Event<P>>, DeviceError> {
         let mut events = Vec::new();
         // run the decision process
         for prefix in self.bgp_known_prefixes.clone() {
-            self.run_bgp_decision_process_for_prefix(prefix)?
-        }
-        // run the route dissemination
-        for prefix in self.bgp_known_prefixes.clone() {
-            events.append(&mut self.run_bgp_route_dissemination_for_prefix(prefix)?);
+            let changed = self.run_bgp_decision_process_for_prefix(prefix)?;
+            // if the decision process selected a new route, also run the dissemination process.
+            if changed || force_dissemination {
+                events.append(&mut self.run_bgp_route_dissemination_for_prefix(prefix)?);
+            }
         }
         Ok(events)
     }
@@ -772,10 +781,12 @@ impl Router {
     // Private Functions
     // -----------------
 
-    /// only run bgp decision process (phase 2). This function may change `self.bgp_rib[prefix]`.
+    /// only run bgp decision process (phase 2). This function may change
+    /// `self.bgp_rib[prefix]`. This function returns `Ok(true)` if the selected route was changed
+    /// (and the dissemination process should be executed).
     ///
     /// *Undo Functionality*: this function will push some actions to the last undo event.
-    fn run_bgp_decision_process_for_prefix(&mut self, prefix: Prefix) -> Result<(), DeviceError> {
+    fn run_bgp_decision_process_for_prefix(&mut self, prefix: Prefix) -> Result<bool, DeviceError> {
         // search the best route and compare
         let old_entry = self.bgp_rib.get(&prefix);
 
@@ -801,8 +812,11 @@ impl Router {
                 .last_mut()
                 .unwrap()
                 .push(UndoAction::BgpRib(prefix, _old_entry));
+
+            Ok(true)
+        } else {
+            Ok(false)
         }
-        Ok(())
     }
 
     /// only run bgp route dissemination (phase 3) and return the events triggered by the dissemination
