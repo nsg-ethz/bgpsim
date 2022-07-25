@@ -2,7 +2,13 @@ use std::{ops::Deref, rc::Rc};
 
 use gloo_utils::window;
 use itertools::join;
-use netsim::{bgp::BgpRoute, formatter::NetworkFormatter, prelude::BgpSessionType};
+use netsim::{
+    bgp::{BgpEvent, BgpRoute},
+    event::Event,
+    formatter::NetworkFormatter,
+    interactive::InteractiveNetwork,
+    prelude::BgpSessionType,
+};
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::HtmlElement;
 use yew::prelude::*;
@@ -12,6 +18,7 @@ use crate::{
     dim::{Dim, TOOLTIP_OFFSET},
     net::Net,
     point::Point,
+    sidebar::queue_cfg::PrefixTable,
     state::{Hover, State},
 };
 
@@ -98,7 +105,27 @@ impl Component for Tooltip {
                     </>
                 }
             }
-            Hover::Message(_, _) => return html! {},
+            Hover::Message(src, dst, i, true) => {
+                if let Some(event) = self.net.net().queue().get(i) {
+                    let content = match event {
+                        Event::Bgp(_, _, _, BgpEvent::Update(route)) => {
+                            html! { <RouteTable route={route.clone()} /> }
+                        }
+                        Event::Bgp(_, _, _, BgpEvent::Withdraw(prefix)) => {
+                            html! { <PrefixTable prefix={*prefix} /> }
+                        }
+                    };
+                    html! {
+                            <>
+                                <p> {src.fmt(&self.net.net()).to_string()} {" → "} {dst.fmt(&self.net.net()).to_string()} </p>
+                                { content }
+                            </>
+                    }
+                } else {
+                    return html! {};
+                }
+            }
+            Hover::Message(_, _, _, _) => return html! {},
             Hover::None => unreachable!(),
         };
 

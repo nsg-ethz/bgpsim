@@ -75,7 +75,7 @@ pub enum Hover {
     BgpSession(RouterId, RouterId),
     NextHop(RouterId, RouterId),
     RouteProp(RouterId, RouterId, BgpRoute),
-    Message(RouterId, RouterId),
+    Message(RouterId, RouterId, usize, bool),
 }
 
 impl Default for Hover {

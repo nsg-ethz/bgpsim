@@ -28,17 +28,23 @@ pub fn divider(props: &DividerProps) -> Html {
 pub struct DividerButtonProps {
     pub on_click: Callback<MouseEvent>,
     pub children: Children,
+    pub hidden: Option<bool>,
 }
 
 #[function_component(DividerButton)]
 pub fn divider_button(props: &DividerButtonProps) -> Html {
+    let line_class = if props.hidden.unwrap_or(false) {
+        "flex-grow"
+    } else {
+        "flex-grow border-t border-gray-300"
+    };
     html! {
         <div class="w-full flex py-3 items-center">
-            <div class="flex-grow border-t border-gray-300"></div>
+            <div class={line_class}></div>
             <button class="rounded-full bg-white drop-shadow-md hover:drop-shadow-lg p-2" onclick={props.on_click.clone()}>
                 { for props.children.iter() }
             </button>
-            <div class="flex-grow border-t border-gray-300"></div>
+            <div class={line_class}></div>
         </div>
     }
 }

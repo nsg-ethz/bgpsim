@@ -27,6 +27,7 @@ pub enum Msg {
     Import,
     OpenMenu,
     CloseMenu,
+    SaveLatex,
 }
 
 #[derive(Properties, PartialEq)]
@@ -62,6 +63,7 @@ impl Component for MainMenu {
         let toggle_auto_simulate = ctx.link().callback(|_| Msg::ToggleSimulationMode);
         let auto_layout = self.net_dispatch.reduce_mut_callback(|n| n.spring_layout());
         let export = ctx.link().callback(|_| Msg::Export);
+        let export_latex = ctx.link().callback(|_| Msg::SaveLatex);
         let export_copy_url = ctx.link().callback(|_| Msg::ExportCopyUrl);
 
         let link_class = "border-b border-gray-200 hover:border-blue-600 hover:text-blue-600 transition duration-150 ease-in-out";
@@ -97,6 +99,10 @@ impl Component for MainMenu {
                         <button class={element_class} onclick={export}>
                             <yew_lucide::Save class="h-6 mr-4" />
                             {"Export Network"}
+                        </button>
+                        <button class={element_class} onclick={export_latex}>
+                            <yew_lucide::FileText class="h-6 mr-4" />
+                            {"Export to LaTeX"}
                         </button>
                         <button class={element_class} onclick={import}>
                             <yew_lucide::Import class="h-6 mr-4" />
@@ -151,6 +157,11 @@ impl Component for MainMenu {
             }
             Msg::Export => {
                 self.net.export();
+                self.shown = false;
+                true
+            }
+            Msg::SaveLatex => {
+                self.net.export_latex();
                 self.shown = false;
                 true
             }

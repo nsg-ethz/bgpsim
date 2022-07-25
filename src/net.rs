@@ -21,7 +21,7 @@ use wasm_bindgen::JsCast;
 use web_sys::{window, HtmlElement};
 use yewdux::{mrc::Mrc, prelude::*};
 
-use crate::point::Point;
+use crate::{latex_export, point::Point};
 
 /// Basic event queue
 #[derive(PartialEq, Eq, Clone, Debug, Default, Serialize, Deserialize)]
@@ -303,7 +303,16 @@ impl Net {
 
     /// export the current file and download it.
     pub fn export(&self) {
-        let json_data = net_to_string(self, false);
+        self.trigger_download(net_to_string(self, false), "netsim.json");
+    }
+
+    /// export to latex
+    pub fn export_latex(&self) {
+        self.trigger_download(latex_export::generate_latex(self), "netsim.tex");
+    }
+
+    /// download a textfile
+    pub fn trigger_download(&self, content: String, filename: &str) {
         let document = gloo_utils::document();
         // create the a link
         let element: HtmlElement = match document.create_element("a") {
@@ -318,14 +327,14 @@ impl Net {
             "href",
             &format!(
                 "data:text/json;charset=utf-8,{}",
-                js_sys::encode_uri_component(&json_data)
+                js_sys::encode_uri_component(&content)
             ),
         ) {
             log::error!("Could not set the \"href\" attribute! {:?}", e);
             return;
         }
         // set the filename
-        if let Err(e) = element.set_attribute("download", "netsim.json") {
+        if let Err(e) = element.set_attribute("download", filename) {
             log::error!("Could not set the \"download\" attribute! {:?}", e);
             return;
         }

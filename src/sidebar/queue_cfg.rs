@@ -30,7 +30,7 @@ pub struct QueueCfg {
 
 pub enum Msg {
     StateNet(Rc<Net>),
-    HoverEnter((RouterId, RouterId)),
+    HoverEnter((RouterId, RouterId, usize)),
     HoverExit,
     Swap(usize),
     ToggleChecked,
@@ -76,14 +76,13 @@ impl Component for QueueCfg {
                     html! {
                         <>
                             <EventCfg {i} {event} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
-                            <DividerButton {on_click}> <yew_lucide::ArrowLeftRight class="w-6 h-6 rotate-90"/> </DividerButton>
+                            <DividerButton {on_click} hidden={true}> <yew_lucide::ArrowLeftRight class="w-6 h-6 rotate-90"/> </DividerButton>
                         </>
                     }
                 } else {
                     html! {
                         <>
                             <EventCfg {i} {event} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
-                            <Divider />
                         </>
                     }
                 }
@@ -94,6 +93,7 @@ impl Component for QueueCfg {
                 <input type="checkbox" value="" class="sr-only peer" checked={self.checked}/>
                 <Divider text="Event Queue" />
                 {content}
+                <Divider />
             </div>
         }
     }
@@ -116,9 +116,9 @@ impl Component for QueueCfg {
                 timeout.forget();
                 false
             }
-            Msg::HoverEnter((src, dst)) => {
+            Msg::HoverEnter((src, dst, i)) => {
                 self.state_dispatch
-                    .reduce_mut(move |s| s.set_hover(Hover::Message(src, dst)));
+                    .reduce_mut(move |s| s.set_hover(Hover::Message(src, dst, i, false)));
                 false
             }
             Msg::HoverExit => {
@@ -138,7 +138,7 @@ impl Component for QueueCfg {
 struct EventProps {
     i: usize,
     event: Event<()>,
-    on_mouse_enter: Callback<(RouterId, RouterId)>,
+    on_mouse_enter: Callback<(RouterId, RouterId, usize)>,
     on_mouse_leave: Callback<()>,
     translate: isize,
     checked: bool,
@@ -158,9 +158,10 @@ fn event_cfg(props: &EventProps) -> Html {
             (src, dst, "BGP Withdraw", html! { <PrefixTable {prefix} />})
         }
     };
-    let onmouseenter = props.on_mouse_enter.reform(move |_| (src, dst));
+    let i = props.i;
+    let onmouseenter = props.on_mouse_enter.reform(move |_| (src, dst, i));
     let onmouseleave = props.on_mouse_leave.reform(move |_| ());
-    let div_class = "w-full flex flex-col";
+    let div_class = "p-4 rounded-md shadow-md border border-gray-300 bg-white hover:bg-gray-50 hover:shadow-lg w-full flex flex-col";
     let div_class = match (props.translate, props.checked) {
         (t, false) if t > 0 => classes!(
             "transition",
@@ -206,7 +207,7 @@ fn event_cfg(props: &EventProps) -> Html {
 
 #[derive(Properties, PartialEq, Eq)]
 pub struct PrefixTableProps {
-    prefix: Prefix,
+    pub prefix: Prefix,
 }
 
 #[function_component(PrefixTable)]

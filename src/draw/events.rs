@@ -1,0 +1,174 @@
+use std::rc::Rc;
+
+use netsim::{bgp::BgpEvent as NetsimBgpEvent, event::Event, types::RouterId};
+use yew::prelude::*;
+use yewdux::prelude::*;
+
+use crate::{
+    dim::Dim,
+    net::Net,
+    point::Point,
+    state::{Hover, State},
+};
+
+const BASE_OFFSET: Point = Point { x: -45.0, y: -30.0 };
+const OFFSET: Point = Point { x: -30.0, y: 0.0 };
+const R_BASE_OFFSET: Point = Point { x: 20.0, y: 10.0 };
+const R_OFFSET: Point = Point { x: 30.0, y: 0.0 };
+
+pub struct BgpSessionQueue {
+    net: Rc<Net>,
+    dim: Rc<Dim>,
+    _net_dispatch: Dispatch<Net>,
+    _dim_dispatch: Dispatch<Dim>,
+}
+
+pub enum BgpSessionQueueMsg {
+    StateNet(Rc<Net>),
+    StateDim(Rc<Dim>),
+}
+
+#[derive(Properties, PartialEq, Eq)]
+pub struct BgpSessionQueueProps {
+    pub dst: RouterId,
+    pub events: Vec<(usize, Event<()>)>,
+}
+
+impl Component for BgpSessionQueue {
+    type Message = BgpSessionQueueMsg;
+    type Properties = BgpSessionQueueProps;
+
+    fn create(ctx: &Context<Self>) -> Self {
+        let _dim_dispatch = Dispatch::subscribe(ctx.link().callback(Self::Message::StateDim));
+        let _net_dispatch = Dispatch::subscribe(ctx.link().callback(Self::Message::StateNet));
+        BgpSessionQueue {
+            net: _net_dispatch.get(),
+            dim: _dim_dispatch.get(),
+            _net_dispatch,
+            _dim_dispatch,
+        }
+    }
+
+    fn view(&self, ctx: &Context<Self>) -> Html {
+        let dst = self.dim.get(
+            self.net
+                .pos()
+                .get(&ctx.props().dst)
+                .copied()
+                .unwrap_or_default(),
+        );
+
+        let overlap = will_overlap(dst, ctx.props().events.len());
+
+        ctx.props()
+            .events
+            .iter()
+            .enumerate()
+            .map(|(num, (i, event))| {
+                let p = get_event_pos(dst, num, overlap);
+                let i = *i;
+                match event.clone() {
+                    Event::Bgp(_, src, dst, event) => {
+                        html! { <BgpEvent {p} {src} {dst} {event} {i} /> }
+                    }
+                }
+            })
+            .collect()
+    }
+
+    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
+        match msg {
+            BgpSessionQueueMsg::StateNet(n) => self.net = n,
+            BgpSessionQueueMsg::StateDim(d) => self.dim = d,
+        }
+        true
+    }
+}
+
+#[derive(Properties, PartialEq)]
+struct BgpEventProps {
+    p: Point,
+    src: RouterId,
+    dst: RouterId,
+    event: NetsimBgpEvent,
+    i: usize,
+}
+
+#[function_component(BgpEvent)]
+fn bgp_event(props: &BgpEventProps) -> Html {
+    let (state, dispatch) = use_store::<State>();
+    let (src, dst, i) = (props.src, props.dst, props.i);
+
+    let onmouseenter = dispatch
+        .reduce_mut_callback(move |state| state.set_hover(Hover::Message(src, dst, i, true)));
+    let onmouseleave = dispatch.reduce_mut_callback(move |state| state.set_hover(Hover::None));
+
+    let hovered = state.hover() == Hover::Message(src, dst, props.i, true)
+        || state.hover() == Hover::Message(src, dst, props.i, false);
+    let is_update = matches!(props.event, NetsimBgpEvent::Update(_));
+
+    let class = if hovered {
+        "stroke-blue-700 fill-gray-50 pointer-events-none"
+    } else if is_update {
+        "stroke-green-700 fill-gray-50 pointer-events-none"
+    } else {
+        "stroke-red-700 fill-gray-50 pointer-events-none"
+    };
+
+    let frame_class = if hovered {
+        "stroke-blue-700 fill-gray-50"
+    } else if is_update {
+        "stroke-green-700 fill-gray-50"
+    } else {
+        "stroke-red-700 fill-gray-50"
+    };
+
+    let x = props.p.x();
+    let y = props.p.y();
+
+    let d_frame = format!(
+        "M {} {} m 22 13 v -7 a 2 2 0 0 0 -2 -2 h -16 a 2 2 0 0 0 -2 2 v 12 c 0 1.1 0.9 2 2 2 h 8",
+        x, y
+    );
+    let d_lid = format!(
+        "M {} {} m 22 7 l -8.97 5.7 a 1.94 1.94 0 0 1 -2.06 0 l -8.97 -5.7",
+        x, y
+    );
+
+    if is_update {
+        let d_plus_1 = format!("M {} {} m 19 16 v 6", x, y);
+        let d_plus_2 = format!("M {} {} m 16 19 h 6", x, y);
+        html! {
+            <g>
+                <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave}></path>
+                <path {class} d={d_lid}></path>
+                <path {class} d={d_plus_1}></path>
+                <path {class} d={d_plus_2}></path>
+            </g>
+        }
+    } else {
+        let d_x_1 = format!("M {} {} m 17 17 4 4", x, y);
+        let d_x_2 = format!("M {} {} m 21 17 -4 4", x, y);
+        html! {
+            <g>
+                <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave}></path>
+                <path {class} d={d_lid}></path>
+                <path {class} d={d_x_1}></path>
+                <path {class} d={d_x_2}></path>
+            </g>
+        }
+    }
+}
+
+fn get_event_pos(p_dst: Point, n: usize, overlap: bool) -> Point {
+    if overlap {
+        p_dst + R_BASE_OFFSET + (R_OFFSET * n as f64)
+    } else {
+        p_dst + BASE_OFFSET + (OFFSET * n as f64)
+    }
+}
+
+fn will_overlap(p_dst: Point, count: usize) -> bool {
+    let last = get_event_pos(p_dst, count - 1, false);
+    last.x < 0.0 || last.y < 0.0
+}

@@ -1,8 +1,11 @@
+use std::collections::HashMap;
 use std::rc::Rc;
 
 use gloo_utils::window;
 use itertools::Itertools;
 use netsim::bgp::BgpRoute;
+use netsim::event::Event;
+use netsim::interactive::InteractiveNetwork;
 use netsim::prelude::BgpSessionType;
 use netsim::types::{Prefix, RouterId};
 use wasm_bindgen::prelude::Closure;
@@ -13,6 +16,7 @@ use yewdux::prelude::*;
 
 use super::arrows::ArrowMarkers;
 use super::bgp_session::BgpSession;
+use super::events::BgpSessionQueue;
 use super::link::Link;
 use super::link_weight::LinkWeight;
 use super::next_hop::NextHop;
@@ -43,6 +47,9 @@ pub struct Canvas {
     links: Vec<(RouterId, RouterId)>,
     bgp_sessions: Vec<(RouterId, RouterId, BgpSessionType)>,
     propagations: Vec<(RouterId, RouterId, BgpRoute)>,
+    events: HashMap<RouterId, Vec<(usize, Event<()>)>>,
+    hover_event: Option<(RouterId, RouterId)>,
+    last_layer: Option<Layer>,
     resize_listener: Option<Closure<dyn Fn(MouseEvent)>>,
 }
 
@@ -71,6 +78,9 @@ impl Component for Canvas {
             links: Vec::new(),
             bgp_sessions: Vec::new(),
             propagations: Vec::new(),
+            events: HashMap::new(),
+            hover_event: None,
+            last_layer: None,
             resize_listener: None,
         }
     }
@@ -114,11 +124,16 @@ impl Component for Canvas {
                         } else { html!{} }
                     }
                     {
-                        if let Hover::Message(src, dst) = self.state.hover() {
+                        if let Some((src, dst)) = self.hover_event {
                             let p1 = self.dim.get(self.net.pos()[&src]);
                             let p2 = self.dim.get(self.net.pos()[&dst]);
                             html!{ <CurvedArrow {p1} {p2} angle={15.0} color={SvgColor::GreenLight} sub_radius={true} /> }
                         } else { html!{} }
+                    }
+                    {
+                        self.events.clone().into_iter().map(|(dst, events)| {
+                            html!{<BgpSessionQueue {dst} {events} />}
+                        }).collect::<Html>()
                     }
                 </svg>
             </div>
@@ -152,26 +167,48 @@ impl Component for Canvas {
             Msg::State(s) => self.state = s,
             Msg::StateNet(s) => self.net = s,
         }
-        self.routers = self.net.net().get_topology().node_indices().rev().collect();
-        self.bgp_sessions = self.net.get_bgp_sessions();
-        let net_borrow = self.net.net();
-        let g = net_borrow.get_topology();
-        self.links = g
-            .edge_indices()
-            .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
-            .map(|(a, b)| {
-                if a.index() > b.index() {
-                    (b, a)
-                } else {
-                    (a, b)
-                }
-            })
-            .unique()
-            .collect();
-        self.propagations = self
-            .net
-            .get_route_propagation(self.state.prefix().unwrap_or(Prefix(0)));
-        true
+        let mut ret = false;
+        ret |= update(&mut self.routers, || {
+            self.net.net().get_topology().node_indices().rev().collect()
+        });
+        ret |= update(&mut self.bgp_sessions, || self.net.get_bgp_sessions());
+        ret |= update(&mut self.links, || {
+            let net_borrow = self.net.net();
+            let g = net_borrow.get_topology();
+            g.edge_indices()
+                .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
+                .map(|(a, b)| {
+                    if a.index() > b.index() {
+                        (b, a)
+                    } else {
+                        (a, b)
+                    }
+                })
+                .unique()
+                .collect()
+        });
+        ret |= update(&mut self.propagations, || {
+            self.net
+                .get_route_propagation(self.state.prefix().unwrap_or(Prefix(0)))
+        });
+        ret |= update(&mut self.events, || {
+            self.net
+                .net()
+                .queue()
+                .iter()
+                .enumerate()
+                .map(|(i, e)| match e {
+                    Event::Bgp(_, _, dst, _) => (*dst, (i, e.clone())),
+                })
+                .into_group_map()
+        });
+        ret |= update(&mut self.hover_event, || match self.state.hover() {
+            Hover::Message(src, dst, _, _) => Some((src, dst)),
+            _ => None,
+        });
+        ret |= update(&mut self.last_layer, || Some(self.state.layer()));
+
+        ret
     }
 
     fn rendered(&mut self, ctx: &Context<Self>, _first_render: bool) {
@@ -190,5 +227,19 @@ impl Component for Canvas {
         }
 
         ctx.link().send_message(Msg::UpdateSize);
+    }
+}
+
+fn update<T, F>(val: &mut T, f: F) -> bool
+where
+    T: PartialEq,
+    F: FnOnce() -> T,
+{
+    let mut new_val = f();
+    if &new_val != val {
+        std::mem::swap(val, &mut new_val);
+        true
+    } else {
+        false
     }
 }

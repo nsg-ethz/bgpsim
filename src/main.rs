@@ -1,6 +1,7 @@
 mod dim;
 mod draw;
 mod header;
+mod latex_export;
 mod net;
 mod point;
 mod sidebar;

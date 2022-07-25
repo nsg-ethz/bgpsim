@@ -66,23 +66,46 @@ impl Component for Router {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let r = format!("{}", ROUTER_RADIUS);
         let color = if self.selected {
-            "text-blue-300 stroke-blue-500 drop-shadow-lg"
+            "text-blue-300 hover:text-blue-400 stroke-blue-500 hover:stroke-blue-600 drop-shadow-lg"
         } else {
-            "text-white stroke-gray-700 drop-shadow-md"
+            "text-white hover:text-gray-200 stroke-gray-700 drop-shadow-md"
         };
         let onclick = ctx.link().callback(|_| Msg::OnClick);
         let onmouseenter = ctx.link().callback(Msg::OnMouseEnter);
         let onmouseleave = ctx.link().callback(|_| Msg::OnMouseLeave);
         let onmousedown = ctx.link().callback(Msg::OnMouseDown);
         let onmouseup = ctx.link().callback(|_| Msg::OnMouseUp);
-        html! {
-            <>
-                <circle
-                    class={classes!("fill-current", "stroke-1", "hover:text-gray-200", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
-                    style="cursor"
-                    cx={self.p.x()} cy={self.p.y()} {r}
-                    {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>
-            </>
+
+        if self
+            .net
+            .net()
+            .get_device(ctx.props().router_id)
+            .is_external()
+        {
+            let path = format!(
+                "M {} {} m 10 10 h -17 a 14 14 0 1 1 13.42 -18 h 3.58 a 9 9 0 1 1 0 18 z",
+                self.p.x(),
+                self.p.y()
+            );
+            html! {
+                <>
+                    <path d={path}
+                        class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
+                        style="cursor"
+                        cx={self.p.x()} cy={self.p.y()} {r}
+                        {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>
+                </>
+            }
+        } else {
+            html! {
+                <>
+                    <circle
+                        class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
+                        style="cursor"
+                        cx={self.p.x()} cy={self.p.y()} {r}
+                        {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>
+                </>
+            }
         }
     }
 
