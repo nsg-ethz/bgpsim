@@ -143,6 +143,7 @@ pub mod formatter;
 pub mod forwarding_state;
 pub mod interactive;
 pub mod network;
+pub mod ospf;
 pub mod policies;
 pub mod prelude;
 pub mod record;
