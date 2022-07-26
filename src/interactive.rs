@@ -180,6 +180,9 @@ where
                             .ok_or(NetworkError::DeviceNotFound(id))?;
                         self.net.remove_node(id);
                     }
+                    UndoAction::UpdateOspfArea(source, target, area) => {
+                        self.ospf.set_area(source, target, area);
+                    }
                     // UndoAction::AddRouter(id, router) => {
                     //     self.routers.insert(id, *router);
                     // }

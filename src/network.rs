@@ -28,6 +28,7 @@ use crate::{
     formatter::NetworkFormatter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
+    ospf::{Ospf, OspfArea},
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
@@ -37,7 +38,7 @@ use crate::{
 };
 
 use log::*;
-use petgraph::algo::{floyd_warshall, FloatMeasure};
+use petgraph::algo::FloatMeasure;
 use petgraph::visit::EdgeRef;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -68,6 +69,7 @@ static DEFAULT_STOP_AFTER: usize = 1_000_000;
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Network<Q = BasicEventQueue> {
     pub(crate) net: IgpNetwork,
+    pub(crate) ospf: Ospf,
     pub(crate) routers: HashMap<RouterId, Router>,
     pub(crate) external_routers: HashMap<RouterId, ExternalRouter>,
     pub(crate) known_prefixes: HashSet<Prefix>,
@@ -86,6 +88,7 @@ impl<Q: Clone> Clone for Network<Q> {
         // for the new queue, remove the history of all enqueued events
         Self {
             net: self.net.clone(),
+            ospf: self.ospf.clone(),
             routers: self.routers.clone(),
             external_routers: self.external_routers.clone(),
             known_prefixes: self.known_prefixes.clone(),
@@ -110,6 +113,7 @@ impl<Q> Network<Q> {
     pub fn new(queue: Q) -> Self {
         Self {
             net: IgpNetwork::new(),
+            ospf: Ospf::new(),
             routers: HashMap::new(),
             known_prefixes: HashSet::new(),
             external_routers: HashMap::new(),
@@ -534,6 +538,43 @@ where
         Ok(weight)
     }
 
+    /// Set the OSPF area of a specific link to the desired value. `NetworkError::LinkNotFound` is
+    /// returned if the link does not exist. Otherwise, the old OSPF area is returned. This function
+    /// sets the area of both links in both directions.
+    ///
+    /// This function will also update the IGP forwarding table *and* run the simulation.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    pub fn set_ospf_area(
+        &mut self,
+        source: RouterId,
+        target: RouterId,
+        area: OspfArea,
+    ) -> Result<OspfArea, NetworkError> {
+        // prepare undo stack
+        #[cfg(feature = "undo")]
+        self.undo_stack.push(Vec::new());
+
+        // throw an error if the link does not exist.
+        self.net
+            .find_edge(source, target)
+            .ok_or(NetworkError::LinkNotFound(source, target))?;
+
+        let old_area = self.ospf.set_area(source, target, area);
+
+        // add the undo action
+        #[cfg(feature = "undo")]
+        self.undo_stack
+            .last_mut()
+            .unwrap()
+            .push(vec![UndoAction::UpdateOspfArea(source, target, old_area)]);
+
+        // update the forwarding tables and simulate the network.
+        self.write_igp_fw_tables()?;
+
+        Ok(old_area)
+    }
+
     /// Set the route map on a router in the network. If a route-map with the chosen order already
     /// exists, then it will be overwritten. The old route-map will be returned. This function will
     /// run the simulation after updating the router.
@@ -844,12 +885,14 @@ where
     /// to the IGP state of devices will be added to the last event of the last action, while the
     /// queue updates will get their own event of the last action.
     pub(crate) fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
-        // compute the APSP
-        let apsp = floyd_warshall(&self.net, |e| *e.weight()).unwrap();
+        // compute the ospf state
+        let ospf_state = self
+            .ospf
+            .compute(&self.net, &self.external_routers.keys().copied().collect());
         // update igp table
         let mut events = vec![];
         for r in self.routers.values_mut() {
-            events.append(&mut r.write_igp_forwarding_table(&self.net, &apsp)?);
+            events.append(&mut r.write_igp_forwarding_table(&self.net, &ospf_state)?);
 
             // add the undo action
             #[cfg(feature = "undo")]
@@ -998,6 +1041,8 @@ pub struct UndoMark {
 pub(crate) enum UndoAction {
     /// Update an edge weight or remove the edge entirely.
     UpdateIGP(RouterId, RouterId, Option<LinkWeight>),
+    /// Update the OSPF area of a link.
+    UpdateOspfArea(RouterId, RouterId, OspfArea),
     /// Remove a router from the network
     RemoveRouter(RouterId),
     // /// Add a router to the network

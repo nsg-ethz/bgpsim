@@ -161,12 +161,12 @@ fn test_igp_table() {
     for router in net.get_routers().iter() {
         let r = net.get_device(*router).unwrap_internal();
         let fw_table = r.get_igp_fw_table();
-        assert_eq!(fw_table.len(), 6);
+        assert_eq!(fw_table.len(), 1);
         for (target, entry) in fw_table.iter() {
             if *router == *target {
                 assert_eq!(entry, &(vec![*router], 0.0));
             } else {
-                assert_eq!(entry, &(vec![], LinkWeight::INFINITY));
+                unreachable!();
             }
         }
     }
@@ -178,14 +178,25 @@ fn test_igp_table() {
     for from in net.get_routers().iter() {
         let r = net.get_device(*from).unwrap_internal();
         let fw_table = r.get_igp_fw_table();
-        assert_eq!(fw_table.len(), 6);
-        for (to, entry) in fw_table.iter() {
-            if *from == *R1 && *to == *R2 {
-                assert_eq!(entry, &(vec![*to], 5.0));
-            } else if *from == *to {
-                assert_eq!(entry, &(vec![*to], 0.0));
-            } else {
-                assert_eq!(entry, &(vec![], LinkWeight::INFINITY));
+        if *from == *R1 {
+            assert_eq!(fw_table.len(), 2);
+            for (to, entry) in fw_table.iter() {
+                if *from == *R1 && *to == *R2 {
+                    assert_eq!(entry, &(vec![*to], 5.0));
+                } else if *from == *to {
+                    assert_eq!(entry, &(vec![*to], 0.0));
+                } else {
+                    unreachable!();
+                }
+            }
+        } else {
+            assert_eq!(fw_table.len(), 1);
+            for (target, entry) in fw_table.iter() {
+                if *from == *target {
+                    assert_eq!(entry, &(vec![*from], 0.0));
+                } else {
+                    unreachable!();
+                }
             }
         }
     }
@@ -197,14 +208,36 @@ fn test_igp_table() {
     for from in net.get_routers().iter() {
         let r = net.get_device(*from).unwrap_internal();
         let fw_table = r.get_igp_fw_table();
-        assert_eq!(fw_table.len(), 6);
-        for (to, entry) in fw_table.iter() {
-            if (*from == *R1 && *to == *R2) || (*from == *R2 && *to == *R1) {
-                assert_eq!(entry, &(vec![*to], 5.0));
-            } else if *from == *to {
-                assert_eq!(entry, &(vec![*to], 0.0));
-            } else {
-                assert_eq!(entry, &(vec![], LinkWeight::INFINITY));
+        if *from == *R1 {
+            assert_eq!(fw_table.len(), 2);
+            for (to, entry) in fw_table.iter() {
+                if *from == *R1 && *to == *R2 {
+                    assert_eq!(entry, &(vec![*to], 5.0));
+                } else if *from == *to {
+                    assert_eq!(entry, &(vec![*to], 0.0));
+                } else {
+                    unreachable!();
+                }
+            }
+        } else if *from == *R2 {
+            assert_eq!(fw_table.len(), 2);
+            for (to, entry) in fw_table.iter() {
+                if *from == *R2 && *to == *R1 {
+                    assert_eq!(entry, &(vec![*to], 5.0));
+                } else if *from == *to {
+                    assert_eq!(entry, &(vec![*to], 0.0));
+                } else {
+                    unreachable!();
+                }
+            }
+        } else {
+            assert_eq!(fw_table.len(), 1);
+            for (target, entry) in fw_table.iter() {
+                if *from == *target {
+                    assert_eq!(entry, &(vec![*from], 0.0));
+                } else {
+                    unreachable!();
+                }
             }
         }
     }
@@ -536,7 +569,7 @@ fn test_route_maps() {
     let mut net = original_net.clone();
     net.set_bgp_route_map(
         *R1,
-        RouteMap::new(10, Deny, vec![Match::NextHop(*E1)], vec![]),
+        RouteMap::new(10, Deny, vec![Match::NextHop(*R1)], vec![]),
         Outgoing,
     )
     .unwrap();
@@ -574,7 +607,7 @@ fn test_route_maps() {
         RouteMap::new(
             10,
             Allow,
-            vec![Match::NextHop(*E1)],
+            vec![Match::NextHop(*R1)],
             vec![Set::LocalPref(Some(50))],
         ),
         Outgoing,
@@ -615,7 +648,7 @@ fn test_route_maps() {
         RouteMap::new(
             20,
             Allow,
-            vec![Match::NextHop(*E1)],
+            vec![Match::NextHop(*R1)],
             vec![Set::LocalPref(Some(50))],
         ),
         Outgoing,

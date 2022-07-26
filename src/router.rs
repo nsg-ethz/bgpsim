@@ -22,6 +22,7 @@ use crate::{
     event::Event,
     formatter::NetworkFormatter,
     network::Network,
+    ospf::OspfState,
     route_map::{RouteMap, RouteMapDirection},
     types::{AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate},
 };
@@ -681,7 +682,7 @@ impl Router {
     pub(crate) fn write_igp_forwarding_table<P: Default>(
         &mut self,
         graph: &IgpNetwork,
-        apsp: &HashMap<(RouterId, RouterId), LinkWeight>,
+        ospf: &OspfState,
     ) -> Result<Vec<Event<P>>, DeviceError> {
         // prepare the undo action
         #[cfg(feature = "undo")]
@@ -708,33 +709,25 @@ impl Router {
             .unwrap()
             .push(UndoAction::IgpForwardingTable(swap_table, neighbors_set));
 
-        // go through all targets to find the shortest path.
         for target in graph.node_indices() {
             if target == self.router_id {
                 self.igp_table.insert(target, (vec![self.router_id], 0.0));
                 continue;
             }
 
-            let cost = apsp[&(self.router_id, target)];
-
-            // get the predecessors by which we can reach the target in shortest time.
-            let next_hops = neighbors
-                .iter()
-                .copied()
-                .filter(|(r, w)| {
-                    (cost - (apsp[&(*r, target)] + w)).abs() <= LinkWeight::EPSILON * 1024.0
-                })
-                .map(|(r, _)| r)
-                .collect::<Vec<_>>();
-
-            if cost.is_infinite() || next_hops.is_empty() || cost >= LinkWeight::MAX / 16.0 {
-                self.igp_table
-                    .insert(target, (vec![], LinkWeight::INFINITY));
-                continue;
+            let (next_hops, weight) = ospf.get_next_hops(self.router_id, target);
+            // check if the next hops are empty
+            if next_hops.is_empty() {
+                // no next hops could be found using OSPF. Check if the target is directly
+                // connected.
+                if let Some((_, w)) = neighbors.iter().find(|(n, _)| *n == target) {
+                    self.igp_table.insert(target, (vec![target], *w));
+                }
+            } else {
+                self.igp_table.insert(target, (next_hops, weight));
             }
-
-            self.igp_table.insert(target, (next_hops, cost));
         }
+
         self.update_bgp_tables(false)
     }
 
@@ -1028,6 +1021,13 @@ impl Router {
         mut entry: BgpRibEntry,
         target_peer: RouterId,
     ) -> Result<Option<BgpRibEntry>, DeviceError> {
+        // before applying the route-map, set the next-hop to self if the route was learned over
+        // eBGP.
+        // TODO: add a configuration variable to control wether to change the next-hop.
+        if entry.from_type.is_ebgp() {
+            entry.route.next_hop = self.router_id;
+        }
+
         // set the to_id to the target peer
         entry.to_id = Some(target_peer);
 
@@ -1053,7 +1053,7 @@ impl Router {
             .get(&target_peer)
             .ok_or(DeviceError::NoBgpSession(target_peer))?;
 
-        // if the peer type is external, overwrite values of the route accordingly.
+        // if the peer type is external, overwrite the next hop and reset the local-pref.
         if entry.from_type.is_ebgp() {
             entry.route.next_hop = self.router_id;
             entry.route.local_pref = None;

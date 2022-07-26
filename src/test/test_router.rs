@@ -15,6 +15,8 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use std::collections::HashSet;
+
 use crate::{
     bgp::{
         BgpEvent, BgpRoute,
@@ -22,11 +24,11 @@ use crate::{
     },
     event::Event,
     external_router::*,
+    ospf::Ospf,
     router::*,
     types::{AsId, IgpNetwork, Prefix},
 };
 use maplit::{hashmap, hashset};
-use petgraph::algo::floyd_warshall;
 use pretty_assertions::assert_eq;
 
 #[test]
@@ -81,7 +83,7 @@ fn test_bgp_single() {
         match event {
             Event::Bgp(_, from, _, BgpEvent::Update(r)) => {
                 assert_eq!(from, 0.into());
-                assert_eq!(r.next_hop, 100.into());
+                assert_eq!(r.next_hop, 0.into()); // change next-hop to self.
             }
             _ => panic!("Test failed"),
         }
@@ -261,7 +263,7 @@ fn test_bgp_single() {
             Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
                 assert_eq!(from, 0.into());
                 assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index() as usize)));
-                assert_eq!(r.next_hop, 100.into());
+                assert_eq!(r.next_hop, 0.into()); // next-hop must be changed to self.
                 assert_eq!(r.local_pref, Some(100));
             }
             Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix)) => {
@@ -328,8 +330,9 @@ fn test_fw_table_simple() {
      * a       e
      */
 
-    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
-    r_a.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    let ospf = Ospf::new();
+    let state = ospf.compute(&net, &HashSet::new());
+    r_a.write_igp_forwarding_table::<()>(&net, &state).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => (vec![r_a.router_id()], 0.0),
@@ -346,8 +349,9 @@ fn test_fw_table_simple() {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
     }
 
-    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
-    r_b.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    let ospf = Ospf::new();
+    let state = ospf.compute(&net, &HashSet::new());
+    r_b.write_igp_forwarding_table::<()>(&net, &state).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => (vec![r_a.router_id()], 1.0),
@@ -364,8 +368,9 @@ fn test_fw_table_simple() {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
     }
 
-    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
-    r_c.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    let ospf = Ospf::new();
+    let state = ospf.compute(&net, &HashSet::new());
+    r_c.write_igp_forwarding_table::<()>(&net, &state).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => (vec![r_b.router_id()], 2.0),
@@ -428,8 +433,9 @@ fn test_igp_fw_table_complex() {
      *    1      8      1
      */
 
-    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
-    r_a.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    let ospf = Ospf::new();
+    let state = ospf.compute(&net, &HashSet::new());
+    r_a.write_igp_forwarding_table::<()>(&net, &state).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => (vec![r_a.router_id()], 0.0),
@@ -449,8 +455,9 @@ fn test_igp_fw_table_complex() {
         assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
     }
 
-    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
-    r_c.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    let ospf = Ospf::new();
+    let state = ospf.compute(&net, &HashSet::new());
+    r_c.write_igp_forwarding_table::<()>(&net, &state).unwrap();
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => (vec![r_f.router_id()], 3.0),
@@ -778,10 +785,11 @@ fn test_undo_fw_table() {
      * a       e
      */
 
-    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
-    r_a.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
-    r_b.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
-    r_c.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    let ospf = Ospf::new();
+    let state = ospf.compute(&net, &HashSet::new());
+    r_a.write_igp_forwarding_table::<()>(&net, &state).unwrap();
+    r_b.write_igp_forwarding_table::<()>(&net, &state).unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net, &state).unwrap();
 
     let r_a_clone = r_a.clone();
     let r_b_clone = r_b.clone();
@@ -792,10 +800,11 @@ fn test_undo_fw_table() {
     net.update_edge(r_d.router_id(), r_b.router_id(), 1.0);
 
     // update the IGP state
-    let apsp = floyd_warshall(&net, |e| *e.weight()).unwrap();
-    r_a.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
-    r_b.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
-    r_c.write_igp_forwarding_table::<()>(&net, &apsp).unwrap();
+    let ospf = Ospf::new();
+    let state = ospf.compute(&net, &HashSet::new());
+    r_a.write_igp_forwarding_table::<()>(&net, &state).unwrap();
+    r_b.write_igp_forwarding_table::<()>(&net, &state).unwrap();
+    r_c.write_igp_forwarding_table::<()>(&net, &state).unwrap();
 
     // undo the state change and compare the nodes.
     r_a.undo_event();
