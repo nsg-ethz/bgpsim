@@ -182,7 +182,7 @@ fn left_mid_right() {
     assert_eq!(state.get_route(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
         state.get_route(r.4, p9).unwrap(),
-        vec![vec![r.4, r.0, r.1, r.2, r.6, r.9],]
+        vec![vec![r.4, r.5, r.6, r.9],]
     );
     assert_eq!(
         state.get_route(r.4, p10).unwrap(),
@@ -220,14 +220,7 @@ fn left_mid_right() {
     assert_eq!(state.get_route(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
         state.get_route(r.4, p9).unwrap(),
-        vec![
-            vec![r.4, r.0, r.1, r.2, r.6, r.9],
-            vec![r.4, r.0, r.1, r.5, r.6, r.9],
-            vec![r.4, r.0, r.3, r.2, r.6, r.9],
-            vec![r.4, r.0, r.3, r.7, r.6, r.9],
-            vec![r.4, r.5, r.6, r.9],
-            vec![r.4, r.7, r.6, r.9],
-        ]
+        vec![vec![r.4, r.5, r.6, r.9], vec![r.4, r.7, r.6, r.9],]
     );
     assert_eq!(
         state.get_route(r.4, p10).unwrap(),
@@ -261,7 +254,7 @@ fn left_right_bottom() {
     assert_eq!(state.get_route(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
         state.get_route(r.4, p9).unwrap(),
-        vec![vec![r.4, r.0, r.1, r.2, r.6, r.9],]
+        vec![vec![r.4, r.7, r.6, r.9],]
     );
     assert_eq!(
         state.get_route(r.4, p10).unwrap(),
@@ -298,12 +291,7 @@ fn left_right_bottom() {
     assert_eq!(state.get_route(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
         state.get_route(r.4, p9).unwrap(),
-        vec![
-            vec![r.4, r.0, r.1, r.2, r.6, r.9],
-            vec![r.4, r.0, r.3, r.2, r.6, r.9],
-            vec![r.4, r.0, r.3, r.7, r.6, r.9],
-            vec![r.4, r.7, r.6, r.9],
-        ]
+        vec![vec![r.4, r.7, r.6, r.9],]
     );
     assert_eq!(
         state.get_route(r.4, p10).unwrap(),
@@ -324,15 +312,15 @@ fn disconnected() {
     assert_eq!(state.get_route(r.0, p9), Ok(vec![vec![r.0, r.4, r.8, r.9]]));
     assert_eq!(
         state.get_route(r.0, p10),
-        Err(NetworkError::ForwardingLoop(vec![r.0, r.4, r.8, r.4]))
+        Ok(vec![vec![r.0, r.1, r.2, r.6, r.10]])
     );
     assert_eq!(
         state.get_route(r.6, p9),
-        Err(NetworkError::ForwardingLoop(vec![r.6, r.2, r.6]))
+        Ok(vec![vec![r.6, r.5, r.4, r.8, r.9]])
     );
     assert_eq!(
         state.get_route(r.8, p10),
-        Err(NetworkError::ForwardingLoop(vec![r.8, r.4, r.8]))
+        Ok(vec![vec![r.8, r.4, r.5, r.6, r.10]])
     );
 }
 

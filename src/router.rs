@@ -52,7 +52,7 @@ pub struct Router {
     /// AS Id of the router
     as_id: AsId,
     /// Neighbors of that node. This updates with any IGP update
-    neighbors: HashSet<RouterId>,
+    neighbors: HashMap<RouterId, LinkWeight>,
     /// forwarding table for IGP messages
     pub igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Static Routes for Prefixes
@@ -117,7 +117,7 @@ impl Router {
             router_id,
             as_id,
             igp_table: HashMap::new(),
-            neighbors: HashSet::new(),
+            neighbors: HashMap::new(),
             static_routes: HashMap::new(),
             bgp_sessions: HashMap::new(),
             bgp_rib_in: HashMap::new(),
@@ -359,7 +359,7 @@ impl Router {
                     StaticRoute::Direct(target) => self
                         .neighbors
                         .get(&target)
-                        .map(|r| vec![*r])
+                        .map(|_| vec![target])
                         .unwrap_or_default(),
                     StaticRoute::Indirect(target) => self.igp_table[&target].0.clone(),
                     StaticRoute::Drop => vec![],
@@ -693,21 +693,19 @@ impl Router {
         swap(&mut self.igp_table, &mut swap_table);
 
         // create the new neighbors hashmap
-        let mut neighbors: Vec<(RouterId, LinkWeight)> = graph
+        let mut neighbors: HashMap<RouterId, LinkWeight> = graph
             .edges(self.router_id)
             .map(|r| (r.target(), *r.weight()))
             .filter(|(_, w)| w.is_finite())
             .collect();
-        neighbors.sort_by_key(|a| a.0);
-        let mut neighbors_set = neighbors.iter().map(|(r, _)| *r).collect();
-        swap(&mut self.neighbors, &mut neighbors_set);
+        swap(&mut self.neighbors, &mut neighbors);
 
         // add the undo action
         #[cfg(feature = "undo")]
         self.undo_stack
             .last_mut()
             .unwrap()
-            .push(UndoAction::IgpForwardingTable(swap_table, neighbors_set));
+            .push(UndoAction::IgpForwardingTable(swap_table, neighbors));
 
         for target in graph.node_indices() {
             if target == self.router_id {
@@ -720,7 +718,7 @@ impl Router {
             if next_hops.is_empty() {
                 // no next hops could be found using OSPF. Check if the target is directly
                 // connected.
-                if let Some((_, w)) = neighbors.iter().find(|(n, _)| *n == target) {
+                if let Some(w) = self.neighbors.get(&target) {
                     self.igp_table.insert(target, (vec![target], *w));
                 }
             } else {
@@ -1135,7 +1133,7 @@ enum UndoAction {
     BgpSession(RouterId, Option<BgpSessionType>),
     IgpForwardingTable(
         HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
-        HashSet<RouterId>,
+        HashMap<RouterId, LinkWeight>,
     ),
     DelKnownPrefix(Prefix),
     StaticRoute(Prefix, Option<StaticRoute>),

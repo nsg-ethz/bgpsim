@@ -19,21 +19,19 @@
 //! used by routers to write their IGP table. No message passing is simulated, but the final state
 //! is computed using shortest path algorithms.
 
-use std::collections::{HashMap, HashSet};
+use std::{
+    collections::{HashMap, HashSet},
+    iter::{once, repeat},
+};
 
 use itertools::Itertools;
-use petgraph::{
-    algo::floyd_warshall,
-    graph::{IndexType, NodeIndex},
-    visit::EdgeRef,
-    Directed, Graph,
-};
+use petgraph::{algo::floyd_warshall, visit::EdgeRef, Directed, Graph};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde")]
 use serde_with::{As, Same};
 
-use crate::types::{IgpNetwork, LinkWeight, RouterId};
+use crate::types::{IgpNetwork, IndexType, LinkWeight, RouterId};
 
 pub(crate) const MAX_WEIGHT: LinkWeight = LinkWeight::MAX / 16.0;
 pub(crate) const MIN_EPSILON: LinkWeight = LinkWeight::EPSILON * 1024.0;
@@ -154,7 +152,7 @@ impl Ospf {
     }
 
     pub fn compute(&self, g: &IgpNetwork, external_nodes: &HashSet<RouterId>) -> OspfState {
-        let lut_areas: HashMap<RouterId, HashSet<OspfArea>> = g
+        let lut_router_areas: HashMap<RouterId, HashSet<OspfArea>> = g
             .node_indices()
             .filter(|r| !external_nodes.contains(r))
             .map(|r| {
@@ -169,11 +167,23 @@ impl Ospf {
             })
             .collect();
 
-        let mut lut_net_to_ospf: HashMap<(OspfArea, RouterId), OspfRouterId> = HashMap::new();
-        let mut lut_ospf_to_net: HashMap<(OspfArea, OspfRouterId), RouterId> = HashMap::new();
-        let mut areas: HashMap<OspfArea, Graph<(), LinkWeight, Directed, OspfIndexType>> =
-            HashMap::new();
+        // first, generate all internal graphs with all required nodes.
+        let max_node_index = g.node_indices().max().unwrap_or_default().index();
+        let mut graphs: HashMap<OspfArea, Graph<(), LinkWeight, Directed, IndexType>> =
+            once(OspfArea::BACKBONE)
+                .chain(self.areas.values().copied())
+                .unique()
+                .map(|area| {
+                    let mut g = Graph::new();
+                    repeat(()).take(max_node_index + 1).for_each(|_| {
+                        g.add_node(());
+                    });
+                    (area, g)
+                })
+                .collect();
 
+        // prepare reverse lookup table and add all edges to the graphs.
+        let mut lut_area_routers: HashMap<OspfArea, HashSet<RouterId>> = HashMap::new();
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
             // if either a or b are external, then don't add this edge
@@ -182,79 +192,114 @@ impl Ospf {
             }
             // get the area
             let area = self.get_area(a, b);
-            // get the graph (or create it if it doesn't exist)
-            let area_graph = areas.entry(area).or_default();
-            // create the endpoints if they don't exist
-            let a_ospf = *lut_net_to_ospf
-                .entry((area, a))
-                .or_insert_with(|| area_graph.add_node(()));
-            let b_ospf = *lut_net_to_ospf
-                .entry((area, b))
-                .or_insert_with(|| area_graph.add_node(()));
-            lut_ospf_to_net.insert((area, a_ospf), a);
-            lut_ospf_to_net.insert((area, b_ospf), b);
-            // create the link
-            area_graph.add_edge(a_ospf, b_ospf, *g.edge_weight(e).unwrap());
+            // insert the lut_area_routers
+            let area_set = lut_area_routers.entry(area).or_default();
+            area_set.insert(a);
+            area_set.insert(b);
+            // add the edge in the appropriate graph.
+            graphs
+                .get_mut(&area)
+                .unwrap()
+                .add_edge(a, b, *g.edge_weight(e).unwrap());
         }
 
-        // add all special nodes
-        let other_areas = areas
-            .keys()
-            .filter(|a| !a.is_backbone())
-            .copied()
-            .collect_vec();
-        let backbone_area = areas.entry(OspfArea::BACKBONE).or_default();
-        let special_area_nodes_in_backbone: HashMap<OspfArea, OspfRouterId> = other_areas
-            .iter()
-            .map(|a| (*a, backbone_area.add_node(())))
-            .collect();
-
-        let special_backbone_node_in_areas: HashMap<OspfArea, OspfRouterId> = areas
-            .iter_mut()
-            .filter(|(a, _)| !a.is_backbone())
-            .map(|(a, g)| (*a, g.add_node(())))
-            .collect();
-
-        lut_areas
-            .iter()
-            .filter(|(_, set)| set.contains(&OspfArea::BACKBONE))
-            .for_each(|(r, set)| {
-                let bid = lut_net_to_ospf[&(OspfArea::BACKBONE, *r)];
-                set.iter().filter(|a| !a.is_backbone()).for_each(|a| {
-                    areas.entry(*a).or_default().add_edge(
-                        lut_net_to_ospf[&(*a, *r)],
-                        *special_backbone_node_in_areas.get(a).unwrap(),
-                        0.0,
-                    );
-                });
-                let backbone_area = areas.entry(OspfArea::BACKBONE).or_default();
-                set.iter().filter(|a| !a.is_backbone()).for_each(|a| {
-                    backbone_area.add_edge(
-                        bid,
-                        *special_area_nodes_in_backbone.get(a).unwrap(),
-                        0.0,
-                    );
-                });
-            });
-
-        // finally, compute the apsp
-        let mut apsps: HashMap<OspfArea, HashMap<(OspfRouterId, OspfRouterId), LinkWeight>> = areas
+        // then, compute the APSP inside of each area.
+        let mut apsps: HashMap<OspfArea, HashMap<(RouterId, RouterId), LinkWeight>> = graphs
             .iter()
             .map(|(area, g)| (*area, floyd_warshall(g, |e| *e.weight()).unwrap()))
             .collect();
+        // only keep those values where the cost is finite.
         apsps
             .values_mut()
             .for_each(|v| v.retain(|_, v| *v < MAX_WEIGHT));
 
+        // compute all area border routers
+        let area_border_routers: HashSet<RouterId> = lut_router_areas
+            .iter()
+            .filter(|(_, areas)| areas.len() > 1 && areas.contains(&OspfArea::BACKBONE))
+            .map(|(r, _)| *r)
+            .collect();
+
+        // remember which nodes were present in which stub table
+        let mut stub_tables: HashMap<(RouterId, OspfArea), HashSet<RouterId>> = HashMap::new();
+
+        // for each of these border routers, advertise their area(s) into the the backbone
+        for abr in area_border_routers.iter().copied() {
+            let reachable_in_backbone: HashSet<RouterId> = lut_area_routers[&OspfArea::BACKBONE]
+                .iter()
+                .copied()
+                .filter(|r| apsps[&OspfArea::BACKBONE].get(&(abr, *r)).is_some())
+                .collect();
+
+            for stub_area in lut_router_areas[&abr]
+                .iter()
+                .filter(|a| !a.is_backbone())
+                .copied()
+            {
+                // compute the stub table. This will only collect those that are actually reachable
+                // from abr (properly dealing with non-connected areas).
+                let area_apsp = apsps.get(&stub_area).unwrap();
+                let stub_table: Vec<(RouterId, LinkWeight)> = lut_area_routers[&stub_area]
+                    .iter()
+                    .filter(|r| **r != abr)
+                    .filter_map(|r| area_apsp.get(&(abr, *r)).map(move |cost| (*r, *cost)))
+                    .collect();
+
+                // redistribute the table into the backbone
+                redistribute_table_into_area(
+                    abr,
+                    &stub_table,
+                    apsps.get_mut(&OspfArea::BACKBONE).unwrap(),
+                    graphs.get_mut(&OspfArea::BACKBONE).unwrap(),
+                    &lut_area_routers[&OspfArea::BACKBONE],
+                    &reachable_in_backbone,
+                );
+
+                // remember the things we have redistributed
+                stub_tables.insert(
+                    (abr, stub_area),
+                    stub_table.into_iter().map(|(r, _)| r).collect(),
+                );
+            }
+        }
+
+        // now, the backbone has collected all of its routes. Finally, advertise all routes from the
+        // backbone into all stub areas.
+        // for each of these border routers, advertise their area(s) into the the backbone
+        for abr in area_border_routers.iter().copied() {
+            // compute the table for the backbone part.
+            // from abr (properly dealing with non-connected areas).
+            let backbone_apsp = apsps.get(&OspfArea::BACKBONE).unwrap();
+            let backbone_graph = graphs.get(&OspfArea::BACKBONE).unwrap();
+            let backbone_table: Vec<(RouterId, LinkWeight)> = backbone_graph
+                .node_indices()
+                .filter(|r| *r != abr)
+                .filter_map(|r| Some((r, *backbone_apsp.get(&(abr, r))?)))
+                .collect();
+
+            for stub_area in lut_router_areas[&abr]
+                .iter()
+                .filter(|a| !a.is_backbone())
+                .copied()
+            {
+                // redistribute the table into the stub area.
+                redistribute_table_into_area(
+                    abr,
+                    &backbone_table,
+                    apsps.get_mut(&stub_area).unwrap(),
+                    graphs.get_mut(&stub_area).unwrap(),
+                    &lut_area_routers[&stub_area],
+                    &stub_tables[&(abr, stub_area)],
+                );
+            }
+        }
+
         // return the computed result
         OspfState {
-            lut_areas,
-            lut_net_to_ospf,
-            lut_ospf_to_net,
-            areas,
+            lut_router_areas,
+            ospf: self.clone(),
+            graphs,
             apsps,
-            special_area_nodes_in_backbone,
-            special_backbone_node_in_areas,
         }
     }
 
@@ -275,18 +320,53 @@ impl Ospf {
     }
 }
 
+/// Make sure that `abr` redistributes `table` into the area with graph `to_graph` and apsp
+/// `to_apsp`. During that, extend both `to_graph` and `to_apsp` to reflect the
+/// redistribution. Ignore nodes found in `ignore`. `area_routers` contains all routers in that
+/// area.
+fn redistribute_table_into_area(
+    abr: RouterId,
+    table: &[(RouterId, LinkWeight)],
+    to_apsp: &mut HashMap<(RouterId, RouterId), LinkWeight>,
+    to_graph: &mut Graph<(), LinkWeight, Directed, IndexType>,
+    area_routers: &HashSet<RouterId>,
+    ignore: &HashSet<RouterId>,
+) {
+    // go through all targets in the backbone table
+    for (r, cost_abr_r) in table.iter().copied() {
+        // skip that `r` if `abr` has previously exported it
+        if ignore.contains(&r) {
+            continue;
+        }
+
+        // add the edge (or modify it if it already exists)
+        if let Some(e) = to_graph.find_edge(abr, r) {
+            let old_cost_abr_r = to_graph.edge_weight_mut(e).unwrap();
+            if *old_cost_abr_r < cost_abr_r {
+                continue;
+            }
+            *old_cost_abr_r = cost_abr_r;
+        } else {
+            to_graph.add_edge(abr, r, cost_abr_r);
+        }
+
+        // update the apsp of all nodes in the stub area
+        for x in area_routers.iter().copied() {
+            if let Some(cost_x_abr) = to_apsp.get(&(x, abr)).copied() {
+                let cost_x_r = to_apsp.entry((x, r)).or_insert(LinkWeight::INFINITY);
+                *cost_x_r = (cost_x_abr + cost_abr_r).min(*cost_x_r);
+            }
+        }
+    }
+}
+
 /// Data structure computing and storing a specific result of the OSPF computation.
 #[derive(Clone, Debug)]
 pub(crate) struct OspfState {
-    lut_areas: HashMap<RouterId, HashSet<OspfArea>>,
-    lut_net_to_ospf: HashMap<(OspfArea, RouterId), OspfRouterId>,
-    lut_ospf_to_net: HashMap<(OspfArea, OspfRouterId), RouterId>,
-    areas: HashMap<OspfArea, Graph<(), LinkWeight, Directed, OspfIndexType>>,
-    apsps: HashMap<OspfArea, HashMap<(OspfRouterId, OspfRouterId), LinkWeight>>,
-    /// special nodes inserted in the backbone graph for all areas
-    special_area_nodes_in_backbone: HashMap<OspfArea, OspfRouterId>,
-    /// special nodes inserted in all areas for the backbone.
-    special_backbone_node_in_areas: HashMap<OspfArea, OspfRouterId>,
+    ospf: Ospf,
+    lut_router_areas: HashMap<RouterId, HashSet<OspfArea>>,
+    graphs: HashMap<OspfArea, Graph<(), LinkWeight, Directed, IndexType>>,
+    apsps: HashMap<OspfArea, HashMap<(RouterId, RouterId), LinkWeight>>,
 }
 
 impl OspfState {
@@ -307,145 +387,53 @@ impl OspfState {
         dst: RouterId,
     ) -> Option<(Vec<RouterId>, LinkWeight)> {
         // get the areas of src
-        let src_areas = self.lut_areas.get(&src)?;
-        let dst_areas = self.lut_areas.get(&dst)?;
+        let src_areas = self.lut_router_areas.get(&src)?;
+        let dst_areas = self.lut_router_areas.get(&dst)?;
 
         // check if there exists an overlap between both areas. If so, then get the area which has
         // the smallest cost to get from src to dst, and use that to compute the next hops. If
-        if let Some((area, src_o, dst_o, weight)) = src_areas
+        if let Some((area, weight)) = src_areas
             .intersection(dst_areas)
-            .filter_map(|a| {
-                Some((
-                    *a,
-                    *self.lut_net_to_ospf.get(&(*a, src))?,
-                    *self.lut_net_to_ospf.get(&(*a, dst))?,
-                ))
-            })
-            .filter_map(|(a, src_o, dst_o)| {
-                Some((a, src_o, dst_o, *self.apsps.get(&a)?.get(&(src_o, dst_o))?))
-            })
-            .min_by(|(a1, _, _, u), (a2, _, _, v)| (u, a1).partial_cmp(&(v, a2)).unwrap())
+            .filter_map(|a| Some((*a, self.apsps.get(a)?.get(&(src, dst))?)))
+            .min_by(|(a1, u), (a2, v)| (u, a1).partial_cmp(&(v, a2)).unwrap())
         {
             // only return this if the weight is less than max_weight. Otherwise, try to find a path
             // via backbone.
-            if weight < MAX_WEIGHT {
+            if *weight < MAX_WEIGHT {
                 // compute the fastest path from src_o to dst_o
-                return self.get_next_hops_in_area(src_o, dst_o, area);
-            }
-        }
-
-        // first, check if the target route could eventually reach to the backbone. Otherwise, no
-        // next hop can be selected.
-        if !dst_areas
-            .iter()
-            .any(|a| self.is_connected_to_backbone(dst, *a))
-        {
-            return None;
-        }
-
-        // in case we cannot directly get from src to dst. Now, check if the source is part of the
-        // backbone
-        let (src_o, dst_o, routing_area) = if src_areas.contains(&OspfArea::BACKBONE) {
-            let src_o = *self.lut_net_to_ospf.get(&(OspfArea::BACKBONE, src))?;
-            let (dst_o, _) = dst_areas
-                .iter()
-                .filter_map(|a| self.get_next_hops_from_backbone_to_area(src_o, *a))
-                .min_by(|(_, a), (_, b)| a.partial_cmp(b).unwrap())?;
-            (src_o, dst_o, OspfArea::BACKBONE)
-        } else {
-            // the source is not in the backbone. Try to find the smallest cost to the backbone
-            let (src_o, dst_o, routing_area, _) = src_areas
-                .iter()
-                .filter_map(|a| {
-                    self.get_next_hops_to_backbone(
-                        *self.lut_net_to_ospf.get(&(*a, src)).unwrap(),
-                        *a,
-                    )
-                })
-                .min_by(|(_, _, _, a), (_, _, _, b)| a.partial_cmp(b).unwrap())?;
-            (src_o, dst_o, routing_area)
-        };
-
-        self.get_next_hops_in_area(src_o, dst_o, routing_area)
-    }
-
-    /// Check if the router is somehow connected to the area
-    fn is_connected_to_backbone(&self, router: RouterId, area: OspfArea) -> bool {
-        if area.is_backbone() {
-            true
-        } else if let Some(exit_point) = self.special_backbone_node_in_areas.get(&area) {
-            if let Some(src_o) = self.lut_net_to_ospf.get(&(area, router)) {
-                if let Some(apsp) = self.apsps.get(&area) {
-                    apsp.get(&(*src_o, *exit_point)).is_some()
-                } else {
-                    false
+                if let Some(r) = self.get_next_hops_in_area(src, dst, area) {
+                    return Some(r);
                 }
-            } else {
-                false
             }
-        } else {
-            false
         }
-    }
 
-    /// Compute the cost to get from `src` (in the backbone) to the `dst_area`. If there was no path
-    /// to that area, return `None`. Otherwise, return the cost and the router ID representing that
-    /// area in the backbone.
-    fn get_next_hops_from_backbone_to_area(
-        &self,
-        src: OspfRouterId,
-        dst_area: OspfArea,
-    ) -> Option<(OspfRouterId, LinkWeight)> {
-        let apsp = self.apsps.get(&OspfArea::BACKBONE)?;
-
-        let target = *self.special_area_nodes_in_backbone.get(&dst_area)?;
-        let weight = *apsp.get(&(src, target))?;
-
-        if weight > MAX_WEIGHT {
-            None
-        } else {
-            Some((target, weight))
-        }
-    }
-
-    /// Compute the cost to get from `src` in `src_area` to the backbone. If there was no path to
-    /// the backbone, return `None`. Otherwise, return `src`, then the Id of the backbone in that
-    /// area, followed by `src_area` and finally the weight.
-    fn get_next_hops_to_backbone(
-        &self,
-        src: OspfRouterId,
-        src_area: OspfArea,
-    ) -> Option<(OspfRouterId, OspfRouterId, OspfArea, LinkWeight)> {
-        let apsp = self.apsps.get(&src_area)?;
-
-        let target = *self.special_backbone_node_in_areas.get(&src_area)?;
-        let weight = *apsp.get(&(src, target))?;
-
-        if weight > MAX_WEIGHT {
-            None
-        } else {
-            Some((src, target, src_area, weight))
-        }
+        // otherwise, get the area in which we have the lowest cost, and use that to compute the
+        // next hops
+        src_areas
+            .iter()
+            .filter_map(|a| Some((*a, *self.apsps.get(a)?.get(&(src, dst))?)))
+            .sorted_by(|(a1, u), (a2, v)| (u, a1).partial_cmp(&(v, a2)).unwrap())
+            .find_map(|(a, _)| self.get_next_hops_in_area(src, dst, a))
     }
 
     /// Perform the best path computation within a single area.
     fn get_next_hops_in_area(
         &self,
-        src: OspfRouterId,
-        dst: OspfRouterId,
+        src: RouterId,
+        dst: RouterId,
         area: OspfArea,
     ) -> Option<(Vec<RouterId>, LinkWeight)> {
         // if `src == dst`, then simply return `vec![src]`
         if src == dst {
-            return Some((vec![*self.lut_ospf_to_net.get(&(area, src))?], 0.0));
+            return Some((vec![src], 0.0));
         }
 
         // get the graph and the apsp computation
-        let g = self.areas.get(&area)?;
+        let g = self.graphs.get(&area)?;
         let apsp = self.apsps.get(&area)?;
 
         // get the neighbors
-        let mut neighbors: Vec<(OspfRouterId, LinkWeight)> = g
+        let mut neighbors: Vec<(RouterId, LinkWeight)> = g
             .edges(src)
             .map(|r| (r.target(), *r.weight()))
             .filter(|(_, w)| w.is_finite())
@@ -457,69 +445,20 @@ impl OspfState {
 
         // get the predecessors by which we can reach the target in shortest time.
         let next_hops = neighbors
-            .iter()
-            .filter_map(|(r, w)| apsp.get(&(*r, dst)).map(|cost| (*r, w + cost)))
+            .into_iter()
+            .filter_map(|(r, w)| apsp.get(&(r, dst)).map(|cost| (r, w + cost)))
             .filter(|(_, w)| (cost - w).abs() <= MIN_EPSILON)
+            .filter(|(r, _)| area == self.ospf.get_area(src, *r))
             .map(|(r, _)| r)
             .collect::<Vec<_>>();
 
         if cost.is_infinite() || next_hops.is_empty() || cost >= MAX_WEIGHT {
-            Some((Vec::new(), LinkWeight::INFINITY))
+            None
         } else {
-            Some((
-                next_hops
-                    .into_iter()
-                    .filter_map(|nh| self.lut_ospf_to_net.get(&(area, nh)).copied())
-                    .collect(),
-                cost,
-            ))
+            Some((next_hops, cost))
         }
     }
 }
-
-/// This is was deliberately made its individual type, such that no confusion can happen with the
-/// regular `crate::types:IndexType`.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-struct OspfIndexType(usize);
-
-impl From<u32> for OspfIndexType {
-    fn from(x: u32) -> Self {
-        Self(x as usize)
-    }
-}
-
-impl From<usize> for OspfIndexType {
-    fn from(x: usize) -> Self {
-        Self(x)
-    }
-}
-
-impl std::fmt::Debug for OspfIndexType {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
-    }
-}
-
-// safety: This is safe because we preserve and convert index values properly. Notice, that this
-// implementation is dentical to the implementation of `IndexType` for usize.
-unsafe impl IndexType for OspfIndexType {
-    #[inline(always)]
-    fn new(x: usize) -> Self {
-        Self(x)
-    }
-
-    #[inline(always)]
-    fn index(&self) -> usize {
-        self.0
-    }
-
-    #[inline(always)]
-    fn max() -> Self {
-        Self(usize::MAX)
-    }
-}
-
-type OspfRouterId = NodeIndex<OspfIndexType>;
 
 #[cfg(test)]
 mod test {
@@ -621,13 +560,13 @@ mod test {
         assert_eq!(s.get_next_hops(r.r0, r.r3), (vec![r.r3], 1.0));
         assert_eq!(s.get_next_hops(r.r0, r.r4), (vec![r.r4], 1.0));
         assert_eq!(s.get_next_hops(r.r0, r.r5), (vec![r.r1], 2.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r6), (vec![r.r1, r.r3], 2.0));
+        assert_eq!(s.get_next_hops(r.r0, r.r6), (vec![r.r1, r.r3], 3.0));
         assert_eq!(s.get_next_hops(r.r0, r.r7), (vec![r.r3], 2.0));
-        assert_eq!(s.get_next_hops(r.r4, r.r6), (vec![r.r0, r.r5, r.r7], 1.0));
+        assert_eq!(s.get_next_hops(r.r4, r.r6), (vec![r.r5, r.r7], 2.0));
         ospf.set_area(r.r3, r.r7, OspfArea(1));
         ospf.set_area(r.r1, r.r5, OspfArea(2));
         let state = ospf.compute(&g, &HashSet::new());
-        assert_eq!(state.get_next_hops(r.r4, r.r6), (vec![r.r0], 1.0));
+        assert_eq!(state.get_next_hops(r.r4, r.r6), (vec![r.r0, r.r7], 4.0));
     }
 
     #[test]
@@ -645,8 +584,8 @@ mod test {
 
         assert_eq!(state.get_next_hops(r.r5, r.r0), (vec![r.r4], 2.0));
         assert_eq!(state.get_next_hops(r.r5, r.r1), (vec![r.r1], 1.0));
-        assert_eq!(state.get_next_hops(r.r5, r.r2), (vec![r.r1, r.r6], 1.0));
-        assert_eq!(state.get_next_hops(r.r5, r.r3), (vec![r.r1, r.r6], 1.0));
+        assert_eq!(state.get_next_hops(r.r5, r.r2), (vec![r.r1, r.r6], 2.0));
+        assert_eq!(state.get_next_hops(r.r5, r.r3), (vec![r.r4], 3.0));
         assert_eq!(state.get_next_hops(r.r5, r.r4), (vec![r.r4], 1.0));
         assert_eq!(state.get_next_hops(r.r5, r.r6), (vec![r.r6], 1.0));
         assert_eq!(state.get_next_hops(r.r5, r.r7), (vec![r.r4], 2.0));
@@ -654,6 +593,31 @@ mod test {
 
     #[test]
     fn disconnected() {
+        let (mut g, r) = get_test_net();
+        let r8 = g.add_node(());
+        g.add_edge(r.r4, r8, 1.0);
+        g.add_edge(r8, r.r4, 1.0);
+        let mut ospf = Ospf::new();
+        ospf.set_area(r.r4, r8, OspfArea(1));
+        ospf.set_area(r.r6, r.r2, OspfArea(1));
+        ospf.set_area(r.r6, r.r5, OspfArea(1));
+        ospf.set_area(r.r6, r.r7, OspfArea(1));
+
+        let state = ospf.compute(&g, &HashSet::new());
+
+        assert_eq!(state.get_next_hops(r.r0, r8), (vec![r.r4], 2.0));
+        assert_eq!(
+            state.get_next_hops(r.r0, r.r6),
+            (vec![r.r1, r.r3, r.r4], 3.0)
+        );
+        assert_eq!(state.get_next_hops(r8, r.r6), (vec![r.r4], 3.0));
+        assert_eq!(state.get_next_hops(r.r6, r8), (vec![r.r5, r.r7], 3.0));
+        assert_eq!(state.get_next_hops(r.r5, r8), (vec![r.r4], 2.0));
+        assert_eq!(state.get_next_hops(r.r4, r8), (vec![r8], 1.0));
+    }
+
+    #[test]
+    fn disconnected_2() {
         let (mut g, r) = get_test_net();
         let r8 = g.add_node(());
         let r9 = g.add_node(());
@@ -667,12 +631,12 @@ mod test {
 
         let state = ospf.compute(&g, &HashSet::new());
 
-        assert_eq!(state.get_next_hops(r.r0, r8), (vec![r.r4], 1.0));
-        assert_eq!(state.get_next_hops(r.r0, r9), (vec![r.r4], 1.0));
-        assert_eq!(state.get_next_hops(r.r1, r8), (vec![r.r0, r.r2, r.r5], 2.0));
-        assert_eq!(state.get_next_hops(r.r1, r9), (vec![r.r0, r.r2, r.r5], 2.0));
-        assert_eq!(state.get_next_hops(r8, r9), (vec![r.r4], 1.0));
-        assert_eq!(state.get_next_hops(r9, r8), (vec![r.r6], 1.0));
+        assert_eq!(state.get_next_hops(r.r0, r8), (vec![r.r4], 2.0));
+        assert_eq!(state.get_next_hops(r.r0, r9), (vec![r.r1, r.r3, r.r4], 4.0));
+        assert_eq!(state.get_next_hops(r.r1, r8), (vec![r.r0, r.r5], 3.0));
+        assert_eq!(state.get_next_hops(r.r1, r9), (vec![r.r2, r.r5], 3.0));
+        assert_eq!(state.get_next_hops(r8, r9), (vec![r.r4], 4.0));
+        assert_eq!(state.get_next_hops(r9, r8), (vec![r.r6], 4.0));
     }
 
     fn get_test_net() -> (Graph<(), LinkWeight, Directed, IndexType>, TestRouters) {
