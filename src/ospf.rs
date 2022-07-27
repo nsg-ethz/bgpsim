@@ -475,168 +475,192 @@ mod test {
 
     #[test]
     fn only_backbone() {
-        let (g, r) = get_test_net();
+        let (g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
         let ospf = Ospf::new();
         let s = ospf.compute(&g, &HashSet::new());
 
-        assert_eq!(s.get_next_hops(r.r0, r.r1), (vec![r.r1], 1.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r2), (vec![r.r1, r.r3], 2.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r3), (vec![r.r3], 1.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r4), (vec![r.r4], 1.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r5), (vec![r.r1, r.r4], 2.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r6), (vec![r.r1, r.r3, r.r4], 3.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r7), (vec![r.r3, r.r4], 2.0));
+        assert_eq!(s.get_next_hops(r0, r1), (vec![r1], 1.0));
+        assert_eq!(s.get_next_hops(r0, r2), (vec![r1, r3], 2.0));
+        assert_eq!(s.get_next_hops(r0, r3), (vec![r3], 1.0));
+        assert_eq!(s.get_next_hops(r0, r4), (vec![r4], 1.0));
+        assert_eq!(s.get_next_hops(r0, r5), (vec![r1, r4], 2.0));
+        assert_eq!(s.get_next_hops(r0, r6), (vec![r1, r3, r4], 3.0));
+        assert_eq!(s.get_next_hops(r0, r7), (vec![r3, r4], 2.0));
     }
 
     #[test]
     fn inner_outer() {
-        let (g, r) = get_test_net();
+        let (g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
         let mut ospf = Ospf::new();
-        ospf.set_area(r.r4, r.r0, OspfArea(1));
-        ospf.set_area(r.r4, r.r5, OspfArea(1));
-        ospf.set_area(r.r5, r.r1, OspfArea(1));
-        ospf.set_area(r.r5, r.r6, OspfArea(1));
-        ospf.set_area(r.r6, r.r2, OspfArea(1));
-        ospf.set_area(r.r6, r.r7, OspfArea(1));
-        ospf.set_area(r.r7, r.r3, OspfArea(1));
-        ospf.set_area(r.r7, r.r4, OspfArea(1));
+        ospf.set_area(r4, r0, OspfArea(1));
+        ospf.set_area(r4, r5, OspfArea(1));
+        ospf.set_area(r5, r1, OspfArea(1));
+        ospf.set_area(r5, r6, OspfArea(1));
+        ospf.set_area(r6, r2, OspfArea(1));
+        ospf.set_area(r6, r7, OspfArea(1));
+        ospf.set_area(r7, r3, OspfArea(1));
+        ospf.set_area(r7, r4, OspfArea(1));
         let state = ospf.compute(&g, &HashSet::new());
 
-        assert_eq!(state.get_next_hops(r.r0, r.r1), (vec![r.r1], 1.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r2), (vec![r.r1, r.r3], 2.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r3), (vec![r.r3], 1.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r4), (vec![r.r4], 1.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r5), (vec![r.r4], 2.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r6), (vec![r.r4], 3.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r7), (vec![r.r4], 2.0));
+        assert_eq!(state.get_next_hops(r0, r1), (vec![r1], 1.0));
+        assert_eq!(state.get_next_hops(r0, r2), (vec![r1, r3], 2.0));
+        assert_eq!(state.get_next_hops(r0, r3), (vec![r3], 1.0));
+        assert_eq!(state.get_next_hops(r0, r4), (vec![r4], 1.0));
+        assert_eq!(state.get_next_hops(r0, r5), (vec![r4], 2.0));
+        assert_eq!(state.get_next_hops(r0, r6), (vec![r4], 3.0));
+        assert_eq!(state.get_next_hops(r0, r7), (vec![r4], 2.0));
     }
 
     #[test]
     fn left_right() {
-        let (mut g, r) = get_test_net();
+        let (mut g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
         let mut ospf = Ospf::new();
-        ospf.set_area(r.r0, r.r1, OspfArea(1));
-        ospf.set_area(r.r1, r.r2, OspfArea(1));
-        ospf.set_area(r.r1, r.r5, OspfArea(1));
-        ospf.set_area(r.r2, r.r6, OspfArea(1));
-        ospf.set_area(r.r4, r.r5, OspfArea(1));
-        ospf.set_area(r.r5, r.r6, OspfArea(1));
+        ospf.set_area(r0, r1, OspfArea(1));
+        ospf.set_area(r1, r2, OspfArea(1));
+        ospf.set_area(r1, r5, OspfArea(1));
+        ospf.set_area(r2, r6, OspfArea(1));
+        ospf.set_area(r4, r5, OspfArea(1));
+        ospf.set_area(r5, r6, OspfArea(1));
         let state = ospf.compute(&g, &HashSet::new());
 
-        assert_eq!(state.get_next_hops(r.r0, r.r1), (vec![r.r1], 1.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r2), (vec![r.r3], 2.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r3), (vec![r.r3], 1.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r4), (vec![r.r4], 1.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r5), (vec![r.r1], 2.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r6), (vec![r.r3, r.r4], 3.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r7), (vec![r.r3, r.r4], 2.0));
+        assert_eq!(state.get_next_hops(r0, r1), (vec![r1], 1.0));
+        assert_eq!(state.get_next_hops(r0, r2), (vec![r3], 2.0));
+        assert_eq!(state.get_next_hops(r0, r3), (vec![r3], 1.0));
+        assert_eq!(state.get_next_hops(r0, r4), (vec![r4], 1.0));
+        assert_eq!(state.get_next_hops(r0, r5), (vec![r1], 2.0));
+        assert_eq!(state.get_next_hops(r0, r6), (vec![r3, r4], 3.0));
+        assert_eq!(state.get_next_hops(r0, r7), (vec![r3, r4], 2.0));
 
-        *g.edge_weight_mut(g.find_edge(r.r0, r.r3).unwrap()).unwrap() += 2.0;
-        *g.edge_weight_mut(g.find_edge(r.r0, r.r4).unwrap()).unwrap() += 2.0;
+        *g.edge_weight_mut(g.find_edge(r0, r3).unwrap()).unwrap() += 2.0;
+        *g.edge_weight_mut(g.find_edge(r0, r4).unwrap()).unwrap() += 2.0;
         let state = ospf.compute(&g, &HashSet::new());
-        assert_eq!(state.get_next_hops(r.r0, r.r1), (vec![r.r1], 1.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r2), (vec![r.r1], 2.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r3), (vec![r.r3], 3.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r4), (vec![r.r4], 3.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r5), (vec![r.r1], 2.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r6), (vec![r.r1], 3.0));
-        assert_eq!(state.get_next_hops(r.r0, r.r7), (vec![r.r3, r.r4], 4.0));
+        assert_eq!(state.get_next_hops(r0, r1), (vec![r1], 1.0));
+        assert_eq!(state.get_next_hops(r0, r2), (vec![r1], 2.0));
+        assert_eq!(state.get_next_hops(r0, r3), (vec![r3], 3.0));
+        assert_eq!(state.get_next_hops(r0, r4), (vec![r4], 3.0));
+        assert_eq!(state.get_next_hops(r0, r5), (vec![r1], 2.0));
+        assert_eq!(state.get_next_hops(r0, r6), (vec![r1], 3.0));
+        assert_eq!(state.get_next_hops(r0, r7), (vec![r3, r4], 4.0));
     }
 
     #[test]
     fn left_mid_right() {
-        let (g, r) = get_test_net();
+        let (g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
         let mut ospf = Ospf::new();
-        ospf.set_area(r.r4, r.r0, OspfArea(1));
-        ospf.set_area(r.r4, r.r5, OspfArea(1));
-        ospf.set_area(r.r4, r.r7, OspfArea(1));
-        ospf.set_area(r.r6, r.r2, OspfArea(2));
-        ospf.set_area(r.r6, r.r5, OspfArea(2));
-        ospf.set_area(r.r6, r.r7, OspfArea(2));
+        ospf.set_area(r4, r0, OspfArea(1));
+        ospf.set_area(r4, r5, OspfArea(1));
+        ospf.set_area(r4, r7, OspfArea(1));
+        ospf.set_area(r6, r2, OspfArea(2));
+        ospf.set_area(r6, r5, OspfArea(2));
+        ospf.set_area(r6, r7, OspfArea(2));
         let s = ospf.compute(&g, &HashSet::new());
 
-        assert_eq!(s.get_next_hops(r.r0, r.r1), (vec![r.r1], 1.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r2), (vec![r.r1, r.r3], 2.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r3), (vec![r.r3], 1.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r4), (vec![r.r4], 1.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r5), (vec![r.r1], 2.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r6), (vec![r.r1, r.r3], 3.0));
-        assert_eq!(s.get_next_hops(r.r0, r.r7), (vec![r.r3], 2.0));
-        assert_eq!(s.get_next_hops(r.r4, r.r6), (vec![r.r5, r.r7], 2.0));
-        ospf.set_area(r.r3, r.r7, OspfArea(1));
-        ospf.set_area(r.r1, r.r5, OspfArea(2));
+        assert_eq!(s.get_next_hops(r0, r1), (vec![r1], 1.0));
+        assert_eq!(s.get_next_hops(r0, r2), (vec![r1, r3], 2.0));
+        assert_eq!(s.get_next_hops(r0, r3), (vec![r3], 1.0));
+        assert_eq!(s.get_next_hops(r0, r4), (vec![r4], 1.0));
+        assert_eq!(s.get_next_hops(r0, r5), (vec![r1], 2.0));
+        assert_eq!(s.get_next_hops(r0, r6), (vec![r1, r3], 3.0));
+        assert_eq!(s.get_next_hops(r0, r7), (vec![r3], 2.0));
+        assert_eq!(s.get_next_hops(r4, r6), (vec![r5, r7], 2.0));
+        ospf.set_area(r3, r7, OspfArea(1));
+        ospf.set_area(r1, r5, OspfArea(2));
         let state = ospf.compute(&g, &HashSet::new());
-        assert_eq!(state.get_next_hops(r.r4, r.r6), (vec![r.r0, r.r7], 4.0));
+        assert_eq!(state.get_next_hops(r4, r6), (vec![r0, r7], 4.0));
     }
 
     #[test]
     fn left_right_bottom() {
-        let (mut g, r) = get_test_net();
+        let (mut g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
         let mut ospf = Ospf::new();
-        *g.edge_weight_mut(g.find_edge(r.r0, r.r1).unwrap()).unwrap() += 1.0;
-        *g.edge_weight_mut(g.find_edge(r.r1, r.r0).unwrap()).unwrap() += 1.0;
-        ospf.set_area(r.r4, r.r0, OspfArea(1));
-        ospf.set_area(r.r4, r.r5, OspfArea(1));
-        ospf.set_area(r.r4, r.r7, OspfArea(1));
-        ospf.set_area(r.r5, r.r1, OspfArea(2));
-        ospf.set_area(r.r5, r.r6, OspfArea(2));
+        *g.edge_weight_mut(g.find_edge(r0, r1).unwrap()).unwrap() += 1.0;
+        *g.edge_weight_mut(g.find_edge(r1, r0).unwrap()).unwrap() += 1.0;
+        ospf.set_area(r4, r0, OspfArea(1));
+        ospf.set_area(r4, r5, OspfArea(1));
+        ospf.set_area(r4, r7, OspfArea(1));
+        ospf.set_area(r5, r1, OspfArea(2));
+        ospf.set_area(r5, r6, OspfArea(2));
         let state = ospf.compute(&g, &HashSet::new());
 
-        assert_eq!(state.get_next_hops(r.r5, r.r0), (vec![r.r4], 2.0));
-        assert_eq!(state.get_next_hops(r.r5, r.r1), (vec![r.r1], 1.0));
-        assert_eq!(state.get_next_hops(r.r5, r.r2), (vec![r.r1, r.r6], 2.0));
-        assert_eq!(state.get_next_hops(r.r5, r.r3), (vec![r.r4], 3.0));
-        assert_eq!(state.get_next_hops(r.r5, r.r4), (vec![r.r4], 1.0));
-        assert_eq!(state.get_next_hops(r.r5, r.r6), (vec![r.r6], 1.0));
-        assert_eq!(state.get_next_hops(r.r5, r.r7), (vec![r.r4], 2.0));
+        assert_eq!(state.get_next_hops(r5, r0), (vec![r4], 2.0));
+        assert_eq!(state.get_next_hops(r5, r1), (vec![r1], 1.0));
+        assert_eq!(state.get_next_hops(r5, r2), (vec![r1, r6], 2.0));
+        assert_eq!(state.get_next_hops(r5, r3), (vec![r4], 3.0));
+        assert_eq!(state.get_next_hops(r5, r4), (vec![r4], 1.0));
+        assert_eq!(state.get_next_hops(r5, r6), (vec![r6], 1.0));
+        assert_eq!(state.get_next_hops(r5, r7), (vec![r4], 2.0));
     }
 
     #[test]
     fn disconnected() {
-        let (mut g, r) = get_test_net();
+        let (mut g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
         let r8 = g.add_node(());
-        g.add_edge(r.r4, r8, 1.0);
-        g.add_edge(r8, r.r4, 1.0);
+        g.add_edge(r4, r8, 1.0);
+        g.add_edge(r8, r4, 1.0);
         let mut ospf = Ospf::new();
-        ospf.set_area(r.r4, r8, OspfArea(1));
-        ospf.set_area(r.r6, r.r2, OspfArea(1));
-        ospf.set_area(r.r6, r.r5, OspfArea(1));
-        ospf.set_area(r.r6, r.r7, OspfArea(1));
+        ospf.set_area(r4, r8, OspfArea(1));
+        ospf.set_area(r6, r2, OspfArea(1));
+        ospf.set_area(r6, r5, OspfArea(1));
+        ospf.set_area(r6, r7, OspfArea(1));
 
         let state = ospf.compute(&g, &HashSet::new());
 
-        assert_eq!(state.get_next_hops(r.r0, r8), (vec![r.r4], 2.0));
-        assert_eq!(
-            state.get_next_hops(r.r0, r.r6),
-            (vec![r.r1, r.r3, r.r4], 3.0)
-        );
-        assert_eq!(state.get_next_hops(r8, r.r6), (vec![r.r4], 3.0));
-        assert_eq!(state.get_next_hops(r.r6, r8), (vec![r.r5, r.r7], 3.0));
-        assert_eq!(state.get_next_hops(r.r5, r8), (vec![r.r4], 2.0));
-        assert_eq!(state.get_next_hops(r.r4, r8), (vec![r8], 1.0));
+        assert_eq!(state.get_next_hops(r0, r8), (vec![r4], 2.0));
+        assert_eq!(state.get_next_hops(r0, r6), (vec![r1, r3, r4], 3.0));
+        assert_eq!(state.get_next_hops(r8, r6), (vec![r4], 3.0));
+        assert_eq!(state.get_next_hops(r6, r8), (vec![r5, r7], 3.0));
+        assert_eq!(state.get_next_hops(r5, r8), (vec![r4], 2.0));
+        assert_eq!(state.get_next_hops(r4, r8), (vec![r8], 1.0));
+    }
+
+    #[test]
+    fn disconnected_backbone() {
+        let (mut g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
+        let r8 = g.add_node(());
+        g.add_edge(r4, r8, 1.0);
+        g.add_edge(r8, r4, 1.0);
+        let mut ospf = Ospf::new();
+        ospf.set_area(r0, r1, 1);
+        ospf.set_area(r0, r3, 1);
+        ospf.set_area(r0, r4, 1);
+        ospf.set_area(r1, r2, 1);
+        ospf.set_area(r1, r5, 1);
+        ospf.set_area(r2, r3, 1);
+        ospf.set_area(r3, r7, 1);
+        ospf.set_area(r4, r5, 1);
+        ospf.set_area(r4, r7, 1);
+
+        let state = ospf.compute(&g, &HashSet::new());
+
+        assert_eq!(state.get_next_hops(r0, r8), (vec![r4], 2.0));
+        assert_eq!(state.get_next_hops(r0, r6), (vec![r1, r3, r4], 3.0));
+        assert_eq!(state.get_next_hops(r8, r6), (vec![], LinkWeight::INFINITY));
+        assert_eq!(state.get_next_hops(r6, r8), (vec![], LinkWeight::INFINITY));
+        assert_eq!(state.get_next_hops(r5, r8), (vec![r4], 2.0));
+        assert_eq!(state.get_next_hops(r4, r8), (vec![r8], 1.0));
     }
 
     #[test]
     fn disconnected_2() {
-        let (mut g, r) = get_test_net();
+        let (mut g, (r0, r1, r2, r3, r4, r5, r6, _)) = get_test_net();
         let r8 = g.add_node(());
         let r9 = g.add_node(());
-        g.add_edge(r.r4, r8, 1.0);
-        g.add_edge(r.r6, r9, 1.0);
-        g.add_edge(r8, r.r4, 1.0);
-        g.add_edge(r9, r.r6, 1.0);
+        g.add_edge(r4, r8, 1.0);
+        g.add_edge(r6, r9, 1.0);
+        g.add_edge(r8, r4, 1.0);
+        g.add_edge(r9, r6, 1.0);
         let mut ospf = Ospf::new();
-        ospf.set_area(r.r4, r8, OspfArea(1));
-        ospf.set_area(r.r6, r9, OspfArea(1));
+        ospf.set_area(r4, r8, OspfArea(1));
+        ospf.set_area(r6, r9, OspfArea(1));
 
         let state = ospf.compute(&g, &HashSet::new());
 
-        assert_eq!(state.get_next_hops(r.r0, r8), (vec![r.r4], 2.0));
-        assert_eq!(state.get_next_hops(r.r0, r9), (vec![r.r1, r.r3, r.r4], 4.0));
-        assert_eq!(state.get_next_hops(r.r1, r8), (vec![r.r0, r.r5], 3.0));
-        assert_eq!(state.get_next_hops(r.r1, r9), (vec![r.r2, r.r5], 3.0));
-        assert_eq!(state.get_next_hops(r8, r9), (vec![r.r4], 4.0));
-        assert_eq!(state.get_next_hops(r9, r8), (vec![r.r6], 4.0));
+        assert_eq!(state.get_next_hops(r0, r8), (vec![r4], 2.0));
+        assert_eq!(state.get_next_hops(r0, r9), (vec![r1, r3, r4], 4.0));
+        assert_eq!(state.get_next_hops(r1, r8), (vec![r0, r5], 3.0));
+        assert_eq!(state.get_next_hops(r1, r9), (vec![r2, r5], 3.0));
+        assert_eq!(state.get_next_hops(r8, r9), (vec![r4], 4.0));
+        assert_eq!(state.get_next_hops(r9, r8), (vec![r6], 4.0));
     }
 
     fn get_test_net() -> (Graph<(), LinkWeight, Directed, IndexType>, TestRouters) {
@@ -675,29 +699,17 @@ mod test {
         g.add_edge(r7, r6, 1.0);
         g.add_edge(r4, r7, 1.0);
 
-        (
-            g,
-            TestRouters {
-                r0,
-                r1,
-                r2,
-                r3,
-                r4,
-                r5,
-                r6,
-                r7,
-            },
-        )
+        (g, (r0, r1, r2, r3, r4, r5, r6, r7))
     }
 
-    struct TestRouters {
-        r0: RouterId,
-        r1: RouterId,
-        r2: RouterId,
-        r3: RouterId,
-        r4: RouterId,
-        r5: RouterId,
-        r6: RouterId,
-        r7: RouterId,
-    }
+    type TestRouters = (
+        RouterId,
+        RouterId,
+        RouterId,
+        RouterId,
+        RouterId,
+        RouterId,
+        RouterId,
+        RouterId,
+    );
 }

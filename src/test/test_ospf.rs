@@ -324,6 +324,36 @@ fn disconnected() {
     );
 }
 
+#[test]
+fn disconnected_backbone() {
+    let (mut net, r, p9, p10) = test_net_disconnected().unwrap();
+
+    net.set_ospf_area(r.0, r.1, 1).unwrap();
+    net.set_ospf_area(r.0, r.3, 1).unwrap();
+    net.set_ospf_area(r.0, r.4, 1).unwrap();
+    net.set_ospf_area(r.1, r.2, 1).unwrap();
+    net.set_ospf_area(r.1, r.5, 1).unwrap();
+    net.set_ospf_area(r.2, r.3, 1).unwrap();
+    net.set_ospf_area(r.3, r.7, 1).unwrap();
+    net.set_ospf_area(r.4, r.5, 1).unwrap();
+    net.set_ospf_area(r.4, r.7, 1).unwrap();
+
+    let mut state = net.get_forwarding_state();
+    assert_eq!(state.get_route(r.0, p9), Ok(vec![vec![r.0, r.4, r.8, r.9]]));
+    assert_eq!(
+        state.get_route(r.0, p10),
+        Ok(vec![vec![r.0, r.1, r.2, r.6, r.10]])
+    );
+    assert_eq!(
+        state.get_route(r.6, p9),
+        Err(NetworkError::ForwardingBlackHole(vec![r.6]))
+    );
+    assert_eq!(
+        state.get_route(r.8, p10),
+        Err(NetworkError::ForwardingBlackHole(vec![r.8]))
+    );
+}
+
 type Routers = (
     RouterId,
     RouterId,
