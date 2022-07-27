@@ -96,6 +96,24 @@ impl From<usize> for OspfArea {
     }
 }
 
+impl From<i32> for OspfArea {
+    fn from(x: i32) -> Self {
+        OspfArea(x as u32)
+    }
+}
+
+impl From<i64> for OspfArea {
+    fn from(x: i64) -> Self {
+        Self(x as u32)
+    }
+}
+
+impl From<isize> for OspfArea {
+    fn from(x: isize) -> Self {
+        Self(x as u32)
+    }
+}
+
 /// Data struture capturing the distributed OSPF state.
 #[derive(Debug, Clone, PartialEq, Eq, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -114,9 +132,9 @@ impl Ospf {
 
     /// Set the area of a link between two routers (bidirectional), and return the old ospf area.
     #[inline]
-    pub fn set_area(&mut self, a: RouterId, b: RouterId, area: OspfArea) -> OspfArea {
+    pub fn set_area(&mut self, a: RouterId, b: RouterId, area: impl Into<OspfArea>) -> OspfArea {
         self.areas
-            .insert(Ospf::key(a, b), area)
+            .insert(Ospf::key(a, b), area.into())
             .unwrap_or(OspfArea::BACKBONE)
     }
 
@@ -144,6 +162,7 @@ impl Ospf {
                     r,
                     g.edges(r)
                         .filter(|e| *e.weight() < MAX_WEIGHT)
+                        .filter(|e| !external_nodes.contains(&e.target()))
                         .map(|e| self.get_area(e.source(), e.target()))
                         .collect(),
                 )
@@ -516,7 +535,7 @@ mod test {
     use super::Ospf;
 
     #[test]
-    fn test_single_area() {
+    fn only_backbone() {
         let (g, r) = get_test_net();
         let ospf = Ospf::new();
         let s = ospf.compute(&g, &HashSet::new());
@@ -531,7 +550,7 @@ mod test {
     }
 
     #[test]
-    fn test_inner_outer_area() {
+    fn inner_outer() {
         let (g, r) = get_test_net();
         let mut ospf = Ospf::new();
         ospf.set_area(r.r4, r.r0, OspfArea(1));
@@ -554,7 +573,7 @@ mod test {
     }
 
     #[test]
-    fn test_left_right_area() {
+    fn left_right() {
         let (mut g, r) = get_test_net();
         let mut ospf = Ospf::new();
         ospf.set_area(r.r0, r.r1, OspfArea(1));
@@ -586,7 +605,7 @@ mod test {
     }
 
     #[test]
-    fn test_left_mid_right_area() {
+    fn left_mid_right() {
         let (g, r) = get_test_net();
         let mut ospf = Ospf::new();
         ospf.set_area(r.r4, r.r0, OspfArea(1));
@@ -612,7 +631,7 @@ mod test {
     }
 
     #[test]
-    fn test_top_left_top_right_area() {
+    fn left_right_bottom() {
         let (mut g, r) = get_test_net();
         let mut ospf = Ospf::new();
         *g.edge_weight_mut(g.find_edge(r.r0, r.r1).unwrap()).unwrap() += 1.0;
@@ -634,7 +653,7 @@ mod test {
     }
 
     #[test]
-    fn test_disconnected_area() {
+    fn disconnected() {
         let (mut g, r) = get_test_net();
         let r8 = g.add_node(());
         let r9 = g.add_node(());

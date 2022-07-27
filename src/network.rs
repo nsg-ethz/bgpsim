@@ -549,7 +549,7 @@ where
         &mut self,
         source: RouterId,
         target: RouterId,
-        area: OspfArea,
+        area: impl Into<OspfArea>,
     ) -> Result<OspfArea, NetworkError> {
         // prepare undo stack
         #[cfg(feature = "undo")]

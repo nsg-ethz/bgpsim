@@ -93,6 +93,7 @@ mod test_network;
 mod test_network_comlete_undo;
 mod test_network_complete;
 mod test_network_config;
+mod test_ospf;
 mod test_record;
 mod test_route_map;
 mod test_router;
