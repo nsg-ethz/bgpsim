@@ -78,6 +78,7 @@ use crate::{
     event::{EventQueue, FmtPriority},
     formatter::NetworkFormatter,
     network::Network,
+    ospf::OspfArea,
     route_map::{RouteMap, RouteMapDirection},
     router::StaticRoute,
     types::{ConfigError, LinkWeight, NetworkError, Prefix, RouterId},
@@ -314,6 +315,15 @@ pub enum ConfigExpr {
         /// Link weight for IGP
         weight: LinkWeight,
     },
+    /// Set the OSPF area of a single link (bidirectional)
+    OspfArea {
+        /// Source router for link
+        source: RouterId,
+        /// Target router for link
+        target: RouterId,
+        /// Area to set the link to
+        area: OspfArea,
+    },
     /// Create a BGP session
     /// TODO currently, this is treated as a single configuration line, where in fact, it is two
     /// distinct configurations, one on the source and one on the target. We treat it as a single
@@ -366,6 +376,23 @@ impl ConfigExpr {
                 source: *source,
                 target: *target,
             },
+            ConfigExpr::OspfArea {
+                source,
+                target,
+                area: _,
+            } => {
+                if source < target {
+                    ConfigExprKey::OspfArea {
+                        router_a: *source,
+                        router_b: *target,
+                    }
+                } else {
+                    ConfigExprKey::OspfArea {
+                        router_a: *target,
+                        router_b: *source,
+                    }
+                }
+            }
             ConfigExpr::BgpSession {
                 source,
                 target,
@@ -409,7 +436,8 @@ impl ConfigExpr {
     /// Returns the router IDs on which the configuration is applied and have to be changed.
     pub fn routers(&self) -> Vec<RouterId> {
         match self {
-            ConfigExpr::IgpLinkWeight { source, target, .. } => vec![*source, *target],
+            ConfigExpr::IgpLinkWeight { source, .. } => vec![*source],
+            ConfigExpr::OspfArea { source, target, .. } => vec![*source, *target],
             ConfigExpr::BgpSession { source, target, .. } => vec![*source, *target],
             ConfigExpr::BgpRouteMap { router, .. } => vec![*router],
             ConfigExpr::StaticRoute { router, .. } => vec![*router],
@@ -442,6 +470,13 @@ pub enum ConfigExprKey {
         source: RouterId,
         /// Target router for link
         target: RouterId,
+    },
+    /// Set the OSPF area of a single link (bidirectional)
+    OspfArea {
+        /// Source router for link
+        router_a: RouterId,
+        /// Target router for link
+        router_b: RouterId,
     },
     /// Create a BGP session
     BgpSession {
@@ -639,6 +674,11 @@ where
                     target,
                     weight,
                 } => self.set_link_weight(*source, *target, *weight).map(|_| ()),
+                ConfigExpr::OspfArea {
+                    source,
+                    target,
+                    area,
+                } => self.set_ospf_area(*source, *target, *area).map(|_| ()),
                 ConfigExpr::BgpSession {
                     source,
                     target,
@@ -672,6 +712,13 @@ where
                     weight: _,
                 } => self
                     .set_link_weight(*source, *target, LinkWeight::infinite())
+                    .map(|_| ()),
+                ConfigExpr::OspfArea {
+                    source,
+                    target,
+                    area: _,
+                } => self
+                    .set_ospf_area(*source, *target, OspfArea::BACKBONE)
                     .map(|_| ()),
                 ConfigExpr::BgpSession {
                     source,
@@ -778,6 +825,17 @@ where
             })?
         }
 
+        // get all OSPF areas
+        for ((a, b), area) in self.ospf.areas().iter() {
+            if !area.is_backbone() {
+                c.add(ConfigExpr::OspfArea {
+                    source: *a,
+                    target: *b,
+                    area: *area,
+                })?;
+            }
+        }
+
         // get all BGP sessions, all route maps and all static routes
         for (rid, r) in self.routers.iter() {
             // get all BGP sessions
@@ -839,6 +897,13 @@ where
                     prefix: *prefix,
                     target: *target,
                 })?;
+            }
+
+            // get all load balancing configs
+            for (id, r) in self.routers.iter() {
+                if r.get_load_balancing() {
+                    c.add(ConfigExpr::LoadBalancing { router: *id })?;
+                }
             }
         }
 

@@ -307,6 +307,16 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConfigExpr {
                 target.fmt(net),
                 weight
             ),
+            ConfigExpr::OspfArea {
+                source,
+                target,
+                area,
+            } => format!(
+                "OSPF Area: {} -- {}: {}",
+                source.fmt(net),
+                target.fmt(net),
+                area
+            ),
             ConfigExpr::BgpSession {
                 source,
                 target,
@@ -357,6 +367,9 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConfigExprKey {
                 source.fmt(net),
                 target.fmt(net),
             ),
+            ConfigExprKey::OspfArea { router_a, router_b } => {
+                format!("OSPF Area: {} -- {}", router_a.fmt(net), router_b.fmt(net),)
+            }
             ConfigExprKey::BgpSession {
                 speaker_a,
                 speaker_b,

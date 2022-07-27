@@ -129,6 +129,12 @@ impl Ospf {
             .unwrap_or(OspfArea::BACKBONE)
     }
 
+    /// Get a reference to the hashmap storing all areas
+    #[inline]
+    pub(crate) fn areas(&self) -> &HashMap<(RouterId, RouterId), OspfArea> {
+        &self.areas
+    }
+
     pub fn compute(&self, g: &IgpNetwork, external_nodes: &HashSet<RouterId>) -> OspfState {
         let lut_areas: HashMap<RouterId, HashSet<OspfArea>> = g
             .node_indices()
