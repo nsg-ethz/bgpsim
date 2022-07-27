@@ -58,11 +58,8 @@ use crate::network::Network;
 /// net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
 /// // setup all external bgp sessions
 /// net.build_ebgp_sessions()?;
-/// // create random link weights between 10 and 100
-/// # #[cfg(not(feature = "rand"))]
-/// # net.build_link_weights(constant_link_weight, 20.0)?;
-/// # #[cfg(feature = "rand")]
-/// net.build_link_weights(uniform_link_weight, (10.0, 100.0))?;
+/// // set all link weights to 10.0
+/// net.build_link_weights(constant_link_weight, 20.0)?;
 /// // advertise 3 routes with unique preferences for a single prefix
 /// let _ = net.build_advertisements(prefix, unique_preferences, 3)?;
 /// # Ok(())
