@@ -60,10 +60,10 @@ static DEFAULT_STOP_AFTER: usize = 1_000_000;
 /// directed link in `self.net`, or updating the IGP table requires the IGP tables to be updated on
 /// every router in the network). Therefore, the third vector captures each of these events.
 ///
-/// You can undo an entire action by calling [`Network::undo_action`]. In the interactive mode, you can
-/// undo a single event by calling [`crate::interactive::InteractiveNetwork::undo_step`]. Finally,
-/// you can create an undo-mark by calling [`Network::get_undo_mark`], and undo up to this mark
-/// using [`Network::undo_to_mark`].
+/// You can undo an entire action by calling `Network::undo_action`. In the interactive mode, you can
+/// undo a single event by calling `crate::interactive::InteractiveNetwork::undo_step`. Finally,
+/// you can create an undo-mark by calling `Network::get_undo_mark`, and undo up to this mark
+/// using `Network::undo_to_mark`.
 #[derive(Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct Network<Q = BasicEventQueue> {
