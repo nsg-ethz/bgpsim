@@ -151,6 +151,19 @@ impl Ospf {
         &self.areas
     }
 
+    /// Compute the `OspfState`. The algorithm to compute the OSPF state si the following:
+    ///
+    /// 1. construct the router lookup table
+    /// 2. generate a graph for each area that contains all nodes of the network, but yet no edges.
+    /// 3. fill each graph with the appropriate edges
+    /// 4. Compute the APSP in each area separately
+    /// 5. Redistribute all destinations from the stub areas into the backbone, extending the APSP
+    ///    of the backbone to include the other targets. In this process, we will not export any
+    ///    destination that is also available in the backbone (reachable from that ABR). Further, we
+    ///    do not change the graph of the backbone, but only the APSP.
+    /// 6. Redistribute all destinations from the backbone into all areas, extending the APSP of
+    ///    that stub-area in the process. We will not export any routes that the ABR can reach
+    ///    inside of its own area. We will not modify the graph, but only the APSP.
     pub fn compute(&self, g: &IgpNetwork, external_nodes: &HashSet<RouterId>) -> OspfState {
         let lut_router_areas: HashMap<RouterId, HashSet<OspfArea>> = g
             .node_indices()
@@ -250,7 +263,6 @@ impl Ospf {
                     abr,
                     &stub_table,
                     apsps.get_mut(&OspfArea::BACKBONE).unwrap(),
-                    graphs.get_mut(&OspfArea::BACKBONE).unwrap(),
                     &lut_area_routers[&OspfArea::BACKBONE],
                     &reachable_in_backbone,
                 );
@@ -287,7 +299,6 @@ impl Ospf {
                     abr,
                     &backbone_table,
                     apsps.get_mut(&stub_area).unwrap(),
-                    graphs.get_mut(&stub_area).unwrap(),
                     &lut_area_routers[&stub_area],
                     &stub_tables[&(abr, stub_area)],
                 );
@@ -297,7 +308,6 @@ impl Ospf {
         // return the computed result
         OspfState {
             lut_router_areas,
-            ospf: self.clone(),
             graphs,
             apsps,
         }
@@ -321,14 +331,13 @@ impl Ospf {
 }
 
 /// Make sure that `abr` redistributes `table` into the area with graph `to_graph` and apsp
-/// `to_apsp`. During that, extend both `to_graph` and `to_apsp` to reflect the
-/// redistribution. Ignore nodes found in `ignore`. `area_routers` contains all routers in that
-/// area.
+/// `to_apsp`. During that, extend `to_apsp` to reflect the redistribution. Ignore nodes found in
+/// `ignore`. `area_routers` contains all routers in that area. Do not modify the graph. The graph
+/// should only contain edges inside of the area!
 fn redistribute_table_into_area(
     abr: RouterId,
     table: &[(RouterId, LinkWeight)],
     to_apsp: &mut HashMap<(RouterId, RouterId), LinkWeight>,
-    to_graph: &mut Graph<(), LinkWeight, Directed, IndexType>,
     area_routers: &HashSet<RouterId>,
     ignore: &HashSet<RouterId>,
 ) {
@@ -337,17 +346,6 @@ fn redistribute_table_into_area(
         // skip that `r` if `abr` has previously exported it
         if ignore.contains(&r) {
             continue;
-        }
-
-        // add the edge (or modify it if it already exists)
-        if let Some(e) = to_graph.find_edge(abr, r) {
-            let old_cost_abr_r = to_graph.edge_weight_mut(e).unwrap();
-            if *old_cost_abr_r < cost_abr_r {
-                continue;
-            }
-            *old_cost_abr_r = cost_abr_r;
-        } else {
-            to_graph.add_edge(abr, r, cost_abr_r);
         }
 
         // update the apsp of all nodes in the stub area
@@ -360,10 +358,13 @@ fn redistribute_table_into_area(
     }
 }
 
-/// Data structure computing and storing a specific result of the OSPF computation.
+/// Data structure computing and storing a specific result of the OSPF computation. After creation,
+/// this data structure will contain the lookup-table for all rotuers (to which area do they
+/// belong), the graphs of each area, where edges are only part of an area graph if that edge is
+/// part of that area, and `apsps`. This structure stores an All-Pairs-Shortest-Path for each area,
+/// that does also include destinations that were advertised from other areas.
 #[derive(Clone, Debug)]
 pub(crate) struct OspfState {
-    ospf: Ospf,
     lut_router_areas: HashMap<RouterId, HashSet<OspfArea>>,
     graphs: HashMap<OspfArea, Graph<(), LinkWeight, Directed, IndexType>>,
     apsps: HashMap<OspfArea, HashMap<(RouterId, RouterId), LinkWeight>>,
@@ -448,7 +449,6 @@ impl OspfState {
             .into_iter()
             .filter_map(|(r, w)| apsp.get(&(r, dst)).map(|cost| (r, w + cost)))
             .filter(|(_, w)| (cost - w).abs() <= MIN_EPSILON)
-            .filter(|(r, _)| area == self.ospf.get_area(src, *r))
             .map(|(r, _)| r)
             .collect::<Vec<_>>();
 
