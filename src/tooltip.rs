@@ -27,7 +27,7 @@ pub struct Tooltip {
     net: Rc<Net>,
     dim: Rc<Dim>,
     mouse_pos: Point,
-    offset: Point,
+    size: Point,
     renderer: bool,
     dragging: Option<Closure<dyn Fn(MouseEvent)>>,
     node_ref: NodeRef,
@@ -60,7 +60,7 @@ impl Component for Tooltip {
             net: Default::default(),
             dim: Default::default(),
             mouse_pos: Default::default(),
-            offset: Default::default(),
+            size: Default::default(),
             node_ref: NodeRef::default(),
             renderer: true,
             dragging: None,
@@ -129,7 +129,7 @@ impl Component for Tooltip {
             Hover::None => unreachable!(),
         };
 
-        let pos = self.offset + self.mouse_pos;
+        let pos = self.compute_offset() + self.mouse_pos;
         let style = format!("top: {}px; left: {}px;", pos.y, pos.x);
 
         html! {
@@ -176,22 +176,8 @@ impl Component for Tooltip {
             Msg::UpdateSize => {
                 if let Some(div) = self.node_ref.cast::<HtmlElement>() {
                     let size = Point::new(div.client_width() as f64, div.client_height() as f64);
-                    let left = (size.x + TOOLTIP_OFFSET) < self.mouse_pos.x;
-                    let top = (size.y + TOOLTIP_OFFSET) < self.mouse_pos.y;
-                    let offset = Point::new(
-                        if left {
-                            -(size.x + TOOLTIP_OFFSET)
-                        } else {
-                            TOOLTIP_OFFSET
-                        },
-                        if top {
-                            -(size.y + TOOLTIP_OFFSET)
-                        } else {
-                            TOOLTIP_OFFSET
-                        },
-                    );
-                    if offset != self.offset {
-                        self.offset = offset;
+                    if size != self.size {
+                        self.size = size;
                         return true;
                     } else {
                         self.renderer = true;
@@ -213,6 +199,25 @@ impl Component for Tooltip {
         } else {
             self.renderer = true;
         }
+    }
+}
+
+impl Tooltip {
+    fn compute_offset(&self) -> Point {
+        let left = (self.size.x + TOOLTIP_OFFSET) < self.mouse_pos.x;
+        let top = (self.size.y + TOOLTIP_OFFSET) < self.mouse_pos.y;
+        Point::new(
+            if left {
+                -(self.size.x + TOOLTIP_OFFSET)
+            } else {
+                TOOLTIP_OFFSET
+            },
+            if top {
+                -(self.size.y + TOOLTIP_OFFSET)
+            } else {
+                TOOLTIP_OFFSET
+            },
+        )
     }
 }
 

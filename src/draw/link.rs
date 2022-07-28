@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use netsim::types::RouterId;
+use netsim::{ospf::OspfArea, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -23,6 +23,8 @@ pub struct Link {
     state: Rc<State>,
     p1: Point,
     p2: Point,
+    area: OspfArea,
+    in_ospf: bool,
     _dim_dispatch: Dispatch<Dim>,
     _net_dispatch: Dispatch<Net>,
     _state_dispatch: Dispatch<State>,
@@ -33,6 +35,18 @@ pub struct Properties {
     pub from: RouterId,
     pub to: RouterId,
 }
+
+const NUM_LINK_COLORS: usize = 8;
+const LINK_COLORS: [&str; NUM_LINK_COLORS] = [
+    "text-red-700",
+    "text-green-700",
+    "text-blue-700",
+    "text-purple-700",
+    "text-Yellow-700",
+    "text-cyan-700",
+    "text-orange-700",
+    "text-lime-700",
+];
 
 impl Component for Link {
     type Message = Msg;
@@ -46,6 +60,8 @@ impl Component for Link {
             dim: Default::default(),
             net: Default::default(),
             state: Default::default(),
+            area: Default::default(),
+            in_ospf: false,
             p1: Default::default(),
             p2: Default::default(),
             _dim_dispatch,
@@ -55,10 +71,18 @@ impl Component for Link {
     }
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
-        let class = if matches!(self.state.layer(), Layer::Bgp | Layer::RouteProp) {
-            "stroke-current stroke-1 text-gray-300"
+        let layer = self.state.layer();
+        let class = if matches!(layer, Layer::Bgp | Layer::RouteProp) {
+            classes!("stroke-current", "stroke-1", "text-gray-300")
+        } else if matches!(layer, Layer::Igp) && self.in_ospf {
+            if self.area.is_backbone() {
+                classes!("stroke-current", "stroke-2", "text-gray-700")
+            } else {
+                let color_idx = (self.area.num() as usize - 1) % NUM_LINK_COLORS;
+                classes!("stroke-current", "stroke-2", LINK_COLORS[color_idx])
+            }
         } else {
-            "stroke-current stroke-1 text-gray-700"
+            classes!("stroke-current", "stroke-1", "text-gray-700")
         };
         html! {
             <line {class} x1={self.p1.x()} y1={self.p1.y()} x2={self.p2.x()} y2={self.p2.y()} />
@@ -86,9 +110,14 @@ impl Component for Link {
         let p2 = self
             .dim
             .get(self.net.pos().get(&to).copied().unwrap_or_default());
-        if p1 != self.p1 || p2 != self.p2 {
+        let area = self.net.net().get_ospf_area(from, to).unwrap_or_default();
+        let in_ospf = self.net.net().get_device(from).is_internal()
+            && self.net.net().get_device(to).is_internal();
+        if p1 != self.p1 || p2 != self.p2 || area != self.area || in_ospf != self.in_ospf {
             self.p1 = p1;
             self.p2 = p2;
+            self.area = area;
+            self.in_ospf = in_ospf;
             true
         } else {
             false

@@ -23,6 +23,7 @@ pub struct LinkWeight {
     p2: Point,
     w1: String,
     w2: String,
+    is_ospf: bool,
     _dim_dispatch: Dispatch<Dim>,
     _net_dispatch: Dispatch<Net>,
 }
@@ -47,21 +48,26 @@ impl Component for LinkWeight {
             p2: Default::default(),
             w1: Default::default(),
             w2: Default::default(),
+            is_ospf: false,
             _dim_dispatch,
             _net_dispatch,
         }
     }
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
-        let dist = ROUTER_RADIUS * 4.0;
-        let t1 = self.p1.interpolate_absolute(self.p2, dist);
-        let t2 = self.p2.interpolate_absolute(self.p1, dist);
+        if self.is_ospf {
+            let dist = ROUTER_RADIUS * 4.0;
+            let t1 = self.p1.interpolate_absolute(self.p2, dist);
+            let t2 = self.p2.interpolate_absolute(self.p1, dist);
 
-        html! {
-            <>
-                <Text<String> p={t1} text={self.w1.clone()} />
-                <Text<String> p={t2} text={self.w2.clone()} />
-            </>
+            html! {
+                <>
+                    <Text<String> p={t1} text={self.w1.clone()} />
+                    <Text<String> p={t2} text={self.w2.clone()} />
+                </>
+            }
+        } else {
+            html! {}
         }
     }
 
@@ -95,11 +101,14 @@ impl Component for LinkWeight {
             .map(|e| g.edge_weight(e).unwrap()) // safety: ok because we used find_edge
             .map(|e| e.to_string())
             .unwrap_or_else(|| "Err".to_string());
-        if (p1, p2, &w1, &w2) != (self.p1, self.p2, &self.w1, &self.w2) {
+        let is_ospf = self.net.net().get_device(src).is_internal()
+            && self.net.net().get_device(dst).is_internal();
+        if (p1, p2, &w1, &w2, &is_ospf) != (self.p1, self.p2, &self.w1, &self.w2, &is_ospf) {
             self.p1 = p1;
             self.p2 = p2;
             self.w1 = w1;
             self.w2 = w2;
+            self.is_ospf = is_ospf;
             true
         } else {
             false

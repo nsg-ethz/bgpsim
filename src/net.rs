@@ -623,6 +623,15 @@ fn net_from_config_nodes(
                 target: node(target)?,
                 weight,
             },
+            ConfigExpr::OspfArea {
+                source,
+                target,
+                area,
+            } => ConfigExpr::OspfArea {
+                source: node(source)?,
+                target: node(target)?,
+                area,
+            },
             ConfigExpr::BgpSession {
                 source,
                 target,
