@@ -37,6 +37,9 @@ use crate::{
     types::{AsId, LinkWeight, NetworkError, Prefix, RouterId},
 };
 
+#[cfg(feature = "undo")]
+use crate::network::UndoAction;
+
 /// Trait for generating random configurations quickly. The following example shows how you can
 /// quickly setup a basic configuration:
 ///
@@ -366,11 +369,31 @@ where
     {
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;
+
+        // prepare undo stack
+        #[cfg(feature = "undo")]
+        self.undo_stack.push(Vec::new());
+
         for edge in self.net.edge_indices() {
             let (src, dst) = self.net.edge_endpoints(edge).unwrap();
-            let weight = link_weight(src, dst, self, a.clone());
-            self.set_link_weight(src, dst, weight)?;
+            let mut weight = link_weight(src, dst, self, a.clone());
+
+            let edge = self
+                .net
+                .find_edge(src, dst)
+                .ok_or(NetworkError::LinkNotFound(src, dst))?;
+            std::mem::swap(&mut self.net[edge], &mut weight);
+
+            // add the undo action
+            #[cfg(feature = "undo")]
+            self.undo_stack
+                .last_mut()
+                .unwrap()
+                .push(vec![UndoAction::UpdateIGP(src, dst, Some(weight))]);
         }
+        // update the forwarding tables and simulate the network.
+        self.write_igp_fw_tables()?;
+
         self.skip_queue = old_skip_queue;
         Ok(())
     }
