@@ -25,7 +25,6 @@ use crate::{
     config::NetworkConfig,
     event::{BasicEventQueue, Event, EventQueue, FmtPriority},
     external_router::ExternalRouter,
-    formatter::NetworkFormatter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
     ospf::{Ospf, OspfArea},
@@ -329,6 +328,34 @@ impl<Q> Network<Q> {
         Ok(())
     }
 
+    /// Get the link weight of a specific link (directed). This function will raise a
+    /// `NetworkError::LinkNotFound` if the link does not exist.
+    pub fn get_link_weigth(
+        &self,
+        source: RouterId,
+        target: RouterId,
+    ) -> Result<LinkWeight, NetworkError> {
+        self.net
+            .find_edge(source, target)
+            .map(|e| *self.net.edge_weight(e).unwrap())
+            .ok_or(NetworkError::LinkNotFound(source, target))
+    }
+
+    /// Get the OSPF area of a specific link (undirected). This function will raise a
+    /// `NetworkError::LinkNotFound` if the link does not exist.
+    pub fn get_ospf_area(
+        &self,
+        source: RouterId,
+        target: RouterId,
+    ) -> Result<OspfArea, NetworkError> {
+        // throw an error if the link does not exist.
+        self.net
+            .find_edge(source, target)
+            .ok_or(NetworkError::LinkNotFound(source, target))?;
+
+        Ok(self.ospf.get_area(source, target))
+    }
+
     // *******************
     // * Print Functions *
     // *******************
@@ -340,6 +367,10 @@ impl<Q> Network<Q> {
     /// **Warning** use `net.get_fw_state().get_route()` for a cached implementation if you need
     /// multiple routes at once. This function will extract the entire forwarding state just to get
     /// this individual route.
+    #[deprecated(
+        since = "0.4.0",
+        note = "Use `self.get_forwarding_state().get_route(src, p)` instead!"
+    )]
     pub fn get_route(
         &self,
         source: RouterId,
@@ -348,40 +379,6 @@ impl<Q> Network<Q> {
         // get the forwarding state of the network
         let mut fw_state = self.get_forwarding_state();
         fw_state.get_route(source, prefix.into())
-    }
-
-    /// Print the route of a routerID to the destination. This is a helper function, wrapping
-    /// `self.get_route(source, prefix)` inside some print statements. The router ID must he the ID
-    /// of an internal router
-    #[cfg(not(tarpaulin_include))]
-    pub fn print_route(
-        &self,
-        source: RouterId,
-        prefix: impl Into<Prefix>,
-    ) -> Result<(), NetworkError> {
-        match self.get_route(source, prefix.into()) {
-            Ok(paths) => println!("{}", paths.fmt(self)),
-            Err(NetworkError::ForwardingLoop(path)) => {
-                println!("{} FORWARDING LOOP!", path.fmt(self));
-            }
-            Err(NetworkError::ForwardingBlackHole(path)) => {
-                println!("{} BLACK HOLE!", path.fmt(self));
-            }
-            Err(e) => return Err(e),
-        }
-        Ok(())
-    }
-
-    /// Print the igp forwarding table for a specific router.
-    #[cfg(not(tarpaulin_include))]
-    pub fn print_igp_fw_table(&self, router_id: RouterId) -> Result<(), NetworkError> {
-        println!(
-            "{}",
-            self.get_device(router_id)
-                .internal_or_err()?
-                .fmt_igp_table(self)
-        );
-        Ok(())
     }
 }
 

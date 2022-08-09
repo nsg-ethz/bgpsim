@@ -74,6 +74,11 @@ impl OspfArea {
     pub const fn is_backbone(&self) -> bool {
         self.0 == 0
     }
+
+    /// Get the number of the area.
+    pub const fn num(&self) -> u32 {
+        self.0
+    }
 }
 
 impl From<u32> for OspfArea {

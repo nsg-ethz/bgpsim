@@ -247,12 +247,6 @@ impl ForwardingState {
         }
     }
 
-    /// *Deprecated*! Use [`ForwardingState::get_next_hops`] instead.
-    #[deprecated(since = "0.2.0", note = "Use `get_next_hops` instead!")]
-    pub fn get_next_hop(&self, router: RouterId, prefix: Prefix) -> &[RouterId] {
-        self.get_next_hops(router, prefix)
-    }
-
     /// Returns `true` if the router drops packets for that destination.
     pub fn is_black_hole(&self, router: RouterId, prefix: Prefix) -> bool {
         self.state
@@ -265,12 +259,6 @@ impl ForwardingState {
     /// Get the set of nodes that have a next hop to `rotuer` for `prefix`.
     pub fn get_prev_hops(&self, router: RouterId, prefix: Prefix) -> &HashSet<RouterId> {
         self.reversed.get(&(router, prefix)).unwrap_or(&EMPTY_SET)
-    }
-
-    /// *Deprecated*! Use [`ForwardingState::get_prev_hops`] instead.
-    #[deprecated(since = "0.2.0", note = "Use `get_pref_hops` instead!")]
-    pub fn get_prev_hop(&self, router: RouterId, prefix: Prefix) -> &HashSet<RouterId> {
-        self.get_prev_hops(router, prefix)
     }
 
     /// Get the difference between self and other. Each difference is stored per prefix in a

@@ -19,8 +19,10 @@
 
 use crate::{
     bgp::BgpSessionType::*,
+    builder::{constant_link_weight, NetworkBuilder},
     config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
     network::Network,
+    prelude::BgpSessionType,
     route_map::{
         RouteMap, RouteMapDirection::*, RouteMapMatch as Match, RouteMapSet as Set,
         RouteMapState::*,
@@ -281,7 +283,7 @@ fn test_bgp_connectivity() {
     // check that all routes have a black hole
     for router in net.get_routers().iter() {
         assert_eq!(
-            net.get_route(*router, p),
+            net.get_forwarding_state().get_route(*router, p),
             Err(NetworkError::ForwardingBlackHole(vec![*router]))
         );
     }
@@ -337,7 +339,7 @@ fn test_static_route() {
     // check that all routes have a black hole
     for router in net.get_routers().iter() {
         assert_eq!(
-            net.get_route(*router, p),
+            net.get_forwarding_state().get_route(*router, p),
             Err(NetworkError::ForwardingBlackHole(vec![*router]))
         );
     }
@@ -372,7 +374,7 @@ fn test_static_route() {
     // Add an invalid static route and expect to fail
     net.set_static_route(*R1, p, Some(Direct(*R4))).unwrap();
     assert_eq!(
-        net.get_route(*R1, p),
+        net.get_forwarding_state().get_route(*R1, p),
         Err(NetworkError::ForwardingBlackHole(vec![*R1]))
     );
     net.set_static_route(*R1, p, Some(Indirect(*R4))).unwrap();
@@ -541,11 +543,11 @@ fn test_route_maps() {
     // we expect the following state:
     test_route!(original_net, *R1, p, [*R1, *E1]);
     assert_eq!(
-        original_net.get_route(*R2, p),
+        original_net.get_forwarding_state().get_route(*R2, p),
         Ok(vec![vec![*R2, *R4, *E4]]),
     );
     assert_eq!(
-        original_net.get_route(*R3, p),
+        original_net.get_forwarding_state().get_route(*R3, p),
         Ok(vec![vec![*R3, *R1, *E1]])
     );
     test_route!(original_net, *R4, p, [*R4, *E4]);
@@ -1058,4 +1060,36 @@ fn test_static_route_load_balancing() {
         [*R4, *R2, *R3, *R1, *E1],
         [*R4, *R3, *R1, *E1]
     );
+}
+
+#[test]
+fn bgp_propagation_client_peers() {
+    let mut net = Network::default();
+    let r1 = net.add_router("r1");
+    let r2 = net.add_router("r2");
+    let r3 = net.add_router("r3");
+    let e3 = net.add_external_router("e3", AsId(3));
+    let p = Prefix(1);
+
+    net.add_link(r1, r2);
+    net.add_link(r1, r3);
+    net.add_link(r3, e3);
+
+    // set the configuration
+    net.build_link_weights(constant_link_weight, 1.0).unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.set_bgp_session(r1, r2, Some(BgpSessionType::IBgpPeer))
+        .unwrap();
+    net.set_bgp_session(r1, r3, Some(BgpSessionType::IBgpClient))
+        .unwrap();
+
+    // advertise prefix
+    net.advertise_external_route(e3, p, &[3, 3, 30], None, None)
+        .unwrap();
+
+    let mut fw_state = net.get_forwarding_state();
+
+    assert_eq!(fw_state.get_route(r3, p), Ok(vec![vec![r3, e3]]));
+    assert_eq!(fw_state.get_route(r1, p), Ok(vec![vec![r1, r3, e3]]));
+    assert_eq!(fw_state.get_route(r2, p), Ok(vec![vec![r2, r1, r3, e3]]));
 }

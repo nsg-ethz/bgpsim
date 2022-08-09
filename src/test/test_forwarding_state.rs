@@ -467,7 +467,7 @@ fn test_forwarding_state_carousel_gadget() {
         for router in routers.iter() {
             for prefix in net.get_known_prefixes() {
                 assert_eq!(
-                    net.get_route(*router, *prefix),
+                    net.get_forwarding_state().get_route(*router, *prefix),
                     state.get_route(*router, *prefix)
                 );
             }
@@ -478,7 +478,7 @@ fn test_forwarding_state_carousel_gadget() {
         for router in routers.iter().rev() {
             for prefix in net.get_known_prefixes() {
                 assert_eq!(
-                    net.get_route(*router, *prefix),
+                    net.get_forwarding_state().get_route(*router, *prefix),
                     state.get_route(*router, *prefix)
                 );
             }
