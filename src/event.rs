@@ -103,7 +103,7 @@ pub trait EventQueue {
 /// Basic event queue
 #[derive(PartialEq, Eq, Clone, Debug, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct BasicEventQueue(VecDeque<Event<()>>);
+pub struct BasicEventQueue(pub(crate) VecDeque<Event<()>>);
 
 impl BasicEventQueue {
     /// Create a new empty event queue

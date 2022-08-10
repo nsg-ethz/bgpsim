@@ -27,7 +27,7 @@ use itertools::{join, Itertools};
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute},
     config::{Config, ConfigExpr, ConfigExprKey, ConfigModifier, ConfigPatch},
-    event::{Event, FmtPriority},
+    event::{BasicEventQueue, Event, FmtPriority},
     forwarding_state::ForwardingState,
     network::Network,
     policies::{FwPolicy, PathCondition, PathConditionCNF, PolicyError, Waypoint},
@@ -733,5 +733,16 @@ where
             Ok(t) => t.fmt(net).to_string(),
             Err(e) => format!("Error: {}", e.fmt(net)),
         }
+    }
+}
+
+//
+// Formatting the queue
+//
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for BasicEventQueue {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        self.0.iter().map(|e| e.fmt(net)).join("\n")
     }
 }
