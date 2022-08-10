@@ -21,7 +21,7 @@
 //! network.
 
 use crate::{
-    bgp::BgpSessionType,
+    bgp::{BgpSessionType, BgpState, BgpStateRef},
     config::NetworkConfig,
     event::{BasicEventQueue, Event, EventQueue, FmtPriority},
     external_router::ExternalRouter,
@@ -204,6 +204,20 @@ impl<Q> Network<Q> {
     /// Compute and return the current forwarding state.
     pub fn get_forwarding_state(&self) -> ForwardingState {
         ForwardingState::from_net(self)
+    }
+
+    /// Compute and return the current BGP state as a reference for the given prefix. The returned
+    /// structure contains references into `self`. In order to get a BGP state that does not keep an
+    /// immutable reference to `self`, use [`Self::get_bgp_state_owned`].
+    pub fn get_bgp_state(&self, prefix: Prefix) -> BgpStateRef<'_> {
+        BgpStateRef::from_net(self, prefix)
+    }
+
+    /// Compute and return the current BGP state for the given prefix. This function clones many
+    /// routes of the network. See [`Self::get_bgp_state`] in case you wish to keep references
+    /// instead.
+    pub fn get_bgp_state_owned(&self, prefix: Prefix) -> BgpState {
+        BgpState::from_net(self, prefix)
     }
 
     // ********************

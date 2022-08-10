@@ -17,9 +17,11 @@
 
 //! Test the simple functionality of the network, without running it entirely.
 
+use std::collections::{BTreeMap, BTreeSet};
+
 use crate::{
-    bgp::BgpSessionType::*,
-    builder::{constant_link_weight, NetworkBuilder},
+    bgp::{BgpRoute, BgpSessionType::*},
+    builder::{constant_link_weight, equal_preferences, NetworkBuilder},
     config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
     network::Network,
     prelude::BgpSessionType,
@@ -31,6 +33,7 @@ use crate::{
     types::{AsId, LinkWeight, NetworkError, Prefix, RouterId},
 };
 use lazy_static::lazy_static;
+use maplit::{btreemap, btreeset};
 use petgraph::algo::FloatMeasure;
 use pretty_assertions::assert_eq;
 
@@ -72,10 +75,17 @@ fn get_test_net() -> Network {
     net
 }
 
-/// Test network with BGP and link weights configured. No prefixes advertised yet. All internal
-/// routers are connected in an iBGP full mesh, all link weights are set to 1 except the one
-/// between r1 and r2.
-fn get_test_net_bgp() -> Network {
+/// Test network with only IGP link weights set, but no BGP configuration, nor any advertised
+/// prefixes.
+///
+/// ```text
+/// E1 ---- R1 --5-- R2
+///         |     .' |
+///         1   .1   1
+///         | .'     |
+///         R3 --3-- R4 ---- E4
+/// ```
+fn get_test_net_igp() -> Network {
     let mut net = get_test_net();
 
     // configure link weights
@@ -94,6 +104,27 @@ fn get_test_net_bgp() -> Network {
     net.set_link_weight(*R4, *R3, 3.0).unwrap();
     net.set_link_weight(*E1, *R1, 1.0).unwrap();
     net.set_link_weight(*E4, *R4, 1.0).unwrap();
+
+    // configure iBGP full mesh
+    net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R1, *R3, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R1, *R4, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R2, *R3, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R2, *R4, Some(IBgpPeer)).unwrap();
+    net.set_bgp_session(*R3, *R4, Some(IBgpPeer)).unwrap();
+
+    // configure eBGP sessions
+    net.set_bgp_session(*R1, *E1, Some(EBgp)).unwrap();
+    net.set_bgp_session(*R4, *E4, Some(EBgp)).unwrap();
+
+    net
+}
+
+/// Test network with BGP and link weights configured. No prefixes advertised yet. All internal
+/// routers are connected in an iBGP full mesh, all link weights are set to 1 except the one
+/// between r1 and r2.
+fn get_test_net_bgp() -> Network {
+    let mut net = get_test_net_igp();
 
     // configure iBGP full mesh
     net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
@@ -1092,4 +1123,252 @@ fn bgp_propagation_client_peers() {
     assert_eq!(fw_state.get_route(r3, p), Ok(vec![vec![r3, e3]]));
     assert_eq!(fw_state.get_route(r1, p), Ok(vec![vec![r1, r3, e3]]));
     assert_eq!(fw_state.get_route(r2, p), Ok(vec![vec![r2, r1, r3, e3]]));
+}
+
+#[test]
+fn bgp_state_incoming() {
+    let mut net = get_test_net_igp();
+    let p = Prefix(1);
+    net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        .unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.build_advertisements(p, equal_preferences, 2).unwrap();
+
+    let state = net.get_bgp_state(p);
+    let route_e1 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65101), AsId(101)],
+        next_hop: *E1,
+        local_pref: None,
+        med: None,
+        community: Default::default(),
+    };
+    let route_r1 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65101), AsId(101)],
+        next_hop: *R1,
+        local_pref: Some(100),
+        med: Some(0),
+        community: Default::default(),
+    };
+    let route_e4 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *E4,
+        local_pref: None,
+        med: None,
+        community: Default::default(),
+    };
+    let route_r4 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *R4,
+        local_pref: Some(100),
+        med: Some(0),
+        community: Default::default(),
+    };
+    assert_eq!(BTreeMap::from_iter(state.incoming(*E1)), btreemap! {});
+    assert_eq!(
+        BTreeMap::from_iter(state.incoming(*R1)),
+        btreemap! {*E1 => &route_e1, *R2 => &route_r4}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.incoming(*R2)),
+        btreemap! {*R1 => &route_r1, *R4 => &route_r4}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.incoming(*R3)),
+        btreemap! {*R2 => &route_r4}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.incoming(*R4)),
+        btreemap! {*E4 => &route_e4}
+    );
+    assert_eq!(BTreeMap::from_iter(state.incoming(*E4)), btreemap! {});
+}
+
+#[test]
+fn bgp_state_peers_incoming() {
+    let mut net = get_test_net_igp();
+    let p = Prefix(1);
+    net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        .unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.build_advertisements(p, equal_preferences, 2).unwrap();
+
+    let state = net.get_bgp_state(p);
+    assert_eq!(BTreeSet::from_iter(state.peers_incoming(*E1)), btreeset! {});
+    assert_eq!(
+        BTreeSet::from_iter(state.peers_incoming(*R1)),
+        btreeset! {*E1, *R2}
+    );
+    assert_eq!(
+        BTreeSet::from_iter(state.peers_incoming(*R2)),
+        btreeset! {*R1, *R4}
+    );
+    assert_eq!(
+        BTreeSet::from_iter(state.peers_incoming(*R3)),
+        btreeset! {*R2}
+    );
+    assert_eq!(
+        BTreeSet::from_iter(state.peers_incoming(*R4)),
+        btreeset! {*E4}
+    );
+    assert_eq!(BTreeSet::from_iter(state.peers_incoming(*E4)), btreeset! {});
+}
+
+#[test]
+fn bgp_state_outgoing() {
+    let mut net = get_test_net_igp();
+    let p = Prefix(1);
+    net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        .unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.build_advertisements(p, equal_preferences, 2).unwrap();
+
+    let state = net.get_bgp_state(p);
+    let route_e1 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65101), AsId(101)],
+        next_hop: *E1,
+        local_pref: None,
+        med: None,
+        community: Default::default(),
+    };
+    let route_r1 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65101), AsId(101)],
+        next_hop: *R1,
+        local_pref: Some(100),
+        med: Some(0),
+        community: Default::default(),
+    };
+    let route_e4 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *E4,
+        local_pref: None,
+        med: None,
+        community: Default::default(),
+    };
+    let route_r4 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *R4,
+        local_pref: Some(100),
+        med: Some(0),
+        community: Default::default(),
+    };
+    assert_eq!(
+        BTreeMap::from_iter(state.outgoing(*E1)),
+        btreemap! {*R1 => &route_e1}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.outgoing(*R1)),
+        btreemap! {*R2 => &route_r1}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.outgoing(*R2)),
+        btreemap! {*R1 => &route_r4, *R3 => &route_r4}
+    );
+    assert_eq!(BTreeMap::from_iter(state.outgoing(*R3)), btreemap! {});
+    assert_eq!(
+        BTreeMap::from_iter(state.outgoing(*R4)),
+        btreemap! {*R2 => &route_r4}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.outgoing(*E4)),
+        btreemap! {*R4 => &route_e4}
+    );
+}
+
+#[test]
+fn bgp_state_peers_outgoing() {
+    let mut net = get_test_net_igp();
+    let p = Prefix(1);
+    net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        .unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.build_advertisements(p, equal_preferences, 2).unwrap();
+
+    let state = net.get_bgp_state(p);
+    assert_eq!(
+        BTreeSet::from_iter(state.peers_outgoing(*E1)),
+        btreeset! {*R1}
+    );
+    assert_eq!(
+        BTreeSet::from_iter(state.peers_outgoing(*R1)),
+        btreeset! {*R2}
+    );
+    assert_eq!(
+        BTreeSet::from_iter(state.peers_outgoing(*R2)),
+        btreeset! {*R1, *R3}
+    );
+    assert_eq!(BTreeSet::from_iter(state.peers_outgoing(*R3)), btreeset! {});
+    assert_eq!(
+        BTreeSet::from_iter(state.peers_outgoing(*R4)),
+        btreeset! {*R2}
+    );
+    assert_eq!(
+        BTreeSet::from_iter(state.peers_outgoing(*E4)),
+        btreeset! {*R4}
+    );
+}
+
+#[test]
+fn bgp_state_reach() {
+    let mut net = get_test_net_igp();
+    let p = Prefix(1);
+    net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        .unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.build_advertisements(p, equal_preferences, 2).unwrap();
+
+    let state = net.get_bgp_state(p);
+    assert_eq!(BTreeSet::from_iter(state.reach(*E1)), btreeset! {*E1, *R1});
+    assert_eq!(BTreeSet::from_iter(state.reach(*R1)), btreeset! {*R1});
+    assert_eq!(BTreeSet::from_iter(state.reach(*R2)), btreeset! {*R2, *R3});
+    assert_eq!(BTreeSet::from_iter(state.reach(*R3)), btreeset! {*R3});
+    assert_eq!(
+        BTreeSet::from_iter(state.reach(*R4)),
+        btreeset! {*R2, *R3, *R4}
+    );
+    assert_eq!(
+        BTreeSet::from_iter(state.reach(*E4)),
+        btreeset! {*R2, *R3, *R4, *E4}
+    );
+}
+
+#[test]
+fn bgp_state_propagation_path() {
+    let mut net = get_test_net_igp();
+    let p = Prefix(1);
+    net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        .unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.build_advertisements(p, equal_preferences, 2).unwrap();
+
+    let state = net.get_bgp_state(p);
+    assert_eq!(state.propagation_path(*E1), vec![*E1]);
+    assert_eq!(state.propagation_path(*R1), vec![*E1, *R1]);
+    assert_eq!(state.propagation_path(*R2), vec![*E4, *R4, *R2]);
+    assert_eq!(state.propagation_path(*R3), vec![*E4, *R4, *R2, *R3]);
+    assert_eq!(state.propagation_path(*R4), vec![*E4, *R4]);
+    assert_eq!(state.propagation_path(*E4), vec![*E4]);
+}
+
+#[test]
+fn bgp_state_transform() {
+    let mut net = get_test_net_igp();
+    let p = Prefix(1);
+    net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        .unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.build_advertisements(p, equal_preferences, 2).unwrap();
+
+    assert_eq!(net.get_bgp_state(p).as_owned(), net.get_bgp_state_owned(p));
+    assert_eq!(
+        net.get_bgp_state(p).into_owned(),
+        net.get_bgp_state_owned(p)
+    );
 }

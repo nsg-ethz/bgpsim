@@ -17,6 +17,9 @@
 
 //! Module containing definitions for BGP
 
+mod state;
+pub use state::*;
+
 use crate::types::{AsId, LinkWeight, Prefix, RouterId};
 
 use ordered_float::NotNan;
