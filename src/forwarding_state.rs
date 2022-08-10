@@ -66,7 +66,17 @@ pub struct ForwardingState {
 
 impl PartialEq for ForwardingState {
     fn eq(&self, other: &Self) -> bool {
-        self.state == other.state && self.reversed == other.reversed
+        let mut s_state: HashMap<_, _> = self.state.clone();
+        s_state.retain(|_, nhs| !nhs.is_empty());
+        let mut o_state: HashMap<_, _> = other.state.clone();
+        o_state.retain(|_, nhs| !nhs.is_empty());
+
+        let mut s_reversed: HashMap<_, _> = self.reversed.clone();
+        s_reversed.retain(|_, prev| !prev.is_empty());
+        let mut o_reversed: HashMap<_, _> = other.reversed.clone();
+        o_reversed.retain(|_, prev| !prev.is_empty());
+
+        s_state == o_state && s_reversed == o_reversed
     }
 }
 
@@ -173,8 +183,16 @@ impl ForwardingState {
         for nh in nhs {
             // if the nh is self, then `nhs` must have exactly one entry. Otherwise, we have a big
             // problem...
-            if nh == cur_node || nh == *TO_DST {
-                unreachable!();
+            if nh == cur_node {
+                unreachable!(
+                    "Router {} cannot have next-hop pointing to itself!",
+                    cur_node.index()
+                );
+            } else if nh == *TO_DST {
+                unreachable!(
+                    "Router {} cannot be a terminal and have other next-hops.",
+                    cur_node.index(),
+                );
             }
 
             // check if we have already visited nh

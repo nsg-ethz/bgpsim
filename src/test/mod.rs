@@ -100,6 +100,8 @@ mod test_network_comlete_undo;
 mod test_network_complete;
 mod test_network_config;
 mod test_ospf;
+#[cfg(all(feature = "topology_zoo", feature = "rand", feature = "rand_queue"))]
+mod test_pacificwave;
 mod test_record;
 mod test_route_map;
 mod test_router;
