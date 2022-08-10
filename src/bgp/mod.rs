@@ -47,6 +47,10 @@ pub struct BgpRoute {
     pub med: Option<u32>,
     /// Community
     pub community: BTreeSet<u32>,
+    /// Optional field ORIGINATOR_ID
+    pub originator_id: Option<RouterId>,
+    /// Optional field CLUSTER_LIST
+    pub cluster_list: Vec<RouterId>,
 }
 
 impl Ord for BgpRoute {
@@ -72,6 +76,8 @@ impl BgpRoute {
             local_pref: Some(self.local_pref.unwrap_or(100)),
             med: Some(self.med.unwrap_or(0)),
             community: self.community.clone(),
+            originator_id: self.originator_id,
+            cluster_list: self.cluster_list.clone(),
         }
     }
 }
@@ -86,6 +92,8 @@ impl PartialEq for BgpRoute {
             && s.local_pref == o.local_pref
             && s.med == o.med
             && s.community == o.community
+            && s.originator_id == o.originator_id
+            && s.cluster_list == o.cluster_list
     }
 }
 
@@ -109,6 +117,12 @@ impl PartialOrd for BgpRoute {
             Ordering::Equal => {}
             Ordering::Greater => return Some(Ordering::Less),
             Ordering::Less => return Some(Ordering::Greater),
+        }
+
+        match s.cluster_list.len().cmp(&o.cluster_list.len()) {
+            Ordering::Equal => {}
+            Ordering::Less => return Some(Ordering::Greater),
+            Ordering::Greater => return Some(Ordering::Less),
         }
 
         match s.next_hop.cmp(&o.next_hop) {
@@ -277,7 +291,15 @@ impl PartialOrd for BgpRibEntry {
             Ordering::Less => return Some(Ordering::Greater),
         }
 
-        match self.from_id.cmp(&other.from_id) {
+        let s_from = s.originator_id.unwrap_or(self.from_id);
+        let o_from = o.originator_id.unwrap_or(other.from_id);
+        match s_from.cmp(&o_from) {
+            Ordering::Equal => {}
+            Ordering::Greater => return Some(Ordering::Less),
+            Ordering::Less => return Some(Ordering::Greater),
+        }
+
+        match s.cluster_list.len().cmp(&o.cluster_list.len()) {
             Ordering::Equal => Some(Ordering::Equal),
             Ordering::Greater => Some(Ordering::Less),
             Ordering::Less => Some(Ordering::Greater),

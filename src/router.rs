@@ -219,7 +219,15 @@ impl Router {
                 }
                 // phase 1 of BGP protocol
                 let prefix = match bgp_event {
-                    BgpEvent::Update(route) => self.insert_bgp_route(route, from)?,
+                    BgpEvent::Update(route) => match self.insert_bgp_route(route, from)? {
+                        (p, true) => p,
+                        (p, false) => {
+                            // there is nothing to do here. we simply ignore this event!
+                            trace!("Ignore BGP update with ORIGINATOR_ID of self.");
+                            let old = self.get_next_hop(p);
+                            return Ok((StepUpdate::new(p, old.clone(), old), vec![]));
+                        }
+                    },
                     BgpEvent::Withdraw(prefix) => self.remove_bgp_route(prefix, from),
                 };
                 if self.bgp_known_prefixes.insert(prefix) {
@@ -903,12 +911,25 @@ impl Router {
     /// routes are not processed here (no route maps apply). This is by design, so that changing
     /// route-maps does not requrie a new update from the neighbor.
     ///
+    /// This function returns the prefix, along with a boolean. If that boolean is `false`, then
+    /// no route was inserted into the table because ORIGINATOR_ID equals the current router id.
+    ///
     /// *Undo Functionality*: this function will push some actions to the last undo event.
-    fn insert_bgp_route(&mut self, route: BgpRoute, from: RouterId) -> Result<Prefix, DeviceError> {
+    fn insert_bgp_route(
+        &mut self,
+        route: BgpRoute,
+        from: RouterId,
+    ) -> Result<(Prefix, bool), DeviceError> {
         let from_type = *self
             .bgp_sessions
             .get(&from)
             .ok_or(DeviceError::NoBgpSession(from))?;
+
+        // if the ORIGINATOR_ID field equals the id of the router, then ignore this route and return
+        // nothing.
+        if route.originator_id == Some(self.router_id) {
+            return Ok((route.prefix, false));
+        }
 
         // the incoming bgp routes should not be processed here!
         // This is because when configuration chagnes, the routes should also change without needing
@@ -938,7 +959,7 @@ impl Router {
             .unwrap()
             .push(UndoAction::BgpRibIn(prefix, from, _old_entry));
 
-        Ok(prefix)
+        Ok((prefix, true))
     }
 
     /// remove an existing bgp route in bgp_rib_in and returns the prefix for which the route was
@@ -1012,7 +1033,9 @@ impl Router {
     }
 
     /// Process a route from bgp_rib for sending it to bgp peers, and storing it into bgp_rib_out.
-    /// The entry is cloned and modified
+    /// The entry is cloned and modified. This function will also modify the ORIGINATOR_ID and the
+    /// CLUSTER_LIST if the route is "reflected". A route is reflected if the router forwards it
+    /// from an internal router to another internal router.
     #[inline(always)]
     fn process_bgp_rib_out_route(
         &self,
@@ -1024,6 +1047,15 @@ impl Router {
         // TODO: add a configuration variable to control wether to change the next-hop.
         if entry.from_type.is_ebgp() {
             entry.route.next_hop = self.router_id;
+        }
+
+        // Further, we check if the route is reflected. If so, modify the ORIGINATOR_ID and the
+        // CLUSTER_LIST.
+        if entry.from_type.is_ibgp() && self.bgp_sessions.get(&target_peer).unwrap().is_ibgp() {
+            // route is to be reflected. Modify the ORIGINATOR_ID and the CLUSTER_LIST.
+            entry.route.originator_id.get_or_insert(entry.from_id);
+            // append self to the cluster_list
+            entry.route.cluster_list.push(self.router_id);
         }
 
         // set the to_id to the target peer
@@ -1051,10 +1083,13 @@ impl Router {
             .get(&target_peer)
             .ok_or(DeviceError::NoBgpSession(target_peer))?;
 
-        // if the peer type is external, overwrite the next hop and reset the local-pref.
+        // if the peer type is external, overwrite the next hop and reset the local-pref. Also,
+        // remove the ORIGINATOR_ID and the CLUSTER_LIST
         if entry.from_type.is_ebgp() {
             entry.route.next_hop = self.router_id;
             entry.route.local_pref = None;
+            entry.route.originator_id = None;
+            entry.route.cluster_list = Vec::new();
         }
 
         Ok(Some(entry))

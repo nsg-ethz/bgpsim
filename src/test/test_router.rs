@@ -69,6 +69,8 @@ fn test_bgp_single() {
                 local_pref: None,
                 med: None,
                 community: Default::default(),
+                originator_id: None,
+                cluster_list: Vec::new(),
             }),
         ))
         .unwrap();
@@ -109,6 +111,8 @@ fn test_bgp_single() {
                 local_pref: Some(50),
                 med: None,
                 community: Default::default(),
+                originator_id: None,
+                cluster_list: Vec::new(),
             }),
         ))
         .unwrap();
@@ -152,6 +156,8 @@ fn test_bgp_single() {
                 local_pref: None,
                 med: None,
                 community: Default::default(),
+                originator_id: None,
+                cluster_list: Vec::new(),
             }),
         ))
         .unwrap();
@@ -191,6 +197,8 @@ fn test_bgp_single() {
                 local_pref: Some(150),
                 med: None,
                 community: Default::default(),
+                originator_id: None,
+                cluster_list: Vec::new(),
             }),
         ))
         .unwrap();
@@ -505,6 +513,8 @@ fn external_router_advertise_to_neighbors() {
                 local_pref: None,
                 med: None,
                 community: Default::default(),
+                originator_id: None,
+                cluster_list: Vec::new(),
             }),
         )
     );
@@ -549,6 +559,8 @@ fn external_router_new_neighbor() {
                 local_pref: None,
                 med: None,
                 community: Default::default(),
+                originator_id: None,
+                cluster_list: Vec::new(),
             }),
         )
     );
@@ -601,6 +613,8 @@ fn test_bgp_single_undo() {
             local_pref: None,
             med: None,
             community: Default::default(),
+            originator_id: None,
+            cluster_list: Vec::new(),
         }),
     ))
     .unwrap();
@@ -624,6 +638,8 @@ fn test_bgp_single_undo() {
             local_pref: Some(50),
             med: None,
             community: Default::default(),
+            originator_id: None,
+            cluster_list: Vec::new(),
         }),
     ))
     .unwrap();
@@ -647,6 +663,8 @@ fn test_bgp_single_undo() {
             local_pref: None,
             med: None,
             community: Default::default(),
+            originator_id: None,
+            cluster_list: Vec::new(),
         }),
     ))
     .unwrap();
@@ -681,6 +699,8 @@ fn test_bgp_single_undo() {
             local_pref: Some(150),
             med: None,
             community: Default::default(),
+            originator_id: None,
+            cluster_list: Vec::new(),
         }),
     ))
     .unwrap();

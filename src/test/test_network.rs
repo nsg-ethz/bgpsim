@@ -1142,6 +1142,8 @@ fn bgp_state_incoming() {
         local_pref: None,
         med: None,
         community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
     };
     let route_r1 = BgpRoute {
         prefix: p,
@@ -1150,6 +1152,8 @@ fn bgp_state_incoming() {
         local_pref: Some(100),
         med: Some(0),
         community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
     };
     let route_e4 = BgpRoute {
         prefix: p,
@@ -1158,6 +1162,8 @@ fn bgp_state_incoming() {
         local_pref: None,
         med: None,
         community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
     };
     let route_r4 = BgpRoute {
         prefix: p,
@@ -1166,11 +1172,18 @@ fn bgp_state_incoming() {
         local_pref: Some(100),
         med: Some(0),
         community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
+    };
+    let route_r42 = BgpRoute {
+        originator_id: Some(*R4),
+        cluster_list: vec![*R2],
+        ..route_r4.clone()
     };
     assert_eq!(BTreeMap::from_iter(state.incoming(*E1)), btreemap! {});
     assert_eq!(
         BTreeMap::from_iter(state.incoming(*R1)),
-        btreemap! {*E1 => &route_e1, *R2 => &route_r4}
+        btreemap! {*E1 => &route_e1, *R2 => &route_r42}
     );
     assert_eq!(
         BTreeMap::from_iter(state.incoming(*R2)),
@@ -1178,7 +1191,76 @@ fn bgp_state_incoming() {
     );
     assert_eq!(
         BTreeMap::from_iter(state.incoming(*R3)),
-        btreemap! {*R2 => &route_r4}
+        btreemap! {*R2 => &route_r42}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.incoming(*R4)),
+        btreemap! {*E4 => &route_e4}
+    );
+    assert_eq!(BTreeMap::from_iter(state.incoming(*E4)), btreemap! {});
+}
+
+#[test]
+fn bgp_state_incoming_2() {
+    let mut net = get_test_net_igp();
+    let p = Prefix(1);
+    net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        .unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(101)], None, None)
+        .unwrap();
+
+    let state = net.get_bgp_state(p);
+    let route_e4 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *E4,
+        local_pref: None,
+        med: None,
+        community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
+    };
+    let route_r4 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *R4,
+        local_pref: Some(100),
+        med: Some(0),
+        community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
+    };
+    let route_r42 = BgpRoute {
+        originator_id: Some(*R4),
+        cluster_list: vec![*R2],
+        ..route_r4.clone()
+    };
+    let route_r421 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *R1,
+        local_pref: None,
+        med: None,
+        community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
+    };
+    assert_eq!(
+        BTreeMap::from_iter(state.incoming(*E1)),
+        btreemap! {*R1 => &route_r421}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.incoming(*R1)),
+        btreemap! {*R2 => &route_r42}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.incoming(*R2)),
+        btreemap! {*R4 => &route_r4}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.incoming(*R3)),
+        btreemap! {*R2 => &route_r42}
     );
     assert_eq!(
         BTreeMap::from_iter(state.incoming(*R4)),
@@ -1234,6 +1316,8 @@ fn bgp_state_outgoing() {
         local_pref: None,
         med: None,
         community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
     };
     let route_r1 = BgpRoute {
         prefix: p,
@@ -1242,6 +1326,8 @@ fn bgp_state_outgoing() {
         local_pref: Some(100),
         med: Some(0),
         community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
     };
     let route_e4 = BgpRoute {
         prefix: p,
@@ -1250,6 +1336,8 @@ fn bgp_state_outgoing() {
         local_pref: None,
         med: None,
         community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
     };
     let route_r4 = BgpRoute {
         prefix: p,
@@ -1258,6 +1346,13 @@ fn bgp_state_outgoing() {
         local_pref: Some(100),
         med: Some(0),
         community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
+    };
+    let route_r42 = BgpRoute {
+        originator_id: Some(*R4),
+        cluster_list: vec![*R2],
+        ..route_r4.clone()
     };
     assert_eq!(
         BTreeMap::from_iter(state.outgoing(*E1)),
@@ -1269,7 +1364,73 @@ fn bgp_state_outgoing() {
     );
     assert_eq!(
         BTreeMap::from_iter(state.outgoing(*R2)),
-        btreemap! {*R1 => &route_r4, *R3 => &route_r4}
+        btreemap! {*R1 => &route_r42, *R3 => &route_r42}
+    );
+    assert_eq!(BTreeMap::from_iter(state.outgoing(*R3)), btreemap! {});
+    assert_eq!(
+        BTreeMap::from_iter(state.outgoing(*R4)),
+        btreemap! {*R2 => &route_r4}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.outgoing(*E4)),
+        btreemap! {*R4 => &route_e4}
+    );
+}
+
+#[test]
+fn bgp_state_outgoing_2() {
+    let mut net = get_test_net_igp();
+    let p = Prefix(1);
+    net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        .unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(101)], None, None)
+        .unwrap();
+
+    let state = net.get_bgp_state(p);
+    let route_e4 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *E4,
+        local_pref: None,
+        med: None,
+        community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
+    };
+    let route_r4 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *R4,
+        local_pref: Some(100),
+        med: Some(0),
+        community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
+    };
+    let route_r42 = BgpRoute {
+        originator_id: Some(*R4),
+        cluster_list: vec![*R2],
+        ..route_r4.clone()
+    };
+    let route_r421 = BgpRoute {
+        prefix: p,
+        as_path: vec![AsId(65104), AsId(101)],
+        next_hop: *R1,
+        local_pref: None,
+        med: Some(0),
+        community: Default::default(),
+        originator_id: None,
+        cluster_list: Vec::new(),
+    };
+    assert_eq!(BTreeMap::from_iter(state.outgoing(*E1)), btreemap! {});
+    assert_eq!(
+        BTreeMap::from_iter(state.outgoing(*R1)),
+        btreemap! {*E1 => &route_r421}
+    );
+    assert_eq!(
+        BTreeMap::from_iter(state.outgoing(*R2)),
+        btreemap! {*R1 => &route_r42, *R3 => &route_r42}
     );
     assert_eq!(BTreeMap::from_iter(state.outgoing(*R3)), btreemap! {});
     assert_eq!(

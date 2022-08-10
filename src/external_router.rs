@@ -165,6 +165,8 @@ impl ExternalRouter {
             local_pref: None,
             med,
             community: community.into_iter().collect(),
+            originator_id: None,
+            cluster_list: Vec::new(),
         };
 
         let old_route = self.active_routes.insert(prefix, route.clone());
