@@ -63,6 +63,15 @@ impl BgpState {
         self.prefix
     }
 
+    /// Get the selected route of a specific node, as well as the router from where it was learned.
+    #[inline]
+    pub fn get(&self, router: RouterId) -> Option<(RouterId, &BgpRoute)> {
+        self.g
+            .get(router)
+            .and_then(|node| node.node.as_ref())
+            .map(|(r, x)| (*x, r))
+    }
+
     /// Get the selected route of a specific node
     #[inline]
     pub fn selected(&self, router: RouterId) -> Option<&BgpRoute> {
@@ -143,6 +152,15 @@ impl<'n> BgpStateRef<'n> {
     #[inline]
     pub fn prefix(&self) -> Prefix {
         self.prefix
+    }
+
+    /// Get the selected route of a specific node, as well as the router from where it was learned.
+    #[inline]
+    pub fn get(&self, router: RouterId) -> Option<(RouterId, &'n BgpRoute)> {
+        self.g
+            .get(router)
+            .and_then(|node| node.node.as_ref())
+            .map(|(r, x)| (*x, *r))
     }
 
     /// Get the selected route of a specific node
@@ -447,7 +465,7 @@ impl<T> IntoIterator for BgpStateGraph<T> {
 /// outgoing routes, and the incoming peers.
 #[derive(Debug, Clone, PartialEq, Eq)]
 struct BgpStateNode<T> {
-    node: Option<(T, RouterId)>,
+    pub(self) node: Option<(T, RouterId)>,
     edges_out: HashMap<RouterId, T>,
     edges_in: HashSet<RouterId>,
 }
