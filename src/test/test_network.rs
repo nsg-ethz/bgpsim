@@ -197,7 +197,7 @@ fn test_igp_table() {
         assert_eq!(fw_table.len(), 1);
         for (target, entry) in fw_table.iter() {
             if *router == *target {
-                assert_eq!(entry, &(vec![*router], 0.0));
+                assert_eq!(entry, &(vec![], 0.0));
             } else {
                 unreachable!();
             }
@@ -217,7 +217,7 @@ fn test_igp_table() {
                 if *from == *R1 && *to == *R2 {
                     assert_eq!(entry, &(vec![*to], 5.0));
                 } else if *from == *to {
-                    assert_eq!(entry, &(vec![*to], 0.0));
+                    assert_eq!(entry, &(vec![], 0.0));
                 } else {
                     unreachable!();
                 }
@@ -226,7 +226,7 @@ fn test_igp_table() {
             assert_eq!(fw_table.len(), 1);
             for (target, entry) in fw_table.iter() {
                 if *from == *target {
-                    assert_eq!(entry, &(vec![*from], 0.0));
+                    assert_eq!(entry, &(vec![], 0.0));
                 } else {
                     unreachable!();
                 }
@@ -247,7 +247,7 @@ fn test_igp_table() {
                 if *from == *R1 && *to == *R2 {
                     assert_eq!(entry, &(vec![*to], 5.0));
                 } else if *from == *to {
-                    assert_eq!(entry, &(vec![*to], 0.0));
+                    assert_eq!(entry, &(vec![], 0.0));
                 } else {
                     unreachable!();
                 }
@@ -258,7 +258,7 @@ fn test_igp_table() {
                 if *from == *R2 && *to == *R1 {
                     assert_eq!(entry, &(vec![*to], 5.0));
                 } else if *from == *to {
-                    assert_eq!(entry, &(vec![*to], 0.0));
+                    assert_eq!(entry, &(vec![], 0.0));
                 } else {
                     unreachable!();
                 }
@@ -267,7 +267,7 @@ fn test_igp_table() {
             assert_eq!(fw_table.len(), 1);
             for (target, entry) in fw_table.iter() {
                 if *from == *target {
-                    assert_eq!(entry, &(vec![*from], 0.0));
+                    assert_eq!(entry, &(vec![], 0.0));
                 } else {
                     unreachable!();
                 }

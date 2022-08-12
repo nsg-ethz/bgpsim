@@ -717,7 +717,7 @@ impl Router {
 
         for target in graph.node_indices() {
             if target == self.router_id {
-                self.igp_table.insert(target, (vec![self.router_id], 0.0));
+                self.igp_table.insert(target, (vec![], 0.0));
                 continue;
             }
 

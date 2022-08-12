@@ -343,7 +343,7 @@ fn test_fw_table_simple() {
     r_a.write_igp_forwarding_table::<()>(&net, &state).unwrap();
 
     let expected_forwarding_table = hashmap! {
-        r_a.router_id() => (vec![r_a.router_id()], 0.0),
+        r_a.router_id() => (vec![], 0.0),
         r_b.router_id() => (vec![r_b.router_id()], 1.0),
         r_c.router_id() => (vec![r_b.router_id()], 2.0),
         r_d.router_id() => (vec![r_b.router_id()], 3.0),
@@ -363,7 +363,7 @@ fn test_fw_table_simple() {
 
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => (vec![r_a.router_id()], 1.0),
-        r_b.router_id() => (vec![r_b.router_id()], 0.0),
+        r_b.router_id() => (vec![], 0.0),
         r_c.router_id() => (vec![r_c.router_id()], 1.0),
         r_d.router_id() => (vec![r_c.router_id()], 2.0),
         r_e.router_id() => (vec![r_c.router_id()], 3.0),
@@ -383,7 +383,7 @@ fn test_fw_table_simple() {
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => (vec![r_b.router_id()], 2.0),
         r_b.router_id() => (vec![r_b.router_id()], 1.0),
-        r_c.router_id() => (vec![r_c.router_id()], 0.0),
+        r_c.router_id() => (vec![], 0.0),
         r_d.router_id() => (vec![r_d.router_id()], 1.0),
         r_e.router_id() => (vec![r_d.router_id()], 2.0),
     };
@@ -446,7 +446,7 @@ fn test_igp_fw_table_complex() {
     r_a.write_igp_forwarding_table::<()>(&net, &state).unwrap();
 
     let expected_forwarding_table = hashmap! {
-        r_a.router_id() => (vec![r_a.router_id()], 0.0),
+        r_a.router_id() => (vec![], 0.0),
         r_b.router_id() => (vec![r_b.router_id()], 3.0),
         r_c.router_id() => (vec![r_e.router_id()], 3.0),
         r_d.router_id() => (vec![r_e.router_id()], 6.0),
@@ -470,7 +470,7 @@ fn test_igp_fw_table_complex() {
     let expected_forwarding_table = hashmap! {
         r_a.router_id() => (vec![r_f.router_id()], 3.0),
         r_b.router_id() => (vec![r_f.router_id()], 3.0),
-        r_c.router_id() => (vec![r_c.router_id()], 0.0),
+        r_c.router_id() => (vec![], 0.0),
         r_d.router_id() => (vec![r_g.router_id()], 3.0),
         r_e.router_id() => (vec![r_f.router_id()], 2.0),
         r_f.router_id() => (vec![r_f.router_id()], 1.0),

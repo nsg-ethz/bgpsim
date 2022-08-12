@@ -176,6 +176,7 @@ fn test_build_link_weights() {
         let igp_table = r.get_igp_fw_table();
         assert!(igp_table
             .iter()
+            .filter(|(target, _)| **target != src)
             .all(|(_, (nh, cost))| !nh.is_empty() && cost.is_finite()))
     }
 
@@ -385,6 +386,7 @@ fn assert_igp_reachability<Q>(net: &Network<Q>) {
         let igp_table = r.get_igp_fw_table();
         assert!(igp_table
             .iter()
+            .filter(|(target, _)| **target != src)
             .all(|(_, (nh, cost))| !nh.is_empty() && cost.is_finite()))
     }
 }
