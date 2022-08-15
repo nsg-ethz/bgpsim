@@ -15,9 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use netsim::builder::*;
 use netsim::prelude::*;
-use netsim::topology_zoo::TopologyZoo;
 
 #[cfg(feature = "rand_queue")]
 use netsim::event::{ModelParams, SimpleTimingModel};
@@ -42,6 +40,7 @@ pub fn simulate_event(mut net: Net) -> Net {
     net
 }
 
+#[cfg(feature = "topology_zoo")]
 pub fn setup_net() -> Result<Net, NetworkError> {
     let mut result = Err(NetworkError::NoConvergence);
     while result == Err(NetworkError::NoConvergence) {
@@ -50,7 +49,11 @@ pub fn setup_net() -> Result<Net, NetworkError> {
     result
 }
 
+#[cfg(feature = "topology_zoo")]
 fn try_setup_net() -> Result<Net, NetworkError> {
+    use netsim::builder::*;
+    use netsim::topology_zoo::TopologyZoo;
+
     let mut net = TopologyZoo::Bellsouth.build(queue());
     net.set_msg_limit(Some(1_000_000));
     net.build_connected_graph();
