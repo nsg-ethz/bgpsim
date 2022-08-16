@@ -35,8 +35,11 @@
 //! }
 //! ```
 
+use crate::{network::Network, types::RouterId};
 use super::TopologyZooParser;
-use crate::network::Network;
+
+use std::collections::HashMap;
+use geoutils::Location;
 
 /// Topologies from [TopologyZoo](http://www.topology-zoo.org/dataset.html). The following example
 /// code creates an Abilene network and configures it with random configuration:
@@ -3779,6 +3782,11 @@ impl TopologyZoo {
             Self::York => include_str!("../../topology_zoo/York.graphml"),
             Self::Zamren => include_str!("../../topology_zoo/Zamren.graphml"),
         }
+    }
+
+    /// Get the geo location of the Topology Zoo
+    pub fn geo_location(&self) -> HashMap<RouterId, Location> {
+        TopologyZooParser::new(self.graphml()).unwrap().get_geo_location()
     }
 
     /// Get all topologies with increasing number of internal nodes. If two topologies have the same number
