@@ -28,7 +28,7 @@ undo = []
 rand = ["dep:rand"]
 rand_queue = ["dep:rand", "dep:rand_distr", "dep:priority-queue"]
 serde = ["dep:serde", "dep:serde_with", "petgraph/serde-1", "ordered-float/serde", "priority-queue?/serde"]
-topology_zoo = ["dep:xmltree"]
+topology_zoo = ["dep:xmltree", "dep:geoutils"]
 
 [dependencies]
 thiserror = "1"
@@ -43,6 +43,7 @@ rand_distr = { version = "0.4.3", optional = true }
 serde = { version = "1", features = [ "derive" ], optional = true }
 serde_with = { version = "2.0", features = [], optional = true }
 xmltree = { version = "0.10", optional = true }
+geoutils = { version = "0.2", optional = true }
 
 [dev-dependencies]
 rand = "0.8.4"

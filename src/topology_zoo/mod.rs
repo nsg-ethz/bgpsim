@@ -43,6 +43,8 @@
 //! ```
 #[rustfmt::skip]
 mod topos;
+use geoutils::Location;
+use ordered_float::NotNan;
 pub use topos::*;
 
 use std::collections::HashMap;
@@ -52,13 +54,15 @@ use xmltree::{Element, ParseError as XmlParseError};
 
 use crate::{
     network::Network,
-    types::{NetworkError, RouterId},
+    types::{IndexType, NetworkError, RouterId},
 };
 
 /// Structure to read the topology zoo GraphMl file.
 #[derive(Debug)]
 pub struct TopologyZooParser {
     xml: Element,
+    nodes: Vec<TopologyZooNode>,
+    edges: Vec<TopologyZooEdge>,
     keys: Vec<TopologyZooKey>,
     key_id_lut: HashMap<String, usize>,
     key_name_lut: HashMap<String, usize>,
@@ -71,14 +75,38 @@ impl TopologyZooParser {
         if xml.name != "graphml" {
             return Err(TopologyZooError::MissingNode("/graphml"));
         }
+
         let mut this = Self {
             xml,
             keys: Default::default(),
             key_id_lut: Default::default(),
             key_name_lut: Default::default(),
+            nodes: Default::default(),
+            edges: Default::default(),
         };
 
         this.setup_keys()?;
+
+        let graph = this
+            .xml
+            .get_child("graph")
+            .ok_or(TopologyZooError::MissingNode("/graphml/graph"))?;
+
+        this.nodes = graph
+            .children
+            .iter()
+            .filter_map(|c| c.as_element())
+            .filter(|child| child.name == "node")
+            .map(|node| this.extract_node(node))
+            .collect::<Result<Vec<TopologyZooNode>, TopologyZooError>>()?;
+
+        this.edges = graph
+            .children
+            .iter()
+            .filter_map(|c| c.as_element())
+            .filter(|child| child.name == "edge")
+            .map(|node| this.extract_edge(node))
+            .collect::<Result<Vec<TopologyZooEdge>, TopologyZooError>>()?;
 
         Ok(this)
     }
@@ -88,56 +116,61 @@ impl TopologyZooParser {
     pub fn get_network<Q>(&self, queue: Q) -> Result<Network<Q>, TopologyZooError> {
         let mut net = Network::new(queue);
 
-        let graph = self
-            .xml
-            .get_child("graph")
-            .ok_or(TopologyZooError::MissingNode("/graphml/graph"))?;
-
-        let nodes: Vec<TopologyZooNode> = graph
-            .children
-            .iter()
-            .filter_map(|c| c.as_element())
-            .filter(|child| child.name == "node")
-            .map(|node| self.extract_node(node))
-            .collect::<Result<Vec<TopologyZooNode>, TopologyZooError>>()?;
-
         let mut last_as_id = 1000;
-        let nodes_lut: HashMap<String, RouterId> = nodes
-            .into_iter()
+        let nodes_lut: HashMap<&str, RouterId> = self
+            .nodes
+            .iter()
             .map(|r| {
                 (
-                    r.id,
+                    r.id.as_str(),
                     if r.internal {
-                        net.add_router(r.name)
+                        net.add_router(r.name.clone())
                     } else {
                         last_as_id += 1;
-                        net.add_external_router(r.name, last_as_id)
+                        net.add_external_router(r.name.clone(), last_as_id)
                     },
                 )
             })
-            .collect();
+            .enumerate()
+            .map(|(idx, (name, id))| {
+                if idx == id.index() {
+                    Ok((name, id))
+                } else {
+                    Err(TopologyZooError::NonContiguousNodeIndices)
+                }
+            })
+            .collect::<Result<HashMap<&str, RouterId>, TopologyZooError>>()?;
 
-        let edges: Vec<TopologyZooEdge> = graph
-            .children
-            .iter()
-            .filter_map(|c| c.as_element())
-            .filter(|child| child.name == "edge")
-            .map(|node| self.extract_edge(node))
-            .collect::<Result<Vec<TopologyZooEdge>, TopologyZooError>>()?;
-
-        for TopologyZooEdge { source, target } in edges {
+        for TopologyZooEdge { source, target } in self.edges.iter() {
             let src = *nodes_lut
-                .get(&source)
-                .ok_or(TopologyZooError::NodeNotFound(source))?;
+                .get(source.as_str())
+                .ok_or_else(|| TopologyZooError::NodeNotFound(source.clone()))?;
             let dst = *nodes_lut
-                .get(&target)
-                .ok_or(TopologyZooError::NodeNotFound(target))?;
+                .get(target.as_str())
+                .ok_or_else(|| TopologyZooError::NodeNotFound(target.clone()))?;
             if net.get_topology().find_edge(src, dst).is_none() {
                 net.add_link(src, dst);
             }
         }
 
         Ok(net)
+    }
+
+    /// Extract the geo location of every router in the network.
+    pub fn get_geo_location(&self) -> HashMap<RouterId, Location> {
+        self.nodes
+            .iter()
+            .enumerate()
+            .map(|(i, node)| {
+                (
+                    (i as IndexType).into(),
+                    Location::new(
+                        node.latitude.as_ref().copied().unwrap_or_default(),
+                        node.longitude.as_ref().copied().unwrap_or_default(),
+                    ),
+                )
+            })
+            .collect()
     }
 
     /// Parse the topology zoo
@@ -211,6 +244,8 @@ impl TopologyZooParser {
 
         let mut internal: Option<bool> = None;
         let mut name: Option<String> = None;
+        let mut latitude: Option<NotNan<f64>> = None;
+        let mut longitude: Option<NotNan<f64>> = None;
 
         for (key, value) in data.into_iter() {
             let idx = *self
@@ -231,6 +266,16 @@ impl TopologyZooParser {
                     return Err(TopologyZooError::AttrInvalidType(AttrType::String, key.ty));
                 }
                 name = Some(value);
+            } else if &key.name == "Latitude" {
+                if AttrType::Float != key.ty {
+                    return Err(TopologyZooError::AttrInvalidType(AttrType::String, key.ty));
+                }
+                latitude = value.parse().ok();
+            } else if &key.name == "Longitude" {
+                if AttrType::Float != key.ty {
+                    return Err(TopologyZooError::AttrInvalidType(AttrType::String, key.ty));
+                }
+                longitude = value.parse().ok();
             }
             // break out early if we have all the values.
             if name.is_some() && internal.is_some() {
@@ -245,6 +290,8 @@ impl TopologyZooParser {
                 "Internal",
                 "/graphml/graph/node",
             ))?,
+            latitude,
+            longitude,
         })
     }
 
@@ -310,6 +357,8 @@ struct TopologyZooNode {
     id: String,
     internal: bool,
     name: String,
+    latitude: Option<NotNan<f64>>,
+    longitude: Option<NotNan<f64>>,
 }
 
 #[derive(Clone, PartialEq, Eq, Hash, Debug)]
@@ -389,6 +438,9 @@ pub enum TopologyZooError {
     /// Node referenced by an edge was not defined.
     #[error("Node {0} referenced by an edge is not defined!")]
     NodeNotFound(String),
+    /// Node indices are not contiguous
+    #[error("Node indices are not contiguous!")]
+    NonContiguousNodeIndices,
 }
 
 /// Error for parsing AttrType strings
