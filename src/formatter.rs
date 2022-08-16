@@ -18,7 +18,7 @@
 //! Module that introduces a formatter to display all types containing `RouterId`.
 
 use std::{
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     fmt::Write,
 };
 
@@ -71,6 +71,30 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for BTreeSet<RouterId> {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         format!("{{{}}}", self.iter().map(|r| r.fmt(net)).join(", "))
+    }
+}
+
+//
+// Map of Router to Collection of routers
+//
+impl<'a, 'n, Q, C> NetworkFormatter<'a, 'n, Q> for HashMap<RouterId, C>
+where
+    C: 'static,
+    for<'b> &'b C: IntoIterator<Item = &'b RouterId>,
+{
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        format!(
+            "{{\n{}\n}}",
+            self.iter()
+                .map(|(r, c)| format!(
+                    "    {}: {}",
+                    r.fmt(net),
+                    c.into_iter().map(|r| r.fmt(net)).join(", ")
+                ))
+                .join("\n")
+        )
     }
 }
 

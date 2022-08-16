@@ -155,8 +155,8 @@ pub trait NetworkBuilder<Q> {
     /// preference (but lower than the one from `e1`).
     ///
     /// The function `preference` takes a reference to the network, as well as the argument `a`, and
-    /// must produce the preference list. See the function [`equal_preferences`] and
-    /// [`unique_preferences`] for examples on how to use this method.
+    /// must produce the preference list. See the function [`equal_preferences`],
+    /// [`unique_preferences`], and [`best_others_equal_preferences`] for examples on how to use this method.
     ///
     /// The preference will be achieved by varying the AS path in the advertisement. No route-maps
     /// will be created! The most preferred route will have an AS path length of 2, while each
@@ -727,6 +727,9 @@ pub fn uniform_link_weight<Q>(
 /// advertised at random locations if the feature `rand` is enabled. Otherwise, they are advertised
 /// at the external routers with increasing router id. This function can be used for the function
 /// [`NetworkBuilder::build_advertisements`].
+///
+/// **Warning**: If there exists less than `k` external routers, then this function will return
+/// only as many routes as there are external routers.
 pub fn equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
     let mut routers = net.get_external_routers();
     #[cfg(feature = "rand")]
@@ -742,6 +745,9 @@ pub fn equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
 /// are advertised at random locations if the feature `rand` is enabled. Otherwise, they are
 /// advertised at the external routers with increasing router id. This function can be used for the
 /// function [`NetworkBuilder::build_advertisements`].
+///
+/// **Warning**: If there exists less than `k` external routers, then this function will return
+/// only as many routes as there are external routers.
 pub fn unique_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
     #[cfg(feature = "rand")]
     {
@@ -758,6 +764,29 @@ pub fn unique_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
                 .take(k)
                 .map(|r| vec![r]),
         )
+    }
+}
+
+/// Generate the preference list, where the first of the `k` routes has the highest preference,
+/// while all others have equal preference. The routes are advertised at random locations if the
+/// feature `rand` is enabled. Otherwise, they are advertised at the external routers with
+/// increasing router id. This function can be used for the function
+/// [`NetworkBuilder::build_advertisements`].
+///
+/// **Warning**: If there exists less than `k` external routers, then this function will return
+/// only as many routes as there are external routers.
+pub fn best_others_equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
+    let mut routers = net.get_external_routers();
+    #[cfg(feature = "rand")]
+    {
+        let mut rng = thread_rng();
+        routers.shuffle(&mut rng);
+    }
+    routers.truncate(k);
+    if let Some(best) = routers.pop() {
+        vec![vec![best], routers]
+    } else {
+        Vec::new()
     }
 }
 
