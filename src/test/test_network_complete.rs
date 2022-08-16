@@ -24,7 +24,7 @@ use crate::{
 };
 
 #[cfg(feature = "rand_queue")]
-use crate::event::{ModelParams, SimpleTimingModel};
+use crate::event::{GeoTimingModel, ModelParams, SimpleTimingModel};
 
 use pretty_assertions::assert_eq;
 
@@ -107,6 +107,41 @@ fn test_simple_model() {
     let prefix = Prefix(0);
 
     let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net);
+
+    // advertise the same prefix on both routers
+    net.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+        .unwrap();
+    net.advertise_external_route(e1, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+        .unwrap();
+
+    // check that all routes are correct
+    test_route!(net, b0, prefix, [b0, e0]);
+    test_route!(net, r0, prefix, [r0, b0, e0]);
+    test_route!(net, r1, prefix, [r1, b1, e1]);
+    test_route!(net, b1, prefix, [b1, e1]);
+}
+
+#[test]
+#[cfg(feature = "rand_queue")]
+fn test_geo_model() {
+    use maplit::hashmap;
+
+    use crate::interactive::InteractiveNetwork;
+
+    let mut net = Network::new(GeoTimingModel::new(
+        ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.1),
+        ModelParams::new(0.01, 0.01, 2.0, 5.0, 0.0),
+        &hashmap! {},
+    ));
+
+    let prefix = Prefix(0);
+
+    let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net);
+
+    let queue = net.queue_mut();
+    queue.set_distance(b0, r0, 0.001);
+    queue.set_distance(b1, r1, 0.001);
+    queue.set_distance(r0, r1, 0.001);
 
     // advertise the same prefix on both routers
     net.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)

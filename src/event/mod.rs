@@ -23,7 +23,9 @@ use serde::{Deserialize, Serialize};
 mod queue;
 pub use queue::{BasicEventQueue, EventQueue, FmtPriority};
 #[cfg(feature = "rand_queue")]
-pub use queue::{ModelParams, SimpleTimingModel};
+mod rand_queue;
+#[cfg(feature = "rand_queue")]
+pub use rand_queue::{GeoTimingModel, ModelParams, SimpleTimingModel};
 
 use crate::{
     bgp::BgpEvent,

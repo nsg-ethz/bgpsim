@@ -927,6 +927,8 @@ where
     ///
     /// *Undo Functionality*: this function will push some actions to the last undo event.
     pub(crate) fn do_queue_maybe_skip(&mut self) -> Result<(), NetworkError> {
+        // update the queue parameters
+        self.queue.update_params(&self.routers, &self.net);
         if self.skip_queue {
             return Ok(());
         }
