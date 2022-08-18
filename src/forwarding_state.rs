@@ -343,7 +343,11 @@ impl ForwardingState {
 
     /// Update a single edge on the forwarding state. This function will invalidate all caching that
     /// used this edge.
-    pub(crate) fn update(&mut self, source: RouterId, prefix: Prefix, next_hops: Vec<RouterId>) {
+    ///
+    /// **Warning**: Modifying the forwarding state manually is tricky and error-prone. Only use
+    /// this function if you know what you are doing! If a rotuer changes its next hop to be a
+    /// terminal, set the `next_hops` to `vec![RouterId::from(u32::MAX)]`.
+    pub fn update(&mut self, source: RouterId, prefix: Prefix, next_hops: Vec<RouterId>) {
         // first, change the next-hop
         let old_state = if next_hops.is_empty() {
             self.state.remove(&(source, prefix)).unwrap_or_default()

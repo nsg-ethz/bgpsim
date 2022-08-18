@@ -18,7 +18,7 @@
 //! Module that introduces a formatter to display all types containing `RouterId`.
 
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     fmt::Write,
 };
 
@@ -89,7 +89,28 @@ where
             "{{\n{}\n}}",
             self.iter()
                 .map(|(r, c)| format!(
-                    "    {}: {}",
+                    "    {}: {{{}}}",
+                    r.fmt(net),
+                    c.into_iter().map(|r| r.fmt(net)).join(", ")
+                ))
+                .join("\n")
+        )
+    }
+}
+
+impl<'a, 'n, Q, C> NetworkFormatter<'a, 'n, Q> for BTreeMap<RouterId, C>
+where
+    C: 'static,
+    for<'b> &'b C: IntoIterator<Item = &'b RouterId>,
+{
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        format!(
+            "{{\n{}\n}}",
+            self.iter()
+                .map(|(r, c)| format!(
+                    "    {}: {{{}}}",
                     r.fmt(net),
                     c.into_iter().map(|r| r.fmt(net)).join(", ")
                 ))
@@ -137,6 +158,19 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for Vec<Vec<RouterId>> {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         self.as_slice().fmt(net)
+    }
+}
+
+impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for HashSet<Vec<RouterId>> {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
+        format!(
+            "{{\n    {}\n}}",
+            self.iter()
+                .map(|p| p.iter().map(|r| r.fmt(net)).join(" -> "))
+                .join(",\n    ")
+        )
     }
 }
 
