@@ -16,6 +16,8 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 mod common;
+
+/*
 use common::*;
 
 pub fn main() {
@@ -26,4 +28,18 @@ pub fn main() {
         result.push(simulate_event(net.clone()));
     }
     drop(result);
+}
+*/
+
+use common::roland::*;
+
+pub fn main() {
+    println!("setting up...");
+    let (net, prefix, policies, withdraw_at) = try_setup_net().unwrap();
+    let (mut fw_state, trace) = setup_experiment(&net, prefix, withdraw_at).unwrap();
+
+    println!("iterating...");
+    for _ in 0..10_000 {
+        fw_state = simulate_event(&net, prefix, fw_state, &trace, &policies);
+    }
 }
