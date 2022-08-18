@@ -28,8 +28,12 @@ use crate::{
     router::*,
     types::{AsId, IgpNetwork, Prefix},
 };
-use maplit::{hashmap, hashset};
 use pretty_assertions::assert_eq;
+
+#[cfg(feature = "cow")]
+use im::{hashmap, hashset};
+#[cfg(not(feature = "cow"))]
+use maplit::{hashmap, hashset};
 
 #[test]
 fn test_bgp_single() {

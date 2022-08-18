@@ -79,7 +79,7 @@ pub fn setup_measure_roland(
 ) -> Duration {
     let mut dur = Duration::default();
     let mut fw_state = fw_state.clone();
-    for i in 0..iters {
+    for _ in 0..iters {
         let start = Instant::now();
         fw_state = roland::simulate_event(net, prefix, fw_state, trace, policies);
         dur += start.elapsed();
@@ -89,8 +89,8 @@ pub fn setup_measure_roland(
 
 criterion_group!(
     benches,
-    // benchmark_generation,
-    // benchmark_clone,
+    benchmark_generation,
+    benchmark_clone,
     benchmark_roland
 );
 criterion_main!(benches);

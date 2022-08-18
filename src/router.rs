@@ -32,14 +32,22 @@ use ordered_float::NotNan;
 use petgraph::visit::EdgeRef;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde")]
+#[cfg(all(feature = "serde", not(feature = "cow")))]
 use serde_with::{As, Same};
 use std::{
-    collections::{hash_map::Iter, HashMap, HashSet},
+    // collections::{hash_map::Iter, HashMap, HashSet},
     fmt::Write,
     mem::swap,
     slice::Iter as VecIter,
 };
+
+#[cfg(feature = "cow")]
+use im::{
+    hashmap::{HashMap, Iter},
+    hashset::HashSet,
+};
+#[cfg(not(feature = "cow"))]
+use std::collections::{hash_map::Iter, HashMap, HashSet};
 
 /// Bgp Router
 #[derive(Debug)]
@@ -68,7 +76,10 @@ pub struct Router {
     bgp_rib: HashMap<Prefix, BgpRibEntry>,
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
-    #[cfg_attr(feature = "serde", serde(with = "As::<Vec<(Same, Same)>>"))]
+    #[cfg_attr(
+        all(feature = "serde", not(feature = "cow")),
+        serde(with = "As::<Vec<(Same, Same)>>")
+    )]
     bgp_rib_out: HashMap<(Prefix, RouterId), BgpRibEntry>,
     /// Set of known bgp prefixes
     bgp_known_prefixes: HashSet<Prefix>,
@@ -230,7 +241,11 @@ impl Router {
                     },
                     BgpEvent::Withdraw(prefix) => self.remove_bgp_route(prefix, from),
                 };
-                if self.bgp_known_prefixes.insert(prefix) {
+                #[cfg(feature = "cow")]
+                let new_prefix = self.bgp_known_prefixes.insert(prefix).is_none();
+                #[cfg(not(feature = "cow"))]
+                let new_prefix = self.bgp_known_prefixes.insert(prefix);
+                if new_prefix {
                     // add the undo action, but only if the prefix was not known before.
                     #[cfg(feature = "undo")]
                     self.undo_stack
@@ -765,8 +780,18 @@ impl Router {
         if self.bgp_rib_out != other.bgp_rib_out {
             return false;
         }
-        for prefix in self.bgp_known_prefixes.union(&other.bgp_known_prefixes) {
-            match (self.bgp_rib_in.get(prefix), other.bgp_rib_in.get(prefix)) {
+        #[cfg(feature = "cow")]
+        let prefix_union = self
+            .bgp_known_prefixes
+            .clone()
+            .union(other.bgp_known_prefixes.clone());
+        #[cfg(not(feature = "cow"))]
+        let prefix_union = self
+            .bgp_known_prefixes
+            .union(&other.bgp_known_prefixes)
+            .copied();
+        for prefix in prefix_union {
+            match (self.bgp_rib_in.get(&prefix), other.bgp_rib_in.get(&prefix)) {
                 (Some(x), None) if !x.is_empty() => return false,
                 (None, Some(x)) if !x.is_empty() => return false,
                 (Some(a), Some(b)) if a != b => return false,
@@ -1144,11 +1169,20 @@ impl PartialEq for Router {
         if self.undo_stack != other.undo_stack {
             return false;
         }
-
-        for prefix in self.bgp_known_prefixes.union(&other.bgp_known_prefixes) {
+        #[cfg(feature = "cow")]
+        let prefix_union = self
+            .bgp_known_prefixes
+            .clone()
+            .union(other.bgp_known_prefixes.clone());
+        #[cfg(not(feature = "cow"))]
+        let prefix_union = self
+            .bgp_known_prefixes
+            .union(&other.bgp_known_prefixes)
+            .copied();
+        for prefix in prefix_union {
             assert_eq!(
-                self.bgp_rib_in.get(prefix).unwrap_or(&HashMap::new()),
-                other.bgp_rib_in.get(prefix).unwrap_or(&HashMap::new())
+                self.bgp_rib_in.get(&prefix).unwrap_or(&HashMap::new()),
+                other.bgp_rib_in.get(&prefix).unwrap_or(&HashMap::new())
             );
         }
 
