@@ -23,6 +23,11 @@ use criterion::{criterion_group, criterion_main, Criterion};
 
 mod common;
 use common::*;
+use netsim::event::GeoTimingModel;
+use netsim::forwarding_state::ForwardingState;
+use netsim::policies::FwPolicy;
+use netsim::prelude::*;
+use netsim::record::ConvergenceTrace;
 
 pub fn benchmark_generation(c: &mut Criterion) {
     c.bench_function("retract", |b| {
@@ -53,5 +58,39 @@ where
     dur
 }
 
-criterion_group!(benches, benchmark_generation, benchmark_clone);
+pub fn benchmark_roland(c: &mut Criterion) {
+    println!("setup");
+    let (net, prefix, policies, withdraw_at) = roland::try_setup_net().unwrap();
+    let (fw_state, trace) = roland::setup_experiment(&net, prefix, withdraw_at).unwrap();
+    c.bench_function("roland", |b| {
+        b.iter_custom(|iters| {
+            setup_measure_roland(iters, &net, prefix, &fw_state, &trace, &policies)
+        })
+    });
+}
+
+pub fn setup_measure_roland(
+    iters: u64,
+    net: &Network<GeoTimingModel>,
+    prefix: Prefix,
+    fw_state: &ForwardingState,
+    trace: &ConvergenceTrace,
+    policies: &[FwPolicy],
+) -> Duration {
+    let mut dur = Duration::default();
+    let mut fw_state = fw_state.clone();
+    for i in 0..iters {
+        let start = Instant::now();
+        fw_state = roland::simulate_event(net, prefix, fw_state, trace, policies);
+        dur += start.elapsed();
+    }
+    dur
+}
+
+criterion_group!(
+    benches,
+    // benchmark_generation,
+    // benchmark_clone,
+    benchmark_roland
+);
 criterion_main!(benches);

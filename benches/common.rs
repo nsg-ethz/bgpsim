@@ -118,19 +118,14 @@ pub mod roland {
         let mut net = TOPO.build(queue());
         let prefix = Prefix(1);
         // Make sure that at least 3 external routers exist
-        println!("1");
         net.build_external_routers(extend_to_k_external_routers, 2)?;
         // create a route reflection topology with the two route reflectors of the highest degree
-        println!("2");
         let route_reflectors = net.build_ibgp_route_reflection(k_highest_degree_nodes, 1)?;
         // setup all external bgp sessions
-        println!("3");
         net.build_ebgp_sessions()?;
         // create random link weights between 10 and 100
-        println!("4");
         net.build_link_weights(uniform_link_weight, (10.0, 100.0))?;
         // advertise 3 routes with unique preferences for a single prefix
-        println!("5");
         let advertisements = net.build_advertisements(prefix, unique_preferences, 2)?;
 
         // create the policies
