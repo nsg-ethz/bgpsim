@@ -31,6 +31,7 @@ pub fn main() {
 }
 */
 
+/*
 use common::roland::*;
 
 pub fn main() {
@@ -41,3 +42,6 @@ pub fn main() {
         fw_state = simulate_event(&net, prefix, fw_state, &trace, &policies);
     }
 }
+*/
+
+pub fn main() {}

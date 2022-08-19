@@ -59,7 +59,6 @@ where
 }
 
 pub fn benchmark_roland(c: &mut Criterion) {
-    println!("setup");
     let (net, prefix, policies, withdraw_at) = roland::try_setup_net().unwrap();
     let (fw_state, trace) = roland::setup_experiment(&net, prefix, withdraw_at).unwrap();
     c.bench_function("roland", |b| {
