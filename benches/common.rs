@@ -171,13 +171,12 @@ pub mod roland {
     }
 
     pub fn simulate_event(
-        net: &Net,
+        t: &mut Net,
         prefix: Prefix,
         fw_state: ForwardingState,
         trace: &ConvergenceTrace,
         policies: &[FwPolicy],
     ) -> ForwardingState {
-        let mut t = net.clone();
         let mut trace = trace.clone();
 
         // simulate the event

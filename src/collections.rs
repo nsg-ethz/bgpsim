@@ -317,8 +317,8 @@ where
     }
 }
 
-#[cfg(not(feature = "cow"))]
-impl<K, V> From<HashMap<K, V>> for CowMap<K, V>
+#[cfg(feature = "cow")]
+impl<K, V> From<im::HashMap<K, V>> for CowMap<K, V>
 where
     K: Eq + Hash + Clone,
     V: Clone,
@@ -329,12 +329,23 @@ where
 }
 
 #[cfg(feature = "cow")]
-impl<K, V> From<im::HashMap<K, V>> for CowMap<K, V>
+impl<K, V> From<HashMap<K, V>> for CowMap<K, V>
 where
     K: Eq + Hash + Clone,
     V: Clone,
 {
-    fn from(inner: im::HashMap<K, V>) -> Self {
+    fn from(inner: HashMap<K, V>) -> Self {
+        Self(inner.into())
+    }
+}
+
+#[cfg(not(feature = "cow"))]
+impl<K, V> From<HashMap<K, V>> for CowMap<K, V>
+where
+    K: Eq + Hash + Clone,
+    V: Clone,
+{
+    fn from(inner: HashMap<K, V>) -> Self {
         Self(inner)
     }
 }

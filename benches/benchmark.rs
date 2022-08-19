@@ -78,10 +78,21 @@ pub fn setup_measure_roland(
 ) -> Duration {
     let mut dur = Duration::default();
     let mut fw_state = fw_state.clone();
+    let mut worker = net.clone();
     for _ in 0..iters {
         let start = Instant::now();
-        fw_state = roland::simulate_event(net, prefix, fw_state, trace, policies);
+        fw_state = roland::simulate_event(&mut worker, prefix, fw_state, trace, policies);
+        unsafe {
+            worker = net
+                .partial_clone()
+                .reuse_advertisements(true)
+                .reuse_config(true)
+                .reuse_igp_state(true)
+                .reuse_queue_params(true)
+                .conquer(worker);
+        };
         dur += start.elapsed();
+        assert_eq!(&worker, net);
     }
     dur
 }
