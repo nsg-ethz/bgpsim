@@ -81,6 +81,7 @@ where
     K: Hash + Eq + Clone,
     V: Clone,
 {
+    #[inline]
     pub fn new() -> CowMap<K, V> {
         #[cfg(feature = "cow")]
         return Self(im::hashmap::HashMap::new());
@@ -88,58 +89,72 @@ where
         return Self(HashMap::new());
     }
 
+    #[inline]
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
 
+    #[inline]
     pub fn len(&self) -> usize {
         self.0.len()
     }
 
+    #[inline]
     pub fn iter(&self) -> CowMapIter<'_, K, V> {
         self.0.iter()
     }
 
+    #[inline]
     pub fn keys(&self) -> CowMapKeys<'_, K, V> {
         self.0.keys()
     }
 
+    #[inline]
     pub fn values(&self) -> CowMapValues<'_, K, V> {
         self.0.values()
     }
 
+    #[inline]
     pub fn clear(&mut self) {
         self.0.clear()
     }
 
+    #[inline]
     pub fn iter_mut(&mut self) -> CowMapIterMut<'_, K, V> {
         self.0.iter_mut()
     }
 
+    #[inline]
     pub fn get(&self, key: &K) -> Option<&V> {
         self.0.get(key)
     }
 
+    #[inline]
     pub fn get_mut(&mut self, key: &K) -> Option<&mut V> {
         self.0.get_mut(key)
     }
 
+    #[inline]
     pub fn get_key_value(&self, key: &K) -> Option<(&K, &V)> {
         self.0.get_key_value(key)
     }
 
+    #[inline]
     pub fn contains_key(&self, key: &K) -> bool {
         self.0.contains_key(key)
     }
 
+    #[inline]
     pub fn entry(&mut self, key: K) -> CowMapEntry<'_, K, V> {
         self.0.entry(key)
     }
 
+    #[inline]
     pub fn insert(&mut self, key: K, value: V) -> Option<V> {
         self.0.insert(key, value)
     }
 
+    #[inline]
     pub fn remove(&mut self, key: &K) -> Option<V> {
         self.0.remove(key)
     }
@@ -299,5 +314,27 @@ where
         S: serde::Serializer,
     {
         Vec::<(KAs, VAs)>::serialize_as(&source.0, serializer)
+    }
+}
+
+#[cfg(not(feature = "cow"))]
+impl<K, V> From<HashMap<K, V>> for CowMap<K, V>
+where
+    K: Eq + Hash + Clone,
+    V: Clone,
+{
+    fn from(inner: im::HashMap<K, V>) -> Self {
+        Self(inner)
+    }
+}
+
+#[cfg(feature = "cow")]
+impl<K, V> From<im::HashMap<K, V>> for CowMap<K, V>
+where
+    K: Eq + Hash + Clone,
+    V: Clone,
+{
+    fn from(inner: im::HashMap<K, V>) -> Self {
+        Self(inner)
     }
 }

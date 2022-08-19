@@ -46,10 +46,10 @@ pub struct ExternalRouter {
     name: String,
     router_id: RouterId,
     as_id: AsId,
-    neighbors: HashSet<RouterId>,
-    active_routes: HashMap<Prefix, BgpRoute>,
+    pub(crate) neighbors: HashSet<RouterId>,
+    pub(crate) active_routes: HashMap<Prefix, BgpRoute>,
     #[cfg(feature = "undo")]
-    undo_stack: Vec<Vec<UndoAction>>,
+    pub(crate) undo_stack: Vec<Vec<UndoAction>>,
 }
 
 impl Clone for ExternalRouter {
@@ -322,7 +322,7 @@ impl ExternalRouter {
 #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-enum UndoAction {
+pub(crate) enum UndoAction {
     AddBgpSession(RouterId),
     DelBgpSession(RouterId),
     AdvertiseRoute(Prefix, Option<BgpRoute>),

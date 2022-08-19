@@ -88,6 +88,10 @@ where
 
     /// Set the network into verbose mode (or not)
     fn verbose(&mut self, verbose: bool);
+
+    /// Clone the structure by moving some values from a different network. See [`PartialClone`] for
+    /// more details.
+    fn partial_clone(&self) -> PartialClone<'_, Q>;
 }
 
 impl<Q> InteractiveNetwork<Q> for Network<Q>
@@ -239,5 +243,221 @@ where
     /// Set the network into verbose mode (or not)
     fn verbose(&mut self, verbose: bool) {
         self.verbose = verbose;
+    }
+
+    fn partial_clone(&self) -> PartialClone<'_, Q> {
+        PartialClone {
+            source: self,
+            reuse_igp_state: false,
+            reuse_bgp_state: false,
+            reuse_config: false,
+            reuse_advertisements: false,
+            reuse_queue_params: false,
+        }
+    }
+}
+
+/// Builder interface to partially clone the source network while moving values from the conquered
+/// network. most of the functions in this structure are `unsafe`, because the caller must guarantee
+/// that the source and the conquered network share the exact same state for those values that you
+/// decide to reuse.
+///
+/// If you do not reuse anything of the conquered network, then this function will most likely be
+/// slower than simply calling `source.clone()`.
+///
+/// ```
+/// # #[cfg(feature = "topology_zoo")]
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// # use netsim::prelude::*;
+/// # use netsim::topology_zoo::TopologyZoo;
+/// # use netsim::event::BasicEventQueue;
+/// # use netsim::builder::*;
+/// # let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());
+/// # let prefix = Prefix(0);
+/// # net.build_external_routers(extend_to_k_external_routers, 3)?;
+/// # net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
+/// # net.build_ebgp_sessions()?;
+/// # net.build_link_weights(constant_link_weight, 20.0)?;
+/// # let ads = net.build_advertisements(prefix, unique_preferences, 3)?;
+/// # let ext = ads[0][0];
+/// use netsim::interactive::InteractiveNetwork;
+///
+/// // let mut net = ...
+/// let original_net = net.clone();
+/// net.retract_external_route(ext, prefix)?;
+/// assert_ne!(net, original_net);
+/// let net = unsafe {
+///     original_net.partial_clone()
+///         .reuse_config(true)
+///         .reuse_igp_state(true)
+///         .reuse_queue_params(true)
+///         .conquer(net)
+/// };
+/// assert_eq!(net, original_net);
+/// # Ok(()) }
+/// ```
+#[derive(Debug)]
+pub struct PartialClone<'a, Q> {
+    source: &'a Network<Q>,
+    reuse_config: bool,
+    reuse_advertisements: bool,
+    reuse_igp_state: bool,
+    reuse_bgp_state: bool,
+    reuse_queue_params: bool,
+}
+
+impl<'a, Q> PartialClone<'a, Q> {
+    /// Reuse the entire configuration from the conquered network.
+    ///
+    /// # Safety
+    /// The caller must ensure that the entire configuration of both the source network and the
+    /// conquered network is identical.
+    pub unsafe fn reuse_config(mut self, b: bool) -> Self {
+        self.reuse_config = b;
+        self
+    }
+
+    /// Reuse all external advertisements.
+    ///
+    /// # Safety
+    /// The caller must ensure that the advertisements of both the source and the conquered network
+    /// is identical.
+    pub unsafe fn reuse_advertisements(mut self, b: bool) -> Self {
+        self.reuse_advertisements = b;
+        self
+    }
+
+    /// Reuse the IGP state of the network. This function requires that you also reuse the
+    /// configuration!
+    ///
+    /// # Safety
+    /// The caller must ensure that the entire IGP state of both the source and the conquered
+    /// network is identical.
+    pub unsafe fn reuse_igp_state(mut self, b: bool) -> Self {
+        self.reuse_igp_state = b;
+        self
+    }
+
+    /// Reuse the BGP state of the network. This function requires that you also reuse the
+    /// configuration and the advertisements!
+    ///
+    /// # Safety
+    /// The caller must ensure that the entire BGP state of both the source and the conquered
+    /// network is identical.
+    pub unsafe fn reuse_bgp_state(mut self, b: bool) -> Self {
+        self.reuse_bgp_state = b;
+        self
+    }
+
+    /// Reuse the parameters of the conquered queue, while copying the events from the source
+    /// network. This requires that the configuration and the IGP state is ireused.
+    ///
+    /// # Safety
+    /// The caller must ensure that the properties of of both the source and the conquered network
+    /// queue is identical.
+    pub unsafe fn reuse_queue_params(mut self, b: bool) -> Self {
+        self.reuse_queue_params = b;
+        self
+    }
+
+    /// Move the conquer network while cloning the required parameters from the source network into
+    /// the target network.
+    ///
+    /// # Safety
+    /// You must ensure that the physical topology of both the source and the conquered network is
+    /// identical.
+    pub unsafe fn conquer(self, other: Network<Q>) -> Network<Q>
+    where
+        Q: Clone + EventQueue,
+    {
+        // assert that the properties are correct
+        if self.reuse_igp_state && !self.reuse_config {
+            panic!("Cannot reuse the IGP state but not reuse the configuration.");
+        }
+        if self.reuse_bgp_state && !(self.reuse_config && self.reuse_advertisements) {
+            panic!(
+                "Cannot reuse the BGP state but not reuse the configuration or the advertisements."
+            );
+        }
+        if self.reuse_queue_params && !self.reuse_igp_state {
+            panic!("Cannot reuse queue parameters but not reuse the IGP state.");
+        }
+
+        let mut new = other;
+        let source = self.source;
+
+        // take the values that are fast to clone
+        new.stop_after = source.stop_after;
+        new.skip_queue = source.skip_queue;
+        new.verbose = source.verbose;
+
+        // clone new.net if the configuration is different
+        if !self.reuse_config {
+            new.ospf = source.ospf.clone();
+        }
+
+        if !self.reuse_advertisements {
+            new.known_prefixes = source.known_prefixes.clone();
+        }
+
+        if self.reuse_queue_params {
+            new.queue = source.queue.clone_events(new.queue);
+        } else {
+            new.queue = source.queue.clone();
+        }
+
+        // handle all external routers
+        for (id, r) in new.external_routers.iter_mut() {
+            let r_source = source.external_routers.get(id).unwrap();
+            if !self.reuse_config {
+                r.neighbors = r_source.neighbors.clone();
+            }
+            if !self.reuse_advertisements {
+                r.active_routes = r_source.active_routes.clone();
+            }
+            #[cfg(feature = "undo")]
+            {
+                r.undo_stack = r_source.undo_stack.clone();
+            }
+        }
+
+        // handle all internal routers
+        for (id, r) in new.routers.iter_mut() {
+            let r_source = source.routers.get(id).unwrap();
+
+            if !self.reuse_config {
+                r.do_load_balancing = r_source.do_load_balancing;
+                r.neighbors = r_source.neighbors.clone();
+                r.static_routes = r_source.static_routes.clone();
+                r.bgp_sessions = r_source.bgp_sessions.clone();
+                r.bgp_sessions = r_source.bgp_sessions.clone();
+                r.bgp_route_maps_in = r_source.bgp_route_maps_in.clone();
+                r.bgp_route_maps_out = r_source.bgp_route_maps_out.clone();
+            }
+
+            if !self.reuse_igp_state {
+                r.igp_table = r_source.igp_table.clone();
+            }
+
+            if !self.reuse_bgp_state {
+                r.bgp_rib_in = r_source.bgp_rib_in.clone();
+                r.bgp_rib = r_source.bgp_rib.clone();
+                r.bgp_rib_out = r_source.bgp_rib_out.clone();
+                r.bgp_known_prefixes = r_source.bgp_known_prefixes.clone();
+            }
+
+            #[cfg(feature = "undo")]
+            {
+                r.undo_stack = r_source.undo_stack.clone();
+            }
+        }
+
+        // clone the undo stacks
+        #[cfg(feature = "undo")]
+        {
+            new.undo_stack = source.undo_stack.clone();
+        }
+
+        new
     }
 }

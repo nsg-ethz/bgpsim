@@ -134,6 +134,15 @@ impl EventQueue for SimpleTimingModel {
     }
 
     fn update_params(&mut self, _: &HashMap<RouterId, Router>, _: &IgpNetwork) {}
+
+    unsafe fn clone_events(&self, conquered: Self) -> Self {
+        SimpleTimingModel {
+            q: self.q.clone(),
+            messages: self.messages.clone(),
+            current_time: self.current_time,
+            ..conquered
+        }
+    }
 }
 
 impl PartialEq for SimpleTimingModel {
@@ -402,6 +411,15 @@ impl EventQueue for GeoTimingModel {
             for dst in routers.keys() {
                 self.recursive_compute_paths(*src, *dst, &mut HashSet::new(), routers);
             }
+        }
+    }
+
+    unsafe fn clone_events(&self, conquered: Self) -> Self {
+        GeoTimingModel {
+            q: self.q.clone(),
+            messages: self.messages.clone(),
+            current_time: self.current_time,
+            ..conquered
         }
     }
 }

@@ -61,6 +61,12 @@ pub trait EventQueue {
     /// triggered event occurs. It will still happen, even if the network was set to manual
     /// simulation.
     fn update_params(&mut self, routers: &HashMap<RouterId, Router>, net: &IgpNetwork);
+
+    /// Clone all events from self into conquered.
+    ///
+    /// # Safety
+    /// The caller must ensure that all parameters of `self` and `conquered` are the same.
+    unsafe fn clone_events(&self, conquered: Self) -> Self;
 }
 
 /// Basic event queue
@@ -108,6 +114,10 @@ impl EventQueue for BasicEventQueue {
     }
 
     fn update_params(&mut self, _: &HashMap<RouterId, Router>, _: &IgpNetwork) {}
+
+    unsafe fn clone_events(&self, _: Self) -> Self {
+        self.clone()
+    }
 }
 
 /// Display type for Priority
