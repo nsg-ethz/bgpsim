@@ -30,7 +30,7 @@ use crate::{
 };
 use pretty_assertions::assert_eq;
 
-use crate::collections::{cowmap, hashmap, hashset};
+use crate::collections::{hashmap, hashset};
 
 #[test]
 fn test_bgp_single() {
@@ -42,7 +42,7 @@ fn test_bgp_single() {
     r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
     r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
     r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
-    r.igp_table = cowmap! {
+    r.igp_table = hashmap! {
         100.into() => (vec![100.into()], 0.0),
         1.into()   => (vec![1.into()], 1.0),
         2.into()   => (vec![2.into()], 1.0),
@@ -52,8 +52,7 @@ fn test_bgp_single() {
         6.into()   => (vec![1.into()], 13.0),
         10.into()  => (vec![1.into()], 6.0),
         11.into()  => (vec![1.into()], 15.0),
-    }
-    .into();
+    };
 
     /////////////////////
     // external update //
@@ -586,7 +585,7 @@ fn test_bgp_single_undo() {
     r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
     r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
     r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
-    r.igp_table = cowmap! {
+    r.igp_table = hashmap! {
         100.into() => (vec![100.into()], 0.0),
         1.into()   => (vec![1.into()], 1.0),
         2.into()   => (vec![2.into()], 1.0),
@@ -596,8 +595,7 @@ fn test_bgp_single_undo() {
         6.into()   => (vec![1.into()], 13.0),
         10.into()  => (vec![1.into()], 6.0),
         11.into()  => (vec![1.into()], 15.0),
-    }
-    .into();
+    };
 
     /////////////////////
     // external update //

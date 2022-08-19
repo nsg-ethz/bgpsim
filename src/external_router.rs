@@ -20,15 +20,18 @@
 //! The external router representa a router located in a different AS, not controlled by the network
 //! operators.
 
+#[cfg(feature = "undo")]
+use crate::collections::CowVec;
 use crate::{
     bgp::{BgpEvent, BgpRoute},
+    collections::{CowMap, CowMapKeys, CowSet},
     event::Event,
     types::{AsId, DeviceError, Prefix, RouterId, StepUpdate},
 };
+
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::collections::hash_map::Keys;
-use std::collections::{HashMap, HashSet};
+use std::collections::HashSet;
 
 /// Struct representing an external router
 /// NOTE: We use vectors, for both the neighbors and active routes. The reason is the following:
@@ -46,10 +49,10 @@ pub struct ExternalRouter {
     name: String,
     router_id: RouterId,
     as_id: AsId,
-    pub(crate) neighbors: HashSet<RouterId>,
-    pub(crate) active_routes: HashMap<Prefix, BgpRoute>,
+    pub(crate) neighbors: CowSet<RouterId>,
+    pub(crate) active_routes: CowMap<Prefix, BgpRoute>,
     #[cfg(feature = "undo")]
-    pub(crate) undo_stack: Vec<Vec<UndoAction>>,
+    pub(crate) undo_stack: CowVec<Vec<UndoAction>>,
 }
 
 impl Clone for ExternalRouter {
@@ -73,10 +76,10 @@ impl ExternalRouter {
             name,
             router_id,
             as_id,
-            neighbors: HashSet::new(),
-            active_routes: HashMap::new(),
+            neighbors: CowSet::new(),
+            active_routes: CowMap::new(),
             #[cfg(feature = "undo")]
-            undo_stack: Vec::new(),
+            undo_stack: CowVec::new(),
         }
     }
 
@@ -139,7 +142,7 @@ impl ExternalRouter {
     }
 
     /// Return a set of routes which are advertised
-    pub fn advertised_prefixes(&self) -> Keys<'_, Prefix, BgpRoute> {
+    pub fn advertised_prefixes(&self) -> CowMapKeys<'_, Prefix, BgpRoute> {
         self.active_routes.keys()
     }
 
@@ -291,12 +294,12 @@ impl ExternalRouter {
     }
 
     /// Returns a reference to all advertised routes of this router
-    pub fn get_advertised_routes(&self) -> &HashMap<Prefix, BgpRoute> {
+    pub fn get_advertised_routes(&self) -> &CowMap<Prefix, BgpRoute> {
         &self.active_routes
     }
 
     /// Returns a reference to the hashset containing all BGP sessions.
-    pub fn get_bgp_sessions(&self) -> &HashSet<RouterId> {
+    pub fn get_bgp_sessions(&self) -> &CowSet<RouterId> {
         &self.neighbors
     }
 

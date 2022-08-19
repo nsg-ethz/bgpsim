@@ -644,6 +644,33 @@ where
     pub fn split_off(&mut self, at: usize) -> Self {
         Self(self.0.split_off(at))
     }
+
+    #[inline]
+    pub fn binary_search_by<F>(&self, f: F) -> Result<usize, usize>
+    where
+        F: FnMut(&T) -> std::cmp::Ordering,
+    {
+        self.0.binary_search_by(f)
+    }
+
+    #[inline]
+    pub fn binary_search_by_key<B, F>(&self, b: &B, f: F) -> Result<usize, usize>
+    where
+        F: FnMut(&T) -> B,
+        B: Ord,
+    {
+        self.0.binary_search_by_key(b, f)
+    }
+
+    #[inline]
+    pub fn get(&self, index: usize) -> Option<&T> {
+        self.0.get(index)
+    }
+
+    #[inline]
+    pub fn get_mut(&mut self, index: usize) -> Option<&mut T> {
+        self.0.get_mut(index)
+    }
 }
 
 #[cfg(feature = "cow")]
@@ -666,6 +693,26 @@ where
     pub fn append(&mut self, other: &Self) {
         self.0.append(other.0.clone())
     }
+
+    #[inline]
+    pub fn last(&self) -> Option<&T> {
+        self.0.back()
+    }
+
+    #[inline]
+    pub fn last_mut(&mut self) -> Option<&mut T> {
+        self.0.back_mut()
+    }
+
+    #[inline]
+    pub fn first(&self) -> Option<&T> {
+        self.0.front()
+    }
+
+    #[inline]
+    pub fn first_mut(&mut self) -> Option<&mut T> {
+        self.0.front_mut()
+    }
 }
 
 #[cfg(not(feature = "cow"))]
@@ -687,6 +734,36 @@ where
     #[inline]
     pub fn append(&mut self, other: &mut Self) {
         self.0.append(&mut other.0)
+    }
+
+    #[inline]
+    pub fn last(&self) -> Option<&T> {
+        self.0.last()
+    }
+
+    #[inline]
+    pub fn last_mut(&mut self) -> Option<&mut T> {
+        self.0.last_mut()
+    }
+
+    #[inline]
+    pub fn first(&self) -> Option<&T> {
+        self.0.first()
+    }
+
+    #[inline]
+    pub fn first_mut(&mut self) -> Option<&mut T> {
+        self.0.first_mut()
+    }
+}
+
+impl<T> CowVec<T>
+where
+    T: Clone + Ord + PartialEq,
+{
+    #[inline]
+    pub fn binary_search(&self, value: &T) -> Result<usize, usize> {
+        self.0.binary_search(value)
     }
 }
 

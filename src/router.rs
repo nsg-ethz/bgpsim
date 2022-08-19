@@ -19,7 +19,7 @@
 
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
-    collections::{CowMap, CowMapIter},
+    collections::{CowMap, CowMapIter, CowSet, CowVec, CowVecIter},
     event::Event,
     formatter::NetworkFormatter,
     network::Network,
@@ -35,13 +35,7 @@ use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
 #[cfg(feature = "serde")]
 use serde_with::{As, Same};
-use std::{
-    collections::{HashMap, HashSet},
-    // collections::{hash_map::Iter, HashMap, HashSet},
-    fmt::Write,
-    mem::swap,
-    slice::Iter as VecIter,
-};
+use std::{collections::HashMap, fmt::Write, mem::swap};
 
 /// Bgp Router
 #[derive(Debug)]
@@ -56,7 +50,7 @@ pub struct Router {
     /// Neighbors of that node. This updates with any IGP update
     pub(crate) neighbors: CowMap<RouterId, LinkWeight>,
     /// forwarding table for IGP messages
-    pub igp_table: CowMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+    pub igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Static Routes for Prefixes
     pub(crate) static_routes: CowMap<Prefix, StaticRoute>,
     /// hashmap of all bgp sessions
@@ -64,20 +58,20 @@ pub struct Router {
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
     /// to another hashmap, which maps the received router id to the entry. This way, we can store
     /// one entry for every prefix and every session.
-    pub(crate) bgp_rib_in: CowMap<Prefix, HashMap<RouterId, BgpRibEntry>>,
+    pub(crate) bgp_rib_in: HashMap<Prefix, HashMap<RouterId, BgpRibEntry>>,
     /// Table containing all selected best routes. It is represented as a hashmap, mapping the
     /// prefixes to the table entry
-    pub(crate) bgp_rib: CowMap<Prefix, BgpRibEntry>,
+    pub(crate) bgp_rib: HashMap<Prefix, BgpRibEntry>,
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
     #[cfg_attr(all(feature = "serde"), serde(with = "As::<Vec<(Same, Same)>>"))]
-    pub(crate) bgp_rib_out: CowMap<(Prefix, RouterId), BgpRibEntry>,
+    pub(crate) bgp_rib_out: HashMap<(Prefix, RouterId), BgpRibEntry>,
     /// Set of known bgp prefixes
-    pub(crate) bgp_known_prefixes: HashSet<Prefix>,
+    pub(crate) bgp_known_prefixes: CowSet<Prefix>,
     /// BGP Route-Maps for Input
-    pub(crate) bgp_route_maps_in: Vec<RouteMap>,
+    pub(crate) bgp_route_maps_in: CowVec<RouteMap>,
     /// BGP Route-Maps for Output
-    pub(crate) bgp_route_maps_out: Vec<RouteMap>,
+    pub(crate) bgp_route_maps_out: CowVec<RouteMap>,
     /// Flag to tell if load balancing is enabled. If load balancing is enabled, then the router
     /// will load balance packets towards a destination if multiple paths exist with equal
     /// cost. load balancing will only work within OSPF. BGP Additional Paths is not yet
@@ -86,7 +80,7 @@ pub struct Router {
     /// Stack to undo action from every event. Each processed event will push a new vector onto the
     /// stack, containing all actions to perform in order to undo the event.
     #[cfg(feature = "undo")]
-    pub(crate) undo_stack: Vec<Vec<UndoAction>>,
+    pub(crate) undo_stack: CowVec<Vec<UndoAction>>,
 }
 
 impl Clone for Router {
@@ -118,19 +112,19 @@ impl Router {
             name,
             router_id,
             as_id,
-            igp_table: CowMap::new(),
+            igp_table: HashMap::new(),
             neighbors: CowMap::new(),
             static_routes: CowMap::new(),
             bgp_sessions: CowMap::new(),
-            bgp_rib_in: CowMap::new(),
-            bgp_rib: CowMap::new(),
-            bgp_rib_out: CowMap::new(),
-            bgp_known_prefixes: HashSet::new(),
-            bgp_route_maps_in: Vec::new(),
-            bgp_route_maps_out: Vec::new(),
+            bgp_rib_in: HashMap::new(),
+            bgp_rib: HashMap::new(),
+            bgp_rib_out: HashMap::new(),
+            bgp_known_prefixes: CowSet::new(),
+            bgp_route_maps_in: CowVec::new(),
+            bgp_route_maps_out: CowVec::new(),
             do_load_balancing: false,
             #[cfg(feature = "undo")]
-            undo_stack: Vec::new(),
+            undo_stack: CowVec::new(),
         }
     }
 
@@ -195,7 +189,7 @@ impl Router {
     /// Returns the IGP Forwarding table. The table maps the ID of every router in the network to
     /// a tuple `(next_hop, cost)` of the next hop on the path and the cost to reach the
     /// destination.
-    pub fn get_igp_fw_table(&self) -> &CowMap<RouterId, (Vec<RouterId>, LinkWeight)> {
+    pub fn get_igp_fw_table(&self) -> &HashMap<RouterId, (Vec<RouterId>, LinkWeight)> {
         &self.igp_table
     }
 
@@ -657,12 +651,12 @@ impl Router {
     }
 
     /// Get an iterator over all incoming route-maps
-    pub fn get_bgp_route_maps_in(&self) -> VecIter<'_, RouteMap> {
+    pub fn get_bgp_route_maps_in(&self) -> CowVecIter<'_, RouteMap> {
         self.bgp_route_maps_in.iter()
     }
 
     /// Get an iterator over all outgoing route-maps
-    pub fn get_bgp_route_maps_out(&self) -> VecIter<'_, RouteMap> {
+    pub fn get_bgp_route_maps_out(&self) -> CowVecIter<'_, RouteMap> {
         self.bgp_route_maps_out.iter()
     }
 
@@ -672,17 +666,17 @@ impl Router {
     }
 
     /// Get a reference to the RIB table
-    pub fn get_bgp_rib(&self) -> &CowMap<Prefix, BgpRibEntry> {
+    pub fn get_bgp_rib(&self) -> &HashMap<Prefix, BgpRibEntry> {
         &self.bgp_rib
     }
 
     /// Get a reference to the RIB-IN table
-    pub fn get_bgp_rib_in(&self) -> &CowMap<Prefix, HashMap<RouterId, BgpRibEntry>> {
+    pub fn get_bgp_rib_in(&self) -> &HashMap<Prefix, HashMap<RouterId, BgpRibEntry>> {
         &self.bgp_rib_in
     }
 
     /// Get a reference to the RIB-OUT table
-    pub fn get_bgp_rib_out(&self) -> &CowMap<(Prefix, RouterId), BgpRibEntry> {
+    pub fn get_bgp_rib_out(&self) -> &HashMap<(Prefix, RouterId), BgpRibEntry> {
         &self.bgp_rib_out
     }
 
@@ -700,7 +694,7 @@ impl Router {
         self.undo_stack.push(Vec::new());
 
         // clear the forwarding table
-        let mut swap_table = CowMap::new();
+        let mut swap_table = HashMap::new();
         swap(&mut self.igp_table, &mut swap_table);
 
         // create the new neighbors hashmap
@@ -768,10 +762,7 @@ impl Router {
         if self.bgp_rib_out != other.bgp_rib_out {
             return false;
         }
-        let prefix_union = self
-            .bgp_known_prefixes
-            .union(&other.bgp_known_prefixes)
-            .copied();
+        let prefix_union = self.bgp_known_prefixes.union(&other.bgp_known_prefixes);
         for prefix in prefix_union {
             match (self.bgp_rib_in.get(&prefix), other.bgp_rib_in.get(&prefix)) {
                 (Some(x), None) if !x.is_empty() => return false,
@@ -1151,10 +1142,7 @@ impl PartialEq for Router {
         if self.undo_stack != other.undo_stack {
             return false;
         }
-        let prefix_union = self
-            .bgp_known_prefixes
-            .union(&other.bgp_known_prefixes)
-            .copied();
+        let prefix_union = self.bgp_known_prefixes.union(&other.bgp_known_prefixes);
         for prefix in prefix_union {
             assert_eq!(
                 self.bgp_rib_in.get(&prefix).unwrap_or(&HashMap::new()),
@@ -1177,7 +1165,7 @@ pub(crate) enum UndoAction {
     BgpRouteMap(RouteMapDirection, usize, Option<RouteMap>),
     BgpSession(RouterId, Option<BgpSessionType>),
     IgpForwardingTable(
-        CowMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+        HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
         CowMap<RouterId, LinkWeight>,
     ),
     DelKnownPrefix(Prefix),
