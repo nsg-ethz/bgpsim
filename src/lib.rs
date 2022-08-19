@@ -135,6 +135,7 @@
 
 pub mod bgp;
 pub mod builder;
+mod collections;
 pub mod config;
 pub mod event;
 pub mod external_router;

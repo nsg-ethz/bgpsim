@@ -30,10 +30,7 @@ use crate::{
 };
 use pretty_assertions::assert_eq;
 
-#[cfg(feature = "cow")]
-use im::{hashmap, hashset};
-#[cfg(not(feature = "cow"))]
-use maplit::{hashmap, hashset};
+use crate::collections::{hashmap, hashset};
 
 #[test]
 fn test_bgp_single() {
