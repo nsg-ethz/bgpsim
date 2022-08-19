@@ -294,7 +294,10 @@ where
 ///         .conquer(net)
 /// };
 /// assert_eq!(net, original_net);
-/// # Ok(()) }
+/// # Ok(())
+/// # }
+/// # #[cfg(not(feature = "topology_zoo"))]
+/// # fn main() {}
 /// ```
 #[derive(Debug)]
 pub struct PartialClone<'a, Q> {

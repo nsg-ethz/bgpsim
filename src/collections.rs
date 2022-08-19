@@ -21,7 +21,11 @@ pub use std::collections::{
     hash_map::{HashMap, Iter as HashMapIter},
     hash_set::{HashSet, Iter as HashSetIter},
 };
-use std::{borrow::Borrow, hash::Hash, ops::Index};
+use std::{
+    borrow::Borrow,
+    hash::Hash,
+    ops::{Index, IndexMut},
+};
 
 #[cfg(feature = "cow")]
 pub use im::{
@@ -29,7 +33,8 @@ pub use im::{
         ConsumingIter as CowMapIntoIterRaw, Entry as CowMapEntryRaw, Iter as CowMapIter,
         IterMut as CowMapIterMut, Keys as CowMapKeys, Values as CowMapValues,
     },
-    hashset::Iter as CowSetIter,
+    hashset::{ConsumingIter as CowSetIntoIter, Iter as CowSetIter},
+    vector::{ConsumingIter as CowVecIntoIter, Iter as CowVecIter, IterMut as CowVecIterMut},
 };
 #[cfg(feature = "cow")]
 use std::collections::hash_map::RandomState;
@@ -37,18 +42,25 @@ use std::collections::hash_map::RandomState;
 pub type CowMapEntry<'a, K, V> = CowMapEntryRaw<'a, K, V, RandomState>;
 #[cfg(feature = "cow")]
 pub type CowMapIntoIter<K, V> = CowMapIntoIterRaw<(K, V)>;
-#[cfg(feature = "serde")]
-use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde")]
-use serde_with::{DeserializeAs, SerializeAs};
+
 #[cfg(not(feature = "cow"))]
 pub use std::collections::{
     hash_map::{
         Entry as CowMapEntry, IntoIter as CowMapIntoIter, Iter as CowMapIter,
         IterMut as CowMapIterMut, Keys as CowMapKeys, Values as CowMapValues,
     },
-    hash_set::Iter as CowSetIter,
+    hash_set::{IntoIter as CowSetIntoIter, Iter as CowSetIter},
 };
+#[cfg(not(feature = "cow"))]
+pub use std::{
+    slice::{Iter as CowVecIter, IterMut as CowVecIterMut},
+    vec::IntoIter as CowVecIntoIter,
+};
+
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+#[cfg(feature = "serde")]
+use serde_with::{DeserializeAs, SerializeAs};
 
 #[cfg(feature = "cow")]
 pub use im::{hashmap as cowmap, hashset as cowset};
@@ -346,6 +358,491 @@ where
     V: Clone,
 {
     fn from(inner: HashMap<K, V>) -> Self {
+        Self(inner)
+    }
+}
+
+/// This structure will be a [`std::collections::HashSet`] if the feature `cow` is disabled, and
+/// [`im::HashSet`] if `cow` is enabled.
+#[cfg(not(feature = "cow"))]
+#[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CowSet<T>(HashSet<T>)
+where
+    T: Hash + Eq + Clone;
+/// This structure will be a [`std::collections::HashSet`] if the feature `cow` is disabled, and
+/// [`im::HashSet`] if `cow` is enabled.
+#[cfg(feature = "cow")]
+#[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CowSet<T>(im::HashSet<T>)
+where
+    T: Hash + Eq + Clone;
+
+#[allow(dead_code)]
+impl<T> CowSet<T>
+where
+    T: Hash + Eq + Clone,
+{
+    #[inline]
+    pub fn new() -> CowSet<T> {
+        #[cfg(feature = "cow")]
+        return Self(im::HashSet::new());
+        #[cfg(not(feature = "cow"))]
+        return Self(HashSet::new());
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    pub fn iter(&self) -> CowSetIter<'_, T> {
+        self.0.iter()
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.0.clear()
+    }
+
+    #[inline]
+    pub fn contains(&self, elem: &T) -> bool {
+        self.0.contains(elem)
+    }
+
+    #[inline]
+    pub fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&T) -> bool,
+    {
+        self.0.retain(f)
+    }
+}
+
+#[cfg(not(feature = "cow"))]
+#[allow(dead_code)]
+impl<T> CowSet<T>
+where
+    T: Hash + Eq + Clone,
+{
+    #[inline]
+    pub fn insert(&mut self, elem: T) -> bool {
+        self.0.insert(elem)
+    }
+
+    #[inline]
+    pub fn remove(&mut self, elem: &T) -> bool {
+        self.0.remove(elem)
+    }
+
+    #[inline]
+    pub fn difference<'a>(&'a self, other: &'a Self) -> Self {
+        Self(self.0.difference(&other.0).cloned().collect())
+    }
+
+    #[inline]
+    pub fn symmetric_difference<'a>(&'a self, other: &'a Self) -> Self {
+        Self(self.0.symmetric_difference(&other.0).cloned().collect())
+    }
+
+    #[inline]
+    pub fn intersection<'a>(&'a self, other: &'a Self) -> Self {
+        Self(self.0.intersection(&other.0).cloned().collect())
+    }
+
+    #[inline]
+    pub fn union<'a>(&'a self, other: &'a Self) -> Self {
+        Self(self.0.union(&other.0).cloned().collect())
+    }
+}
+
+#[cfg(feature = "cow")]
+#[allow(dead_code)]
+impl<T> CowSet<T>
+where
+    T: Hash + Eq + Clone,
+{
+    #[inline]
+    pub fn insert(&mut self, elem: T) -> bool {
+        self.0.insert(elem).is_none()
+    }
+
+    #[inline]
+    pub fn remove(&mut self, elem: &T) -> bool {
+        self.0.remove(elem).is_some()
+    }
+
+    #[inline]
+    pub fn difference<'a>(&'a self, other: &'a Self) -> Self {
+        Self(self.0.clone().difference(other.0.clone()))
+    }
+
+    #[inline]
+    pub fn symmetric_difference<'a>(&'a self, other: &'a Self) -> Self {
+        Self(self.0.clone().symmetric_difference(other.0.clone()))
+    }
+
+    #[inline]
+    pub fn intersection<'a>(&'a self, other: &'a Self) -> Self {
+        Self(self.0.clone().intersection(other.0.clone()))
+    }
+
+    #[inline]
+    pub fn union<'a>(&'a self, other: &'a Self) -> Self {
+        Self(self.0.clone().union(other.0.clone()))
+    }
+}
+
+impl<T> PartialEq for CowSet<T>
+where
+    T: Eq + Hash + Clone,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T> Eq for CowSet<T> where T: Eq + Hash + Clone {}
+
+impl<T> Extend<T> for CowSet<T>
+where
+    T: Hash + Eq + Clone,
+{
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        self.0.extend(iter)
+    }
+}
+
+impl<T, const N: usize> From<[T; N]> for CowSet<T>
+where
+    T: Hash + Eq + Clone,
+{
+    fn from(arr: [T; N]) -> Self {
+        Self(arr.into_iter().collect())
+    }
+}
+
+impl<T> FromIterator<T> for CowSet<T>
+where
+    T: Eq + Hash + Clone,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        #[cfg(feature = "cow")]
+        return Self(im::HashSet::from_iter(iter));
+        #[cfg(not(feature = "cow"))]
+        return Self(HashSet::from_iter(iter));
+    }
+}
+
+impl<'a, T> IntoIterator for &'a CowSet<T>
+where
+    T: Eq + Hash + Clone,
+{
+    type Item = &'a T;
+
+    type IntoIter = CowSetIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<T> IntoIterator for CowSet<T>
+where
+    T: Eq + Hash + Clone,
+{
+    type Item = T;
+
+    type IntoIter = CowSetIntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+/// This structure will be a [`std::vec::Vec`] if the feature `cow` is disabled, and [`im::Vector`]
+/// if `cow` is enabled.
+#[cfg(not(feature = "cow"))]
+#[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CowVec<T>(Vec<T>)
+where
+    T: Clone;
+/// This structure will be a [`std::vec::Vec`] if the feature `cow` is disabled, and [`im::Vector`]
+/// if `cow` is enabled.
+#[cfg(feature = "cow")]
+#[derive(Clone, Default, Debug)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub struct CowVec<T>(im::Vector<T>)
+where
+    T: Clone;
+
+#[allow(dead_code)]
+impl<T> CowVec<T>
+where
+    T: Clone,
+{
+    #[inline]
+    pub fn new() -> CowVec<T> {
+        #[cfg(feature = "cow")]
+        return Self(im::Vector::new());
+        #[cfg(not(feature = "cow"))]
+        return Self(Vec::new());
+    }
+
+    #[inline]
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    #[inline]
+    pub fn len(&self) -> usize {
+        self.0.len()
+    }
+
+    #[inline]
+    pub fn iter(&self) -> CowVecIter<'_, T> {
+        self.0.iter()
+    }
+
+    #[inline]
+    pub fn iter_mut(&mut self) -> CowVecIterMut<'_, T> {
+        self.0.iter_mut()
+    }
+
+    #[inline]
+    pub fn insert(&mut self, index: usize, element: T) {
+        self.0.insert(index, element)
+    }
+
+    #[inline]
+    pub fn remove(&mut self, index: usize) -> T {
+        self.0.remove(index)
+    }
+
+    #[inline]
+    pub fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&T) -> bool,
+    {
+        self.0.retain(f)
+    }
+
+    #[inline]
+    pub fn clear(&mut self) {
+        self.0.clear()
+    }
+
+    #[inline]
+    pub fn split_off(&mut self, at: usize) -> Self {
+        Self(self.0.split_off(at))
+    }
+}
+
+#[cfg(feature = "cow")]
+#[allow(dead_code)]
+impl<T> CowVec<T>
+where
+    T: Clone,
+{
+    #[inline]
+    pub fn push(&mut self, value: T) {
+        self.0.push_back(value)
+    }
+
+    #[inline]
+    pub fn pop(&mut self) -> Option<T> {
+        self.0.pop_back()
+    }
+
+    #[inline]
+    pub fn append(&mut self, other: &Self) {
+        self.0.append(other.0.clone())
+    }
+}
+
+#[cfg(not(feature = "cow"))]
+#[allow(dead_code)]
+impl<T> CowVec<T>
+where
+    T: Clone,
+{
+    #[inline]
+    pub fn push(&mut self, value: T) {
+        self.0.push(value)
+    }
+
+    #[inline]
+    pub fn pop(&mut self) -> Option<T> {
+        self.0.pop()
+    }
+
+    #[inline]
+    pub fn append(&mut self, other: &mut Self) {
+        self.0.append(&mut other.0)
+    }
+}
+
+impl<T> PartialEq for CowVec<T>
+where
+    T: Clone + PartialEq,
+{
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+}
+
+impl<T> Eq for CowVec<T> where T: Clone + Eq {}
+
+impl<T> Hash for CowVec<T>
+where
+    T: Clone + Hash,
+{
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.0.hash(state);
+    }
+}
+
+impl<T> PartialOrd for CowVec<T>
+where
+    T: Clone + PartialOrd,
+{
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        self.0.partial_cmp(&other.0)
+    }
+}
+
+impl<T> Ord for CowVec<T>
+where
+    T: Clone + Ord,
+{
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        self.0.cmp(&other.0)
+    }
+}
+
+impl<T> Extend<T> for CowVec<T>
+where
+    T: Clone,
+{
+    fn extend<I: IntoIterator<Item = T>>(&mut self, iter: I) {
+        self.0.extend(iter)
+    }
+}
+
+impl<T> Index<usize> for CowVec<T>
+where
+    T: Clone,
+{
+    type Output = T;
+
+    fn index(&self, index: usize) -> &Self::Output {
+        self.0.index(index)
+    }
+}
+
+impl<T> IndexMut<usize> for CowVec<T>
+where
+    T: Clone,
+{
+    fn index_mut(&mut self, index: usize) -> &mut Self::Output {
+        self.0.index_mut(index)
+    }
+}
+
+impl<T, const N: usize> From<[T; N]> for CowVec<T>
+where
+    T: Clone,
+{
+    fn from(arr: [T; N]) -> Self {
+        Self(arr.into_iter().collect())
+    }
+}
+
+impl<T> FromIterator<T> for CowVec<T>
+where
+    T: Clone,
+{
+    fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
+        #[cfg(feature = "cow")]
+        return Self(im::Vector::from_iter(iter));
+        #[cfg(not(feature = "cow"))]
+        return Self(Vec::from_iter(iter));
+    }
+}
+
+impl<'a, T> IntoIterator for &'a CowVec<T>
+where
+    T: Clone,
+{
+    type Item = &'a T;
+
+    type IntoIter = CowVecIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter()
+    }
+}
+
+impl<'a, T> IntoIterator for &'a mut CowVec<T>
+where
+    T: Clone,
+{
+    type Item = &'a mut T;
+
+    type IntoIter = CowVecIterMut<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.iter_mut()
+    }
+}
+
+impl<T> IntoIterator for CowVec<T>
+where
+    T: Clone,
+{
+    type Item = T;
+
+    type IntoIter = CowVecIntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.0.into_iter()
+    }
+}
+
+#[cfg(feature = "cow")]
+impl<T> From<im::Vector<T>> for CowVec<T>
+where
+    T: Clone,
+{
+    fn from(inner: im::Vector<T>) -> Self {
+        Self(inner)
+    }
+}
+
+#[cfg(feature = "cow")]
+impl<T> From<Vec<T>> for CowVec<T>
+where
+    T: Clone,
+{
+    fn from(inner: Vec<T>) -> Self {
+        Self(inner.into())
+    }
+}
+
+#[cfg(not(feature = "cow"))]
+impl<T> From<Vec<T>> for CowVec<T>
+where
+    T: Clone,
+{
+    fn from(inner: Vec<T>) -> Self {
         Self(inner)
     }
 }
