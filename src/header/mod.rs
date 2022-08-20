@@ -106,7 +106,9 @@ fn add_router() -> Html {
     let add_external = {
         let shown = shown.clone();
         net_dispatch
-            .reduce_mut_callback(|n| add_new_router(n, false))
+            .reduce_mut_callback(|n| {
+                add_new_router(n, false);
+            })
             .reform(move |_| shown.set(false))
     };
 
@@ -132,6 +134,7 @@ fn add_new_router(net: &mut Net, internal: bool) {
     let router_id = if internal {
         net.net_mut().add_router(name)
     } else {
+        log::debug!("add external router");
         let used_as: HashSet<AsId> = net
             .net()
             .get_external_routers()
@@ -139,7 +142,7 @@ fn add_new_router(net: &mut Net, internal: bool) {
             .map(|r| net.net().get_device(r).unwrap_external().as_id())
             .collect();
         // safety: this unwrap is ok because of the infinite iterator!
-        let as_id = (1..).map(AsId).find(|x| used_as.contains(x)).unwrap();
+        let as_id = (1..).map(AsId).find(|x| !used_as.contains(x)).unwrap();
         net.net_mut().add_external_router(name, as_id)
     };
     net.pos_mut().insert(router_id, Point::new(0, 0));

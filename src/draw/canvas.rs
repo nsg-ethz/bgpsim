@@ -41,7 +41,7 @@ pub struct Canvas {
     dim: Rc<Dim>,
     state: Rc<State>,
     dim_dispatch: Dispatch<Dim>,
-    net_dispatch: Dispatch<Net>,
+    _net_dispatch: Dispatch<Net>,
     _state_dispatch: Dispatch<State>,
     routers: Vec<RouterId>,
     links: Vec<(RouterId, RouterId)>,
@@ -64,7 +64,7 @@ impl Component for Canvas {
 
     fn create(ctx: &Context<Self>) -> Self {
         let dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
-        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         Self {
             div_ref: NodeRef::default(),
@@ -72,7 +72,7 @@ impl Component for Canvas {
             net: Default::default(),
             dim: Default::default(),
             state: Default::default(),
-            net_dispatch,
+            _net_dispatch,
             _state_dispatch,
             routers: Vec::new(),
             links: Vec::new(),
@@ -87,7 +87,6 @@ impl Component for Canvas {
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
         // initialize the network
-        self.net_dispatch.reduce_mut(|net: &mut Net| net.init());
         html! {
             <div class="flex-1 h-full p-0 bg-gray-50" ref={self.div_ref.clone()}>
                 <svg width="100%" height="100%">

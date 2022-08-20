@@ -13,7 +13,7 @@ use netsim::{
     event::{Event, EventQueue},
     network::Network,
     router::Router,
-    types::{AsId, IgpNetwork, NetworkDevice, NetworkError, Prefix, RouterId},
+    types::{AsId, IgpNetwork, NetworkDevice, Prefix, RouterId},
 };
 use serde::{Deserialize, Serialize};
 use serde_json::{json, Value};
@@ -77,6 +77,12 @@ impl EventQueue for Queue {
     fn clear(&mut self) {
         self.0.clear()
     }
+
+    fn update_params(&mut self, _: &HashMap<RouterId, Router>, _: &IgpNetwork) {}
+
+    unsafe fn clone_events(&self, _: Self) -> Self {
+        self.clone()
+    }
 }
 
 #[derive(Clone, PartialEq, Store)]
@@ -84,7 +90,6 @@ pub struct Net {
     pub net: Mrc<Network<Queue>>,
     pub pos: Mrc<HashMap<RouterId, Point>>,
     speed: Mrc<HashMap<RouterId, Point>>,
-    is_init: bool,
 }
 
 impl Default for Net {
@@ -93,7 +98,6 @@ impl Default for Net {
             net: Mrc::new(Network::new(Queue::new())),
             pos: Default::default(),
             speed: Default::default(),
-            is_init: Default::default(),
         }
     }
 }
@@ -117,32 +121,6 @@ impl Net {
 
     pub fn pos_mut(&mut self) -> impl DerefMut<Target = HashMap<RouterId, Point>> + '_ {
         self.pos.borrow_mut()
-    }
-
-    pub fn init(&mut self) {
-        if !self.is_init {
-            log::debug!("Initializing network");
-            get_test_net(&mut self.net.borrow_mut()).unwrap();
-            self.pos = Mrc::new(
-                self.net
-                    .borrow()
-                    .get_topology()
-                    .node_indices()
-                    .map(|r| {
-                        (
-                            r,
-                            Point {
-                                x: rand_uniform(),
-                                y: rand_uniform(),
-                            },
-                        )
-                    })
-                    .collect(),
-            );
-            self.speed = Default::default();
-            self.is_init = true;
-            self.spring_layout();
-        }
     }
 
     pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {
@@ -357,7 +335,6 @@ impl Net {
             Ok(n) => {
                 self.net = n.net;
                 self.pos = n.pos;
-                self.is_init = true;
             }
             Err(e) => log::error!("Could not import the network! {}", e),
         }
@@ -410,61 +387,6 @@ fn rand_uniform() -> f64 {
     let x = ((((((bytes[0] as u32) << 8) + bytes[1] as u32) << 8) + bytes[2] as u32) << 8)
         + bytes[3] as u32;
     x as f64 / (u32::MAX as f64)
-}
-
-fn get_test_net(net: &mut Network<Queue>) -> Result<(), NetworkError> {
-    let e1 = net.add_external_router("E1", 100i32);
-    let r1 = net.add_router("R1");
-    let r2 = net.add_router("R2");
-    let r3 = net.add_router("R3");
-    let r4 = net.add_router("R4");
-    let r5 = net.add_router("R5");
-    let e5 = net.add_external_router("E5", 500i32);
-    // add links
-    net.add_link(r1, e1);
-    net.add_link(r1, r2);
-    net.add_link(r1, r4);
-    net.add_link(r1, r5);
-    net.add_link(r2, r3);
-    net.add_link(r3, r4);
-    net.add_link(r3, r5);
-    net.add_link(r4, r5);
-    net.add_link(r5, e5);
-    // set link weights
-    net.set_link_weight(r1, e1, 1.0)?;
-    net.set_link_weight(r1, r2, 10.0)?;
-    net.set_link_weight(r1, r4, 12.0)?;
-    net.set_link_weight(r1, r5, 40.0)?;
-    net.set_link_weight(r2, r3, 5.0)?;
-    net.set_link_weight(r3, r4, 10.0)?;
-    net.set_link_weight(r3, r5, 5.0)?;
-    net.set_link_weight(r4, r5, 12.0)?;
-    net.set_link_weight(r5, e5, 1.0)?;
-    // set link weights in reverse
-    net.set_link_weight(e1, r1, 1.0)?;
-    net.set_link_weight(r2, r1, 10.0)?;
-    net.set_link_weight(r4, r1, 12.0)?;
-    net.set_link_weight(r5, r1, 40.0)?;
-    net.set_link_weight(r3, r2, 5.0)?;
-    net.set_link_weight(r4, r3, 10.0)?;
-    net.set_link_weight(r5, r3, 5.0)?;
-    net.set_link_weight(r5, r4, 12.0)?;
-    net.set_link_weight(e5, r5, 1.0)?;
-    // setup bgp internal sessions
-    net.set_bgp_session(r3, r1, Some(BgpSessionType::IBgpClient))?;
-    net.set_bgp_session(r3, r2, Some(BgpSessionType::IBgpClient))?;
-    net.set_bgp_session(r3, r4, Some(BgpSessionType::IBgpClient))?;
-    net.set_bgp_session(r3, r5, Some(BgpSessionType::IBgpClient))?;
-    // establish external sessions
-    net.set_bgp_session(r1, e1, Some(BgpSessionType::EBgp))?;
-    net.set_bgp_session(r5, e5, Some(BgpSessionType::EBgp))?;
-    // advertise the route
-    net.advertise_external_route(e1, 1, &[100, 200, 300, 400], None, None)?;
-    net.advertise_external_route(e5, 1, &[500, 400], None, None)?;
-    net.advertise_external_route(e1, 2, &[100, 200, 300], None, None)?;
-    net.advertise_external_route(e5, 2, &[500, 400, 300], None, None)?;
-
-    Ok(())
 }
 
 fn net_to_string(net: &Net, compact: bool) -> String {
@@ -556,7 +478,6 @@ fn net_from_str(s: &str) -> Result<Net, String> {
         net: Mrc::new(net),
         pos: Mrc::new(pos),
         speed: Default::default(),
-        is_init: true,
     };
     if rerun_layout {
         result.spring_layout();
