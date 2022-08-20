@@ -24,7 +24,7 @@
 use crate::collections::CowVec;
 use crate::{
     bgp::{BgpSessionType, BgpState, BgpStateRef},
-    collections::CowSet,
+    collections::{CowSet, InnerCowSet},
     config::NetworkConfig,
     event::{BasicEventQueue, Event, EventQueue, FmtPriority},
     external_router::ExternalRouter,
@@ -294,8 +294,8 @@ impl<Q> Network<Q> {
     }
 
     /// Returns a hashset of all known prefixes
-    pub fn get_known_prefixes(&self) -> &CowSet<Prefix> {
-        &self.known_prefixes
+    pub fn get_known_prefixes(&self) -> &InnerCowSet<Prefix> {
+        self.known_prefixes.inner()
     }
 
     /// Configure the topology to pause the queue and return after a certain number of queue have

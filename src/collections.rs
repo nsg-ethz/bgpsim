@@ -42,6 +42,12 @@ use std::collections::hash_map::RandomState;
 pub type CowMapEntry<'a, K, V> = CowMapEntryRaw<'a, K, V, RandomState>;
 #[cfg(feature = "cow")]
 pub type CowMapIntoIter<K, V> = CowMapIntoIterRaw<(K, V)>;
+#[cfg(feature = "cow")]
+pub type InnerCowMap<K, V> = im::HashMap<K, V>;
+#[cfg(feature = "cow")]
+pub type InnerCowSet<T> = im::HashSet<T>;
+#[cfg(feature = "cow")]
+pub type InnerCowVec<T> = im::Vector<T>;
 
 #[cfg(not(feature = "cow"))]
 pub use std::collections::{
@@ -56,6 +62,12 @@ pub use std::{
     slice::{Iter as CowVecIter, IterMut as CowVecIterMut},
     vec::IntoIter as CowVecIntoIter,
 };
+#[cfg(not(feature = "cow"))]
+pub type InnerCowMap<K, V> = std::collections::HashMap<K, V>;
+#[cfg(not(feature = "cow"))]
+pub type InnerCowSet<T> = std::collections::HashSet<T>;
+#[cfg(not(feature = "cow"))]
+pub type InnerCowVec<T> = Vec<T>;
 
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
@@ -70,19 +82,9 @@ pub use maplit::{hashmap as cowmap, hashset as cowset};
 
 /// This structure will be a [`std::collections::HashMap`] if the feature `cow` is disabled, and
 /// [`im::hashmap::HashMap`] if `cow` is enabled.
-#[cfg(not(feature = "cow"))]
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct CowMap<K, V>(HashMap<K, V>)
-where
-    K: Hash + Eq + Clone,
-    V: Clone;
-/// This structure will be a [`std::collections::HashMap`] if the feature `cow` is disabled, and
-/// [`im::hashmap::HashMap`] if `cow` is enabled.
-#[cfg(feature = "cow")]
-#[derive(Clone, Default, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct CowMap<K, V>(im::hashmap::HashMap<K, V>)
+pub struct CowMap<K, V>(InnerCowMap<K, V>)
 where
     K: Hash + Eq + Clone,
     V: Clone;
@@ -95,10 +97,17 @@ where
 {
     #[inline]
     pub fn new() -> CowMap<K, V> {
-        #[cfg(feature = "cow")]
-        return Self(im::hashmap::HashMap::new());
-        #[cfg(not(feature = "cow"))]
-        return Self(HashMap::new());
+        Self(InnerCowMap::new())
+    }
+
+    #[inline]
+    pub fn inner(&self) -> &InnerCowMap<K, V> {
+        &self.0
+    }
+
+    #[inline]
+    pub fn inner_mut(&mut self) -> &mut InnerCowMap<K, V> {
+        &mut self.0
     }
 
     #[inline]
@@ -228,10 +237,7 @@ where
     V: Clone,
 {
     fn from_iter<T: IntoIterator<Item = (K, V)>>(iter: T) -> Self {
-        #[cfg(feature = "cow")]
-        return Self(im::hashmap::HashMap::from_iter(iter));
-        #[cfg(not(feature = "cow"))]
-        return Self(HashMap::from_iter(iter));
+        Self(InnerCowMap::from_iter(iter))
     }
 }
 
@@ -364,18 +370,9 @@ where
 
 /// This structure will be a [`std::collections::HashSet`] if the feature `cow` is disabled, and
 /// [`im::HashSet`] if `cow` is enabled.
-#[cfg(not(feature = "cow"))]
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct CowSet<T>(HashSet<T>)
-where
-    T: Hash + Eq + Clone;
-/// This structure will be a [`std::collections::HashSet`] if the feature `cow` is disabled, and
-/// [`im::HashSet`] if `cow` is enabled.
-#[cfg(feature = "cow")]
-#[derive(Clone, Default, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct CowSet<T>(im::HashSet<T>)
+pub struct CowSet<T>(InnerCowSet<T>)
 where
     T: Hash + Eq + Clone;
 
@@ -386,10 +383,17 @@ where
 {
     #[inline]
     pub fn new() -> CowSet<T> {
-        #[cfg(feature = "cow")]
-        return Self(im::HashSet::new());
-        #[cfg(not(feature = "cow"))]
-        return Self(HashSet::new());
+        Self(InnerCowSet::new())
+    }
+
+    #[inline]
+    pub fn inner(&self) -> &InnerCowSet<T> {
+        &self.0
+    }
+
+    #[inline]
+    pub fn inner_mut(&mut self) -> &mut InnerCowSet<T> {
+        &mut self.0
     }
 
     #[inline]
@@ -534,10 +538,7 @@ where
     T: Eq + Hash + Clone,
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        #[cfg(feature = "cow")]
-        return Self(im::HashSet::from_iter(iter));
-        #[cfg(not(feature = "cow"))]
-        return Self(HashSet::from_iter(iter));
+        Self(InnerCowSet::from_iter(iter))
     }
 }
 
@@ -569,18 +570,9 @@ where
 
 /// This structure will be a [`std::vec::Vec`] if the feature `cow` is disabled, and [`im::Vector`]
 /// if `cow` is enabled.
-#[cfg(not(feature = "cow"))]
 #[derive(Clone, Default, Debug)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct CowVec<T>(Vec<T>)
-where
-    T: Clone;
-/// This structure will be a [`std::vec::Vec`] if the feature `cow` is disabled, and [`im::Vector`]
-/// if `cow` is enabled.
-#[cfg(feature = "cow")]
-#[derive(Clone, Default, Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct CowVec<T>(im::Vector<T>)
+pub struct CowVec<T>(InnerCowVec<T>)
 where
     T: Clone;
 
@@ -591,10 +583,17 @@ where
 {
     #[inline]
     pub fn new() -> CowVec<T> {
-        #[cfg(feature = "cow")]
-        return Self(im::Vector::new());
-        #[cfg(not(feature = "cow"))]
-        return Self(Vec::new());
+        Self(InnerCowVec::new())
+    }
+
+    #[inline]
+    pub fn inner(&self) -> &InnerCowVec<T> {
+        &self.0
+    }
+
+    #[inline]
+    pub fn inner_mut(&mut self) -> &mut InnerCowVec<T> {
+        &mut self.0
     }
 
     #[inline]
@@ -848,10 +847,7 @@ where
     T: Clone,
 {
     fn from_iter<I: IntoIterator<Item = T>>(iter: I) -> Self {
-        #[cfg(feature = "cow")]
-        return Self(im::Vector::from_iter(iter));
-        #[cfg(not(feature = "cow"))]
-        return Self(Vec::from_iter(iter));
+        Self(InnerCowVec::from_iter(iter))
     }
 }
 

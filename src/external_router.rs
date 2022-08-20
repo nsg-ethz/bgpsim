@@ -24,7 +24,7 @@
 use crate::collections::CowVec;
 use crate::{
     bgp::{BgpEvent, BgpRoute},
-    collections::{CowMap, CowMapKeys, CowSet},
+    collections::{CowMap, CowMapKeys, CowSet, InnerCowMap, InnerCowSet},
     event::Event,
     types::{AsId, DeviceError, Prefix, RouterId, StepUpdate},
 };
@@ -294,13 +294,13 @@ impl ExternalRouter {
     }
 
     /// Returns a reference to all advertised routes of this router
-    pub fn get_advertised_routes(&self) -> &CowMap<Prefix, BgpRoute> {
-        &self.active_routes
+    pub fn get_advertised_routes(&self) -> &InnerCowMap<Prefix, BgpRoute> {
+        self.active_routes.inner()
     }
 
     /// Returns a reference to the hashset containing all BGP sessions.
-    pub fn get_bgp_sessions(&self) -> &CowSet<RouterId> {
-        &self.neighbors
+    pub fn get_bgp_sessions(&self) -> &InnerCowSet<RouterId> {
+        self.neighbors.inner()
     }
 
     /// Checks if both routers advertise the same routes.
