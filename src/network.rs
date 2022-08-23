@@ -426,6 +426,8 @@ where
             queue,
             skip_queue: self.skip_queue,
             verbose: self.verbose,
+            #[cfg(feature = "undo")]
+            undo_stack: self.undo_stack,
         })
     }
 
