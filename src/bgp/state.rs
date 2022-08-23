@@ -306,7 +306,12 @@ impl<T> BgpStateGraph<T> {
             match net.get_device(id) {
                 NetworkDevice::InternalRouter(r) => {
                     // handle local RIB
+                    #[cfg(feature = "multi_prefix")]
                     if let Some(entry) = r.get_bgp_rib().get(&prefix) {
+                        g.get_mut(&id).unwrap().node = Some((f(&entry.route), entry.from_id));
+                    }
+                    #[cfg(not(feature = "multi_prefix"))]
+                    if let Some(entry) = r.get_bgp_rib() {
                         g.get_mut(&id).unwrap().node = Some((f(&entry.route), entry.from_id));
                     }
                     // handle RIB_OUT
@@ -322,7 +327,11 @@ impl<T> BgpStateGraph<T> {
                         })
                 }
                 NetworkDevice::ExternalRouter(r) => {
-                    if let Some(route) = r.get_advertised_routes().get(&prefix) {
+                    #[cfg(feature = "multi_prefix")]
+                    let advertised_rotue = r.get_advertised_routes().get(&prefix);
+                    #[cfg(not(feature = "multi_prefix"))]
+                    let advertised_rotue = r.get_advertised_routes();
+                    if let Some(route) = advertised_rotue {
                         g.get_mut(&id).unwrap().node = Some((f(route), id));
                         r.get_bgp_sessions().iter().copied().for_each(|peer| {
                             g.get_mut(&peer).unwrap().edges_in.insert(id);

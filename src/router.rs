@@ -26,7 +26,7 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     types::{
         collections::{CowMap, CowMapIter, CowVec, CowVecIter},
-        prefix::CowSetPrefix,
+        prefix::{CowMapPrefix, CowSetPrefix, HashMapPrefix, InnerHashMapPrefix},
         AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate,
     },
 };
@@ -55,16 +55,16 @@ pub struct Router {
     /// forwarding table for IGP messages
     pub igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Static Routes for Prefixes
-    pub(crate) static_routes: CowMap<Prefix, StaticRoute>,
+    pub(crate) static_routes: CowMapPrefix<StaticRoute>,
     /// hashmap of all bgp sessions
     pub(crate) bgp_sessions: CowMap<RouterId, BgpSessionType>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
     /// to another hashmap, which maps the received router id to the entry. This way, we can store
     /// one entry for every prefix and every session.
-    pub(crate) bgp_rib_in: HashMap<Prefix, HashMap<RouterId, BgpRibEntry>>,
+    pub(crate) bgp_rib_in: HashMapPrefix<HashMap<RouterId, BgpRibEntry>>,
     /// Table containing all selected best routes. It is represented as a hashmap, mapping the
     /// prefixes to the table entry
-    pub(crate) bgp_rib: HashMap<Prefix, BgpRibEntry>,
+    pub(crate) bgp_rib: HashMapPrefix<BgpRibEntry>,
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
     #[cfg_attr(all(feature = "serde"), serde(with = "As::<Vec<(Same, Same)>>"))]
@@ -117,10 +117,10 @@ impl Router {
             as_id,
             igp_table: HashMap::new(),
             neighbors: CowMap::new(),
-            static_routes: CowMap::new(),
+            static_routes: CowMapPrefix::new(),
             bgp_sessions: CowMap::new(),
-            bgp_rib_in: HashMap::new(),
-            bgp_rib: HashMap::new(),
+            bgp_rib_in: HashMapPrefix::new(),
+            bgp_rib: HashMapPrefix::new(),
             bgp_rib_out: HashMap::new(),
             bgp_known_prefixes: CowSetPrefix::new(),
             bgp_route_maps_in: CowVec::new(),
@@ -275,8 +275,7 @@ impl Router {
                 match action {
                     UndoAction::BgpRibIn(prefix, peer, Some(entry)) => {
                         self.bgp_rib_in
-                            .entry(prefix)
-                            .or_default()
+                            .get_mut_or_default(prefix)
                             .insert(peer, entry);
                     }
                     UndoAction::BgpRibIn(prefix, peer, None) => {
@@ -664,18 +663,18 @@ impl Router {
     }
 
     /// Get an iterator over all outgoing route-maps
-    pub fn get_static_routes(&self) -> CowMapIter<'_, Prefix, StaticRoute> {
+    pub fn get_static_routes(&self) -> impl Iterator<Item = (&Prefix, &StaticRoute)> {
         self.static_routes.iter()
     }
 
     /// Get a reference to the RIB table
-    pub fn get_bgp_rib(&self) -> &HashMap<Prefix, BgpRibEntry> {
-        &self.bgp_rib
+    pub fn get_bgp_rib(&self) -> &InnerHashMapPrefix<BgpRibEntry> {
+        self.bgp_rib.inner()
     }
 
     /// Get a reference to the RIB-IN table
-    pub fn get_bgp_rib_in(&self) -> &HashMap<Prefix, HashMap<RouterId, BgpRibEntry>> {
-        &self.bgp_rib_in
+    pub fn get_bgp_rib_in(&self) -> &InnerHashMapPrefix<HashMap<RouterId, BgpRibEntry>> {
+        self.bgp_rib_in.inner()
     }
 
     /// Get a reference to the RIB-OUT table
@@ -949,8 +948,7 @@ impl Router {
         // insert the new entry
         let _old_entry = self
             .bgp_rib_in
-            .entry(prefix)
-            .or_default()
+            .get_mut_or_default(prefix)
             .insert(from, new_entry);
 
         // add the undo action
@@ -969,7 +967,7 @@ impl Router {
     /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn remove_bgp_route(&mut self, prefix: Prefix, from: RouterId) -> Prefix {
         // Remove the entry from the table
-        let _old_entry = self.bgp_rib_in.entry(prefix).or_default().remove(&from);
+        let _old_entry = self.bgp_rib_in.get_mut_or_default(prefix).remove(&from);
 
         // add the undo action, but only if it did exist before.
         #[cfg(feature = "undo")]

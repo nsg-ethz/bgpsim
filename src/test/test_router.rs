@@ -17,7 +17,7 @@
 
 use std::collections::HashSet;
 
-#[cfg(any(feature = "undo", feature = "multi_prefix"))]
+#[allow(unused_imports)]
 use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
 use crate::{
     bgp::{BgpEvent, BgpRoute},

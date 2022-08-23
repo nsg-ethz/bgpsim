@@ -26,7 +26,8 @@ use crate::{
     bgp::{BgpEvent, BgpRoute},
     event::Event,
     types::{
-        collections::{CowMap, CowMapKeys, CowSet, InnerCowMap, InnerCowSet},
+        collections::{CowSet, InnerCowSet},
+        prefix::{CowMapPrefix, InnerCowMapPrefix},
         AsId, DeviceError, Prefix, RouterId, StepUpdate,
     },
 };
@@ -52,7 +53,7 @@ pub struct ExternalRouter {
     router_id: RouterId,
     as_id: AsId,
     pub(crate) neighbors: CowSet<RouterId>,
-    pub(crate) active_routes: CowMap<Prefix, BgpRoute>,
+    pub(crate) active_routes: CowMapPrefix<BgpRoute>,
     #[cfg(feature = "undo")]
     pub(crate) undo_stack: CowVec<Vec<UndoAction>>,
 }
@@ -79,7 +80,7 @@ impl ExternalRouter {
             router_id,
             as_id,
             neighbors: CowSet::new(),
-            active_routes: CowMap::new(),
+            active_routes: CowMapPrefix::new(),
             #[cfg(feature = "undo")]
             undo_stack: CowVec::new(),
         }
@@ -144,7 +145,7 @@ impl ExternalRouter {
     }
 
     /// Return a set of routes which are advertised
-    pub fn advertised_prefixes(&self) -> CowMapKeys<'_, Prefix, BgpRoute> {
+    pub fn advertised_prefixes(&self) -> impl Iterator<Item = &Prefix> {
         self.active_routes.keys()
     }
 
@@ -296,7 +297,7 @@ impl ExternalRouter {
     }
 
     /// Returns a reference to all advertised routes of this router
-    pub fn get_advertised_routes(&self) -> &InnerCowMap<Prefix, BgpRoute> {
+    pub fn get_advertised_routes(&self) -> &InnerCowMapPrefix<BgpRoute> {
         self.active_routes.inner()
     }
 
