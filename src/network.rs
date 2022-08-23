@@ -404,6 +404,31 @@ where
     Q: EventQueue,
     Q::Priority: Default + FmtPriority + Clone,
 {
+    /// Swap out the queue with a different one. This requires that the queue is empty! If it is
+    /// not, then nothing is changed.
+    pub fn swap_queue<QA>(self, mut queue: QA) -> Result<Network<QA>, Self>
+    where
+        QA: EventQueue,
+    {
+        if !self.queue.is_empty() {
+            return Err(self);
+        }
+
+        queue.update_params(&self.routers, &self.net);
+
+        Ok(Network {
+            net: self.net,
+            ospf: self.ospf,
+            routers: self.routers,
+            external_routers: self.external_routers,
+            known_prefixes: self.known_prefixes,
+            stop_after: self.stop_after,
+            queue,
+            skip_queue: self.skip_queue,
+            verbose: self.verbose,
+        })
+    }
+
     /// Setup a BGP session between source and target. If `session_type` is `None`, then any
     /// existing session will be removed. Otherwise, any existing session will be replaced by the
     /// `session_type`.
