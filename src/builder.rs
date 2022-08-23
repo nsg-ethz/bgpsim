@@ -441,10 +441,11 @@ where
         let new_routers = connected_to(self, a)
             .into_iter()
             .map(|neighbor| {
+                let neighbor_name = self.get_router_name(neighbor).unwrap().to_owned();
                 let id = self.add_external_router("tmp", AsId(42));
                 let r = self.get_device_mut(id).unwrap_external();
                 r.set_as_id(AsId(id.index() as u32));
-                r.set_name(format!("E{}", id.index()));
+                r.set_name(format!("{}_ext_{}", neighbor_name, id.index()));
                 self.add_link(id, neighbor);
                 id
             })
