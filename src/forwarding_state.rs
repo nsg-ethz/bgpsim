@@ -22,7 +22,7 @@
 use crate::{
     network::Network,
     record::FwDelta,
-    types::{NetworkError, Prefix, RouterId},
+    types::{prefix::HashMapPrefixKV, NetworkError, Prefix, RouterId},
 };
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -53,28 +53,28 @@ lazy_static! {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ForwardingState {
     /// The forwarding state
-    pub(crate) state: HashMap<(RouterId, Prefix), Vec<RouterId>>,
+    pub(crate) state: HashMapPrefixKV<RouterId, Vec<RouterId>>,
     /// The reversed forwarding state.
-    pub(crate) reversed: HashMap<(RouterId, Prefix), HashSet<RouterId>>,
+    pub(crate) reversed: HashMapPrefixKV<RouterId, HashSet<RouterId>>,
     /// Cache storing the result from the last computation. The outer most vector is the corresponds
     /// to the router id, and the next is the prefix. Then, if `cache[r, p]` is `None`, we have not
     /// yet computed the result there, But if `cache[r, p]` is true, then it will store the result
     /// which was computed last time.
     #[allow(clippy::type_complexity)]
-    pub(crate) cache: HashMap<(RouterId, Prefix), Result<Vec<Vec<RouterId>>, CacheError>>,
+    pub(crate) cache: HashMapPrefixKV<RouterId, Result<Vec<Vec<RouterId>>, CacheError>>,
 }
 
 impl PartialEq for ForwardingState {
     fn eq(&self, other: &Self) -> bool {
-        let mut s_state: HashMap<_, _> = self.state.clone();
-        s_state.retain(|_, nhs| !nhs.is_empty());
-        let mut o_state: HashMap<_, _> = other.state.clone();
-        o_state.retain(|_, nhs| !nhs.is_empty());
+        let mut s_state: HashMapPrefixKV<_, _> = self.state.clone();
+        s_state.retain_values(|nhs| !nhs.is_empty());
+        let mut o_state: HashMapPrefixKV<_, _> = other.state.clone();
+        o_state.retain_values(|nhs| !nhs.is_empty());
 
-        let mut s_reversed: HashMap<_, _> = self.reversed.clone();
-        s_reversed.retain(|_, prev| !prev.is_empty());
-        let mut o_reversed: HashMap<_, _> = other.reversed.clone();
-        o_reversed.retain(|_, prev| !prev.is_empty());
+        let mut s_reversed: HashMapPrefixKV<_, _> = self.reversed.clone();
+        s_reversed.retain_values(|prev| !prev.is_empty());
+        let mut o_reversed: HashMapPrefixKV<_, _> = other.reversed.clone();
+        o_reversed.retain_values(|prev| !prev.is_empty());
 
         s_state == o_state && s_reversed == o_reversed
     }
@@ -87,10 +87,10 @@ impl ForwardingState {
         let max_num_entries = (net.num_devices() + 1) * net.known_prefixes.len();
 
         // initialize state
-        let mut state: HashMap<(RouterId, Prefix), Vec<RouterId>> =
-            HashMap::with_capacity(max_num_entries);
-        let mut reversed: HashMap<(RouterId, Prefix), HashSet<RouterId>> =
-            HashMap::with_capacity(max_num_entries);
+        let mut state: HashMapPrefixKV<RouterId, Vec<RouterId>> =
+            HashMapPrefixKV::with_capacity(max_num_entries);
+        let mut reversed: HashMapPrefixKV<RouterId, HashSet<RouterId>> =
+            HashMapPrefixKV::with_capacity(max_num_entries);
         for rid in net.get_routers() {
             let r = net.get_device(rid).unwrap_internal();
             for prefix in net.get_known_prefixes() {
@@ -104,7 +104,7 @@ impl ForwardingState {
                             continue;
                         }
                         state.get_mut(&(rid, *prefix)).unwrap().push(nh);
-                        reversed.entry((nh, *prefix)).or_default().insert(rid);
+                        reversed.get_mut_or_default((nh, *prefix)).insert(rid);
                     }
                 }
             }
@@ -115,12 +115,12 @@ impl ForwardingState {
         for r in net.get_external_routers() {
             for p in net.get_device(r).unwrap_external().advertised_prefixes() {
                 state.insert((r, *p), vec![*TO_DST]);
-                reversed.entry((*TO_DST, *p)).or_default().insert(r);
+                reversed.get_mut_or_default((*TO_DST, *p)).insert(r);
             }
         }
 
         // prepare the cache
-        let cache = HashMap::new();
+        let cache = HashMapPrefixKV::new();
 
         Self {
             state,
@@ -318,8 +318,8 @@ impl ForwardingState {
         let keys = self.state.keys().chain(other.state.keys()).unique();
         let mut result: HashMap<Prefix, Vec<FwDelta>> = HashMap::new();
         for key in keys {
-            let src = key.0;
-            let prefix = key.1;
+            let src = *key.0;
+            let prefix = *key.1;
             let self_target = self
                 .state
                 .get(&(src, prefix))
@@ -369,8 +369,7 @@ impl ForwardingState {
         }
         for new_nh in next_hops {
             self.reversed
-                .entry((new_nh, prefix))
-                .or_default()
+                .get_mut_or_default((new_nh, prefix))
                 .insert(source);
         }
 
@@ -425,7 +424,12 @@ impl IntoIterator for ForwardingState {
     type IntoIter = ForwardingStateIterator;
 
     fn into_iter(self) -> Self::IntoIter {
-        let keys = self.state.keys().cloned().collect::<Vec<_>>().into_iter();
+        let keys = self
+            .state
+            .keys()
+            .map(|(k, v)| (*k, *v))
+            .collect::<Vec<_>>()
+            .into_iter();
         ForwardingStateIterator {
             fw_state: self,
             keys,
@@ -544,9 +548,9 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]],
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]].into(),
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r2, p, vec![r0, r1, r2]);
         assert_paths(&mut s, r0, p, vec![vec![r0]]);
@@ -569,9 +573,9 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]],
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]].into(),
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r2, p, vec![r0, r1, r2]);
         assert_paths(&mut s, r4, 0, vec![vec![r4, r2, r1, r0]]);
@@ -595,9 +599,9 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r3]],
-            reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r3]].into(),
+            reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r2, p, vec![r2, r3, r4]);
         assert_reach(&s, r3, p, vec![r3, r4]);
@@ -639,9 +643,9 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r2], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r2]],
-            reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r2], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r2]].into(),
+            reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r1, p, vec![r1, r2, r3, r4]);
         assert_reach(&s, r2, p, vec![r2, r3, r4]);
@@ -688,9 +692,9 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]],
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]].into(),
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r2, p, vec![r2, r1, r0]);
         assert_paths(&mut s, r0, p, vec![vec![r0]]);
@@ -713,9 +717,9 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]],
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]].into(),
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r4, p, vec![r4, r2, r1, r0]);
         assert_paths(
@@ -744,9 +748,9 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]],
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]].into(),
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r5, p, vec![r5, r4, r3, r2, r1, r0]);
         assert_paths(
@@ -773,9 +777,9 @@ mod test {
         let r4 = 4.into();
         let r5 = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r2], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]],
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r2], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]].into(),
+            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r5, p, vec![r5, r4, r3, r2, r1, r0]);
         assert_paths(
@@ -803,9 +807,9 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4, r1], (r4, p) => vec![r3]],
-            reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4, r1], (r4, p) => vec![r3]].into(),
+            reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r2, p, vec![r0, r1, r2, r3, r4]);
         assert_reach(&s, r3, p, vec![r1, r0, r3, r4]);
@@ -847,9 +851,9 @@ mod test {
         let r4: RouterId = 4.into();
         let r5: RouterId = 5.into();
         let mut s = ForwardingState {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r2], (r2, p) => vec![r3, r1], (r3, p) => vec![r4], (r4, p) => vec![r2]],
-            reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]],
-            cache: hashmap![],
+            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r2], (r2, p) => vec![r3, r1], (r3, p) => vec![r4], (r4, p) => vec![r2]].into(),
+            reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]].into(),
+            cache: hashmap![].into(),
         };
         assert_reach(&s, r1, p, vec![r1, r2, r3, r4]);
         assert_loop(&mut s, r1, p, vec![r1, r2, r3, r4, r2]);

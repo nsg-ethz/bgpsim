@@ -26,7 +26,10 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     types::{
         collections::{CowMap, CowMapIter, CowVec, CowVecIter},
-        prefix::{CowMapPrefix, CowSetPrefix, HashMapPrefix, InnerHashMapPrefix},
+        prefix::{
+            CowMapPrefix, CowSetPrefix, HashMapPrefix, HashMapPrefixKV, InnerHashMapPrefix,
+            InnerHashMapPrefixKV,
+        },
         AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate,
     },
 };
@@ -68,7 +71,7 @@ pub struct Router {
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
     #[cfg_attr(all(feature = "serde"), serde(with = "As::<Vec<(Same, Same)>>"))]
-    pub(crate) bgp_rib_out: HashMap<(Prefix, RouterId), BgpRibEntry>,
+    pub(crate) bgp_rib_out: HashMapPrefixKV<RouterId, BgpRibEntry>,
     /// Set of known bgp prefixes
     pub(crate) bgp_known_prefixes: CowSetPrefix,
     /// BGP Route-Maps for Input
@@ -121,7 +124,7 @@ impl Router {
             bgp_sessions: CowMap::new(),
             bgp_rib_in: HashMapPrefix::new(),
             bgp_rib: HashMapPrefix::new(),
-            bgp_rib_out: HashMap::new(),
+            bgp_rib_out: HashMapPrefixKV::new(),
             bgp_known_prefixes: CowSetPrefix::new(),
             bgp_route_maps_in: CowVec::new(),
             bgp_route_maps_out: CowVec::new(),
@@ -290,10 +293,10 @@ impl Router {
                         self.bgp_rib.remove(&prefix);
                     }
                     UndoAction::BgpRibOut(prefix, peer, Some(entry)) => {
-                        self.bgp_rib_out.insert((prefix, peer), entry);
+                        self.bgp_rib_out.insert((peer, prefix), entry);
                     }
                     UndoAction::BgpRibOut(prefix, peer, None) => {
-                        self.bgp_rib_out.remove(&(prefix, peer));
+                        self.bgp_rib_out.remove(&(peer, prefix));
                     }
                     UndoAction::BgpRouteMap(RouteMapDirection::Incoming, order, map) => {
                         match self
@@ -486,7 +489,7 @@ impl Router {
                         .unwrap()
                         .push(UndoAction::BgpRibIn(*prefix, target, Some(_rib)))
                 }
-                if let Some(_rib) = self.bgp_rib_out.remove(&(*prefix, target)) {
+                if let Some(_rib) = self.bgp_rib_out.remove(&(target, *prefix)) {
                     // add the undo action
                     #[cfg(feature = "undo")]
                     self.undo_stack
@@ -678,8 +681,8 @@ impl Router {
     }
 
     /// Get a reference to the RIB-OUT table
-    pub fn get_bgp_rib_out(&self) -> &HashMap<(Prefix, RouterId), BgpRibEntry> {
-        &self.bgp_rib_out
+    pub fn get_bgp_rib_out(&self) -> &InnerHashMapPrefixKV<RouterId, BgpRibEntry> {
+        self.bgp_rib_out.inner()
     }
 
     /// write forawrding table based on graph and return the set of events triggered by this action.
@@ -831,7 +834,7 @@ impl Router {
 
         for (peer, peer_type) in self.bgp_sessions.iter() {
             // get the current route
-            let current_route: Option<&BgpRibEntry> = self.bgp_rib_out.get(&(prefix, *peer));
+            let current_route: Option<&BgpRibEntry> = self.bgp_rib_out.get(&(*peer, prefix));
             // before applying route maps, we check if neither the old, nor the new routes should be
             // advertised
             let will_advertise = rib_best
@@ -847,7 +850,7 @@ impl Router {
             // be edited
             let event = if !will_advertise && current_route.is_some() {
                 // send a withdraw of the old route.
-                let _old = self.bgp_rib_out.remove(&(prefix, *peer));
+                let _old = self.bgp_rib_out.remove(&(*peer, prefix));
                 // add the undo action
                 #[cfg(feature = "undo")]
                 self.undo_stack
@@ -870,7 +873,7 @@ impl Router {
                     (Some(best_r), _) => {
                         // Route information was changed
                         // update the route
-                        let _old = self.bgp_rib_out.insert((prefix, *peer), best_r.clone());
+                        let _old = self.bgp_rib_out.insert((*peer, prefix), best_r.clone());
                         // add the undo action
                         #[cfg(feature = "undo")]
                         self.undo_stack
@@ -881,7 +884,7 @@ impl Router {
                     }
                     (None, Some(_)) => {
                         // Current route must be WITHDRAWN, since we do no longer know any route
-                        let _old = self.bgp_rib_out.remove(&(prefix, *peer));
+                        let _old = self.bgp_rib_out.remove(&(*peer, prefix));
                         // add the undo action
                         #[cfg(feature = "undo")]
                         self.undo_stack

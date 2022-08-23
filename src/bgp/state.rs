@@ -293,7 +293,7 @@ impl<T> FromIterator<(RouterId, BgpStateNode<T>)> for BgpStateGraph<T> {
 impl<T> BgpStateGraph<T> {
     fn from_net<'n, F: Fn(&'n BgpRoute) -> T, Q>(
         net: &'n Network<Q>,
-        prefix: Prefix,
+        _prefix: Prefix,
         f: F,
     ) -> Self {
         let mut g = net
@@ -307,7 +307,7 @@ impl<T> BgpStateGraph<T> {
                 NetworkDevice::InternalRouter(r) => {
                     // handle local RIB
                     #[cfg(feature = "multi_prefix")]
-                    if let Some(entry) = r.get_bgp_rib().get(&prefix) {
+                    if let Some(entry) = r.get_bgp_rib().get(&_prefix) {
                         g.get_mut(&id).unwrap().node = Some((f(&entry.route), entry.from_id));
                     }
                     #[cfg(not(feature = "multi_prefix"))]
@@ -315,20 +315,29 @@ impl<T> BgpStateGraph<T> {
                         g.get_mut(&id).unwrap().node = Some((f(&entry.route), entry.from_id));
                     }
                     // handle RIB_OUT
+                    #[cfg(feature = "multi_prefix")]
                     r.get_bgp_rib_out()
                         .iter()
-                        .filter(|((p, _), _)| *p == prefix)
-                        .for_each(|((_, peer), entry)| {
+                        .filter(|((_, p), _)| *p == _prefix)
+                        .for_each(|((peer, _), entry)| {
                             g.get_mut(&id)
                                 .unwrap()
                                 .edges_out
                                 .insert(*peer, f(&entry.route));
                             g.get_mut(peer).unwrap().edges_in.insert(id);
-                        })
+                        });
+                    #[cfg(not(feature = "multi_prefix"))]
+                    r.get_bgp_rib_out().iter().for_each(|(peer, entry)| {
+                        g.get_mut(&id)
+                            .unwrap()
+                            .edges_out
+                            .insert(*peer, f(&entry.route));
+                        g.get_mut(peer).unwrap().edges_in.insert(id);
+                    });
                 }
                 NetworkDevice::ExternalRouter(r) => {
                     #[cfg(feature = "multi_prefix")]
-                    let advertised_rotue = r.get_advertised_routes().get(&prefix);
+                    let advertised_rotue = r.get_advertised_routes().get(&_prefix);
                     #[cfg(not(feature = "multi_prefix"))]
                     let advertised_rotue = r.get_advertised_routes();
                     if let Some(route) = advertised_rotue {
