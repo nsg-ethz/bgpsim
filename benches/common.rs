@@ -140,22 +140,19 @@ pub mod roland {
     }
 
     pub fn setup_experiment(
-        net: &Net,
+        net: &mut Net,
         prefix: Prefix,
         withdraw_at: RouterId,
     ) -> Result<(ForwardingState, ConvergenceTrace), NetworkError> {
-        // create a copy of the net
-        let mut t = net.clone();
-
         // get the forwarding state before
-        let fw_state_before = t.get_forwarding_state();
+        let fw_state_before = net.get_forwarding_state();
 
         // execute the event
-        t.manual_simulation();
-        t.retract_external_route(withdraw_at, prefix)?;
+        net.manual_simulation();
+        net.retract_external_route(withdraw_at, prefix)?;
 
         // compute the fw state diff
-        let fw_state_after = t.get_forwarding_state();
+        let fw_state_after = net.get_forwarding_state();
         let diff = fw_state_before.diff(&fw_state_after);
 
         // construct the trace
@@ -166,12 +163,10 @@ pub mod roland {
             .next()
             .unwrap();
 
-        let fw_state = net.get_forwarding_state();
-
-        Ok((fw_state, trace))
+        Ok((fw_state_before, trace))
     }
 
-    pub fn simulate_event(
+    pub fn compute_sample(
         t: &mut Net,
         prefix: Prefix,
         fw_state: ForwardingState,

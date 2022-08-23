@@ -31,17 +31,26 @@ pub fn main() {
 }
 */
 
-/*
 use common::roland::*;
+use netsim::interactive::InteractiveNetwork;
 
 pub fn main() {
-    let (net, prefix, policies, withdraw_at) = try_setup_net().unwrap();
-    let (mut fw_state, trace) = setup_experiment(&net, prefix, withdraw_at).unwrap();
+    let (mut net, prefix, policies, withdraw_at) = try_setup_net().unwrap();
+    let (mut fw_state, trace) = setup_experiment(&mut net, prefix, withdraw_at).unwrap();
+    let mut worker = net.clone();
 
     for _ in 0..10_000 {
-        fw_state = simulate_event(&net, prefix, fw_state, &trace, &policies);
+        fw_state = compute_sample(&mut worker, prefix, fw_state, &trace, &policies);
+        unsafe {
+            worker = net
+                .partial_clone()
+                .reuse_advertisements(true)
+                .reuse_config(true)
+                .reuse_igp_state(true)
+                .reuse_queue_params(true)
+                .conquer(worker);
+        };
     }
 }
-*/
 
-pub fn main() {}
+// pub fn main() {}

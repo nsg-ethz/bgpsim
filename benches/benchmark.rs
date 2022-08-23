@@ -59,8 +59,8 @@ where
 }
 
 pub fn benchmark_roland(c: &mut Criterion) {
-    let (net, prefix, policies, withdraw_at) = roland::try_setup_net().unwrap();
-    let (fw_state, trace) = roland::setup_experiment(&net, prefix, withdraw_at).unwrap();
+    let (mut net, prefix, policies, withdraw_at) = roland::try_setup_net().unwrap();
+    let (fw_state, trace) = roland::setup_experiment(&mut net, prefix, withdraw_at).unwrap();
     c.bench_function("roland", |b| {
         b.iter_custom(|iters| {
             setup_measure_roland(iters, &net, prefix, &fw_state, &trace, &policies)
@@ -81,7 +81,7 @@ pub fn setup_measure_roland(
     let mut worker = net.clone();
     for _ in 0..iters {
         let start = Instant::now();
-        fw_state = roland::simulate_event(&mut worker, prefix, fw_state, trace, policies);
+        fw_state = roland::compute_sample(&mut worker, prefix, fw_state, trace, policies);
         unsafe {
             worker = net
                 .partial_clone()
