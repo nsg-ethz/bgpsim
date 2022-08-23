@@ -17,11 +17,10 @@
 
 use std::collections::HashSet;
 
+#[cfg(any(feature = "undo", feature = "multi_prefix"))]
+use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
 use crate::{
-    bgp::{
-        BgpEvent, BgpRoute,
-        BgpSessionType::{EBgp, IBgpClient, IBgpPeer},
-    },
+    bgp::{BgpEvent, BgpRoute},
     event::Event,
     external_router::*,
     ospf::Ospf,
@@ -30,10 +29,14 @@ use crate::{
 };
 use pretty_assertions::assert_eq;
 
-use crate::types::collections::{hashmap, hashset};
+use crate::types::collections::hashmap;
 
+#[cfg(feature = "multi_prefix")]
 #[test]
 fn test_bgp_single() {
+    use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
+    use crate::types::collections::hashset;
+
     let mut r = Router::new("test".to_string(), 0.into(), AsId(65001));
     r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
     r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
@@ -64,7 +67,7 @@ fn test_bgp_single() {
             100.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: Prefix(200),
+                prefix: Prefix::from(200),
                 as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
                 next_hop: 100.into(),
                 local_pref: None,
@@ -77,7 +80,7 @@ fn test_bgp_single() {
         .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
-    let entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
+    let entry = r.get_selected_bgp_route(Prefix::from(200)).unwrap();
     assert_eq!(entry.from_type, EBgp);
     assert_eq!(entry.route.next_hop, 100.into());
     assert_eq!(entry.route.local_pref, Some(100));
@@ -106,7 +109,7 @@ fn test_bgp_single() {
             1.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: Prefix(201),
+                prefix: Prefix::from(201),
                 as_path: vec![AsId(1), AsId(2), AsId(3)],
                 next_hop: 11.into(),
                 local_pref: Some(50),
@@ -119,7 +122,7 @@ fn test_bgp_single() {
         .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
-    let entry = r.get_selected_bgp_route(Prefix(201)).unwrap();
+    let entry = r.get_selected_bgp_route(Prefix::from(201)).unwrap();
     assert_eq!(entry.from_type, IBgpPeer);
     assert_eq!(entry.route.next_hop, 11.into());
     assert_eq!(entry.route.local_pref, Some(50));
@@ -151,7 +154,7 @@ fn test_bgp_single() {
             2.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: Prefix(200),
+                prefix: Prefix::from(200),
                 as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
                 next_hop: 10.into(),
                 local_pref: None,
@@ -164,7 +167,7 @@ fn test_bgp_single() {
         .unwrap();
 
     // check that
-    let entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
+    let entry = r.get_selected_bgp_route(Prefix::from(200)).unwrap();
     assert_eq!(entry.from_type, EBgp);
     assert_eq!(entry.route.next_hop, 100.into());
     assert_eq!(events.len(), 0);
@@ -181,7 +184,7 @@ fn test_bgp_single() {
             5.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: Prefix(200),
+                prefix: Prefix::from(200),
                 as_path: vec![
                     AsId(1),
                     AsId(2),
@@ -205,7 +208,7 @@ fn test_bgp_single() {
         .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
-    let entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
+    let entry = r.get_selected_bgp_route(Prefix::from(200)).unwrap();
     assert_eq!(entry.from_type, IBgpClient);
     assert_eq!(entry.route.next_hop, 5.into());
     assert_eq!(entry.route.local_pref, Some(150));
@@ -226,7 +229,7 @@ fn test_bgp_single() {
             Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix)) => {
                 assert_eq!(from, 0.into());
                 assert_eq!(to, 5.into());
-                assert_eq!(prefix, Prefix(200));
+                assert_eq!(prefix, Prefix::from(200));
             }
         }
     }
@@ -240,12 +243,12 @@ fn test_bgp_single() {
             (),
             2.into(),
             0.into(),
-            BgpEvent::Withdraw(Prefix(200)),
+            BgpEvent::Withdraw(Prefix::from(200)),
         ))
         .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
-    let new_entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
+    let new_entry = r.get_selected_bgp_route(Prefix::from(200)).unwrap();
     assert_eq!(new_entry, entry);
     assert_eq!(events.len(), 0);
 
@@ -258,13 +261,13 @@ fn test_bgp_single() {
             (),
             5.into(),
             0.into(),
-            BgpEvent::Withdraw(Prefix(200)),
+            BgpEvent::Withdraw(Prefix::from(200)),
         ))
         .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
     //eprintln!("{:#?}", r);
-    let new_entry = r.get_selected_bgp_route(Prefix(200)).unwrap();
+    let new_entry = r.get_selected_bgp_route(Prefix::from(200)).unwrap();
     assert_eq!(new_entry, original_entry);
     assert_eq!(events.len(), 7);
     for event in events {
@@ -278,7 +281,7 @@ fn test_bgp_single() {
             Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix)) => {
                 assert_eq!(from, 0.into());
                 assert_eq!(to, 100.into());
-                assert_eq!(prefix, Prefix(200));
+                assert_eq!(prefix, Prefix::from(200));
             }
         }
     }
@@ -292,16 +295,17 @@ fn test_bgp_single() {
             (),
             100.into(),
             0.into(),
-            BgpEvent::Withdraw(Prefix(200)),
+            BgpEvent::Withdraw(Prefix::from(200)),
         ))
         .unwrap();
 
     // check that the router now has a route selected for 100 with the correct data
-    assert!(r.get_selected_bgp_route(Prefix(200)).is_none());
+    assert!(r.get_selected_bgp_route(Prefix::from(200)).is_none());
     assert_eq!(events.len(), 6);
     for event in events {
+        let p200 = Prefix::from(200);
         match event {
-            Event::Bgp(_, from, to, BgpEvent::Withdraw(Prefix(200))) => {
+            Event::Bgp(_, from, to, BgpEvent::Withdraw(p)) if p == p200 => {
                 assert_eq!(from, 0.into());
                 assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index() as usize)));
             }
@@ -497,7 +501,7 @@ fn external_router_advertise_to_neighbors() {
     assert!(events.is_empty());
 
     // advertise route
-    let (_, events) = r.advertise_prefix(Prefix(0), vec![AsId(0)], None, None);
+    let (_, events) = r.advertise_prefix(Prefix::from(0), vec![AsId(0)], None, None);
 
     // check that one event was created
     assert_eq!(events.len(), 1);
@@ -508,7 +512,7 @@ fn external_router_advertise_to_neighbors() {
             0.into(),
             1.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: Prefix(0),
+                prefix: Prefix::from(0),
                 as_path: vec![AsId(0)],
                 next_hop: 0.into(),
                 local_pref: None,
@@ -521,13 +525,13 @@ fn external_router_advertise_to_neighbors() {
     );
 
     // emove the route
-    let events = r.widthdraw_prefix(Prefix(0));
+    let events = r.widthdraw_prefix(Prefix::from(0));
 
     // check that one event was created
     assert_eq!(events.len(), 1);
     assert_eq!(
         events[0],
-        Event::Bgp((), 0.into(), 1.into(), BgpEvent::Withdraw(Prefix(0)))
+        Event::Bgp((), 0.into(), 1.into(), BgpEvent::Withdraw(Prefix::from(0)))
     )
 }
 
@@ -537,7 +541,8 @@ fn external_router_new_neighbor() {
     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
 
     // advertise route
-    let (_, events) = r.advertise_prefix::<(), Option<u32>>(Prefix(0), vec![AsId(0)], None, None);
+    let (_, events) =
+        r.advertise_prefix::<(), Option<u32>>(Prefix::from(0), vec![AsId(0)], None, None);
 
     // check that no event was created
     assert_eq!(events.len(), 0);
@@ -554,7 +559,7 @@ fn external_router_new_neighbor() {
             0.into(),
             1.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: Prefix(0),
+                prefix: Prefix::from(0),
                 as_path: vec![AsId(0)],
                 next_hop: 0.into(),
                 local_pref: None,
@@ -570,7 +575,7 @@ fn external_router_new_neighbor() {
     r.close_ebgp_session(1.into()).unwrap();
 
     // then, withdraw the session
-    let events = r.widthdraw_prefix::<()>(Prefix(0));
+    let events = r.widthdraw_prefix::<()>(Prefix::from(0));
     assert!(events.is_empty());
 }
 
@@ -608,7 +613,7 @@ fn test_bgp_single_undo() {
         100.into(),
         0.into(),
         BgpEvent::Update(BgpRoute {
-            prefix: Prefix(200),
+            prefix: Prefix::from(200),
             as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
             next_hop: 100.into(),
             local_pref: None,
@@ -633,7 +638,7 @@ fn test_bgp_single_undo() {
         1.into(),
         0.into(),
         BgpEvent::Update(BgpRoute {
-            prefix: Prefix(201),
+            prefix: Prefix::from(201),
             as_path: vec![AsId(1), AsId(2), AsId(3)],
             next_hop: 11.into(),
             local_pref: Some(50),
@@ -658,7 +663,7 @@ fn test_bgp_single_undo() {
         2.into(),
         0.into(),
         BgpEvent::Update(BgpRoute {
-            prefix: Prefix(200),
+            prefix: Prefix::from(200),
             as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
             next_hop: 10.into(),
             local_pref: None,
@@ -683,7 +688,7 @@ fn test_bgp_single_undo() {
         5.into(),
         0.into(),
         BgpEvent::Update(BgpRoute {
-            prefix: Prefix(200),
+            prefix: Prefix::from(200),
             as_path: vec![
                 AsId(1),
                 AsId(2),
@@ -716,7 +721,7 @@ fn test_bgp_single_undo() {
         (),
         2.into(),
         0.into(),
-        BgpEvent::Withdraw(Prefix(200)),
+        BgpEvent::Withdraw(Prefix::from(200)),
     ))
     .unwrap();
 
@@ -730,7 +735,7 @@ fn test_bgp_single_undo() {
         (),
         5.into(),
         0.into(),
-        BgpEvent::Withdraw(Prefix(200)),
+        BgpEvent::Withdraw(Prefix::from(200)),
     ))
     .unwrap();
 
@@ -743,7 +748,7 @@ fn test_bgp_single_undo() {
         (),
         100.into(),
         0.into(),
-        BgpEvent::Withdraw(Prefix(200)),
+        BgpEvent::Withdraw(Prefix::from(200)),
     ))
     .unwrap();
 
@@ -848,11 +853,11 @@ fn external_router_advertise_to_neighbors_undo() {
     let r_clone_1 = r.clone();
 
     // advertise route
-    r.advertise_prefix::<(), Option<u32>>(Prefix(0), vec![AsId(0)], None, None);
+    r.advertise_prefix::<(), Option<u32>>(Prefix::from(0), vec![AsId(0)], None, None);
     let r_clone_2 = r.clone();
 
     // emove the route
-    r.widthdraw_prefix::<()>(Prefix(0));
+    r.widthdraw_prefix::<()>(Prefix::from(0));
 
     r.undo_event();
     assert_eq!(r, r_clone_2);
@@ -867,7 +872,7 @@ fn external_router_new_neighbor_undo() {
     let mut r = ExternalRouter::new("router".to_string(), 0.into(), AsId(65001));
 
     // advertise route
-    r.advertise_prefix::<(), Option<u32>>(Prefix(0), vec![AsId(0)], None, None);
+    r.advertise_prefix::<(), Option<u32>>(Prefix::from(0), vec![AsId(0)], None, None);
     let r_clone_1 = r.clone();
 
     // add a neighbor and check that the route is advertised

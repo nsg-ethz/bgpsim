@@ -61,7 +61,7 @@ use crate::network::UndoAction;
 /// # #[cfg(feature = "rand")]
 /// net.build_link_weights(uniform_link_weight, (10.0, 100.0))?;
 /// // advertise 3 routes with unique preferences for a single prefix
-/// let _ = net.build_advertisements(Prefix(0), unique_preferences, 3)?;
+/// let _ = net.build_advertisements(Prefix::from(0), unique_preferences, 3)?;
 /// # Ok(())
 /// # }
 /// ```
@@ -173,7 +173,7 @@ pub trait NetworkBuilder<Q> {
     /// use netsim::builder::{NetworkBuilder, unique_preferences};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
-    /// # let prefix = Prefix(0);
+    /// # let prefix = Prefix::from(0);
     /// # let e1 = net.add_external_router("e1", AsId(1));
     /// # let e2 = net.add_external_router("e2", AsId(2));
     /// # let e3 = net.add_external_router("e3", AsId(3));
@@ -408,7 +408,10 @@ where
         F: FnOnce(&Network<Q>, A) -> Vec<Vec<RouterId>>,
     {
         let prefs = preferences(self, a);
+        #[cfg(feature = "multi_prefix")]
         let last_as = AsId(prefix.0 + 100);
+        #[cfg(not(feature = "multi_prefix"))]
+        let last_as = AsId(100);
 
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;

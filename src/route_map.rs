@@ -37,7 +37,7 @@ use std::fmt;
 /// # use netsim::route_map::*;
 /// # use netsim::types::{RouterId, Prefix};
 /// # let neighbor: RouterId = 0.into();
-/// # let prefix: Prefix = Prefix(0);
+/// # let prefix: Prefix = Prefix::from(0);
 /// let map = RouteMapBuilder::new()
 ///     .order(10)
 ///     .allow()
@@ -141,7 +141,7 @@ impl RouteMap {
 /// # use netsim::route_map::*;
 /// # use netsim::types::{RouterId, Prefix};
 /// # let neighbor: RouterId = 0.into();
-/// # let prefix: Prefix = Prefix(0);
+/// # let prefix: Prefix = Prefix::from(0);
 /// let map = RouteMapBuilder::new()
 ///     .order(10)
 ///     .allow()

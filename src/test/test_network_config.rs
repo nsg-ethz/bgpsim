@@ -20,7 +20,6 @@ use crate::{
     config::{Config, ConfigExpr, ConfigModifier, ConfigPatch, NetworkConfig},
     event::{EventQueue, FmtPriority},
     network::Network,
-    route_map::*,
     types::{AsId, NetworkError, Prefix, RouterId},
 };
 
@@ -159,7 +158,7 @@ where
 #[test]
 fn test_simple() {
     let mut net = Network::default();
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net);
 
@@ -183,7 +182,7 @@ fn test_simple_model() {
         0.1, 1.0, 2.0, 5.0, 0.1,
     )));
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net);
 
@@ -361,7 +360,7 @@ where
 #[test]
 fn test_external_router() {
     let mut net = Network::default();
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let (e1, r1, r2, r3, r4, e4) = setup_external(&mut net);
 
@@ -434,7 +433,7 @@ fn test_external_router_model() {
     let mut net = Network::new(SimpleTimingModel::new(ModelParams::new(
         0.1, 1.0, 2.0, 5.0, 0.1,
     )));
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let (e1, r1, r2, r3, r4, e4) = setup_external(&mut net);
 
@@ -515,7 +514,7 @@ fn test_route_order1() {
     // e1       e0
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let e0 = net.add_external_router("E0", AsId(1));
     let b0 = net.add_router("B0");
@@ -651,7 +650,7 @@ fn test_route_order2() {
     // e1       e0
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let e0 = net.add_external_router("E0", AsId(1));
     let b0 = net.add_router("B0");
@@ -789,7 +788,7 @@ fn test_bad_gadget() {
     //    e0       e1       e2
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let e0 = net.add_external_router("E0", AsId(65100));
     let e1 = net.add_external_router("E1", AsId(65101));
@@ -1032,7 +1031,7 @@ fn change_ibgp_topology_1() {
 
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let rr = net.add_router("rr");
     let r1 = net.add_router("r1");
@@ -1351,7 +1350,7 @@ fn change_ibgp_topology_2() {
 
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let rr = net.add_router("rr");
     let r1 = net.add_router("r1");
@@ -1733,8 +1732,8 @@ fn change_ibgp_topology_2() {
 fn test_twicebad_gadget() {
     // Example from L. Vanbever bgpmig_ton, figure 4
     let mut net = Network::default();
-    let prefix1 = Prefix(1);
-    let prefix2 = Prefix(2);
+    let prefix1 = Prefix::from(1);
+    let prefix2 = Prefix::from(2);
 
     let r1 = net.add_router("r1");
     let r2 = net.add_router("r2");
@@ -2136,7 +2135,7 @@ fn test_twicebad_gadget() {
 fn test_pylon_gadget() {
     // Example from L. Vanbever bgpmig_ton, figure 5
     let mut net = Network::default();
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let s = net.add_router("s");
     let rr1 = net.add_router("rr1");
@@ -2424,12 +2423,15 @@ fn test_pylon_gadget() {
     test_route!(net, r2, prefix, [r2, r1, e1, p1]);
 }
 
+#[cfg(feature = "multi_prefix")]
 #[test]
 fn carousel_gadget() {
+    use crate::route_map::*;
+
     // Example from L. Vanbever bgpmig_ton, figure 6
     let mut net = Network::default();
-    let prefix1 = Prefix(1);
-    let prefix2 = Prefix(2);
+    let prefix1 = Prefix::from(1);
+    let prefix2 = Prefix::from(2);
 
     let rr = net.add_router("rr");
     let r1 = net.add_router("r1");

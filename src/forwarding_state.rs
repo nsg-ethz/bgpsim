@@ -535,7 +535,7 @@ mod test {
 
     #[test]
     fn test_route() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
@@ -560,7 +560,7 @@ mod test {
 
     #[test]
     fn test_caching() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
@@ -586,7 +586,7 @@ mod test {
 
     #[test]
     fn test_forwarding_loop_2() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0: RouterId = 0.into();
         let r1: RouterId = 1.into();
@@ -630,7 +630,7 @@ mod test {
 
     #[test]
     fn test_forwarding_loop_3() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0: RouterId = 0.into();
         let r1: RouterId = 1.into();
@@ -679,7 +679,7 @@ mod test {
 
     #[test]
     fn test_route_load_balancing() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
@@ -704,7 +704,7 @@ mod test {
 
     #[test]
     fn test_caching_load_balancing() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
@@ -721,7 +721,7 @@ mod test {
         assert_paths(
             &mut s,
             r4,
-            Prefix(0),
+            Prefix::from(0),
             vec![vec![r4, r2, r1, r0], vec![r4, r2, r0]],
         );
         assert_cache_empty(&s, r5, p);
@@ -735,7 +735,7 @@ mod test {
 
     #[test]
     fn test_route_load_balancing_multiply_1() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
@@ -764,7 +764,7 @@ mod test {
 
     #[test]
     fn test_route_load_balancing_multiply_2() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0 = 0.into();
         let r1 = 1.into();
@@ -794,7 +794,7 @@ mod test {
 
     #[test]
     fn test_forwarding_loop_2_load_balancing() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0: RouterId = 0.into();
         let r1: RouterId = 1.into();
@@ -838,7 +838,7 @@ mod test {
 
     #[test]
     fn test_forwarding_loop_3_load_balancing() {
-        let p = Prefix(0);
+        let p = Prefix::from(0);
         let dst = u32::MAX.into();
         let r0: RouterId = 0.into();
         let r1: RouterId = 1.into();

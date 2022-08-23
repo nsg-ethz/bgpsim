@@ -309,7 +309,7 @@ fn test_igp_table_undo() {
 fn test_bgp_connectivity() {
     let mut net = get_test_net_bgp();
 
-    let p = Prefix(0);
+    let p = Prefix::from(0);
 
     // check that all routes have a black hole
     for router in net.get_routers().iter() {
@@ -344,7 +344,7 @@ fn test_bgp_connectivity_undo() {
     let mut net = get_test_net_bgp();
     let net_hist_1 = net.clone();
 
-    let p = Prefix(0);
+    let p = Prefix::from(0);
 
     // advertise prefix on e1
     net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
@@ -365,7 +365,7 @@ fn test_bgp_connectivity_undo() {
 fn test_static_route() {
     let mut net = get_test_net_bgp();
 
-    let p = Prefix(0);
+    let p = Prefix::from(0);
 
     // check that all routes have a black hole
     for router in net.get_routers().iter() {
@@ -416,7 +416,7 @@ fn test_static_route() {
 #[test]
 fn test_static_route_undo() {
     let mut net = get_test_net_bgp();
-    let p = Prefix(0);
+    let p = Prefix::from(0);
 
     // advertise both prefixes
     net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
@@ -448,7 +448,7 @@ fn test_static_route_undo() {
 fn test_bgp_decision() {
     let mut net = get_test_net_bgp();
 
-    let p = Prefix(0);
+    let p = Prefix::from(0);
 
     // advertise both prefixes
     net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
@@ -509,7 +509,7 @@ fn test_bgp_decision_undo() {
     let mut net = get_test_net_bgp();
     let net_hist_1 = net.clone();
 
-    let p = Prefix(0);
+    let p = Prefix::from(0);
 
     // advertise both prefixes
     net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
@@ -561,7 +561,7 @@ fn test_bgp_decision_undo() {
 #[test]
 fn test_route_maps() {
     let mut original_net = get_test_net_bgp();
-    let p = Prefix(0);
+    let p = Prefix::from(0);
 
     // advertise both prefixes
     original_net
@@ -706,7 +706,7 @@ fn test_route_maps() {
 #[test]
 fn test_route_maps_undo() {
     let mut net = get_test_net_bgp();
-    let p = Prefix(0);
+    let p = Prefix::from(0);
     let net_hist_1 = net.clone();
 
     // advertise both prefixes
@@ -809,7 +809,7 @@ fn test_link_failure() {
     let mut original_net = get_test_net_bgp();
 
     // advertise a prefix on both ends
-    let p = Prefix(0);
+    let p = Prefix::from(0);
     original_net
         .advertise_external_route(
             *E1,
@@ -888,7 +888,7 @@ fn test_link_failure_undo() {
     let net_hist_1 = net.clone();
 
     // advertise a prefix on both ends
-    let p = Prefix(0);
+    let p = Prefix::from(0);
     net.advertise_external_route(
         *E1,
         p,
@@ -1012,7 +1012,7 @@ fn get_test_net_bgp_load_balancing() -> Network {
 fn test_load_balancing() {
     let mut net = get_test_net_bgp_load_balancing();
 
-    let p = Prefix(0);
+    let p = Prefix::from(0);
     net.advertise_external_route(*E1, p, vec![AsId(65101)], None, None)
         .unwrap();
 
@@ -1042,7 +1042,7 @@ fn test_load_balancing() {
 #[test]
 fn test_static_route_load_balancing() {
     let mut net = get_test_net_bgp_load_balancing();
-    let p = Prefix(0);
+    let p = Prefix::from(0);
 
     // advertise a route at E1 and E4, and make the one at E4 the preferred one.
     net.advertise_external_route(*E1, p, vec![AsId(1), AsId(2), AsId(3)], None, None)
@@ -1100,7 +1100,7 @@ fn bgp_propagation_client_peers() {
     let r2 = net.add_router("r2");
     let r3 = net.add_router("r3");
     let e3 = net.add_external_router("e3", AsId(3));
-    let p = Prefix(1);
+    let p = Prefix::from(1);
 
     net.add_link(r1, r2);
     net.add_link(r1, r3);
@@ -1125,10 +1125,11 @@ fn bgp_propagation_client_peers() {
     assert_eq!(fw_state.get_route(r2, p), Ok(vec![vec![r2, r1, r3, e3]]));
 }
 
+#[cfg(feature = "multi_prefix")]
 #[test]
 fn bgp_state_incoming() {
     let mut net = get_test_net_igp();
-    let p = Prefix(1);
+    let p = Prefix::from(1);
     net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();
@@ -1203,7 +1204,7 @@ fn bgp_state_incoming() {
 #[test]
 fn bgp_state_incoming_2() {
     let mut net = get_test_net_igp();
-    let p = Prefix(1);
+    let p = Prefix::from(1);
     net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();
@@ -1272,7 +1273,7 @@ fn bgp_state_incoming_2() {
 #[test]
 fn bgp_state_peers_incoming() {
     let mut net = get_test_net_igp();
-    let p = Prefix(1);
+    let p = Prefix::from(1);
     net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();
@@ -1299,10 +1300,11 @@ fn bgp_state_peers_incoming() {
     assert_eq!(BTreeSet::from_iter(state.peers_incoming(*E4)), btreeset! {});
 }
 
+#[cfg(feature = "multi_prefix")]
 #[test]
 fn bgp_state_outgoing() {
     let mut net = get_test_net_igp();
-    let p = Prefix(1);
+    let p = Prefix::from(1);
     net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();
@@ -1380,7 +1382,7 @@ fn bgp_state_outgoing() {
 #[test]
 fn bgp_state_outgoing_2() {
     let mut net = get_test_net_igp();
-    let p = Prefix(1);
+    let p = Prefix::from(1);
     net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();
@@ -1446,7 +1448,7 @@ fn bgp_state_outgoing_2() {
 #[test]
 fn bgp_state_peers_outgoing() {
     let mut net = get_test_net_igp();
-    let p = Prefix(1);
+    let p = Prefix::from(1);
     net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();
@@ -1479,7 +1481,7 @@ fn bgp_state_peers_outgoing() {
 #[test]
 fn bgp_state_reach() {
     let mut net = get_test_net_igp();
-    let p = Prefix(1);
+    let p = Prefix::from(1);
     net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();
@@ -1503,7 +1505,7 @@ fn bgp_state_reach() {
 #[test]
 fn bgp_state_propagation_path() {
     let mut net = get_test_net_igp();
-    let p = Prefix(1);
+    let p = Prefix::from(1);
     net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();
@@ -1521,7 +1523,7 @@ fn bgp_state_propagation_path() {
 #[test]
 fn bgp_state_transform() {
     let mut net = get_test_net_igp();
-    let p = Prefix(1);
+    let p = Prefix::from(1);
     net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();

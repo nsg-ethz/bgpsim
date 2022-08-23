@@ -26,11 +26,12 @@ use crate::{
     types::{AsId, Prefix},
 };
 
+#[cfg(feature = "multi_prefix")]
 #[test]
 fn simple_matches() {
     let default_entry = BgpRibEntry {
         route: BgpRoute {
-            prefix: Prefix(0),
+            prefix: Prefix::from(0),
             as_path: vec![AsId(0)],
             next_hop: 0.into(),
             local_pref: None,
@@ -57,43 +58,49 @@ fn simple_matches() {
     let map = RouteMap::new(
         10,
         Deny,
-        vec![Match::Prefix(Clause::Equal(Prefix(0)))],
+        vec![Match::Prefix(Clause::Equal(Prefix::from(0)))],
         vec![],
     );
     let mut entry = default_entry.clone();
-    entry.route.prefix = Prefix(0);
+    entry.route.prefix = Prefix::from(0);
     assert!(map.apply(entry.clone()).0);
-    entry.route.prefix = Prefix(1);
+    entry.route.prefix = Prefix::from(1);
     assert!(!map.apply(entry).0);
 
     // Match on Prefix with range
     let map = RouteMap::new(
         10,
         Deny,
-        vec![Match::Prefix(Clause::Range(Prefix(0), Prefix(9)))],
+        vec![Match::Prefix(Clause::Range(
+            Prefix::from(0),
+            Prefix::from(9),
+        ))],
         vec![],
     );
     let mut entry = default_entry.clone();
-    entry.route.prefix = Prefix(0);
+    entry.route.prefix = Prefix::from(0);
     assert!(map.apply(entry.clone()).0);
-    entry.route.prefix = Prefix(9);
+    entry.route.prefix = Prefix::from(9);
     assert!(map.apply(entry.clone()).0);
-    entry.route.prefix = Prefix(10);
+    entry.route.prefix = Prefix::from(10);
     assert!(!map.apply(entry).0);
 
     // Match on Prefix with exclusive_range
     let map = RouteMap::new(
         10,
         Deny,
-        vec![Match::Prefix(Clause::RangeExclusive(Prefix(0), Prefix(10)))],
+        vec![Match::Prefix(Clause::RangeExclusive(
+            Prefix::from(0),
+            Prefix::from(10),
+        ))],
         vec![],
     );
     let mut entry = default_entry.clone();
-    entry.route.prefix = Prefix(0);
+    entry.route.prefix = Prefix::from(0);
     assert!(map.apply(entry.clone()).0);
-    entry.route.prefix = Prefix(9);
+    entry.route.prefix = Prefix::from(9);
     assert!(map.apply(entry.clone()).0);
-    entry.route.prefix = Prefix(10);
+    entry.route.prefix = Prefix::from(10);
     assert!(!map.apply(entry).0);
 
     // Match on AsPath to contain 0
@@ -167,7 +174,7 @@ fn simple_matches() {
 fn complex_matches() {
     let default_entry = BgpRibEntry {
         route: BgpRoute {
-            prefix: Prefix(0),
+            prefix: Prefix::from(0),
             as_path: vec![AsId(0)],
             next_hop: 0.into(),
             local_pref: None,
@@ -215,7 +222,7 @@ fn complex_matches() {
 fn overwrite() {
     let default_entry = BgpRibEntry {
         route: BgpRoute {
-            prefix: Prefix(0),
+            prefix: Prefix::from(0),
             as_path: vec![AsId(0)],
             next_hop: 0.into(),
             local_pref: Some(1),
@@ -323,13 +330,13 @@ fn route_map_builder() {
         RouteMap::new(
             100,
             Allow,
-            vec![Match::Prefix(Clause::Equal(Prefix(0)))],
+            vec![Match::Prefix(Clause::Equal(Prefix::from(0)))],
             vec![Set::LocalPref(Some(10))]
         ),
         RouteMapBuilder::new()
             .order(100)
             .allow()
-            .match_prefix(Prefix(0))
+            .match_prefix(Prefix::from(0))
             .set_local_pref(10)
             .build()
     );
@@ -338,13 +345,16 @@ fn route_map_builder() {
         RouteMap::new(
             10,
             Deny,
-            vec![Match::Prefix(Clause::Range(Prefix(0), Prefix(9)))],
+            vec![Match::Prefix(Clause::Range(
+                Prefix::from(0),
+                Prefix::from(9)
+            ))],
             vec![]
         ),
         RouteMapBuilder::new()
             .order(10)
             .deny()
-            .match_prefix_range(Prefix(0), Prefix(9))
+            .match_prefix_range(Prefix::from(0), Prefix::from(9))
             .build()
     );
 

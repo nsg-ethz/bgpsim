@@ -17,9 +17,10 @@
 
 use crate::bgp::BgpSessionType::*;
 use crate::config::{Config, ConfigExpr::*, ConfigModifier::*, ConfigPatch};
-use crate::route_map::*;
-use crate::router::StaticRoute::*;
-use crate::types::{Prefix, RouterId};
+use crate::types::RouterId;
+
+#[cfg(feature = "multi_prefix")]
+use crate::{route_map::*, router::StaticRoute::*};
 
 #[test]
 fn test_config_diff() {
@@ -83,15 +84,18 @@ fn test_config_diff() {
     assert_eq!(c1, c2);
 }
 
+#[cfg(feature = "multi_prefix")]
 #[test]
 fn config_unique() {
+    use crate::types::Prefix;
+
     let mut c = Config::new();
 
     let r0: RouterId = 0.into();
     let r1: RouterId = 1.into();
     let r2: RouterId = 2.into();
-    let p0: Prefix = Prefix(0);
-    let p1: Prefix = Prefix(1);
+    let p0: Prefix = Prefix::from(0);
+    let p1: Prefix = Prefix::from(1);
 
     // unique static route
     c.add(StaticRoute {
@@ -212,13 +216,16 @@ fn config_unique() {
     .unwrap_err();
 }
 
+#[cfg(feature = "multi_prefix")]
 #[test]
 fn config_add_remove() {
+    use crate::types::Prefix;
+
     let r0: RouterId = 0.into();
     let r1: RouterId = 1.into();
     let r2: RouterId = 2.into();
-    let p0: Prefix = Prefix(0);
-    let p1: Prefix = Prefix(1);
+    let p0: Prefix = Prefix::from(0);
+    let p1: Prefix = Prefix::from(1);
 
     {
         // unique static route

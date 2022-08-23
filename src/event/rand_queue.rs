@@ -203,7 +203,7 @@ impl PartialEq for SimpleTimingModel {
 ///
 /// // create the network with the basic event queue
 /// let mut net = TopologyZoo::EliBackbone.build(BasicEventQueue::new());
-/// let prefix = Prefix(0);
+/// let prefix = Prefix::from(0);
 ///
 /// // Build the configuration for the network
 /// net.build_external_routers(extend_to_k_external_routers, 3)?;

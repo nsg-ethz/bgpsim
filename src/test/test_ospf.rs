@@ -408,9 +408,9 @@ fn test_net() -> Result<(Network<BasicEventQueue>, Routers, Prefix, Prefix, Pref
     // build all eBGP sessions
     net.build_ebgp_sessions()?;
 
-    let p8 = Prefix(8);
-    let p9 = Prefix(9);
-    let p10 = Prefix(10);
+    let p8 = Prefix::from(8);
+    let p9 = Prefix::from(9);
+    let p10 = Prefix::from(10);
 
     // advertise prefixes at r8, r9 and r10
     net.advertise_external_route(r8, p8, &[8, 18, 108], None, None)?;
@@ -467,8 +467,8 @@ fn test_net_disconnected(
     // build all eBGP sessions
     net.build_ebgp_sessions()?;
 
-    let p9 = Prefix(9);
-    let p10 = Prefix(10);
+    let p9 = Prefix::from(9);
+    let p10 = Prefix::from(10);
 
     // advertise prefixes at r8, r9 and r10
     net.advertise_external_route(r9, p9, &[9, 19, 109], None, None)?;

@@ -273,7 +273,7 @@ where
 /// # use netsim::event::BasicEventQueue;
 /// # use netsim::builder::*;
 /// # let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());
-/// # let prefix = Prefix(0);
+/// # let prefix = Prefix::from(0);
 /// # net.build_external_routers(extend_to_k_external_routers, 3)?;
 /// # net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
 /// # net.build_ebgp_sessions()?;

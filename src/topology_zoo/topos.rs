@@ -53,7 +53,7 @@ use geoutils::Location;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
 /// let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());
-/// let prefix = Prefix(0);
+/// let prefix = Prefix::from(0);
 ///
 /// // Make sure that at least 3 external routers exist
 /// net.build_external_routers(extend_to_k_external_routers, 3)?;

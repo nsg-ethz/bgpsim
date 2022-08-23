@@ -77,7 +77,7 @@ where
 #[test]
 fn test_simple_deterministic() {
     let mut net = Network::default();
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net).unwrap();
 

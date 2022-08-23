@@ -75,7 +75,7 @@ where
 #[test]
 fn test_undo_all() {
     let mut net = Network::default();
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
     let net_hist_1 = net.clone();
     let e0 = net.add_external_router("E0", AsId(1));
     let net_hist_2 = net.clone();
@@ -199,7 +199,7 @@ fn test_undo_all() {
 #[test]
 fn test_undo_marks() {
     let mut net = Network::default();
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
     let net_hist_0 = net.clone();
     let mark_0 = net.get_undo_mark();
     let e0 = net.add_external_router("E0", AsId(1));
@@ -259,7 +259,7 @@ fn test_undo_marks() {
 #[test]
 fn test_simple() {
     let mut net = Network::default();
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let (e0, _, _, _, _, e1) = setup_simple(&mut net);
     let net_hist_1 = net.clone();
@@ -284,7 +284,7 @@ fn test_simple_model() {
         0.1, 1.0, 2.0, 5.0, 0.1,
     )));
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let (e0, _, _, _, _, e1) = setup_simple(&mut net);
     let net_hist_1 = net.clone();
@@ -369,7 +369,7 @@ where
 #[test]
 fn test_external_router() {
     let mut net = Network::default();
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let (e1, r1, r2, r3, r4, e4) = setup_external(&mut net);
 
@@ -421,7 +421,7 @@ fn test_external_router_model() {
     let mut net = Network::new(SimpleTimingModel::new(ModelParams::new(
         0.1, 1.0, 2.0, 5.0, 0.1,
     )));
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let (e1, r1, r2, r3, r4, e4) = setup_external(&mut net);
     let net_hist_1 = net.clone();
@@ -481,7 +481,7 @@ fn test_route_order1() {
     // e1       e0
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let e0 = net.add_external_router("E0", AsId(1));
     let b0 = net.add_router("B0");
@@ -541,7 +541,7 @@ fn test_route_order2() {
     // e1       e0
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let e0 = net.add_external_router("E0", AsId(1));
     let b0 = net.add_router("B0");
@@ -601,7 +601,7 @@ fn test_bad_gadget() {
     //    e0       e1       e2
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let e0 = net.add_external_router("E0", AsId(65100));
     let e1 = net.add_external_router("E1", AsId(65101));
@@ -714,7 +714,7 @@ fn change_ibgp_topology_1() {
 
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let rr = net.add_router("rr");
     let r1 = net.add_router("r1");
@@ -850,7 +850,7 @@ fn change_ibgp_topology_2() {
 
     let mut net = Network::default();
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let rr = net.add_router("rr");
     let r1 = net.add_router("r1");

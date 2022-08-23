@@ -426,22 +426,70 @@ fn test_forwarding_state_carousel_gadget() {
         .unwrap();
         net.set_config(&c).unwrap();
 
-        net.advertise_external_route(er, Prefix(1), vec![AsId(65100), AsId(65201)], None, None)
-            .unwrap();
-        net.advertise_external_route(er, Prefix(2), vec![AsId(65100), AsId(65202)], None, None)
-            .unwrap();
-        net.advertise_external_route(e1, Prefix(1), vec![AsId(65101), AsId(65201)], None, None)
-            .unwrap();
-        net.advertise_external_route(e2, Prefix(1), vec![AsId(65102), AsId(65201)], None, None)
-            .unwrap();
-        net.advertise_external_route(e2, Prefix(2), vec![AsId(65102), AsId(65202)], None, None)
-            .unwrap(); //
-        net.advertise_external_route(e3, Prefix(1), vec![AsId(65103), AsId(65201)], None, None)
-            .unwrap();
-        net.advertise_external_route(e3, Prefix(2), vec![AsId(65103), AsId(65202)], None, None)
-            .unwrap();
-        net.advertise_external_route(e4, Prefix(2), vec![AsId(65104), AsId(65202)], None, None)
-            .unwrap();
+        net.advertise_external_route(
+            er,
+            Prefix::from(1),
+            vec![AsId(65100), AsId(65201)],
+            None,
+            None,
+        )
+        .unwrap();
+        net.advertise_external_route(
+            er,
+            Prefix::from(2),
+            vec![AsId(65100), AsId(65202)],
+            None,
+            None,
+        )
+        .unwrap();
+        net.advertise_external_route(
+            e1,
+            Prefix::from(1),
+            vec![AsId(65101), AsId(65201)],
+            None,
+            None,
+        )
+        .unwrap();
+        net.advertise_external_route(
+            e2,
+            Prefix::from(1),
+            vec![AsId(65102), AsId(65201)],
+            None,
+            None,
+        )
+        .unwrap();
+        net.advertise_external_route(
+            e2,
+            Prefix::from(2),
+            vec![AsId(65102), AsId(65202)],
+            None,
+            None,
+        )
+        .unwrap(); //
+        net.advertise_external_route(
+            e3,
+            Prefix::from(1),
+            vec![AsId(65103), AsId(65201)],
+            None,
+            None,
+        )
+        .unwrap();
+        net.advertise_external_route(
+            e3,
+            Prefix::from(2),
+            vec![AsId(65103), AsId(65202)],
+            None,
+            None,
+        )
+        .unwrap();
+        net.advertise_external_route(
+            e4,
+            Prefix::from(2),
+            vec![AsId(65104), AsId(65202)],
+            None,
+            None,
+        )
+        .unwrap();
 
         let mut routers = net.get_routers();
         routers.sort();
@@ -458,7 +506,7 @@ fn test_forwarding_state_carousel_gadget() {
                     state.get_next_hops(*router, *prefix),
                     "Invalid next-hop at {} for prefix {}",
                     net.get_router_name(*router).unwrap(),
-                    prefix.0
+                    prefix
                 );
             }
         }

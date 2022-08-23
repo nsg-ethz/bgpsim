@@ -71,13 +71,14 @@
 //! - `multi_prefix` (*enabled by default*): Disabling this feature causes the network to run in a
 //!   single-preifx mode, where each `Prefix` is treated identically. For instance, a
 //!   `HashSet<Prefix, T>` will be transformed into a `Option<T>`. This significantly improves
-//!   performance.
+//!   performance. To disable `multi_prefix`, add the option `default-features = false` to the
+//!   dependency declaration in your `cargo.toml` file.
 //!
 //! ## Example usage
 //!
 //! The following example generates a network with two border routers `B0` and `B1`, two route
 //! reflectors `R0` and `R1`, and two external routers `E0` and `E1`. Both routers advertise the
-//! same prefix `Prefix(0)`, and all links have the same weight `1.0`.
+//! same prefix `Prefix::from(0)`, and all links have the same weight `1.0`.
 //!
 //! ```
 //! use netsim::prelude::*;
@@ -86,7 +87,7 @@
 //!
 //!     let mut t = Network::default();
 //!
-//!     let prefix = Prefix(0);
+//!     let prefix = Prefix::from(0);
 //!
 //!     let e0 = t.add_external_router("E0", 1);
 //!     let b0 = t.add_router("B0");

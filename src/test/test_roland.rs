@@ -43,7 +43,7 @@ fn roland_pacificwave() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Pacificwave.build(queue);
-    let prefix = Prefix(1);
+    let prefix = Prefix::from(1);
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
@@ -99,7 +99,7 @@ fn roland_pacificwave_manual() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Pacificwave.build(queue);
-    let prefix = Prefix(1);
+    let prefix = Prefix::from(1);
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
@@ -191,7 +191,7 @@ fn roland_arpanet() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Arpanet196912.build(queue);
-    let prefix = Prefix(1);
+    let prefix = Prefix::from(1);
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
@@ -247,7 +247,7 @@ fn roland_arpanet_manual() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Arpanet196912.build(queue);
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
@@ -350,7 +350,7 @@ fn roland_arpanet_complete() -> Result<(), Box<dyn std::error::Error>> {
         0.5, // collision: 0.5,
     ));
 
-    let prefix = Prefix(0);
+    let prefix = Prefix::from(0);
 
     let topology = TopologyZoo::Arpanet196912;
 

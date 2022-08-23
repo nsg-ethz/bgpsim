@@ -99,6 +99,7 @@ mod test_network;
 mod test_network_comlete_undo;
 mod test_network_complete;
 mod test_network_config;
+#[cfg(feature = "multi_prefix")]
 mod test_ospf;
 mod test_record;
 #[cfg(all(feature = "topology_zoo", feature = "rand", feature = "rand_queue"))]

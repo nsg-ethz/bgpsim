@@ -30,65 +30,12 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 pub(crate) mod collections;
+pub mod prefix;
+pub use prefix::Prefix;
 
 pub(crate) type IndexType = u32;
 /// Router Identification (and index into the graph)
 pub type RouterId = NodeIndex<IndexType>;
-/// IP Prefix (simple representation)
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Prefix(pub u32);
-
-impl std::fmt::Display for Prefix {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "Prefix({})", self.0)
-    }
-}
-
-impl From<u32> for Prefix {
-    fn from(x: u32) -> Self {
-        Self(x)
-    }
-}
-
-impl From<u64> for Prefix {
-    fn from(x: u64) -> Self {
-        Self(x as u32)
-    }
-}
-
-impl From<usize> for Prefix {
-    fn from(x: usize) -> Self {
-        Self(x as u32)
-    }
-}
-
-impl From<i32> for Prefix {
-    fn from(x: i32) -> Self {
-        Self(x as u32)
-    }
-}
-
-impl From<i64> for Prefix {
-    fn from(x: i64) -> Self {
-        Self(x as u32)
-    }
-}
-
-impl From<isize> for Prefix {
-    fn from(x: isize) -> Self {
-        Self(x as u32)
-    }
-}
-
-impl<T> From<&T> for Prefix
-where
-    T: Into<Prefix> + Copy,
-{
-    fn from(x: &T) -> Self {
-        (*x).into()
-    }
-}
 
 /// AS Number
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]

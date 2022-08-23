@@ -555,58 +555,58 @@ mod test {
     #[test]
     fn path_condition_node() {
         let c = Node(0.into());
-        assert!(c.check(&[1.into(), 0.into(), 2.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[2.into(), 1.into()], Prefix(0)).is_err());
-        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[1.into(), 0.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[2.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_condition_edge() {
         let c = Edge(0.into(), 1.into());
         assert!(c
-            .check(&[2.into(), 0.into(), 1.into(), 3.into()], Prefix(0))
+            .check(&[2.into(), 0.into(), 1.into(), 3.into()], Prefix::from(0))
             .is_ok());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[1.into(), 0.into()], Prefix(0)).is_err());
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_err());
-        assert!(c.check(&[1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[1.into(), 0.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[1.into()], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_condition_not() {
         let c = Not(Box::new(Node(0.into())));
-        assert!(c.check(&[1.into(), 0.into(), 2.into()], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_err());
-        assert!(c.check(&[2.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[], Prefix(0)).is_ok());
+        assert!(c.check(&[1.into(), 0.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[2.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_ok());
     }
 
     #[test]
     fn path_condition_or() {
         let c = Or(vec![Node(0.into()), Node(1.into())]);
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[2.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 2.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[3.into(), 2.into()], Prefix(0)).is_err());
-        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[2.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[3.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
         let c = Or(vec![]);
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_err());
-        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_condition_and() {
         let c = And(vec![Node(0.into()), Node(1.into())]);
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[2.into(), 1.into()], Prefix(0)).is_err());
-        assert!(c.check(&[0.into(), 2.into()], Prefix(0)).is_err());
-        assert!(c.check(&[3.into(), 2.into()], Prefix(0)).is_err());
-        assert!(c.check(&[], Prefix(0)).is_err());
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[2.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[3.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
         let c = And(vec![]);
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[], Prefix(0)).is_ok());
+        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_ok());
     }
 
     fn test_cnf_equivalence(c: PathCondition, n: usize, num_devices: usize) {
@@ -618,12 +618,12 @@ mod test {
             path.shuffle(&mut rng);
             let path: Vec<RouterId> = path.into_iter().take(rng.next_u32() as usize).collect();
             assert_eq!(
-                c.check(&path, Prefix(0)).is_ok(),
-                c_cnf.check(&path, Prefix(0)).is_ok()
+                c.check(&path, Prefix::from(0)).is_ok(),
+                c_cnf.check(&path, Prefix::from(0)).is_ok()
             );
             assert_eq!(
-                c.check(&path, Prefix(0)).is_ok(),
-                c_rev.check(&path, Prefix(0)).is_ok()
+                c.check(&path, Prefix::from(0)).is_ok(),
+                c_rev.check(&path, Prefix::from(0)).is_ok()
             );
         }
     }
@@ -701,200 +701,200 @@ mod test {
     #[test]
     fn path_positional_single_any() {
         let c = Positional(vec![Any]);
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_positional_single_star() {
         let c = Positional(vec![Star]);
-        assert!(c.check(&[], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
     }
 
     #[test]
     fn path_positional_single_fix() {
         let c = Positional(vec![Fix(0.into())]);
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[1.into()], Prefix(0)).is_err());
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[1.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_positional_star_any() {
         let c = Positional(vec![Star, Any]);
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
         let c = Positional(vec![Any, Star]);
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
     }
 
     #[test]
     fn path_positional_star_star() {
         let c = Positional(vec![Star, Star]);
-        assert!(c.check(&[], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
     }
 
     #[test]
     fn path_positional_any_any() {
         let c = Positional(vec![Any, Any]);
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_err());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_positional_star_fix() {
         let c = Positional(vec![Star, Fix(0.into())]);
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[1.into(), 0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[2.into(), 1.into(), 0.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[1.into(), 0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[2.into(), 1.into(), 0.into()], Prefix::from(0)).is_ok());
         assert!(c
-            .check(&[2.into(), 1.into(), 0.into(), 3.into()], Prefix(0))
+            .check(&[2.into(), 1.into(), 0.into(), 3.into()], Prefix::from(0))
             .is_err());
-        assert!(c.check(&[2.into(), 1.into(), 3.into()], Prefix(0)).is_err());
+        assert!(c.check(&[2.into(), 1.into(), 3.into()], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_positional_fix_star() {
         let c = Positional(vec![Fix(0.into()), Star]);
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
         assert!(c
-            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_err());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_positional_star_fix_star() {
         let c = Positional(vec![Star, Fix(0.into()), Star]);
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
         assert!(c
-            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_ok());
         assert!(c
             .check(
                 &[3.into(), 4.into(), 0.into(), 1.into(), 2.into()],
-                Prefix(0)
+                Prefix::from(0)
             )
             .is_ok());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_positional_star_fix_fix_star() {
         let c = Positional(vec![Star, Fix(0.into()), Fix(1.into()), Star]);
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_err());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
         assert!(c
-            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_ok());
         assert!(c
             .check(
                 &[3.into(), 4.into(), 0.into(), 1.into(), 2.into()],
-                Prefix(0)
+                Prefix::from(0)
             )
             .is_ok());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
         assert!(c
-            .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix(0))
+            .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix::from(0))
             .is_err());
-        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_positional_star_fix_any_fix_star() {
         let c = Positional(vec![Star, Fix(0.into()), Any, Fix(1.into()), Star]);
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_err());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_err());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
         assert!(c
-            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_err());
         assert!(c
             .check(
                 &[3.into(), 4.into(), 0.into(), 1.into(), 2.into()],
-                Prefix(0)
+                Prefix::from(0)
             )
             .is_err());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
         assert!(c
-            .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix(0))
+            .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix::from(0))
             .is_ok());
         assert!(c
             .check(
                 &[3.into(), 0.into(), 2.into(), 1.into(), 3.into()],
-                Prefix(0)
+                Prefix::from(0)
             )
             .is_ok());
         assert!(c
             .check(
                 &[3.into(), 0.into(), 2.into(), 3.into(), 1.into()],
-                Prefix(0)
+                Prefix::from(0)
             )
             .is_err());
-        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_positional_star_fix_star_fix_star() {
         let c = Positional(vec![Star, Fix(0.into()), Star, Fix(1.into()), Star]);
-        assert!(c.check(&[], Prefix(0)).is_err());
-        assert!(c.check(&[0.into()], Prefix(0)).is_err());
-        assert!(c.check(&[0.into(), 1.into()], Prefix(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix(0)).is_ok());
+        assert!(c.check(&[], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
+        assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
         assert!(c
-            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix(0))
+            .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_ok());
         assert!(c
             .check(
                 &[3.into(), 4.into(), 0.into(), 1.into(), 2.into()],
-                Prefix(0)
+                Prefix::from(0)
             )
             .is_ok());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix(0)).is_err());
+        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
         assert!(c
-            .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix(0))
+            .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix::from(0))
             .is_ok());
         assert!(c
             .check(
                 &[3.into(), 0.into(), 2.into(), 1.into(), 3.into()],
-                Prefix(0)
+                Prefix::from(0)
             )
             .is_ok());
         assert!(c
             .check(
                 &[3.into(), 0.into(), 2.into(), 3.into(), 1.into()],
-                Prefix(0)
+                Prefix::from(0)
             )
             .is_ok());
-        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix(0)).is_err());
+        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
         assert!(c
-            .check(&[3.into(), 2.into(), 1.into(), 0.into()], Prefix(0))
+            .check(&[3.into(), 2.into(), 1.into(), 0.into()], Prefix::from(0))
             .is_err());
     }
 }

@@ -37,7 +37,7 @@ pub fn queue() -> Queue {
 
 pub fn simulate_event(mut net: Net) -> Net {
     let e1 = net.get_external_routers()[0];
-    net.retract_external_route(e1, Prefix(0)).unwrap();
+    net.retract_external_route(e1, Prefix::from(0)).unwrap();
     net
 }
 

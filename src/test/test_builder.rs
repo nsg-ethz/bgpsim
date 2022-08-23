@@ -248,7 +248,7 @@ fn test_build_advertisements() {
 
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    let p = Prefix(0);
+    let p = Prefix::from(0);
     let advertisements = net.build_advertisements(p, unique_preferences, 4).unwrap();
     assert_eq!(advertisements.len(), 3);
 
