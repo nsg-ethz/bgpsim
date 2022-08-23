@@ -67,7 +67,7 @@ fn try_setup_net() -> Result<Net, NetworkError> {
     net.build_ibgp_route_reflection(k_highest_degree_nodes, 3)?;
     // net.build_ibgp_full_mesh()?;
     net.build_ebgp_sessions()?;
-    net.build_advertisements(Prefix(0), unique_preferences, 5)?;
+    net.build_advertisements(Prefix::from(0), unique_preferences, 5)?;
     Ok(net)
 }
 
@@ -80,7 +80,7 @@ pub mod roland {
             extend_to_k_external_routers, k_highest_degree_nodes, uniform_link_weight,
             unique_preferences, NetworkBuilder,
         },
-        event::{GeoTimingModel, ModelParams},
+        event::{BasicEventQueue, GeoTimingModel, ModelParams},
         forwarding_state::ForwardingState,
         policies::{FwPolicy, Policy},
         prelude::*,
@@ -115,8 +115,8 @@ pub mod roland {
     }
 
     pub fn try_setup_net() -> Result<(Net, Prefix, Vec<FwPolicy>, RouterId), NetworkError> {
-        let mut net = TOPO.build(queue());
-        let prefix = Prefix(1);
+        let mut net = TOPO.build(BasicEventQueue::new());
+        let prefix = Prefix::from(1);
         // Make sure that at least 3 external routers exist
         net.build_external_routers(extend_to_k_external_routers, 2)?;
         // create a route reflection topology with the two route reflectors of the highest degree
@@ -127,6 +127,7 @@ pub mod roland {
         net.build_link_weights(uniform_link_weight, (10.0, 100.0))?;
         // advertise 3 routes with unique preferences for a single prefix
         let advertisements = net.build_advertisements(prefix, unique_preferences, 2)?;
+        let net = net.swap_queue(queue()).unwrap();
 
         // create the policies
         let policies = Vec::from_iter(
