@@ -523,6 +523,7 @@ impl ModelParams {
     }
 }
 
+#[cfg(feature = "topology_zoo")]
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
