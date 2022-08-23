@@ -236,7 +236,7 @@ pub struct GeoTimingModel {
     processing_params: HashMap<RouterId, ModelParams>,
     default_processing_params: ModelParams,
     queuing_params: ModelParams,
-    paths: HashMap<(RouterId, RouterId), Option<Vec<RouterId>>>,
+    paths: HashMap<(RouterId, RouterId), (f64, usize)>,
     distances: HashMap<(RouterId, RouterId), NotNan<f64>>,
     current_time: NotNan<f64>,
 }
@@ -301,15 +301,19 @@ impl GeoTimingModel {
         target: RouterId,
         loop_protection: &mut HashSet<RouterId>,
         routers: &HashMap<RouterId, Router>,
+        path_cache: &mut HashMap<(RouterId, RouterId), Option<Vec<RouterId>>>,
     ) {
         if router == target {
-            self.paths.insert((router, target), Some(vec![router]));
+            path_cache.insert((router, target), Some(vec![router]));
+            self.paths.insert((router, target), (0.0, 0));
             return;
         }
 
         if !loop_protection.insert(router) {
             // router was already present in the loop protection.
-            self.paths.insert((router, target), None);
+            path_cache.insert((router, target), None);
+            self.paths
+                .insert((router, target), (GEO_TIMING_MODEL_MAX_DELAY, 0));
             return;
         }
 
@@ -320,11 +324,11 @@ impl GeoTimingModel {
             .and_then(|(nhs, _)| nhs.first())
         {
             // next-hop is known
-            if !self.paths.contains_key(&(*nh, target)) {
+            if !path_cache.contains_key(&(*nh, target)) {
                 // cache the result
-                self.recursive_compute_paths(*nh, target, loop_protection, routers);
+                self.recursive_compute_paths(*nh, target, loop_protection, routers, path_cache);
             }
-            self.paths
+            path_cache
                 .get(&(*nh, target))
                 .unwrap()
                 .as_ref()
@@ -338,7 +342,24 @@ impl GeoTimingModel {
             None
         };
 
-        self.paths.insert((router, target), new_path);
+        if let Some(path) = new_path {
+            // compute the delay
+            let delay: f64 = zip(&path[0..path.len() - 1], &path[1..path.len()])
+                .map(|(a, b)| {
+                    self.distances
+                        .get(&(*a, *b))
+                        .map(|x| *x.as_ref())
+                        .unwrap_or(GEO_TIMING_MODEL_DEFAULT_DELAY)
+                        * GEO_TIMING_MODEL_F_LIGHT_SPEED
+                })
+                .sum();
+            self.paths.insert((router, target), (delay, path.len()));
+            path_cache.insert((router, target), Some(path));
+        } else {
+            path_cache.insert((router, target), None);
+            self.paths
+                .insert((router, target), (GEO_TIMING_MODEL_MAX_DELAY, 0));
+        }
 
         // remove the router from the loop protection
         loop_protection.remove(&router);
@@ -353,17 +374,9 @@ impl GeoTimingModel {
         rng: &mut ThreadRng,
     ) -> NotNan<f64> {
         NotNan::new(match self.paths.get(&(source, target)) {
-            Some(Some(path)) => zip(&path[0..path.len() - 1], &path[1..path.len()])
-                .map(|(a, b)| {
-                    self.distances
-                        .get(&(*a, *b))
-                        .map(|x| *x.as_ref())
-                        .unwrap_or(GEO_TIMING_MODEL_DEFAULT_DELAY)
-                        * GEO_TIMING_MODEL_F_LIGHT_SPEED
-                        + self.queuing_params.sample(rng)
-                })
-                .sum(),
-            Some(None) => GEO_TIMING_MODEL_MAX_DELAY,
+            Some((delay, n_hops)) => {
+                delay + self.queuing_params.sample(rng) * ((n_hops - 1).max(0) as f64)
+            }
             None => GEO_TIMING_MODEL_DEFAULT_DELAY,
         })
         .unwrap()
@@ -453,7 +466,13 @@ impl EventQueue for GeoTimingModel {
         // update all paths
         for src in routers.keys() {
             for dst in routers.keys() {
-                self.recursive_compute_paths(*src, *dst, &mut HashSet::new(), routers);
+                self.recursive_compute_paths(
+                    *src,
+                    *dst,
+                    &mut HashSet::new(),
+                    routers,
+                    &mut HashMap::new(),
+                );
             }
         }
     }
@@ -523,7 +542,8 @@ impl ModelParams {
     }
 }
 
-#[cfg(feature = "topology_zoo")]
+/*
+#[cfg(all(feature = "topology_zoo", feature = "rand"))]
 #[cfg(test)]
 mod test {
     use approx::assert_abs_diff_eq;
@@ -643,3 +663,4 @@ mod test {
         }
     }
 }
+*/
