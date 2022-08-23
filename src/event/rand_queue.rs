@@ -183,6 +183,50 @@ impl PartialEq for SimpleTimingModel {
 ///     &TopologyZoo::EliBackbone.geo_location(),
 /// );
 /// ```
+///
+/// # Performance
+/// The `GeoTimingModel` requires every path through the network within OSPF to be recomputed upon
+/// *every* event. For instance, if you use the [`crate::builder::NetworkBuilder`] to build a large
+/// network, the paths will be recomputed for each individual modification. If you establish an iBGP
+/// full-mesh (which requires `O(n^2)` commands), then it will recompute all paths `O(n^2)` times,
+/// which results in `O(n^4)` operations. To counteract this issue, create the network with the
+/// [`crate::event::BasicEventQueue`], and build the initial configuration. Then, swap out the
+/// queue using [`crate::network::Network::swap_queue`] before simulating the specific event.
+///
+/// ```
+/// # #[cfg(feature = "topology_zoo")]
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+/// use netsim::prelude::*;
+/// use netsim::topology_zoo::TopologyZoo;
+/// use netsim::event::{BasicEventQueue, GeoTimingModel, ModelParams};
+/// use netsim::builder::*;
+///
+/// // create the network with the basic event queue
+/// let mut net = TopologyZoo::EliBackbone.build(BasicEventQueue::new());
+/// let prefix = Prefix(0);
+///
+/// // Build the configuration for the network
+/// net.build_external_routers(extend_to_k_external_routers, 3)?;
+/// net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
+/// net.build_ebgp_sessions()?;
+/// net.build_link_weights(constant_link_weight, 20.0)?;
+/// let ads = net.build_advertisements(prefix, unique_preferences, 3)?;
+///
+/// // swap out the queue for the `GeoTimingModel`. We can use `unwrap` here because we know that
+/// // there are no events euqueued at the moment.
+/// let mut net = net.swap_queue(GeoTimingModel::new(
+///     ModelParams::new(0.1, 0.1, 2.0, 5.0, 0.01),
+///     ModelParams::new(0.000_1, 0.000_1, 2.0, 5.0, 0.0),
+///     &TopologyZoo::EliBackbone.geo_location(),
+/// )).unwrap();
+///
+/// // execute the event and measure the time
+/// net.retract_external_route(ads[0][0], prefix)?;
+/// # Ok(())
+/// # }
+/// # #[cfg(not(feature = "topology_zoo"))]
+/// # fn main() {}
+/// ```
 #[derive(Debug, Clone)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
