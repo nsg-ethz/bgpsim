@@ -29,6 +29,8 @@ use petgraph::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
+pub(crate) mod collections;
+
 pub(crate) type IndexType = u32;
 /// Router Identification (and index into the graph)
 pub type RouterId = NodeIndex<IndexType>;

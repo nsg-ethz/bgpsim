@@ -21,12 +21,14 @@
 //! operators.
 
 #[cfg(feature = "undo")]
-use crate::collections::CowVec;
+use crate::types::collections::CowVec;
 use crate::{
     bgp::{BgpEvent, BgpRoute},
-    collections::{CowMap, CowMapKeys, CowSet, InnerCowMap, InnerCowSet},
     event::Event,
-    types::{AsId, DeviceError, Prefix, RouterId, StepUpdate},
+    types::{
+        collections::{CowMap, CowMapKeys, CowSet, InnerCowMap, InnerCowSet},
+        AsId, DeviceError, Prefix, RouterId, StepUpdate,
+    },
 };
 
 #[cfg(feature = "serde")]

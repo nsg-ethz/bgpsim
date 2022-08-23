@@ -68,6 +68,10 @@
 //!   on that network slower. There is a big trade-off. However, the operation is safe. In case you
 //!   know precisely what will change, and what you need to clone, consider using the function
 //!   [`interactive::InteractiveNetwork::partial_clone`].
+//! - `multi_prefix` (*enabled by default*): Disabling this feature causes the network to run in a
+//!   single-preifx mode, where each `Prefix` is treated identically. For instance, a
+//!   `HashSet<Prefix, T>` will be transformed into a `Option<T>`. This significantly improves
+//!   performance.
 //!
 //! ## Example usage
 //!
@@ -140,7 +144,6 @@
 
 pub mod bgp;
 pub mod builder;
-mod collections;
 pub mod config;
 pub mod event;
 pub mod external_router;

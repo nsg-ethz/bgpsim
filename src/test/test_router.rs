@@ -30,7 +30,7 @@ use crate::{
 };
 use pretty_assertions::assert_eq;
 
-use crate::collections::{hashmap, hashset};
+use crate::types::collections::{hashmap, hashset};
 
 #[test]
 fn test_bgp_single() {

@@ -24,6 +24,8 @@ required-features = ["topology_zoo"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
+default = ["multi_prefix"]
+multi_prefix = []
 undo = []
 rand = ["dep:rand"]
 rand_queue = ["dep:rand", "dep:rand_distr", "dep:priority-queue", "dep:geoutils"]

@@ -19,13 +19,15 @@
 
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
-    collections::{CowMap, CowMapIter, CowSet, CowVec, CowVecIter},
     event::Event,
     formatter::NetworkFormatter,
     network::Network,
     ospf::OspfState,
     route_map::{RouteMap, RouteMapDirection},
-    types::{AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate},
+    types::{
+        collections::{CowMap, CowMapIter, CowSet, CowVec, CowVecIter},
+        AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate,
+    },
 };
 use itertools::Itertools;
 use log::*;

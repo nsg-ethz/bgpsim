@@ -21,10 +21,9 @@
 //! network.
 
 #[cfg(feature = "undo")]
-use crate::collections::CowVec;
+use crate::types::collections::CowVec;
 use crate::{
     bgp::{BgpSessionType, BgpState, BgpStateRef},
-    collections::{CowSet, InnerCowSet},
     config::NetworkConfig,
     event::{BasicEventQueue, Event, EventQueue, FmtPriority},
     external_router::ExternalRouter,
@@ -34,6 +33,7 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
+        collections::{CowSet, InnerCowSet},
         AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut, NetworkError, Prefix,
         RouterId,
     },
