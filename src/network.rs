@@ -33,9 +33,8 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        collections::{CowSet, InnerCowSet},
-        AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut, NetworkError, Prefix,
-        RouterId,
+        prefix::CowSetPrefix, AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut,
+        NetworkError, Prefix, RouterId,
     },
 };
 
@@ -74,7 +73,7 @@ pub struct Network<Q = BasicEventQueue> {
     pub(crate) ospf: Ospf,
     pub(crate) routers: HashMap<RouterId, Router>,
     pub(crate) external_routers: HashMap<RouterId, ExternalRouter>,
-    pub(crate) known_prefixes: CowSet<Prefix>,
+    pub(crate) known_prefixes: CowSetPrefix,
     pub(crate) stop_after: Option<usize>,
     pub(crate) queue: Q,
     pub(crate) skip_queue: bool,
@@ -117,7 +116,7 @@ impl<Q> Network<Q> {
             net: IgpNetwork::new(),
             ospf: Ospf::new(),
             routers: HashMap::new(),
-            known_prefixes: CowSet::new(),
+            known_prefixes: CowSetPrefix::new(),
             external_routers: HashMap::new(),
             stop_after: Some(DEFAULT_STOP_AFTER),
             queue,
@@ -294,8 +293,8 @@ impl<Q> Network<Q> {
     }
 
     /// Returns a hashset of all known prefixes
-    pub fn get_known_prefixes(&self) -> &InnerCowSet<Prefix> {
-        self.known_prefixes.inner()
+    pub fn get_known_prefixes(&self) -> impl Iterator<Item = &Prefix> {
+        self.known_prefixes.iter()
     }
 
     /// Configure the topology to pause the queue and return after a certain number of queue have

@@ -25,7 +25,8 @@ use crate::{
     ospf::OspfState,
     route_map::{RouteMap, RouteMapDirection},
     types::{
-        collections::{CowMap, CowMapIter, CowSet, CowVec, CowVecIter},
+        collections::{CowMap, CowMapIter, CowVec, CowVecIter},
+        prefix::CowSetPrefix,
         AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate,
     },
 };
@@ -69,7 +70,7 @@ pub struct Router {
     #[cfg_attr(all(feature = "serde"), serde(with = "As::<Vec<(Same, Same)>>"))]
     pub(crate) bgp_rib_out: HashMap<(Prefix, RouterId), BgpRibEntry>,
     /// Set of known bgp prefixes
-    pub(crate) bgp_known_prefixes: CowSet<Prefix>,
+    pub(crate) bgp_known_prefixes: CowSetPrefix,
     /// BGP Route-Maps for Input
     pub(crate) bgp_route_maps_in: CowVec<RouteMap>,
     /// BGP Route-Maps for Output
@@ -121,7 +122,7 @@ impl Router {
             bgp_rib_in: HashMap::new(),
             bgp_rib: HashMap::new(),
             bgp_rib_out: HashMap::new(),
-            bgp_known_prefixes: CowSet::new(),
+            bgp_known_prefixes: CowSetPrefix::new(),
             bgp_route_maps_in: CowVec::new(),
             bgp_route_maps_out: CowVec::new(),
             do_load_balancing: false,

@@ -84,7 +84,7 @@ impl ForwardingState {
     /// Extracts the forwarding state from the network.
     pub fn from_net<Q>(net: &Network<Q>) -> Self {
         // initialize the prefix lookup
-        let max_num_entries = (net.num_devices() + 1) * net.get_known_prefixes().len();
+        let max_num_entries = (net.num_devices() + 1) * net.known_prefixes.len();
 
         // initialize state
         let mut state: HashMap<(RouterId, Prefix), Vec<RouterId>> =

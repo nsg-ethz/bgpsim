@@ -25,6 +25,8 @@ mod _prefix {
     #[cfg(feature = "serde")]
     use serde::{Deserialize, Serialize};
 
+    use crate::types::collections::{CowSet, CowSetIntoIter, CowSetIter};
+
     /// IP Prefix (simple representation)
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
@@ -80,10 +82,85 @@ mod _prefix {
             (*x).into()
         }
     }
+
+    /// Wrapper around `CowSet<Prefix>`
+    #[derive(Debug, Clone)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+    pub(crate) struct CowSetPrefix(CowSet<Prefix>);
+
+    #[allow(dead_code)]
+    impl CowSetPrefix {
+        #[inline]
+        pub fn new() -> Self {
+            Self(CowSet::new())
+        }
+
+        #[inline]
+        pub fn is_empty(&self) -> bool {
+            self.0.is_empty()
+        }
+
+        #[inline]
+        pub fn len(&self) -> usize {
+            self.0.len()
+        }
+
+        #[inline]
+        pub fn iter(&self) -> impl Iterator<Item = &Prefix> {
+            self.0.iter()
+        }
+
+        #[inline]
+        pub fn clear(&mut self) {
+            self.0.clear()
+        }
+
+        #[inline]
+        pub fn contains(&self, elem: &Prefix) -> bool {
+            self.0.contains(elem)
+        }
+
+        #[inline]
+        pub fn insert(&mut self, elem: Prefix) -> bool {
+            self.0.insert(elem)
+        }
+
+        #[inline]
+        pub fn remove(&mut self, elem: &Prefix) -> bool {
+            self.0.remove(elem)
+        }
+
+        #[inline]
+        pub fn union<'a>(&'a self, other: &'a Self) -> Self {
+            Self(self.0.union(&other.0))
+        }
+    }
+
+    impl<'a> IntoIterator for &'a CowSetPrefix {
+        type Item = &'a Prefix;
+
+        type IntoIter = CowSetIter<'a, Prefix>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.0.iter()
+        }
+    }
+
+    impl IntoIterator for CowSetPrefix {
+        type Item = Prefix;
+
+        type IntoIter = CowSetIntoIter<Prefix>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.0.into_iter()
+        }
+    }
 }
 
 #[cfg(not(feature = "multi_prefix"))]
 mod _prefix {
+    use std::iter::repeat;
+
     #[cfg(feature = "serde")]
     use serde::{Deserialize, Serialize};
 
@@ -140,6 +217,100 @@ mod _prefix {
     {
         fn from(_: &T) -> Self {
             Self
+        }
+    }
+
+    /// Wrapper around `bool`, storing wether the prefix is already present or not.
+    pub(crate) type CowSetPrefix = HashSetPrefix;
+
+    /// Wrapper around `bool`, storing wether the prefix is already present or not.
+    #[derive(Debug, Clone)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+    pub(crate) struct HashSetPrefix(bool);
+
+    #[allow(dead_code)]
+    impl HashSetPrefix {
+        #[inline]
+        pub fn new() -> Self {
+            Self(false)
+        }
+
+        #[inline]
+        pub fn is_empty(&self) -> bool {
+            !self.0
+        }
+
+        #[inline]
+        pub fn len(&self) -> usize {
+            if self.0 {
+                1
+            } else {
+                0
+            }
+        }
+
+        #[inline]
+        pub fn iter(&self) -> std::slice::Iter<'static, Prefix> {
+            if self.0 {
+                [Prefix].iter()
+            } else {
+                [].iter()
+            }
+        }
+
+        #[inline]
+        pub fn clear(&mut self) {
+            self.0 = false;
+        }
+
+        #[inline]
+        pub fn contains(&self, _: &Prefix) -> bool {
+            self.0
+        }
+
+        #[inline]
+        pub fn insert(&mut self, _: Prefix) -> bool {
+            if self.0 {
+                false
+            } else {
+                self.0 = true;
+                true
+            }
+        }
+
+        #[inline]
+        pub fn remove(&mut self, _: &Prefix) -> bool {
+            if self.0 {
+                self.0 = false;
+                true
+            } else {
+                false
+            }
+        }
+
+        #[inline]
+        pub fn union<'a>(&'a self, other: &'a Self) -> Self {
+            Self(self.0 || other.0)
+        }
+    }
+
+    impl IntoIterator for &HashSetPrefix {
+        type Item = &'static Prefix;
+
+        type IntoIter = std::slice::Iter<'static, Prefix>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.iter()
+        }
+    }
+
+    impl IntoIterator for HashSetPrefix {
+        type Item = Prefix;
+
+        type IntoIter = std::iter::Take<std::iter::Repeat<Prefix>>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            repeat(Prefix).take(self.len())
         }
     }
 }
