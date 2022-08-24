@@ -365,6 +365,19 @@ impl GeoTimingModel {
         loop_protection.remove(&router);
     }
 
+    /// Returns the current time.
+    pub fn get_time(&self) -> f64 {
+        self.current_time.into_inner()
+    }
+
+    /// Reset the current time to zero. This function will only have an effect if the
+    /// queue is empty. Otherwise, nothing will happen.
+    pub fn reset_time(&mut self) {
+        if self.is_empty() {
+            self.current_time = Default::default();
+        }
+    }
+
     /// Sample the time to get from source to target
     #[inline]
     fn propagation_time(

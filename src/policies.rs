@@ -555,7 +555,9 @@ mod test {
     #[test]
     fn path_condition_node() {
         let c = Node(0.into());
-        assert!(c.check(&[1.into(), 0.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[1.into(), 0.into(), 2.into()], Prefix::from(0))
+            .is_ok());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[2.into(), 1.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[], Prefix::from(0)).is_err());
@@ -569,7 +571,9 @@ mod test {
             .is_ok());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[1.into(), 0.into()], Prefix::from(0)).is_err());
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[0.into(), 2.into(), 1.into()], Prefix::from(0))
+            .is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[1.into()], Prefix::from(0)).is_err());
     }
@@ -577,7 +581,9 @@ mod test {
     #[test]
     fn path_condition_not() {
         let c = Not(Box::new(Node(0.into())));
-        assert!(c.check(&[1.into(), 0.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[1.into(), 0.into(), 2.into()], Prefix::from(0))
+            .is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[2.into(), 1.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[], Prefix::from(0)).is_ok());
@@ -586,26 +592,34 @@ mod test {
     #[test]
     fn path_condition_or() {
         let c = Or(vec![Node(0.into()), Node(1.into())]);
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 2.into(), 1.into()], Prefix::from(0))
+            .is_ok());
         assert!(c.check(&[2.into(), 1.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[0.into(), 2.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[3.into(), 2.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[], Prefix::from(0)).is_err());
         let c = Or(vec![]);
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[0.into(), 2.into(), 1.into()], Prefix::from(0))
+            .is_err());
         assert!(c.check(&[], Prefix::from(0)).is_err());
     }
 
     #[test]
     fn path_condition_and() {
         let c = And(vec![Node(0.into()), Node(1.into())]);
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 2.into(), 1.into()], Prefix::from(0))
+            .is_ok());
         assert!(c.check(&[2.into(), 1.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into(), 2.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[3.into(), 2.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[], Prefix::from(0)).is_err());
         let c = And(vec![]);
-        assert!(c.check(&[0.into(), 2.into(), 1.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 2.into(), 1.into()], Prefix::from(0))
+            .is_ok());
         assert!(c.check(&[], Prefix::from(0)).is_ok());
     }
 
@@ -713,7 +727,9 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_ok());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_ok());
     }
 
     #[test]
@@ -731,12 +747,16 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_ok());
         let c = Positional(vec![Any, Star]);
         assert!(c.check(&[], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_ok());
     }
 
     #[test]
@@ -745,7 +765,9 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_ok());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_ok());
     }
 
     #[test]
@@ -754,7 +776,9 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_err());
     }
 
     #[test]
@@ -763,11 +787,15 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[1.into(), 0.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[2.into(), 1.into(), 0.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[2.into(), 1.into(), 0.into()], Prefix::from(0))
+            .is_ok());
         assert!(c
             .check(&[2.into(), 1.into(), 0.into(), 3.into()], Prefix::from(0))
             .is_err());
-        assert!(c.check(&[2.into(), 1.into(), 3.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[2.into(), 1.into(), 3.into()], Prefix::from(0))
+            .is_err());
     }
 
     #[test]
@@ -776,11 +804,15 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_ok());
         assert!(c
             .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_err());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_err());
     }
 
     #[test]
@@ -789,7 +821,9 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_ok());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_ok());
         assert!(c
             .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_ok());
@@ -799,7 +833,9 @@ mod test {
                 Prefix::from(0)
             )
             .is_ok());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_err());
     }
 
     #[test]
@@ -808,7 +844,9 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_ok());
         assert!(c
             .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_ok());
@@ -818,11 +856,15 @@ mod test {
                 Prefix::from(0)
             )
             .is_ok());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_err());
         assert!(c
             .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix::from(0))
             .is_err());
-        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 2.into(), 1.into()], Prefix::from(0))
+            .is_err());
     }
 
     #[test]
@@ -831,7 +873,9 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_err());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_err());
         assert!(c
             .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_err());
@@ -841,7 +885,9 @@ mod test {
                 Prefix::from(0)
             )
             .is_err());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_err());
         assert!(c
             .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix::from(0))
             .is_ok());
@@ -857,7 +903,9 @@ mod test {
                 Prefix::from(0)
             )
             .is_err());
-        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 2.into(), 1.into()], Prefix::from(0))
+            .is_err());
     }
 
     #[test]
@@ -866,7 +914,9 @@ mod test {
         assert!(c.check(&[], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into()], Prefix::from(0)).is_err());
         assert!(c.check(&[0.into(), 1.into()], Prefix::from(0)).is_ok());
-        assert!(c.check(&[0.into(), 1.into(), 2.into()], Prefix::from(0)).is_ok());
+        assert!(c
+            .check(&[0.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_ok());
         assert!(c
             .check(&[3.into(), 0.into(), 1.into(), 2.into()], Prefix::from(0))
             .is_ok());
@@ -876,7 +926,9 @@ mod test {
                 Prefix::from(0)
             )
             .is_ok());
-        assert!(c.check(&[3.into(), 1.into(), 2.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 1.into(), 2.into()], Prefix::from(0))
+            .is_err());
         assert!(c
             .check(&[3.into(), 0.into(), 2.into(), 1.into()], Prefix::from(0))
             .is_ok());
@@ -892,7 +944,9 @@ mod test {
                 Prefix::from(0)
             )
             .is_ok());
-        assert!(c.check(&[3.into(), 2.into(), 1.into()], Prefix::from(0)).is_err());
+        assert!(c
+            .check(&[3.into(), 2.into(), 1.into()], Prefix::from(0))
+            .is_err());
         assert!(c
             .check(&[3.into(), 2.into(), 1.into(), 0.into()], Prefix::from(0))
             .is_err());
