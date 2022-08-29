@@ -388,7 +388,7 @@ impl GeoTimingModel {
     ) -> NotNan<f64> {
         NotNan::new(match self.paths.get(&(source, target)) {
             Some((delay, n_hops)) => {
-                delay + self.queuing_params.sample(rng) * ((n_hops - 1).max(0) as f64)
+                delay + self.queuing_params.sample(rng) * n_hops.saturating_sub(1) as f64
             }
             None => GEO_TIMING_MODEL_DEFAULT_DELAY,
         })
