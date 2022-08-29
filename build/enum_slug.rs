@@ -41,6 +41,9 @@ use super::TopologyZooParser;
 use std::collections::HashMap;
 use geoutils::Location;
 
+#[cfg(feature = "serde")]
+use serde::{Deserialize, Serialize};
+
 /// Topologies from [TopologyZoo](http://www.topology-zoo.org/dataset.html). The following example
 /// code creates an Abilene network and configures it with random configuration:
 ///
@@ -53,7 +56,7 @@ use geoutils::Location;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
 /// let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());
-/// let prefix = Prefix(0);
+/// let prefix = Prefix::from(0);
 ///
 /// // Make sure that at least 3 external routers exist
 /// net.build_external_routers(extend_to_k_external_routers, 3)?;
@@ -85,6 +88,7 @@ use geoutils::Location;
 ///   ISSN={0733-8716},
 /// ```
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum TopologyZoo {
 {{VARIANTS}}
 }
