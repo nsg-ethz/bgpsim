@@ -30,7 +30,10 @@ use rand::prelude::*;
 use rand_distr::{Beta, Distribution};
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::{
+    cmp::Reverse,
+    collections::{HashMap, HashSet},
+};
 
 use super::{Event, EventQueue};
 
@@ -42,7 +45,7 @@ use super::{Event, EventQueue};
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 pub struct SimpleTimingModel {
-    q: PriorityQueue<Event<NotNan<f64>>, NotNan<f64>>,
+    q: PriorityQueue<Event<NotNan<f64>>, Reverse<NotNan<f64>>>,
     messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
     model: HashMap<(RouterId, RouterId), ModelParams>,
     default_params: ModelParams,
@@ -104,7 +107,7 @@ impl EventQueue for SimpleTimingModel {
             }
         }
         // enqueue with the computed time
-        self.q.push(event, next_time);
+        self.q.push(event, Reverse(next_time));
     }
 
     fn pop(&mut self) -> Option<Event<Self::Priority>> {
@@ -236,7 +239,7 @@ impl PartialEq for SimpleTimingModel {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 pub struct GeoTimingModel {
-    q: PriorityQueue<Event<NotNan<f64>>, NotNan<f64>>,
+    q: PriorityQueue<Event<NotNan<f64>>, Reverse<NotNan<f64>>>,
     messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
     processing_params: HashMap<RouterId, ModelParams>,
     default_processing_params: ModelParams,
@@ -445,7 +448,7 @@ impl EventQueue for GeoTimingModel {
             }
         }
         // enqueue with the computed time
-        self.q.push(event, next_time);
+        self.q.push(event, Reverse(next_time));
     }
 
     fn pop(&mut self) -> Option<Event<Self::Priority>> {
