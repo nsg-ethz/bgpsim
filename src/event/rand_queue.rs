@@ -68,11 +68,6 @@ impl SimpleTimingModel {
     pub fn set_parameters(&mut self, src: RouterId, dst: RouterId, params: ModelParams) {
         self.model.insert((src, dst), params);
     }
-
-    /// Returns the current time.
-    pub fn get_time(&self) -> f64 {
-        self.current_time.into_inner()
-    }
 }
 
 impl EventQueue for SimpleTimingModel {
@@ -139,6 +134,10 @@ impl EventQueue for SimpleTimingModel {
         self.q.clear();
         self.messages.clear();
         self.current_time = NotNan::default();
+    }
+
+    fn get_time(&self) -> Option<f64> {
+        Some(self.current_time.into_inner())
     }
 
     fn update_params(&mut self, _: &HashMap<RouterId, Router>, _: &IgpNetwork) {}
@@ -373,11 +372,6 @@ impl GeoTimingModel {
         loop_protection.remove(&router);
     }
 
-    /// Returns the current time.
-    pub fn get_time(&self) -> f64 {
-        self.current_time.into_inner()
-    }
-
     /// Reset the current time to zero. This function will only have an effect if the
     /// queue is empty. Otherwise, nothing will happen.
     pub fn reset_time(&mut self) {
@@ -480,6 +474,10 @@ impl EventQueue for GeoTimingModel {
         self.q.clear();
         self.messages.clear();
         self.current_time = NotNan::default();
+    }
+
+    fn get_time(&self) -> Option<f64> {
+        Some(self.current_time.into_inner())
     }
 
     fn update_params(&mut self, routers: &HashMap<RouterId, Router>, _: &IgpNetwork) {

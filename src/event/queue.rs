@@ -62,6 +62,9 @@ pub trait EventQueue {
     /// simulation.
     fn update_params(&mut self, routers: &HashMap<RouterId, Router>, net: &IgpNetwork);
 
+    /// Get the current time of the queue.
+    fn get_time(&self) -> Option<f64>;
+
     /// Clone all events from self into conquered.
     ///
     /// # Safety
@@ -111,6 +114,10 @@ impl EventQueue for BasicEventQueue {
 
     fn clear(&mut self) {
         self.0.clear()
+    }
+
+    fn get_time(&self) -> Option<f64> {
+        None
     }
 
     fn update_params(&mut self, _: &HashMap<RouterId, Router>, _: &IgpNetwork) {}
