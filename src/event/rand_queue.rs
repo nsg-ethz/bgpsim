@@ -65,6 +65,11 @@ impl SimpleTimingModel {
     pub fn set_parameters(&mut self, src: RouterId, dst: RouterId, params: ModelParams) {
         self.model.insert((src, dst), params);
     }
+
+    /// Returns the current time.
+    pub fn get_time(&self) -> f64 {
+        self.current_time.into_inner()
+    }
 }
 
 impl EventQueue for SimpleTimingModel {
