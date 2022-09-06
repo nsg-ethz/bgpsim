@@ -322,7 +322,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMapMatch {
             RouteMapMatch::Neighbor(n) => {
                 format!("Neighbor {}", n.fmt(net))
             }
-            RouteMapMatch::Prefix(c) => format!("Prefix == {}", c),
+            RouteMapMatch::Prefix(c) => format!("{}", c),
             RouteMapMatch::AsPath(c) => format!("{}", c),
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),
             RouteMapMatch::Community(c) => format!("Community {}", c),
@@ -352,18 +352,21 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMap {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         format!(
-            "{} {} {} set [{}]",
+            "{} {}{}.",
             match self.state {
                 RouteMapState::Allow => "allow",
-                RouteMapState::Deny => "deny ",
+                RouteMapState::Deny => "deny",
             },
-            self.order,
             if self.conds.is_empty() {
                 String::from("*")
             } else {
                 self.conds.iter().map(|c| c.fmt(net)).join(" AND ")
             },
-            self.set.iter().map(|s| s.fmt(net)).join(", ")
+            if self.set.is_empty() {
+                String::from("")
+            } else {
+                format!("; set [{}]", self.set.iter().map(|s| s.fmt(net)).join(", "))
+            }
         )
     }
 }
@@ -412,12 +415,13 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConfigExpr {
                 direction,
                 map,
             } => format!(
-                "BGP Route Map on {} [{}]: {}",
+                "BGP Route Map on {} [{}:{}]: {}",
                 router.fmt(net),
                 match direction {
                     RouteMapDirection::Incoming => "in",
                     RouteMapDirection::Outgoing => "out",
                 },
+                map.order,
                 map.fmt(net)
             ),
             ConfigExpr::StaticRoute {
