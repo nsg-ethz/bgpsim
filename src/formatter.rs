@@ -322,7 +322,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMapMatch {
             RouteMapMatch::Neighbor(n) => {
                 format!("Neighbor {}", n.fmt(net))
             }
-            RouteMapMatch::Prefix(c) => format!("{}", c),
+            RouteMapMatch::Prefix(c) => format!("Prefix {}", c),
             RouteMapMatch::AsPath(c) => format!("{}", c),
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),
             RouteMapMatch::Community(c) => format!("Community {}", c),
