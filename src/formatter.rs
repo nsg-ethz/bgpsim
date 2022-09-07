@@ -298,7 +298,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for BgpRibEntry {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         format!(
-            "{p}, as_path: {path:?}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}",
+            "{p}, as_path: {path:?}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}{comm}",
             p = self.route.prefix,
             path = self.route.as_path.iter().map(|x| x.0).collect::<Vec<u32>>(),
             lp = self.route.local_pref.unwrap_or(100),
@@ -306,6 +306,11 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for BgpRibEntry {
             cost = self.igp_cost.unwrap_or_default(),
             nh = self.route.next_hop.fmt(net),
             next = self.from_id.fmt(net),
+            comm = if self.route.community.is_empty() {
+                String::from("")
+            } else {
+                format!(", communities = [{}]", self.route.community.iter().join(", "))
+            },
         )
     }
 }
