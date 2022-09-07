@@ -360,7 +360,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMap {
             "{} {}{}.",
             match self.state {
                 RouteMapState::Allow => "allow",
-                RouteMapState::Deny => "deny",
+                RouteMapState::Deny => "deny ",
             },
             if self.conds.is_empty() {
                 String::from("*")
@@ -370,7 +370,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMap {
             if self.set.is_empty() {
                 String::from("")
             } else {
-                format!("; set [{}]", self.set.iter().map(|s| s.fmt(net)).join(", "))
+                format!("; {}", self.set.iter().map(|s| s.fmt(net)).join(", "))
             }
         )
     }
