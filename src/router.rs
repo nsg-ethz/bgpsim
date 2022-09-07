@@ -995,9 +995,8 @@ impl Router {
             match maps.next() {
                 Some(map) => {
                     entry = match map.apply(entry) {
-                        (true, Some(e)) => break e,
+                        (_, Some(e)) => e,
                         (true, None) => return Ok(None),
-                        (false, Some(e)) => e,
                         (false, None) => unreachable!(),
                     }
                 }
