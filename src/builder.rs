@@ -240,7 +240,7 @@ pub trait NetworkBuilder<Q> {
 
     /// Generate a complete graph with `n` nodes. Each router will be called `"R{x}"`, where `x`
     /// is the router id.
-    fn build_complete_graph(queue: Q, n: usize) -> Network<Q>;
+    fn build_complete_graph(queue: Q, n: usize) -> Self;
 
     /// Generate a random graph with `n` nodes. Two nodes are connected with probability `p`. This
     /// function will only create internal routers. Each router will be called `"R{x}"`, where `x`
@@ -250,7 +250,7 @@ pub trait NetworkBuilder<Q> {
     /// after calling this function to ensure that the resulting graph is connected.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_gnp(queue: Q, n: usize, p: f64) -> Network<Q>;
+    fn build_gnp(queue: Q, n: usize, p: f64) -> Self;
 
     /// Generate a random graph with `n` nodes and `m` edges. The graph is chosen uniformly at
     /// random from the set of all graphs with `n` nodes and `m` edges. Each router will be called
@@ -260,7 +260,7 @@ pub trait NetworkBuilder<Q> {
     /// after calling this function to ensure that the resulting graph is connected.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_gnm(queue: Q, n: usize, m: usize) -> Network<Q>;
+    fn build_gnm(queue: Q, n: usize, m: usize) -> Self;
 
     /// Generate a random graph with `n` nodes. Then, place them randomly on a `dim`-dimensional
     /// euclidean space, where each component is within the range `0.0` to `1.0`. Then, connect two
@@ -271,7 +271,7 @@ pub trait NetworkBuilder<Q> {
     /// after calling this function to ensure that the resulting graph is connected.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize) -> Network<Q>;
+    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize) -> Self;
 
     /// Generate a random graph using Barabási-Albert preferential attachment. A complete graph with
     /// `m` nodes is grown by attaching new nodes each with `m` edges that are preferentially
@@ -279,7 +279,7 @@ pub trait NetworkBuilder<Q> {
     /// is the router id. The resulting graph will always be connected.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Network<Q>;
+    fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Self;
 
     /// Make sure the graph is connected. This is done by first computing the set of all connected
     /// components. Then, it iterates over all components (skipping the first one), and adds an edge
