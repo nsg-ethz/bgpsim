@@ -35,7 +35,7 @@ use thiserror::Error;
 
 lazy_static! {
     static ref EMPTY_SET: HashSet<RouterId> = HashSet::new();
-    static ref TO_DST: RouterId = RouterId::from(u32::MAX);
+    pub(crate) static ref TO_DST: RouterId = RouterId::from(u32::MAX);
 }
 
 /// # Forwarding State

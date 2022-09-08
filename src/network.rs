@@ -659,7 +659,7 @@ where
     pub fn remove_bgp_route_map(
         &mut self,
         router: RouterId,
-        order: usize,
+        order: isize,
         direction: RouteMapDirection,
     ) -> Result<Option<RouteMap>, NetworkError> {
         // prepare undo stack

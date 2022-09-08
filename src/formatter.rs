@@ -28,7 +28,7 @@ use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute},
     config::{Config, ConfigExpr, ConfigExprKey, ConfigModifier, ConfigPatch},
     event::{BasicEventQueue, Event, FmtPriority},
-    forwarding_state::ForwardingState,
+    forwarding_state::{ForwardingState, TO_DST},
     network::Network,
     policies::{FwPolicy, PathCondition, PathConditionCNF, PolicyError, Waypoint},
     record::{ConvergenceRecording, ConvergenceTrace, FwDelta},
@@ -202,6 +202,8 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ForwardingState {
                     .unwrap_or_default();
                 let next_hops_str = if next_hops.is_empty() {
                     "XX".to_string()
+                } else if next_hops == &[*TO_DST] {
+                    "DST".to_string()
                 } else {
                     next_hops.iter().map(|r| r.fmt(net)).join("|")
                 };

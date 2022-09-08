@@ -596,7 +596,7 @@ impl Router {
     /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn remove_bgp_route_map<P: Default>(
         &mut self,
-        order: usize,
+        order: isize,
         direction: RouteMapDirection,
     ) -> Result<(Option<RouteMap>, Vec<Event<P>>), DeviceError> {
         // prepare the undo action
@@ -640,7 +640,7 @@ impl Router {
     }
 
     /// Get a specific incoming route map with the given order, or `None`.
-    pub fn get_bgp_route_map_in(&self, order: usize) -> Option<&RouteMap> {
+    pub fn get_bgp_route_map_in(&self, order: isize) -> Option<&RouteMap> {
         self.bgp_route_maps_in
             .binary_search_by_key(&order, |rm| rm.order)
             .ok()
@@ -648,7 +648,7 @@ impl Router {
     }
 
     /// Get a specific outgoing route map with the given order, or `None`.
-    pub fn get_bgp_route_map_out(&self, order: usize) -> Option<&RouteMap> {
+    pub fn get_bgp_route_map_out(&self, order: isize) -> Option<&RouteMap> {
         self.bgp_route_maps_out
             .binary_search_by_key(&order, |rm| rm.order)
             .ok()

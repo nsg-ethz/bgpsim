@@ -52,7 +52,7 @@ use std::fmt;
 pub struct RouteMap {
     /// In which order should the route maps be checked. Lower values mean that they are checked
     /// earlier.
-    pub order: usize,
+    pub order: isize,
     /// Either Allow or Deny. If the last state matched RouteMap is deny, the route is denied. Else,
     /// it is allowed.
     pub state: RouteMapState,
@@ -65,7 +65,7 @@ pub struct RouteMap {
 impl RouteMap {
     /// Generate a new route map
     pub fn new(
-        order: usize,
+        order: isize,
         state: RouteMapState,
         conds: Vec<RouteMapMatch>,
         set: Vec<RouteMapSet>,
@@ -98,7 +98,7 @@ impl RouteMap {
     }
 
     /// Returns the order of the RouteMap.
-    pub fn order(&self) -> usize {
+    pub fn order(&self) -> isize {
         self.order
     }
 
@@ -153,7 +153,7 @@ impl RouteMap {
 /// ```
 #[derive(Debug, Default)]
 pub struct RouteMapBuilder {
-    order: Option<usize>,
+    order: Option<isize>,
     state: Option<RouteMapState>,
     conds: Vec<RouteMapMatch>,
     set: Vec<RouteMapSet>,
@@ -167,6 +167,12 @@ impl RouteMapBuilder {
 
     /// Set the order of the Route-Map.
     pub fn order(&mut self, order: usize) -> &mut Self {
+        self.order = Some(order as isize);
+        self
+    }
+
+    /// Set the order of the Route-Map, using a signed number.
+    pub fn order_sgn(&mut self, order: isize) -> &mut Self {
         self.order = Some(order);
         self
     }
