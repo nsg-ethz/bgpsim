@@ -371,7 +371,12 @@ impl Router {
                         .get(&target)
                         .map(|_| vec![target])
                         .unwrap_or_default(),
-                    StaticRoute::Indirect(target) => self.igp_table[&target].0.clone(),
+                    StaticRoute::Indirect(target) => self
+                        .igp_table
+                        .get(&target)
+                        .map(|(x, _)| x.clone())
+                        .or_else(|| self.neighbors.get(&target).map(|_| vec![target]))
+                        .unwrap_or_default(),
                     StaticRoute::Drop => vec![],
                 }
             } else {
