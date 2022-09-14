@@ -300,9 +300,17 @@ impl PartialOrd for BgpRibEntry {
         }
 
         match s.cluster_list.len().cmp(&o.cluster_list.len()) {
-            Ordering::Equal => Some(Ordering::Equal),
-            Ordering::Greater => Some(Ordering::Less),
-            Ordering::Less => Some(Ordering::Greater),
+            Ordering::Equal => {}
+            Ordering::Greater => return Some(Ordering::Less),
+            Ordering::Less => return Some(Ordering::Greater),
         }
+
+        match self.from_id.cmp(&other.from_id) {
+            Ordering::Equal => {}
+            Ordering::Greater => return Some(Ordering::Less),
+            Ordering::Less => return Some(Ordering::Greater),
+        }
+
+        Some(Ordering::Equal)
     }
 }
