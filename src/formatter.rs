@@ -300,9 +300,10 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for BgpRibEntry {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         format!(
-            "{p}, as_path: {path:?}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}{comm}",
+            "{p}, as_path: {path:?}, weight: {w}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}{comm}",
             p = self.route.prefix,
             path = self.route.as_path.iter().map(|x| x.0).collect::<Vec<u32>>(),
+            w = self.weight,
             lp = self.route.local_pref.unwrap_or(100),
             med = self.route.med.unwrap_or(0),
             cost = self.igp_cost.unwrap_or_default(),
@@ -343,6 +344,8 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMapSet {
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         match self {
             RouteMapSet::NextHop(nh) => format!("NextHop = {}", nh.fmt(net)),
+            RouteMapSet::Weight(Some(w)) => format!("Weight = {}", w),
+            RouteMapSet::Weight(None) => "clear Weight".to_string(),
             RouteMapSet::LocalPref(Some(lp)) => format!("LocalPref = {}", lp),
             RouteMapSet::LocalPref(None) => "clear LocalPref".to_string(),
             RouteMapSet::Med(Some(med)) => format!("MED = {}", med),

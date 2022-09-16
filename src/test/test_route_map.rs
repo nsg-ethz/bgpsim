@@ -44,6 +44,7 @@ fn simple_matches() {
         from_id: 0.into(),
         to_id: None,
         igp_cost: Some(NotNan::new(10.0).unwrap()),
+        weight: 100,
     };
 
     // Match on NextHop
@@ -187,6 +188,7 @@ fn complex_matches() {
         from_id: 0.into(),
         to_id: None,
         igp_cost: Some(NotNan::new(10.0).unwrap()),
+        weight: 100,
     };
 
     // And Clause
@@ -235,6 +237,7 @@ fn overwrite() {
         from_id: 0.into(),
         to_id: None,
         igp_cost: Some(NotNan::new(10.0).unwrap()),
+        weight: 100,
     };
 
     // Next Hop

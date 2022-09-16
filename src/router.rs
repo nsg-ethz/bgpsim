@@ -949,6 +949,7 @@ impl Router {
             from_id: from,
             to_id: None,
             igp_cost: None,
+            weight: 100,
         };
 
         let prefix = new_entry.route.prefix;

@@ -235,6 +235,8 @@ pub struct BgpRibEntry {
     pub to_id: Option<RouterId>,
     /// the igp cost to the next_hop
     pub igp_cost: Option<NotNan<LinkWeight>>,
+    /// Local weight of that route, which is the most preferred metric of the entire route.
+    pub weight: u32,
 }
 
 impl Ord for BgpRibEntry {
@@ -255,6 +257,11 @@ impl PartialOrd for BgpRibEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let s = self.route.clone_default();
         let o = other.route.clone_default();
+
+        match self.weight.cmp(&other.weight) {
+            Ordering::Equal => {}
+            o => return Some(o),
+        }
 
         match s.local_pref.unwrap().cmp(&o.local_pref.unwrap()) {
             Ordering::Equal => {}

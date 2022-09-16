@@ -273,6 +273,19 @@ impl RouteMapBuilder {
         self
     }
 
+    /// set the weight attribute to a specific value. Weight is an attribute local to every router,
+    /// and higher values are better. The default value is 100.
+    pub fn set_weight(&mut self, weight: u32) -> &mut Self {
+        self.set.push(RouteMapSet::Weight(Some(weight)));
+        self
+    }
+
+    /// Reset the weight attribute back to 100.
+    pub fn reset_weight(&mut self) -> &mut Self {
+        self.set.push(RouteMapSet::Weight(None));
+        self
+    }
+
     /// Add a set expression, overwriting the Local-Pref
     pub fn set_local_pref(&mut self, local_pref: u32) -> &mut Self {
         self.set.push(RouteMapSet::LocalPref(Some(local_pref)));
@@ -469,6 +482,9 @@ impl fmt::Display for RouteMapMatchAsPath {
 pub enum RouteMapSet {
     /// overwrite the next hop
     NextHop(RouterId),
+    /// Set the weight attribute of a route. Default is 100. Higher is better. The weight is the
+    /// most important attribute for comparing BGP routes, but is not propagated in the network.
+    Weight(Option<u32>),
     /// overwrite the local preference (None means reset to 100)
     LocalPref(Option<u32>),
     /// overwrite the MED attribute (None means reset to 0)
@@ -490,6 +506,7 @@ impl RouteMapSet {
                 // at the same time, reset the igp cost to None, such that it can be recomputed
                 entry.igp_cost = None
             }
+            Self::Weight(w) => entry.weight = w.unwrap_or(100),
             Self::LocalPref(lp) => entry.route.local_pref = Some(lp.unwrap_or(100)),
             Self::Med(med) => entry.route.med = Some(med.unwrap_or(0)),
             Self::IgpCost(w) => entry.igp_cost = Some(NotNan::new(*w).unwrap()),
