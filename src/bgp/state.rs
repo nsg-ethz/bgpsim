@@ -428,7 +428,7 @@ impl<T> BgpStateGraph<T> {
 
     /// Get the ingress session over which the route was learned. In the returned structure, the
     /// first tuple will be the external router, and the second one will be the internal router.
-    fn ingress_session(&self, router: RouterId) -> Option<(RouterId, RouterId)> {
+    pub fn ingress_session(&self, router: RouterId) -> Option<(RouterId, RouterId)> {
         let path = self.propagation_path(router);
         if path.len() < 1 {
             None
