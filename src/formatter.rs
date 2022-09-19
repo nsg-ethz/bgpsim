@@ -327,9 +327,6 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMapMatch {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         match self {
-            RouteMapMatch::Neighbor(n) => {
-                format!("Neighbor {}", n.fmt(net))
-            }
             RouteMapMatch::Prefix(c) => format!("Prefix {}", c),
             RouteMapMatch::AsPath(c) => format!("{}", c),
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),

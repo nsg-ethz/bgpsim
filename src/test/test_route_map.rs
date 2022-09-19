@@ -149,17 +149,6 @@ fn simple_matches() {
     entry.route.as_path = vec![AsId(0), AsId(1), AsId(2), AsId(3), AsId(4)];
     assert!(!map.apply(entry).0);
 
-    // Match on Neighbor
-    let map = RouteMap::new(10, Deny, vec![Match::Neighbor(0.into())], vec![]);
-    let mut entry = default_entry.clone();
-    entry.from_id = 0.into();
-    assert!(map.apply(entry.clone()).0);
-    entry.from_id = 1.into();
-    entry.to_id = Some(0.into());
-    assert!(map.apply(entry.clone()).0);
-    entry.to_id = None;
-    assert!(!map.apply(entry).0);
-
     // Match on Community, exact
     let map = RouteMap::new(10, Deny, vec![Match::Community(0)], vec![]);
     let mut entry = default_entry;
@@ -195,21 +184,24 @@ fn complex_matches() {
     let map = RouteMap::new(
         10,
         Deny,
-        vec![Match::NextHop(0.into()), Match::Neighbor(0.into())],
+        vec![
+            Match::NextHop(0.into()),
+            Match::Prefix(RouteMapMatchClause::Equal(0.into())),
+        ],
         vec![],
     );
     let mut entry = default_entry.clone();
     entry.route.next_hop = 0.into();
-    entry.from_id = 0.into();
+    entry.route.prefix = 0.into();
     assert!(map.apply(entry.clone()).0);
     entry.route.next_hop = 0.into();
-    entry.from_id = 1.into();
+    entry.route.prefix = 1.into();
     assert!(!map.apply(entry.clone()).0);
     entry.route.next_hop = 1.into();
-    entry.from_id = 0.into();
+    entry.route.prefix = 0.into();
     assert!(!map.apply(entry.clone()).0);
     entry.route.next_hop = 1.into();
-    entry.from_id = 1.into();
+    entry.route.prefix = 1.into();
     assert!(!map.apply(entry).0);
 
     // Empty And Clause
@@ -400,15 +392,6 @@ fn route_map_builder() {
             .order(10)
             .deny()
             .match_as_path_length_range(2, 4)
-            .build()
-    );
-
-    assert_eq!(
-        RouteMap::new(10, Deny, vec![Match::Neighbor(0.into())], vec![]),
-        RouteMapBuilder::new()
-            .order(10)
-            .deny()
-            .match_neighbor(0.into())
             .build()
     );
 

@@ -41,7 +41,6 @@ use std::fmt;
 /// let map = RouteMapBuilder::new()
 ///     .order(10)
 ///     .allow()
-///     .match_neighbor(neighbor)
 ///     .match_prefix(prefix)
 ///     .set_community(1)
 ///     .reset_local_pref()
@@ -121,15 +120,6 @@ impl RouteMap {
     pub fn matches(&self, route: &BgpRibEntry) -> bool {
         self.conds.iter().all(|c| c.matches(route))
     }
-
-    /// Returns the neighbor if this route map matches any neighbor. If not, then this function
-    /// returns `None`.
-    pub fn match_neighbor(&self) -> Option<RouterId> {
-        self.conds.iter().find_map(|c| match c {
-            RouteMapMatch::Neighbor(n) => Some(*n),
-            _ => None,
-        })
-    }
 }
 
 /// # Route Map Builder
@@ -145,7 +135,6 @@ impl RouteMap {
 /// let map = RouteMapBuilder::new()
 ///     .order(10)
 ///     .allow()
-///     .match_neighbor(neighbor)
 ///     .match_prefix(prefix)
 ///     .set_community(1)
 ///     .reset_local_pref()
@@ -200,12 +189,6 @@ impl RouteMapBuilder {
     /// Add a match condition to the Route-Map.
     pub fn cond(&mut self, cond: RouteMapMatch) -> &mut Self {
         self.conds.push(cond);
-        self
-    }
-
-    /// Add a match condition to the Route-Map, matching on the neighbor
-    pub fn match_neighbor(&mut self, neighbor: RouterId) -> &mut Self {
-        self.conds.push(RouteMapMatch::Neighbor(neighbor));
         self
     }
 
@@ -379,8 +362,6 @@ impl RouteMapState {
 #[derive(Debug, Clone, PartialEq, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum RouteMapMatch {
-    /// Matches on the neighbor (exact value only)
-    Neighbor(RouterId),
     /// Matches on the Prefix (exact value or a range)
     Prefix(RouteMapMatchClause<Prefix>),
     /// Matches on the As Path (either if it contains an as, or on the length of the path)
@@ -395,7 +376,6 @@ impl RouteMapMatch {
     /// Returns true if the `BgpRibEntry` matches the expression
     pub fn matches(&self, entry: &BgpRibEntry) -> bool {
         match self {
-            Self::Neighbor(r) => entry.to_id.unwrap_or(entry.from_id) == *r,
             Self::Prefix(clause) => clause.matches(&entry.route.prefix),
             Self::AsPath(clause) => clause.matches(&entry.route.as_path),
             Self::NextHop(nh) => entry.route.next_hop == *nh,
