@@ -426,6 +426,17 @@ impl<T> BgpStateGraph<T> {
         path
     }
 
+    /// Get the ingress session over which the route was learned. In the returned structure, the
+    /// first tuple will be the external router, and the second one will be the internal router.
+    fn ingress_session(&self, router: RouterId) -> Option<(RouterId, RouterId)> {
+        let path = self.propagation_path(router);
+        if path.len() < 1 {
+            None
+        } else {
+            Some((path[0], path[1]))
+        }
+    }
+
     /// Return a set of routers which use the route advertised by `router`. The returned set will
     /// also contain `router`.
     fn reach(&self, router: RouterId) -> HashSet<RouterId> {
