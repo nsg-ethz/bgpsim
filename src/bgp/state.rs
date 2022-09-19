@@ -130,6 +130,14 @@ impl BgpState {
         self.g.propagation_path(router)
     }
 
+    /// Return the ingress BGP session which was traversed by the BGP session used by `router`. The
+    /// returned tuple will have the external router as a first argument, and the internal router as
+    /// a second argument.
+    #[inline]
+    pub fn ingress_session(&self, router: RouterId) -> Option<(RouterId, RouterId)> {
+        self.g.ingress_session(router)
+    }
+
     /// Return a set of routers which use the route advertised by `router`. The returned set will
     /// also contain `router`.
     #[inline]
@@ -225,6 +233,14 @@ impl<'n> BgpStateRef<'n> {
     #[inline]
     pub fn propagation_path(&self, router: RouterId) -> Vec<RouterId> {
         self.g.propagation_path(router)
+    }
+
+    /// Return the ingress BGP session which was traversed by the BGP session used by `router`. The
+    /// returned tuple will have the external router as a first argument, and the internal router as
+    /// a second argument.
+    #[inline]
+    pub fn ingress_session(&self, router: RouterId) -> Option<(RouterId, RouterId)> {
+        self.g.ingress_session(router)
     }
 
     /// Return a set of routers which use the route advertised by `router`. The returned set will
@@ -430,7 +446,7 @@ impl<T> BgpStateGraph<T> {
     /// first tuple will be the external router, and the second one will be the internal router.
     pub fn ingress_session(&self, router: RouterId) -> Option<(RouterId, RouterId)> {
         let path = self.propagation_path(router);
-        if path.len() < 1 {
+        if path.len() <= 1 {
             None
         } else {
             Some((path[0], path[1]))
