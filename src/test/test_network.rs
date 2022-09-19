@@ -25,10 +25,7 @@ use crate::{
     config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
     network::Network,
     prelude::BgpSessionType,
-    route_map::{
-        RouteMap, RouteMapDirection::*, RouteMapMatch as Match, RouteMapSet as Set,
-        RouteMapState::*,
-    },
+    route_map::{RouteMap, RouteMapDirection::*, RouteMapSet as Set, RouteMapState::*},
     router::StaticRoute::*,
     types::{AsId, LinkWeight, NetworkError, Prefix, RouterId},
 };
@@ -585,12 +582,8 @@ fn test_route_maps() {
 
     // now, deny all routes from E1
     let mut net = original_net.clone();
-    net.set_bgp_route_map(
-        *R1,
-        RouteMap::new(10, Deny, vec![Match::Neighbor(*E1)], vec![]),
-        Incoming,
-    )
-    .unwrap();
+    net.set_bgp_route_map(*R1, *E1, Incoming, RouteMap::new(10, Deny, vec![], vec![]))
+        .unwrap();
 
     // we expect that all take R4
     test_route!(net, *R1, p, [*R1, *R3, *R2, *R4, *E4]);
@@ -600,12 +593,12 @@ fn test_route_maps() {
 
     // now, don't forward the route from E1 at R1, but keep it locally
     let mut net = original_net.clone();
-    net.set_bgp_route_map(
-        *R1,
-        RouteMap::new(10, Deny, vec![Match::NextHop(*R1)], vec![]),
-        Outgoing,
-    )
-    .unwrap();
+    net.set_bgp_route_map(*R1, *R2, Outgoing, RouteMap::new(20, Deny, vec![], vec![]))
+        .unwrap();
+    net.set_bgp_route_map(*R1, *R3, Outgoing, RouteMap::new(20, Deny, vec![], vec![]))
+        .unwrap();
+    net.set_bgp_route_map(*R1, *R4, Outgoing, RouteMap::new(20, Deny, vec![], vec![]))
+        .unwrap();
 
     // we expect that all take R4
     test_route!(net, *R1, p, [*R1, *E1]);
@@ -617,13 +610,9 @@ fn test_route_maps() {
     let mut net = original_net.clone();
     net.set_bgp_route_map(
         *R1,
-        RouteMap::new(
-            10,
-            Allow,
-            vec![Match::Neighbor(*E1)],
-            vec![Set::LocalPref(Some(50))],
-        ),
+        *E1,
         Incoming,
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
     )
     .unwrap();
 
@@ -637,13 +626,23 @@ fn test_route_maps() {
     let mut net = original_net.clone();
     net.set_bgp_route_map(
         *R1,
-        RouteMap::new(
-            10,
-            Allow,
-            vec![Match::NextHop(*R1)],
-            vec![Set::LocalPref(Some(50))],
-        ),
+        *R2,
         Outgoing,
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+    )
+    .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *R3,
+        Outgoing,
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+    )
+    .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *R4,
+        Outgoing,
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
     )
     .unwrap();
 
@@ -657,13 +656,9 @@ fn test_route_maps() {
     let mut net = original_net;
     net.set_bgp_route_map(
         *R1,
-        RouteMap::new(
-            10,
-            Allow,
-            vec![Match::Neighbor(*R2)],
-            vec![Set::LocalPref(Some(200))],
-        ),
+        *R2,
         Outgoing,
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(200))]),
     )
     .unwrap();
 
@@ -678,13 +673,23 @@ fn test_route_maps() {
     // lowering the link weight
     net.set_bgp_route_map(
         *R1,
-        RouteMap::new(
-            20,
-            Allow,
-            vec![Match::NextHop(*R1)],
-            vec![Set::LocalPref(Some(50))],
-        ),
+        *R2,
         Outgoing,
+        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+    )
+    .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *R3,
+        Outgoing,
+        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+    )
+    .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *R4,
+        Outgoing,
+        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))]),
     )
     .unwrap();
 
@@ -718,35 +723,23 @@ fn test_route_maps_undo() {
     let net_hist_3 = net.clone();
 
     // now, deny all routes from E1
-    net.set_bgp_route_map(
-        *R1,
-        RouteMap::new(10, Deny, vec![Match::Neighbor(*E1)], vec![]),
-        Incoming,
-    )
-    .unwrap();
+    net.set_bgp_route_map(*R1, *E1, Incoming, RouteMap::new(10, Deny, vec![], vec![]))
+        .unwrap();
     net.undo_action().unwrap();
     assert_eq!(net, net_hist_3);
 
     // now, don't forward the route from E1 at R1, but keep it locally
-    net.set_bgp_route_map(
-        *R1,
-        RouteMap::new(10, Deny, vec![Match::NextHop(*E1)], vec![]),
-        Outgoing,
-    )
-    .unwrap();
+    net.set_bgp_route_map(*R1, *E1, Outgoing, RouteMap::new(10, Deny, vec![], vec![]))
+        .unwrap();
     net.undo_action().unwrap();
     assert_eq!(net, net_hist_3);
 
     // now, change the local pref for all to lower
     net.set_bgp_route_map(
         *R1,
-        RouteMap::new(
-            10,
-            Allow,
-            vec![Match::Neighbor(*E1)],
-            vec![Set::LocalPref(Some(50))],
-        ),
+        *E1,
         Incoming,
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
     )
     .unwrap();
     net.undo_action().unwrap();
@@ -755,13 +748,9 @@ fn test_route_maps_undo() {
     // now, change the local pref for all others to lower
     net.set_bgp_route_map(
         *R1,
-        RouteMap::new(
-            10,
-            Allow,
-            vec![Match::NextHop(*E1)],
-            vec![Set::LocalPref(Some(50))],
-        ),
+        *E1,
         Outgoing,
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
     )
     .unwrap();
     net.undo_action().unwrap();
@@ -770,13 +759,9 @@ fn test_route_maps_undo() {
     // now, set the local pref higher only for R2, who would else pick R4
     net.set_bgp_route_map(
         *R1,
-        RouteMap::new(
-            10,
-            Allow,
-            vec![Match::Neighbor(*R2)],
-            vec![Set::LocalPref(Some(200))],
-        ),
+        *R2,
         Outgoing,
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(200))]),
     )
     .unwrap();
     let net_hist_4 = net.clone();
@@ -785,13 +770,9 @@ fn test_route_maps_undo() {
     // should choose R3 as a next hop
     net.set_bgp_route_map(
         *R1,
-        RouteMap::new(
-            20,
-            Allow,
-            vec![Match::NextHop(*E1)],
-            vec![Set::LocalPref(Some(50))],
-        ),
+        *E1,
         Outgoing,
+        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))]),
     )
     .unwrap();
     net.undo_action().unwrap();

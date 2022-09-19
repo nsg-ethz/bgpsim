@@ -1085,24 +1085,26 @@ fn carousel_gadget() {
 
     net.set_bgp_route_map(
         e2,
+        p2,
+        RouteMapDirection::Incoming,
         RouteMap::new(
             10,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(p2)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(50))],
         ),
-        RouteMapDirection::Incoming,
     )
     .unwrap();
     net.set_bgp_route_map(
         e3,
+        p3,
+        RouteMapDirection::Incoming,
         RouteMap::new(
             10,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(p3)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(50))],
         ),
-        RouteMapDirection::Incoming,
     )
     .unwrap();
 
@@ -1144,7 +1146,7 @@ fn carousel_gadget() {
     test_route!(net, e4, prefix2, [e4, p4]);
 
     // reconfigure e2
-    net.remove_bgp_route_map(e2, 10, RouteMapDirection::Incoming)
+    net.remove_bgp_route_map(e2, p2, RouteMapDirection::Incoming, 10)
         .unwrap();
 
     test_route!(net, rr, prefix1, [rr, pr]);
@@ -1167,7 +1169,7 @@ fn carousel_gadget() {
     test_route!(net, e4, prefix2, [e4, p4]);
 
     // reconfigure e3
-    net.remove_bgp_route_map(e3, 10, RouteMapDirection::Incoming)
+    net.remove_bgp_route_map(e3, p3, RouteMapDirection::Incoming, 10)
         .unwrap();
 
     test_route!(net, rr, prefix1, [rr, pr]);

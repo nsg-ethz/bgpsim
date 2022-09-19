@@ -404,22 +404,22 @@ fn test_forwarding_state_carousel_gadget() {
         // local pref setting
         c.add(BgpRouteMap {
             router: b2,
+            neighbor: e2,
             direction: RouteMapDirection::Incoming,
             map: RouteMapBuilder::new()
                 .order(10)
                 .allow()
-                .match_neighbor(e2)
                 .set_local_pref(50)
                 .build(),
         })
         .unwrap();
         c.add(BgpRouteMap {
             router: b3,
+            neighbor: e3,
             direction: RouteMapDirection::Incoming,
             map: RouteMapBuilder::new()
                 .order(10)
                 .allow()
-                .match_neighbor(e3)
                 .set_local_pref(50)
                 .build(),
         })

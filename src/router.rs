@@ -17,15 +17,20 @@
 
 //! Module defining an internal router with BGP functionality.
 
+#[cfg(feature = "undo")]
+use crate::types::collections::CowVec;
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
     event::Event,
     formatter::NetworkFormatter,
     network::Network,
     ospf::OspfState,
-    route_map::{RouteMap, RouteMapDirection},
+    route_map::{
+        RouteMap,
+        RouteMapDirection::{self, Incoming, Outgoing},
+    },
     types::{
-        collections::{CowMap, CowMapIter, CowVec, CowVecIter},
+        collections::{CowMap, CowMapIter},
         prefix::{
             CowMapPrefix, CowSetPrefix, HashMapPrefix, HashMapPrefixKV, InnerHashMapPrefix,
             InnerHashMapPrefixKV,
@@ -75,9 +80,9 @@ pub struct Router {
     /// Set of known bgp prefixes
     pub(crate) bgp_known_prefixes: CowSetPrefix,
     /// BGP Route-Maps for Input
-    pub(crate) bgp_route_maps_in: CowVec<RouteMap>,
+    pub(crate) bgp_route_maps_in: CowMap<RouterId, Vec<RouteMap>>,
     /// BGP Route-Maps for Output
-    pub(crate) bgp_route_maps_out: CowVec<RouteMap>,
+    pub(crate) bgp_route_maps_out: CowMap<RouterId, Vec<RouteMap>>,
     /// Flag to tell if load balancing is enabled. If load balancing is enabled, then the router
     /// will load balance packets towards a destination if multiple paths exist with equal
     /// cost. load balancing will only work within OSPF. BGP Additional Paths is not yet
@@ -126,8 +131,8 @@ impl Router {
             bgp_rib: HashMapPrefix::new(),
             bgp_rib_out: HashMapPrefixKV::new(),
             bgp_known_prefixes: CowSetPrefix::new(),
-            bgp_route_maps_in: CowVec::new(),
-            bgp_route_maps_out: CowVec::new(),
+            bgp_route_maps_in: CowMap::new(),
+            bgp_route_maps_out: CowMap::new(),
             do_load_balancing: false,
             #[cfg(feature = "undo")]
             undo_stack: CowVec::new(),
@@ -298,39 +303,41 @@ impl Router {
                     UndoAction::BgpRibOut(prefix, peer, None) => {
                         self.bgp_rib_out.remove(&(peer, prefix));
                     }
-                    UndoAction::BgpRouteMap(RouteMapDirection::Incoming, order, map) => {
-                        match self
-                            .bgp_route_maps_in
-                            .binary_search_by(|p| p.order.cmp(&order))
-                        {
+                    UndoAction::BgpRouteMap(neighbor, Incoming, order, map) => {
+                        let maps = self.bgp_route_maps_in.entry(neighbor).or_default();
+                        match maps.binary_search_by(|p| p.order.cmp(&order)) {
                             Ok(pos) => {
                                 if let Some(map) = map {
                                     // replace the route-map at the selected position
-                                    self.bgp_route_maps_in[pos] = map;
+                                    maps[pos] = map;
                                 } else {
-                                    self.bgp_route_maps_in.remove(pos);
+                                    maps.remove(pos);
+                                    if maps.is_empty() {
+                                        self.bgp_route_maps_in.remove(&neighbor);
+                                    }
                                 }
                             }
                             Err(pos) => {
-                                self.bgp_route_maps_in.insert(pos, map.unwrap());
+                                maps.insert(pos, map.unwrap());
                             }
                         }
                     }
-                    UndoAction::BgpRouteMap(RouteMapDirection::Outgoing, order, map) => {
-                        match self
-                            .bgp_route_maps_out
-                            .binary_search_by(|p| p.order.cmp(&order))
-                        {
+                    UndoAction::BgpRouteMap(neighbor, Outgoing, order, map) => {
+                        let maps = self.bgp_route_maps_out.entry(neighbor).or_default();
+                        match maps.binary_search_by(|p| p.order.cmp(&order)) {
                             Ok(pos) => {
                                 if let Some(map) = map {
                                     // replace the route-map at the selected position
-                                    self.bgp_route_maps_out[pos] = map;
+                                    maps[pos] = map;
                                 } else {
-                                    self.bgp_route_maps_out.remove(pos);
+                                    maps.remove(pos);
+                                    if maps.is_empty() {
+                                        self.bgp_route_maps_out.remove(&neighbor);
+                                    }
                                 }
                             }
                             Err(pos) => {
-                                self.bgp_route_maps_out.insert(pos, map.unwrap());
+                                maps.insert(pos, map.unwrap());
                             }
                         }
                     }
@@ -539,8 +546,9 @@ impl Router {
     /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn set_bgp_route_map<P: Default>(
         &mut self,
-        mut route_map: RouteMap,
+        neighbor: RouterId,
         direction: RouteMapDirection,
+        mut route_map: RouteMap,
     ) -> Result<(Option<RouteMap>, Vec<Event<P>>), DeviceError> {
         // prepare the undo action
         #[cfg(feature = "undo")]
@@ -548,34 +556,30 @@ impl Router {
 
         let _order = route_map.order;
         let old_map = match direction {
-            RouteMapDirection::Incoming => {
-                match self
-                    .bgp_route_maps_in
-                    .binary_search_by(|probe| probe.order.cmp(&route_map.order))
-                {
+            Incoming => {
+                let maps = self.bgp_route_maps_in.entry(neighbor).or_default();
+                match maps.binary_search_by(|probe| probe.order.cmp(&route_map.order)) {
                     Ok(pos) => {
                         // replace the route-map at the selected position
-                        std::mem::swap(&mut self.bgp_route_maps_in[pos], &mut route_map);
+                        std::mem::swap(&mut maps[pos], &mut route_map);
                         Some(route_map)
                     }
                     Err(pos) => {
-                        self.bgp_route_maps_in.insert(pos, route_map);
+                        maps.insert(pos, route_map);
                         None
                     }
                 }
             }
-            RouteMapDirection::Outgoing => {
-                match self
-                    .bgp_route_maps_out
-                    .binary_search_by(|probe| probe.order.cmp(&route_map.order))
-                {
+            Outgoing => {
+                let maps = self.bgp_route_maps_out.entry(neighbor).or_default();
+                match maps.binary_search_by(|probe| probe.order.cmp(&route_map.order)) {
                     Ok(pos) => {
                         // replace the route-map at the selected position
-                        std::mem::swap(&mut self.bgp_route_maps_out[pos], &mut route_map);
+                        std::mem::swap(&mut maps[pos], &mut route_map);
                         Some(route_map)
                     }
                     Err(pos) => {
-                        self.bgp_route_maps_out.insert(pos, route_map);
+                        maps.insert(pos, route_map);
                         None
                     }
                 }
@@ -587,7 +591,12 @@ impl Router {
         self.undo_stack
             .last_mut()
             .unwrap()
-            .push(UndoAction::BgpRouteMap(direction, _order, old_map.clone()));
+            .push(UndoAction::BgpRouteMap(
+                neighbor,
+                direction,
+                _order,
+                old_map.clone(),
+            ));
 
         self.update_bgp_tables(true).map(|events| (old_map, events))
     }
@@ -601,31 +610,42 @@ impl Router {
     /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn remove_bgp_route_map<P: Default>(
         &mut self,
-        order: isize,
+        neighbor: RouterId,
         direction: RouteMapDirection,
+        order: isize,
     ) -> Result<(Option<RouteMap>, Vec<Event<P>>), DeviceError> {
         // prepare the undo action
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
 
         let old_map = match direction {
-            RouteMapDirection::Incoming => {
-                match self
-                    .bgp_route_maps_in
-                    .binary_search_by(|probe| probe.order.cmp(&order))
-                {
-                    Ok(pos) => self.bgp_route_maps_in.remove(pos),
+            Incoming => {
+                let maps = match self.bgp_route_maps_in.get_mut(&neighbor) {
+                    Some(x) => x,
+                    None => return Ok((None, vec![])),
+                };
+                let old_map = match maps.binary_search_by(|probe| probe.order.cmp(&order)) {
+                    Ok(pos) => maps.remove(pos),
                     Err(_) => return Ok((None, vec![])),
+                };
+                if maps.is_empty() {
+                    self.bgp_route_maps_in.remove(&neighbor);
                 }
+                old_map
             }
-            RouteMapDirection::Outgoing => {
-                match self
-                    .bgp_route_maps_out
-                    .binary_search_by(|probe| probe.order.cmp(&order))
-                {
-                    Ok(pos) => self.bgp_route_maps_out.remove(pos),
+            Outgoing => {
+                let maps = match self.bgp_route_maps_in.get_mut(&neighbor) {
+                    Some(x) => x,
+                    None => return Ok((None, vec![])),
+                };
+                let old_map = match maps.binary_search_by(|probe| probe.order.cmp(&order)) {
+                    Ok(pos) => maps.remove(pos),
                     Err(_) => return Ok((None, vec![])),
+                };
+                if maps.is_empty() {
+                    self.bgp_route_maps_out.remove(&neighbor);
                 }
+                old_map
             }
         };
 
@@ -635,6 +655,7 @@ impl Router {
             .last_mut()
             .unwrap()
             .push(UndoAction::BgpRouteMap(
+                neighbor,
                 direction,
                 order,
                 Some(old_map.clone()),
@@ -644,30 +665,35 @@ impl Router {
             .map(|events| (Some(old_map), events))
     }
 
-    /// Get a specific incoming route map with the given order, or `None`.
-    pub fn get_bgp_route_map_in(&self, order: isize) -> Option<&RouteMap> {
-        self.bgp_route_maps_in
-            .binary_search_by_key(&order, |rm| rm.order)
+    /// Get a specific route map item with the given order, or `None`.
+    pub fn get_bgp_route_map(
+        &self,
+        neighbor: RouterId,
+        direction: RouteMapDirection,
+        order: isize,
+    ) -> Option<&RouteMap> {
+        let maps = match direction {
+            Incoming => self.bgp_route_maps_in.get(&neighbor)?,
+            Outgoing => self.bgp_route_maps_out.get(&neighbor)?,
+        };
+        maps.binary_search_by_key(&order, |rm| rm.order)
             .ok()
-            .and_then(|p| self.bgp_route_maps_in.get(p))
+            .and_then(|p| maps.get(p))
     }
 
-    /// Get a specific outgoing route map with the given order, or `None`.
-    pub fn get_bgp_route_map_out(&self, order: isize) -> Option<&RouteMap> {
-        self.bgp_route_maps_out
-            .binary_search_by_key(&order, |rm| rm.order)
-            .ok()
-            .and_then(|p| self.bgp_route_maps_out.get(p))
-    }
-
-    /// Get an iterator over all incoming route-maps
-    pub fn get_bgp_route_maps_in(&self) -> CowVecIter<'_, RouteMap> {
-        self.bgp_route_maps_in.iter()
-    }
-
-    /// Get an iterator over all outgoing route-maps
-    pub fn get_bgp_route_maps_out(&self) -> CowVecIter<'_, RouteMap> {
-        self.bgp_route_maps_out.iter()
+    /// Get an iterator over all route-maps
+    pub fn get_bgp_route_maps(
+        &self,
+        neighbor: RouterId,
+        direction: RouteMapDirection,
+    ) -> &[RouteMap] {
+        match direction {
+            Incoming => &self.bgp_route_maps_in,
+            Outgoing => &self.bgp_route_maps_out,
+        }
+        .get(&neighbor)
+        .map(|x| x.as_slice())
+        .unwrap_or_default()
     }
 
     /// Get an iterator over all outgoing route-maps
@@ -996,7 +1022,8 @@ impl Router {
         mut entry: BgpRibEntry,
     ) -> Result<Option<BgpRibEntry>, DeviceError> {
         // apply bgp_route_map_in
-        let mut maps = self.bgp_route_maps_in.iter();
+        let neighbor = entry.from_id;
+        let mut maps = self.get_bgp_route_maps(neighbor, Incoming).into_iter();
         let mut entry = loop {
             match maps.next() {
                 Some(map) => {
@@ -1069,7 +1096,7 @@ impl Router {
         entry.to_id = Some(target_peer);
 
         // apply bgp_route_map_out
-        let mut maps = self.bgp_route_maps_out.iter();
+        let mut maps = self.get_bgp_route_maps(target_peer, Outgoing).into_iter();
         let mut entry = loop {
             match maps.next() {
                 Some(map) => {
@@ -1171,7 +1198,7 @@ pub(crate) enum UndoAction {
     BgpRibIn(Prefix, RouterId, Option<BgpRibEntry>),
     BgpRib(Prefix, Option<BgpRibEntry>),
     BgpRibOut(Prefix, RouterId, Option<BgpRibEntry>),
-    BgpRouteMap(RouteMapDirection, usize, Option<RouteMap>),
+    BgpRouteMap(RouterId, RouteMapDirection, isize, Option<RouteMap>),
     BgpSession(RouterId, Option<BgpSessionType>),
     IgpForwardingTable(
         HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,

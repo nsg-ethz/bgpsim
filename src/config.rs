@@ -341,6 +341,8 @@ pub enum ConfigExpr {
     BgpRouteMap {
         /// Router to configure the route map
         router: RouterId,
+        /// Neighbor for which to setup the session
+        neighbor: RouterId,
         /// Direction (incoming or outgoing)
         direction: RouteMapDirection,
         /// Route Map
@@ -412,10 +414,12 @@ impl ConfigExpr {
             }
             ConfigExpr::BgpRouteMap {
                 router,
+                neighbor,
                 direction,
                 map,
             } => ConfigExprKey::BgpRouteMap {
                 router: *router,
+                neighbor: *neighbor,
                 direction: *direction,
                 order: map.order,
             },
@@ -489,6 +493,8 @@ pub enum ConfigExprKey {
     BgpRouteMap {
         /// Rotuer for configuration
         router: RouterId,
+        /// Neighbor for which to setup the route map
+        neighbor: RouterId,
         /// External Router of which to modify all BGP routes.
         direction: RouteMapDirection,
         /// order of the route map
@@ -686,10 +692,11 @@ where
                 } => self.set_bgp_session(*source, *target, Some(*session_type)),
                 ConfigExpr::BgpRouteMap {
                     router,
+                    neighbor,
                     direction,
                     map,
                 } => self
-                    .set_bgp_route_map(*router, map.clone(), *direction)
+                    .set_bgp_route_map(*router, *neighbor, *direction, map.clone())
                     .map(|_| ()),
                 ConfigExpr::StaticRoute {
                     router,
@@ -727,10 +734,11 @@ where
                 } => self.set_bgp_session(*source, *target, None),
                 ConfigExpr::BgpRouteMap {
                     router,
+                    neighbor,
                     direction,
                     map,
                 } => self
-                    .remove_bgp_route_map(*router, map.order, *direction)
+                    .remove_bgp_route_map(*router, *neighbor, *direction, map.order)
                     .map(|_| ()),
 
                 ConfigExpr::StaticRoute { router, prefix, .. } => {
@@ -775,17 +783,19 @@ where
                 (
                     ConfigExpr::BgpRouteMap {
                         router: r1,
+                        neighbor: n1,
                         direction: d1,
                         map: _m1,
                     },
                     ConfigExpr::BgpRouteMap {
                         router: r2,
+                        neighbor: n2,
                         direction: d2,
                         map: m2,
                     },
-                ) if r1 == r2 && d1 == d2 => {
-                    self.set_bgp_route_map(*r1, m2.clone(), *d1).map(|_| ())
-                }
+                ) if r1 == r2 && d1 == d2 && n1 == n2 => self
+                    .set_bgp_route_map(*r1, *n1, *d1, m2.clone())
+                    .map(|_| ()),
                 (
                     ConfigExpr::StaticRoute {
                         router: r1,
@@ -875,19 +885,23 @@ where
             }
 
             // get all route-maps
-            for rm in r.get_bgp_route_maps_in() {
-                c.add(ConfigExpr::BgpRouteMap {
-                    router: *rid,
-                    direction: RouteMapDirection::Incoming,
-                    map: rm.clone(),
-                })?;
-            }
-            for rm in r.get_bgp_route_maps_out() {
-                c.add(ConfigExpr::BgpRouteMap {
-                    router: *rid,
-                    direction: RouteMapDirection::Outgoing,
-                    map: rm.clone(),
-                })?;
+            for (neighbor, _) in r.get_bgp_sessions() {
+                for rm in r.get_bgp_route_maps(*neighbor, RouteMapDirection::Incoming) {
+                    c.add(ConfigExpr::BgpRouteMap {
+                        router: *rid,
+                        neighbor: *neighbor,
+                        direction: RouteMapDirection::Incoming,
+                        map: rm.clone(),
+                    })?;
+                }
+                for rm in r.get_bgp_route_maps(*neighbor, RouteMapDirection::Incoming) {
+                    c.add(ConfigExpr::BgpRouteMap {
+                        router: *rid,
+                        neighbor: *neighbor,
+                        direction: RouteMapDirection::Outgoing,
+                        map: rm.clone(),
+                    })?;
+                }
             }
 
             // get all static routes

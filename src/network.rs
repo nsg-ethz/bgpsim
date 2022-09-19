@@ -625,8 +625,9 @@ where
     pub fn set_bgp_route_map(
         &mut self,
         router: RouterId,
-        route_map: RouteMap,
+        neighbor: RouterId,
         direction: RouteMapDirection,
+        route_map: RouteMap,
     ) -> Result<Option<RouteMap>, NetworkError> {
         // prepare undo stack
         #[cfg(feature = "undo")]
@@ -636,7 +637,7 @@ where
             .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
-            .set_bgp_route_map(route_map, direction)?;
+            .set_bgp_route_map(neighbor, direction, route_map)?;
 
         // add the undo action
         #[cfg(feature = "undo")]
@@ -659,8 +660,9 @@ where
     pub fn remove_bgp_route_map(
         &mut self,
         router: RouterId,
-        order: isize,
+        neighbor: RouterId,
         direction: RouteMapDirection,
+        order: isize,
     ) -> Result<Option<RouteMap>, NetworkError> {
         // prepare undo stack
         #[cfg(feature = "undo")]
@@ -670,7 +672,7 @@ where
             .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
-            .remove_bgp_route_map(order, direction)?;
+            .remove_bgp_route_map(neighbor, direction, order)?;
 
         // add the undo action
         #[cfg(feature = "undo")]

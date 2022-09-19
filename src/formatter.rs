@@ -422,11 +422,13 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConfigExpr {
             ),
             ConfigExpr::BgpRouteMap {
                 router,
+                neighbor,
                 direction,
                 map,
             } => format!(
-                "BGP Route Map on {} [{}:{}]: {}",
+                "BGP Route Map on {} from {} [{}:{}]: {}",
                 router.fmt(net),
+                neighbor.fmt(net),
                 match direction {
                     RouteMapDirection::Incoming => "in",
                     RouteMapDirection::Outgoing => "out",
@@ -474,11 +476,13 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConfigExprKey {
             ),
             ConfigExprKey::BgpRouteMap {
                 router,
+                neighbor,
                 direction,
                 order,
             } => format!(
-                "BGP Route Map on {} [{}] {}",
+                "BGP Route Map on {} from {} [{}:{}]",
                 router.fmt(net),
+                neighbor.fmt(net),
                 direction,
                 order
             ),

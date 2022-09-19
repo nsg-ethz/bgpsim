@@ -2789,22 +2789,24 @@ fn carousel_gadget() {
 
     c.add(ConfigExpr::BgpRouteMap {
         router: e2,
+        neighbor: p2,
         direction: RouteMapDirection::Incoming,
         map: RouteMap::new(
             10,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(p2)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(50))],
         ),
     })
     .unwrap();
     c.add(ConfigExpr::BgpRouteMap {
         router: e3,
+        neighbor: p3,
         direction: RouteMapDirection::Incoming,
         map: RouteMap::new(
             10,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(p3)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(50))],
         ),
     })
@@ -2852,11 +2854,12 @@ fn carousel_gadget() {
     // reconfigure e2
     net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpRouteMap {
         router: e2,
+        neighbor: p2,
         direction: RouteMapDirection::Incoming,
         map: RouteMap::new(
             10,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(p2)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(50))],
         ),
     }))
@@ -2884,11 +2887,12 @@ fn carousel_gadget() {
     // reconfigure e3
     net.apply_modifier(&ConfigModifier::Remove(ConfigExpr::BgpRouteMap {
         router: e3,
+        neighbor: p3,
         direction: RouteMapDirection::Incoming,
         map: RouteMap::new(
             10,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(p3)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(50))],
         ),
     }))

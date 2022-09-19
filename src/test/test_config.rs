@@ -172,44 +172,48 @@ fn config_unique() {
     // unique BGP local pref
     c.add(BgpRouteMap {
         router: r0,
+        neighbor: r1,
         direction: RouteMapDirection::Incoming,
         map: RouteMap::new(
             10,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(r1)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(200))],
         ),
     })
     .unwrap();
     c.add(BgpRouteMap {
         router: r0,
+        neighbor: r2,
         direction: RouteMapDirection::Incoming,
         map: RouteMap::new(
             11,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(r2)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(200))],
         ),
     })
     .unwrap();
     c.add(BgpRouteMap {
         router: r1,
+        neighbor: r0,
         direction: RouteMapDirection::Incoming,
         map: RouteMap::new(
             10,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(r0)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(200))],
         ),
     })
     .unwrap();
     c.add(BgpRouteMap {
         router: r0,
+        neighbor: r1,
         direction: RouteMapDirection::Incoming,
         map: RouteMap::new(
             10,
             RouteMapState::Allow,
-            vec![RouteMapMatch::Neighbor(r1)],
+            vec![],
             vec![RouteMapSet::LocalPref(Some(100))],
         ),
     })
@@ -399,22 +403,24 @@ fn config_add_remove() {
         let mut c = Config::new();
         c.add(BgpRouteMap {
             router: r0,
+            neighbor: r1,
             direction: RouteMapDirection::Incoming,
             map: RouteMap::new(
                 10,
                 RouteMapState::Allow,
-                vec![RouteMapMatch::Neighbor(r1)],
+                vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
             ),
         })
         .unwrap();
         c.apply_modifier(&Remove(BgpRouteMap {
             router: r0,
+            neighbor: r1,
             direction: RouteMapDirection::Incoming,
             map: RouteMap::new(
                 10,
                 RouteMapState::Allow,
-                vec![RouteMapMatch::Neighbor(r1)],
+                vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
             ),
         }))
@@ -423,22 +429,24 @@ fn config_add_remove() {
 
         c.add(BgpRouteMap {
             router: r0,
+            neighbor: r1,
             direction: RouteMapDirection::Incoming,
             map: RouteMap::new(
                 10,
                 RouteMapState::Allow,
-                vec![RouteMapMatch::Neighbor(r1)],
+                vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
             ),
         })
         .unwrap();
         c.apply_modifier(&Remove(BgpRouteMap {
             router: r0,
+            neighbor: r1,
             direction: RouteMapDirection::Incoming,
             map: RouteMap::new(
                 10,
                 RouteMapState::Allow,
-                vec![RouteMapMatch::Neighbor(r1)],
+                vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
             ),
         }))
@@ -447,22 +455,24 @@ fn config_add_remove() {
 
         c.add(BgpRouteMap {
             router: r0,
+            neighbor: r1,
             direction: RouteMapDirection::Incoming,
             map: RouteMap::new(
                 10,
                 RouteMapState::Allow,
-                vec![RouteMapMatch::Neighbor(r1)],
+                vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
             ),
         })
         .unwrap();
         c.apply_modifier(&Remove(BgpRouteMap {
             router: r0,
+            neighbor: r2,
             direction: RouteMapDirection::Incoming,
             map: RouteMap::new(
                 11,
                 RouteMapState::Allow,
-                vec![RouteMapMatch::Neighbor(r2)],
+                vec![],
                 vec![RouteMapSet::LocalPref(Some(100))],
             ),
         }))
