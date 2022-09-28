@@ -327,7 +327,9 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMapMatch {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         match self {
-            RouteMapMatch::Prefix(c) => format!("Prefix {}", c),
+            RouteMapMatch::Prefix(pl) => {
+                format!("Prefix in {{{}}}", pl.iter().map(|x| x.0).join(", "))
+            }
             RouteMapMatch::AsPath(c) => format!("{}", c),
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),
             RouteMapMatch::Community(c) => format!("Community {}", c),

@@ -27,7 +27,7 @@ use crate::{
 use ordered_float::NotNan;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::fmt;
+use std::{collections::HashSet, fmt};
 
 /// # Main RouteMap structure
 /// A route map can match on a BGP route, to change some value of the route, or to bock it. Use the
@@ -146,6 +146,7 @@ pub struct RouteMapBuilder {
     state: Option<RouteMapState>,
     conds: Vec<RouteMapMatch>,
     set: Vec<RouteMapSet>,
+    prefix_conds: HashSet<Prefix>,
 }
 
 impl RouteMapBuilder {
@@ -192,17 +193,10 @@ impl RouteMapBuilder {
         self
     }
 
-    /// Add a match condition to the Route-Map, matching on the prefix with exact value
+    /// Add a match condition to the Route-Map, matching on the prefix with exact value. If you call
+    /// this funciton multiple times with different prefixes, then any of them will be matched.
     pub fn match_prefix(&mut self, prefix: Prefix) -> &mut Self {
-        self.conds
-            .push(RouteMapMatch::Prefix(RouteMapMatchClause::Equal(prefix)));
-        self
-    }
-
-    /// Add a match condition to the Route-Map, matching on the prefix with an inclusive range
-    pub fn match_prefix_range(&mut self, from: Prefix, to: Prefix) -> &mut Self {
-        self.conds
-            .push(RouteMapMatch::Prefix(RouteMapMatchClause::Range(from, to)));
+        self.prefix_conds.insert(prefix);
         self
     }
 
@@ -326,7 +320,13 @@ impl RouteMapBuilder {
             Some(s) => s,
             None => panic!("State was not set for a Route-Map!"),
         };
-        let conds = self.conds.clone();
+        let mut conds = self.conds.clone();
+
+        // add the prefix list if necessary
+        if !self.prefix_conds.is_empty() {
+            conds.push(RouteMapMatch::Prefix(self.prefix_conds.clone()));
+        }
+
         let set = if state.is_deny() {
             vec![]
         } else {
@@ -363,7 +363,7 @@ impl RouteMapState {
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub enum RouteMapMatch {
     /// Matches on the Prefix (exact value or a range)
-    Prefix(RouteMapMatchClause<Prefix>),
+    Prefix(HashSet<Prefix>),
     /// Matches on the As Path (either if it contains an as, or on the length of the path)
     AsPath(RouteMapMatchAsPath),
     /// Matches on the Next Hop (exact value)
@@ -376,7 +376,7 @@ impl RouteMapMatch {
     /// Returns true if the `BgpRibEntry` matches the expression
     pub fn matches(&self, entry: &BgpRibEntry) -> bool {
         match self {
-            Self::Prefix(clause) => clause.matches(&entry.route.prefix),
+            Self::Prefix(prefixes) => prefixes.contains(&entry.route.prefix),
             Self::AsPath(clause) => clause.matches(&entry.route.as_path),
             Self::NextHop(nh) => entry.route.next_hop == *nh,
             Self::Community(com) => entry.route.community.contains(com),

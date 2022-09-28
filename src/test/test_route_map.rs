@@ -15,6 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use maplit::hashset;
 use ordered_float::NotNan;
 
 use crate::{
@@ -59,7 +60,7 @@ fn simple_matches() {
     let map = RouteMap::new(
         10,
         Deny,
-        vec![Match::Prefix(Clause::Equal(Prefix::from(0)))],
+        vec![Match::Prefix(hashset! {Prefix::from(0)})],
         vec![],
     );
     let mut entry = default_entry.clone();
@@ -72,36 +73,21 @@ fn simple_matches() {
     let map = RouteMap::new(
         10,
         Deny,
-        vec![Match::Prefix(Clause::Range(
+        vec![Match::Prefix(hashset! {
             Prefix::from(0),
-            Prefix::from(9),
-        ))],
+            Prefix::from(1),
+            Prefix::from(2),
+        })],
         vec![],
     );
     let mut entry = default_entry.clone();
     entry.route.prefix = Prefix::from(0);
     assert!(map.apply(entry.clone()).0);
-    entry.route.prefix = Prefix::from(9);
+    entry.route.prefix = Prefix::from(1);
     assert!(map.apply(entry.clone()).0);
-    entry.route.prefix = Prefix::from(10);
-    assert!(!map.apply(entry).0);
-
-    // Match on Prefix with exclusive_range
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::Prefix(Clause::RangeExclusive(
-            Prefix::from(0),
-            Prefix::from(10),
-        ))],
-        vec![],
-    );
-    let mut entry = default_entry.clone();
-    entry.route.prefix = Prefix::from(0);
+    entry.route.prefix = Prefix::from(2);
     assert!(map.apply(entry.clone()).0);
-    entry.route.prefix = Prefix::from(9);
-    assert!(map.apply(entry.clone()).0);
-    entry.route.prefix = Prefix::from(10);
+    entry.route.prefix = Prefix::from(3);
     assert!(!map.apply(entry).0);
 
     // Match on AsPath to contain 0
@@ -184,10 +170,7 @@ fn complex_matches() {
     let map = RouteMap::new(
         10,
         Deny,
-        vec![
-            Match::NextHop(0.into()),
-            Match::Prefix(RouteMapMatchClause::Equal(0.into())),
-        ],
+        vec![Match::NextHop(0.into()), Match::Prefix(hashset! {0.into()})],
         vec![],
     );
     let mut entry = default_entry.clone();
@@ -325,7 +308,7 @@ fn route_map_builder() {
         RouteMap::new(
             100,
             Allow,
-            vec![Match::Prefix(Clause::Equal(Prefix::from(0)))],
+            vec![Match::Prefix(hashset! {Prefix::from(0)})],
             vec![Set::LocalPref(Some(10))]
         ),
         RouteMapBuilder::new()
@@ -340,16 +323,17 @@ fn route_map_builder() {
         RouteMap::new(
             10,
             Deny,
-            vec![Match::Prefix(Clause::Range(
+            vec![Match::Prefix(hashset! {
                 Prefix::from(0),
-                Prefix::from(9)
-            ))],
+                Prefix::from(1),
+            })],
             vec![]
         ),
         RouteMapBuilder::new()
             .order(10)
             .deny()
-            .match_prefix_range(Prefix::from(0), Prefix::from(9))
+            .match_prefix(Prefix::from(0))
+            .match_prefix(Prefix::from(1))
             .build()
     );
 
