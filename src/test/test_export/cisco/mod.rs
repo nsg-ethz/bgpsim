@@ -20,9 +20,10 @@ use pretty_assertions::assert_str_eq;
 use crate::{
     builder::{constant_link_weight, NetworkBuilder},
     event::BasicEventQueue,
-    export::{cisco::CiscoCfgGen, DefaultIpAddressor, InternalCfgGen},
+    export::{cisco::CiscoCfgGen, DefaultIpAddressor, ExternalCfgGen, InternalCfgGen},
     network::Network,
     route_map::{RouteMapBuilder, RouteMapDirection},
+    types::Prefix,
 };
 
 #[test]
@@ -175,4 +176,99 @@ fn generate_internal_config_route_maps() {
     assert!(c.ends_with('\n'));
 
     assert_str_eq!(c, include_str!("internal_config_route_maps"));
+}
+
+#[test]
+fn generate_external_config() {
+    let mut net: Network<BasicEventQueue> =
+        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+        .unwrap();
+    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_ibgp_full_mesh().unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.advertise_external_route(4.into(), Prefix::from(0), [4, 4, 4, 2, 1], None, None)
+        .unwrap();
+
+    let mut ip = DefaultIpAddressor::new(
+        &net,
+        "10.0.0.0/8".parse().unwrap(),
+        "20.0.0.0/8".parse().unwrap(),
+        "128.0.0.0/1".parse().unwrap(),
+        24,
+        30,
+        24,
+        16,
+    )
+    .unwrap();
+
+    let mut cfg_gen = CiscoCfgGen::new(
+        &net,
+        4.into(),
+        (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
+    )
+    .unwrap();
+    let c = ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap();
+    eprintln!("{}", c);
+
+    // check that the thing ends with a newline
+    assert!(c.ends_with('\n'));
+
+    assert_str_eq!(c, include_str!("external_config"));
+}
+
+#[test]
+fn generate_external_config_withdraw() {
+    let mut net: Network<BasicEventQueue> =
+        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+        .unwrap();
+    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_ibgp_full_mesh().unwrap();
+    net.build_ebgp_sessions().unwrap();
+    net.advertise_external_route(4.into(), Prefix::from(0), [4, 4, 4, 2, 1], None, None)
+        .unwrap();
+    net.advertise_external_route(4.into(), Prefix::from(1), [4, 5, 5, 6], None, None)
+        .unwrap();
+
+    let mut ip = DefaultIpAddressor::new(
+        &net,
+        "10.0.0.0/8".parse().unwrap(),
+        "20.0.0.0/8".parse().unwrap(),
+        "128.0.0.0/1".parse().unwrap(),
+        24,
+        30,
+        24,
+        16,
+    )
+    .unwrap();
+
+    let mut cfg_gen = CiscoCfgGen::new(
+        &net,
+        4.into(),
+        (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
+    )
+    .unwrap();
+    let c = ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap();
+    eprintln!("{}", c);
+
+    // check that the thing ends with a newline
+    assert!(c.ends_with('\n'));
+
+    assert_str_eq!(c, include_str!("external_config_withdraw"));
+
+    let withdraw_c =
+        ExternalCfgGen::withdraw_route(&mut cfg_gen, &net, &mut ip, Prefix::from(1)).unwrap();
+    assert_eq!(
+        withdraw_c,
+        "!
+no interface Loopback2
+router bgp 4
+  address-family ipv4 unicast
+    no network 128.1.0.0/16
+  exit
+exit
+no route-map neighbor-out permit 2
+"
+    )
 }

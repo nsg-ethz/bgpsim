@@ -19,6 +19,7 @@
 
 use std::{cmp::Ordering, collections::HashMap, net::Ipv4Addr};
 
+use bimap::BiMap;
 use ipnet::Ipv4Net;
 use itertools::Itertools;
 use petgraph::visit::EdgeRef;
@@ -49,6 +50,9 @@ pub struct CiscoCfgGen {
     /// For each route-map, store the set of all route-map intems that are active (for both the
     /// incoming and the outgoing sessions.
     route_maps: HashMap<(RouterId, RmDir), Vec<RouteMap>>,
+    /// Used to remember which loopback addresses were already used, and for which prefix. Only used
+    /// for external routers.
+    loopback_prefixes: BiMap<u8, Prefix>,
 }
 
 impl CiscoCfgGen {
@@ -62,6 +66,7 @@ impl CiscoCfgGen {
             ifaces,
             router,
             route_maps: Default::default(),
+            loopback_prefixes: Default::default(),
         })
     }
 
@@ -242,16 +247,132 @@ where
         net: &Network<Q>,
         addressor: &mut Ip,
     ) -> Result<String, ExportError> {
-        todo!()
+        let mut config = String::new();
+        let r = self.router;
+        let router = net
+            .get_device(r)
+            .external_or(ExportError::NotAnExternalRouter(self.router))?;
+        let router_id = addressor.router_address(r)?;
+
+        config.push_str("!\n");
+        config.push_str("feature bgp\n");
+
+        // create the interface configuration
+        config.push_str("!\n! Interfaces\n");
+        for edge in net.get_topology().edges(r).sorted_by_key(|x| x.id()) {
+            let n = edge.target();
+            let (ip, net, iface_idx) = addressor.iface(r, n)?;
+            let iface_name = self.iface(iface_idx)?;
+            let pfx_len = net.prefix_len();
+
+            config.push_str(&interface_cfg(iface_name, ip, pfx_len, None, None, true))
+        }
+        config.push_str(&interface_cfg(
+            "Loopback0",
+            addressor.router_address(r)?,
+            addressor.router_network(r)?.prefix_len(),
+            None,
+            None,
+            true,
+        ));
+
+        // create the bgp base configuratoin
+        config.push_str("!\n! BGP\n");
+        config.push_str(&bgp_cfg(
+            router_id,
+            router.as_id(),
+            &[addressor.router_network(r)?],
+        ));
+
+        // create each neighbor
+        for n in router.neighbors.iter().sorted() {
+            let n_ip = addressor.iface_address(*n, r)?;
+            let source_iface = self.iface(addressor.iface_index(r, *n)?)?;
+            let remote_as = AsId(65535);
+
+            config.push_str(&format!(
+                "!\n! neighbor {}\n",
+                net.get_router_name(*n).unwrap_or("???")
+            ));
+            config.push_str(&bgp_cfg_neighbor(
+                router.as_id(),
+                n_ip,
+                remote_as,
+                source_iface,
+                "neighbor",
+                BgpSessionType::EBgp,
+            ));
+        }
+
+        // TODO create all advertisements. To do that, create loopback interfaces that carry that route,
+        // and advertise it. However, to do that, we need to create some route-maps. We need to set
+        // the precise AS path as desired.
+        config.push_str("!\n! Create external advertisements\n");
+        for (_, route) in router.active_routes.iter().sorted_by_key(|(p, _)| *p) {
+            config.push_str(&self.advertise_route(net, addressor, route)?);
+        }
+
+        Ok(config)
     }
 
     fn advertise_route(
         &mut self,
         net: &Network<Q>,
         addressor: &mut Ip,
-        route: BgpRoute,
+        route: &BgpRoute,
     ) -> Result<String, ExportError> {
-        todo!()
+        // check if the prefix is already present. If so, first withdraw the route
+        if self.loopback_prefixes.contains_right(&route.prefix) {
+            self.withdraw_route(net, addressor, route.prefix)?;
+        }
+
+        let router = net
+            .get_device(self.router)
+            .external_or(ExportError::NotAnExternalRouter(self.router))?;
+        let as_id = router.as_id();
+
+        // get the first loopback that is not used
+        let loopback = (1u8..=255u8)
+            .find(|x| !self.loopback_prefixes.contains_left(x))
+            .ok_or(ExportError::NotEnoughLoopbacks(self.router))?;
+
+        let loopback_iface = format!("Loopback{}", loopback);
+        let prefix_net = addressor.prefix(route.prefix)?;
+        let ip = prefix_net
+            .hosts()
+            .next()
+            .ok_or(ExportError::NotEnoughAddresses)?;
+
+        let mut config = String::new();
+        config.push_str(&interface_cfg(
+            &loopback_iface,
+            ip,
+            prefix_net.prefix_len(),
+            None,
+            None,
+            true,
+        ));
+        config.push_str(&format!(
+            "!
+router bgp {}
+  address-family ipv4 unicast
+    network {}
+  exit
+exit
+route-map neighbor-out permit {}
+  match ip address {}
+  set as-path prepend {}
+exit
+",
+            as_id.0,
+            prefix_net,
+            loopback,
+            prefix_net,
+            route.as_path.iter().skip(1).map(|x| x.0).join(" ")
+        ));
+
+        self.loopback_prefixes.insert(loopback, route.prefix);
+        Ok(config)
     }
 
     fn withdraw_route(
@@ -260,7 +381,29 @@ where
         addressor: &mut Ip,
         prefix: Prefix,
     ) -> Result<String, ExportError> {
-        todo!()
+        let router = net
+            .get_device(self.router)
+            .external_or(ExportError::NotAnExternalRouter(self.router))?;
+        let as_id = router.as_id();
+        let loopback = self
+            .loopback_prefixes
+            .remove_by_right(&prefix)
+            .ok_or(ExportError::WithdrawUnadvertisedRoute)?;
+        let prefix_net = addressor.prefix(prefix)?;
+        Ok(format!(
+            "!
+no interface Loopback{lo}
+router bgp {}
+  address-family ipv4 unicast
+    no network {}
+  exit
+exit
+no route-map neighbor-out permit {lo}
+",
+            as_id.0,
+            prefix_net,
+            lo = loopback.0
+        ))
     }
 }
 

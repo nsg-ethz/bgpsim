@@ -37,7 +37,7 @@ pub mod cisco;
 mod common;
 mod default;
 
-pub use default::{DefaultCfgGen, DefaultIpAddressor};
+pub use default::{DefaultExporter, DefaultIpAddressor};
 
 /// Link index used in the IP addressor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -62,7 +62,7 @@ impl From<(RouterId, RouterId)> for LinkId {
 
 /// An `CfgExporter` orchestrates the export of an entire netowrk. Further, it can be used to create
 /// modifications to configurations.
-pub trait CfgGen<'a, Q> {
+pub trait Exporter<'a, Q> {
     /// Type of Ip Addressor to use.
     type Ip: IpAddressor;
 
@@ -108,7 +108,7 @@ pub trait ExternalCfgGen<Q, Ip> {
         &mut self,
         net: &Network<Q>,
         addressor: &mut Ip,
-        route: BgpRoute,
+        route: &BgpRoute,
     ) -> Result<String, ExportError>;
 
     /// Generate the command for withdrawing a route.
@@ -180,6 +180,9 @@ pub enum ExportError {
     /// Router has not enough interfaces for the required connections
     #[error("Router {0:?} has not enough interfaces!")]
     NotEnoughInterfaces(RouterId),
+    /// Router has not enough loopback interfaces for the required connections
+    #[error("Router {0:?} has not enough loopback interfaces!")]
+    NotEnoughLoopbacks(RouterId),
     /// Internal configuraiton error
     #[error("Cannot create config for internal router {0:?}. Reason: {1}")]
     InternalCfgGenError(RouterId, String),
@@ -195,6 +198,9 @@ pub enum ExportError {
     /// Router is not an external router
     #[error("Router {0:?} is not an external router")]
     NotAnExternalRouter(RouterId),
+    /// Cannot withdraw a route that is not yet advertised
+    #[error("Cannot withdraw a route that is not yet advertised!")]
+    WithdrawUnadvertisedRoute,
 }
 
 /// Return `ExportError::NotEnoughAddresses` if the option is `None`.

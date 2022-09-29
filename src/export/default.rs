@@ -25,7 +25,7 @@ use std::{
 
 use ipnet::{Ipv4Net, Ipv4Subnets};
 
-use super::{ip_err, CfgGen, ExportError, ExternalCfgGen, InternalCfgGen, IpAddressor, LinkId};
+use super::{ip_err, ExportError, Exporter, ExternalCfgGen, InternalCfgGen, IpAddressor, LinkId};
 use crate::{
     network::Network,
     types::{AsId, Prefix, RouterId},
@@ -34,7 +34,7 @@ use crate::{
 /// The default Config generator creates configurations using the default IP addressor. All internal
 /// routers will habe the same config generator, and so do all external routers.
 #[derive(Debug)]
-pub struct DefaultCfgGen<'a, Int, Ext> {
+pub struct DefaultExporter<'a, Int, Ext> {
     internal_ip_range: Ipv4Net,
     external_ip_range: Ipv4Net,
     prefix_ip_range: Ipv4Net,
@@ -45,7 +45,7 @@ pub struct DefaultCfgGen<'a, Int, Ext> {
     _marker: PhantomData<&'a (Int, Ext)>,
 }
 
-impl<'a, Int, Ext> Default for DefaultCfgGen<'a, Int, Ext> {
+impl<'a, Int, Ext> Default for DefaultExporter<'a, Int, Ext> {
     fn default() -> Self {
         Self {
             internal_ip_range: Ipv4Net::new(Ipv4Addr::new(10, 0, 0, 0), 8).unwrap(),
@@ -60,7 +60,7 @@ impl<'a, Int, Ext> Default for DefaultCfgGen<'a, Int, Ext> {
     }
 }
 
-impl<'a, Int, Ext> DefaultCfgGen<'a, Int, Ext> {
+impl<'a, Int, Ext> DefaultExporter<'a, Int, Ext> {
     /// Create a new default configuration generator. See [`DefaultIpAddressor`] for an explenation
     /// of the attributes.
     pub fn new(
@@ -85,7 +85,7 @@ impl<'a, Int, Ext> DefaultCfgGen<'a, Int, Ext> {
     }
 }
 
-impl<'a, Q, Int, Ext> CfgGen<'a, Q> for DefaultCfgGen<'a, Int, Ext>
+impl<'a, Q, Int, Ext> Exporter<'a, Q> for DefaultExporter<'a, Int, Ext>
 where
     Q: 'a,
     Int: InternalCfgGen<Q, DefaultIpAddressor<'a, Q>>,

@@ -1,0 +1,75 @@
+!
+feature bgp
+!
+! Interfaces
+!
+interface Ethernet8/1
+  no shutdown
+  ip address 10.192.0.1/30
+exit
+!
+interface Loopback0
+  no shutdown
+  ip address 20.0.0.1/24
+exit
+!
+! BGP
+!
+router bgp 4
+  router-id 20.0.0.1
+  address-family ipv4 unicast
+    network 20.0.0.0/24
+  exit
+exit
+!
+! neighbor R0
+!
+router bgp 4
+  neighbor 10.192.0.2 remote-as 65535
+    update-source Ethernet8/1
+    address-family ipv4 unicast
+      weight 100
+      route-map neighbor-in in
+      route-map neighbor-out out
+      next-hop-self
+    exit
+  exit
+exit
+!
+route-map neighbor-in permit 65535
+exit
+!
+route-map neighbor-out permit 65535
+exit
+!
+! Create external advertisements
+!
+interface Loopback1
+  no shutdown
+  ip address 128.0.0.1/16
+exit
+!
+router bgp 4
+  address-family ipv4 unicast
+    network 128.0.0.0/16
+  exit
+exit
+route-map neighbor-out permit 1
+  match ip address 128.0.0.0/16
+  set as-path prepend 4 4 2 1
+exit
+!
+interface Loopback2
+  no shutdown
+  ip address 128.1.0.1/16
+exit
+!
+router bgp 4
+  address-family ipv4 unicast
+    network 128.1.0.0/16
+  exit
+exit
+route-map neighbor-out permit 2
+  match ip address 128.1.0.0/16
+  set as-path prepend 5 5 6
+exit
