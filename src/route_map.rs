@@ -51,7 +51,7 @@ use std::{collections::HashSet, fmt};
 pub struct RouteMap {
     /// In which order should the route maps be checked. Lower values mean that they are checked
     /// earlier.
-    pub order: isize,
+    pub order: i16,
     /// Either Allow or Deny. If the last state matched RouteMap is deny, the route is denied. Else,
     /// it is allowed.
     pub state: RouteMapState,
@@ -64,7 +64,7 @@ pub struct RouteMap {
 impl RouteMap {
     /// Generate a new route map
     pub fn new(
-        order: isize,
+        order: i16,
         state: RouteMapState,
         conds: Vec<RouteMapMatch>,
         set: Vec<RouteMapSet>,
@@ -97,7 +97,7 @@ impl RouteMap {
     }
 
     /// Returns the order of the RouteMap.
-    pub fn order(&self) -> isize {
+    pub fn order(&self) -> i16 {
         self.order
     }
 
@@ -142,7 +142,7 @@ impl RouteMap {
 /// ```
 #[derive(Debug, Default)]
 pub struct RouteMapBuilder {
-    order: Option<isize>,
+    order: Option<i16>,
     state: Option<RouteMapState>,
     conds: Vec<RouteMapMatch>,
     set: Vec<RouteMapSet>,
@@ -156,13 +156,13 @@ impl RouteMapBuilder {
     }
 
     /// Set the order of the Route-Map.
-    pub fn order(&mut self, order: usize) -> &mut Self {
-        self.order = Some(order as isize);
+    pub fn order(&mut self, order: u16) -> &mut Self {
+        self.order = Some(order as i16);
         self
     }
 
     /// Set the order of the Route-Map, using a signed number.
-    pub fn order_sgn(&mut self, order: isize) -> &mut Self {
+    pub fn order_sgn(&mut self, order: i16) -> &mut Self {
         self.order = Some(order);
         self
     }

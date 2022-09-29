@@ -612,7 +612,7 @@ impl Router {
         &mut self,
         neighbor: RouterId,
         direction: RouteMapDirection,
-        order: isize,
+        order: i16,
     ) -> Result<(Option<RouteMap>, Vec<Event<P>>), DeviceError> {
         // prepare the undo action
         #[cfg(feature = "undo")]
@@ -670,7 +670,7 @@ impl Router {
         &self,
         neighbor: RouterId,
         direction: RouteMapDirection,
-        order: isize,
+        order: i16,
     ) -> Option<&RouteMap> {
         let maps = match direction {
             Incoming => self.bgp_route_maps_in.get(&neighbor)?,
@@ -1198,7 +1198,7 @@ pub(crate) enum UndoAction {
     BgpRibIn(Prefix, RouterId, Option<BgpRibEntry>),
     BgpRib(Prefix, Option<BgpRibEntry>),
     BgpRibOut(Prefix, RouterId, Option<BgpRibEntry>),
-    BgpRouteMap(RouterId, RouteMapDirection, isize, Option<RouteMap>),
+    BgpRouteMap(RouterId, RouteMapDirection, i16, Option<RouteMap>),
     BgpSession(RouterId, Option<BgpSessionType>),
     IgpForwardingTable(
         HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,

@@ -662,7 +662,7 @@ where
         router: RouterId,
         neighbor: RouterId,
         direction: RouteMapDirection,
-        order: isize,
+        order: i16,
     ) -> Result<Option<RouteMap>, NetworkError> {
         // prepare undo stack
         #[cfg(feature = "undo")]

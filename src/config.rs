@@ -498,7 +498,7 @@ pub enum ConfigExprKey {
         /// External Router of which to modify all BGP routes.
         direction: RouteMapDirection,
         /// order of the route map
-        order: isize,
+        order: i16,
     },
     /// Key for setting a static route
     StaticRoute {
