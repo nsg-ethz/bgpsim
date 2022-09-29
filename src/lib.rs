@@ -147,6 +147,9 @@ pub mod bgp;
 pub mod builder;
 pub mod config;
 pub mod event;
+#[cfg(feature = "export")]
+#[cfg_attr(docsrs, doc(cfg(feature = "export")))]
+pub mod export;
 pub mod external_router;
 #[cfg(not(tarpaulin_include))]
 pub mod formatter;

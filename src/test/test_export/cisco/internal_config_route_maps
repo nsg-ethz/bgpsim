@@ -1,0 +1,160 @@
+!
+feature bgp
+feature ospf
+!
+! Interfaces
+!
+interface Ethernet8/1
+  no shutdown
+  ip address 10.128.0.1/30
+  ip ospf cost 100
+  ip router ospf 10 area 0
+exit
+!
+interface Ethernet8/2
+  no shutdown
+  ip address 10.128.0.5/30
+  ip ospf cost 100
+  ip router ospf 10 area 0
+exit
+!
+interface Ethernet8/3
+  no shutdown
+  ip address 10.128.0.9/30
+  ip ospf cost 100
+  ip router ospf 10 area 0
+exit
+!
+interface Ethernet8/4
+  no shutdown
+  ip address 10.192.0.1/30
+  ip ospf cost 1
+  ip router ospf 10 area 0
+exit
+!
+interface Loopback0
+  no shutdown
+  ip address 10.0.0.1/24
+  ip ospf cost 1
+  ip router ospf 10 area 0
+exit
+!
+! OSPF
+!
+router ospf 10
+  router-id 10.0.0.1
+exit
+!
+! BGP
+!
+router bgp 65535
+  router-id 10.0.0.1
+  address-family ipv4 unicast
+    network 10.0.0.0/8
+  exit
+exit
+!
+! neighbor R1
+!
+router bgp 65535
+  neighbor 10.0.1.1 remote-as 65535
+    update-source Loopback0
+    address-family ipv4 unicast
+      weight 100
+      route-map neighbor-R1-in in
+      route-map neighbor-R1-out out
+      !
+    exit
+  exit
+exit
+!
+route-map neighbor-R1-in permit 65535
+exit
+!
+route-map neighbor-R1-out permit 65535
+exit
+!
+! neighbor R2
+!
+router bgp 65535
+  neighbor 10.0.2.1 remote-as 65535
+    update-source Loopback0
+    address-family ipv4 unicast
+      weight 100
+      route-map neighbor-R2-in in
+      route-map neighbor-R2-out out
+      !
+    exit
+  exit
+exit
+!
+route-map neighbor-R2-in permit 65535
+exit
+!
+route-map neighbor-R2-out permit 65535
+exit
+!
+! neighbor R3
+!
+router bgp 65535
+  neighbor 10.0.3.1 remote-as 65535
+    update-source Loopback0
+    address-family ipv4 unicast
+      weight 100
+      route-map neighbor-R3-in in
+      route-map neighbor-R3-out out
+      !
+    exit
+  exit
+exit
+!
+route-map neighbor-R3-in permit 65535
+exit
+!
+route-map neighbor-R3-out permit 65535
+exit
+!
+! neighbor R0_ext_4
+!
+router bgp 65535
+  neighbor 10.192.0.2 remote-as 4
+    update-source Ethernet8/4
+    address-family ipv4 unicast
+      weight 100
+      route-map neighbor-R0_ext_4-in in
+      route-map neighbor-R0_ext_4-out out
+      next-hop-self
+    exit
+  exit
+exit
+!
+route-map neighbor-R0_ext_4-in permit 65535
+exit
+!
+route-map neighbor-R0_ext_4-out permit 65535
+exit
+!
+! Route-Maps
+!
+ip prefix-list neighbor-R0_ext_4-in-32778-pl seq 1 permit 128.0.0.0/16
+ip community-list standard neighbor-R0_ext_4-in-32778-cl permit 65535:10
+route-map neighbor-R0_ext_4-in permit 32778
+  match ip address neighbor-R0_ext_4-in-32778-pl
+  match community neighbor-R0_ext_4-in-32778-cl
+  set weight 10
+  continue 32788
+exit
+!
+ip prefix-list neighbor-R0_ext_4-in-32788-pl seq 1 permit 128.1.0.0/16
+ip community-list standard neighbor-R0_ext_4-in-32788-cl permit 65535:20
+route-map neighbor-R0_ext_4-in permit 32788
+  match ip address neighbor-R0_ext_4-in-32788-pl
+  match community neighbor-R0_ext_4-in-32788-cl
+  set weight 200
+  continue 65535
+exit
+!
+ip community-list standard neighbor-R0_ext_4-out-32778-cl permit 65535:20
+route-map neighbor-R0_ext_4-out deny 32778
+  match community neighbor-R0_ext_4-out-32778-cl
+exit

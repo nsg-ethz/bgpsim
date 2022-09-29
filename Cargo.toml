@@ -32,6 +32,7 @@ rand_queue = ["dep:rand", "dep:rand_distr", "dep:priority-queue", "dep:geoutils"
 serde = ["dep:serde", "dep:serde_with", "petgraph/serde-1", "ordered-float/serde", "priority-queue?/serde", "im?/serde"]
 topology_zoo = ["dep:xmltree", "dep:geoutils"]
 cow = ["dep:im"]
+export = ["dep:ipnet"]
 
 [dependencies]
 thiserror = "1"
@@ -49,6 +50,7 @@ xmltree = { version = "0.10", optional = true }
 geoutils = { version = "0.2", optional = true }
 im = {version = "15.1.0", optional = true }
 maplit = "1.0.2"
+ipnet = { version = "2.5.0", optional = true }
 
 [dev-dependencies]
 rand = "0.8.4"

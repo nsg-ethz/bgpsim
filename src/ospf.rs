@@ -39,7 +39,7 @@ pub(crate) const MIN_EPSILON: LinkWeight = LinkWeight::EPSILON * 1024.0;
 /// OSPF Area as a regular number. Area 0 (default) is the backbone area.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct OspfArea(u32);
+pub struct OspfArea(pub(crate) u32);
 
 impl std::fmt::Display for OspfArea {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
