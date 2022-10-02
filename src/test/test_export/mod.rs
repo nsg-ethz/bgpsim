@@ -28,6 +28,7 @@ use crate::{
 };
 
 mod cisco;
+mod frr;
 
 pub(self) fn generate_internal_config_full_mesh(target: Target) -> String {
     let mut net: Network<BasicEventQueue> =
