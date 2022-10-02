@@ -701,23 +701,27 @@ impl RouterBgp {
     ///         .build(Target::Frr),
     ///     "\
     /// router bgp 10
-    ///   router-id 10.0.0.1
+    ///   bgp router-id 10.0.0.1
     ///   neighbor 20.0.0.1 remote-as 20
     ///   neighbor 20.0.0.1 update-source Loopback1
     ///   address-family ipv4 unicast
     ///     network 10.0.0.0/8
     ///     neighbor 20.0.0.1 next-hop-self
     ///     neighbor 20.0.0.1 route-map swisscom-in in
-    ///   exit
+    ///   exit-address-family
     /// exit
     /// "
     /// );
     /// ```
     pub fn build(&self, target: Target) -> String {
         // router-id
+        let router_id_pfx = match target {
+            Target::CiscoNexus7000 => "",
+            Target::Frr => "bgp ",
+        };
         let router_id = match (self.router_id, self.no_router_id) {
-            (Some(id), false) => format!("  router-id {}\n", id),
-            (_, true) => String::from("  no router-id\n"),
+            (Some(id), false) => format!("  {}router-id {}\n", router_id_pfx, id),
+            (_, true) => format!("  no {}router-id\n", router_id_pfx),
             (None, false) => String::new(),
         };
 
@@ -770,9 +774,13 @@ impl RouterBgp {
         let af = if network_code.is_empty() && af_neighbor_code.is_empty() {
             String::new()
         } else {
+            let exit_af = match target {
+                Target::CiscoNexus7000 => "",
+                Target::Frr => "-address-family",
+            };
             format!(
-                "  address-family ipv4 unicast\n{}{}  exit\n",
-                network_code, af_neighbor_code
+                "  address-family ipv4 unicast\n{}{}  exit{}\n",
+                network_code, af_neighbor_code, exit_af
             )
         };
 

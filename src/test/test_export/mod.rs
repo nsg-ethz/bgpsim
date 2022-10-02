@@ -30,6 +30,13 @@ use crate::{
 mod cisco;
 mod frr;
 
+fn iface_names(target: Target) -> Vec<String> {
+    match target {
+        Target::CiscoNexus7000 => (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
+        Target::Frr => (1..=8).map(|i| format!("eth{}", i)).collect(),
+    }
+}
+
 pub(self) fn generate_internal_config_full_mesh(target: Target) -> String {
     let mut net: Network<BasicEventQueue> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
@@ -51,13 +58,7 @@ pub(self) fn generate_internal_config_full_mesh(target: Target) -> String {
     )
     .unwrap();
 
-    let mut cfg_gen = CiscoFrrCfgGen::new(
-        &net,
-        0.into(),
-        target,
-        (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
-    )
-    .unwrap();
+    let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
@@ -83,13 +84,7 @@ pub(self) fn generate_internal_config_route_reflector(target: Target) -> String 
     )
     .unwrap();
 
-    let mut cfg_gen = CiscoFrrCfgGen::new(
-        &net,
-        0.into(),
-        target,
-        (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
-    )
-    .unwrap();
+    let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
@@ -154,13 +149,7 @@ pub(self) fn generate_internal_config_route_maps(target: Target) -> String {
     )
     .unwrap();
 
-    let mut cfg_gen = CiscoFrrCfgGen::new(
-        &net,
-        0.into(),
-        target,
-        (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
-    )
-    .unwrap();
+    let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
@@ -187,13 +176,7 @@ pub(self) fn generate_external_config(target: Target) -> String {
     )
     .unwrap();
 
-    let mut cfg_gen = CiscoFrrCfgGen::new(
-        &net,
-        4.into(),
-        target,
-        (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
-    )
-    .unwrap();
+    let mut cfg_gen = CiscoFrrCfgGen::new(&net, 4.into(), target, iface_names(target)).unwrap();
     ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
@@ -222,13 +205,7 @@ pub(self) fn generate_external_config_withdraw(target: Target) -> (String, Strin
     )
     .unwrap();
 
-    let mut cfg_gen = CiscoFrrCfgGen::new(
-        &net,
-        4.into(),
-        target,
-        (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
-    )
-    .unwrap();
+    let mut cfg_gen = CiscoFrrCfgGen::new(&net, 4.into(), target, iface_names(target)).unwrap();
     let c = ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap();
 
     let withdraw_c =

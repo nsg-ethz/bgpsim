@@ -15,6 +15,11 @@ exit
 !
 ! BGP
 !
+route-map neighbor-in permit 65535
+exit
+route-map neighbor-out permit 65535
+exit
+!
 router bgp 4
   router-id 20.0.0.1
   neighbor 10.192.0.2 remote-as 65535
@@ -28,11 +33,6 @@ router bgp 4
   address-family ipv4 unicast
     network 20.0.0.0/24
   exit
-exit
-!
-route-map neighbor-in permit 65535
-exit
-route-map neighbor-out permit 65535
 exit
 !
 ! Create external advertisements

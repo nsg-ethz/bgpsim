@@ -256,9 +256,9 @@ impl CiscoFrrCfgGen {
 
         // push the bgp configuration
         config.push_str("!\n! BGP\n!\n");
-        config.push_str(&router_bgp.build(self.target));
-        config.push_str("!\n");
         config.push_str(&default_rm);
+        config.push_str("!\n");
+        config.push_str(&router_bgp.build(self.target));
 
         Ok(config)
     }
@@ -776,14 +776,16 @@ where
         }
         // announce the internal prefix (for now).
         router_bgp.network(addressor.router_network(self.router)?);
-        // create
+        // create the actual config
         config.push_str("!\n! BGP\n!\n");
+        // first, push all route-maps
+        config.push_str(&RouteMapItem::new(EXTERNAL_RM_IN, u16::MAX, true).build(self.target));
+        config.push_str(&RouteMapItem::new(EXTERNAL_RM_OUT, u16::MAX, true).build(self.target));
+        config.push_str("!\n");
+        // then, push the config
         config.push_str(&router_bgp.build(self.target));
 
         // create the two route-maps that allow everything
-        config.push_str("!\n");
-        config.push_str(&RouteMapItem::new(EXTERNAL_RM_IN, u16::MAX, true).build(self.target));
-        config.push_str(&RouteMapItem::new(EXTERNAL_RM_OUT, u16::MAX, true).build(self.target));
 
         // Create all external advertisements
         config.push_str("!\n! Create external advertisements\n");
