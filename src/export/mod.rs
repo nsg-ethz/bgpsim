@@ -23,18 +23,17 @@
 use std::net::Ipv4Addr;
 
 use ipnet::Ipv4Net;
-use petgraph::prelude::*;
 use thiserror::Error;
 
 use crate::{
     bgp::BgpRoute,
     config::ConfigModifier,
     network::Network,
-    types::{IndexType, NetworkError, Prefix, RouterId},
+    types::{Prefix, RouterId},
 };
 
-pub mod cisco;
-mod common;
+pub mod cisco_frr;
+pub mod cisco_frr_generators;
 mod default;
 
 pub use default::{DefaultExporter, DefaultIpAddressor};
@@ -118,6 +117,14 @@ pub trait ExternalCfgGen<Q, Ip> {
         addressor: &mut Ip,
         prefix: Prefix,
     ) -> Result<String, ExportError>;
+
+    /// Generate the command for establishing a new BGP session.
+    fn establish_ebgp_session(
+        &mut self,
+        net: &Network<Q>,
+        addressor: &mut Ip,
+        neighbor: RouterId,
+    ) -> Result<String, ExportError>;
 }
 
 /// A trait for generating address ranges and addresses for specific devices
@@ -128,6 +135,12 @@ pub trait IpAddressor {
     /// Get router address (router ID) for the given router.
     fn router_address(&mut self, router: RouterId) -> Result<Ipv4Addr, ExportError> {
         Ok(self.router(router)?.1)
+    }
+
+    /// Get router address (router ID) for the given router, including the prefix length.
+    fn router_address_full(&mut self, router: RouterId) -> Result<Ipv4Net, ExportError> {
+        let (net, ip) = self.router(router)?;
+        Ok(Ipv4Net::new(ip, net.prefix_len())?)
     }
 
     /// Get the network of the router itself. This address will be announced via BGP.
@@ -141,6 +154,15 @@ pub trait IpAddressor {
     /// Get the IP prefix of an external prefix
     fn prefix(&mut self, prefix: Prefix) -> Result<Ipv4Net, ExportError>;
 
+    /// Get the first host IP in the prefix range, including the prefix length.
+    fn prefix_address(&mut self, prefix: Prefix) -> Result<Ipv4Net, ExportError> {
+        let net = self.prefix(prefix)?;
+        Ok(Ipv4Net::new(
+            net.hosts().next().ok_or(ExportError::NotEnoughAddresses)?,
+            net.prefix_len(),
+        )?)
+    }
+
     /// Get the interface address of a specific link in the network
     fn iface_address(
         &mut self,
@@ -148,6 +170,16 @@ pub trait IpAddressor {
         neighbor: RouterId,
     ) -> Result<Ipv4Addr, ExportError> {
         Ok(self.iface(router, neighbor)?.0)
+    }
+
+    /// Get the full interface address, including the network mask
+    fn iface_address_full(
+        &mut self,
+        router: RouterId,
+        neighbor: RouterId,
+    ) -> Result<Ipv4Net, ExportError> {
+        let (ip, net, _) = self.iface(router, neighbor)?;
+        Ok(Ipv4Net::new(ip, net.prefix_len())?)
     }
 
     /// Get the interface index of the specified link and router in the network.
@@ -201,6 +233,9 @@ pub enum ExportError {
     /// Cannot withdraw a route that is not yet advertised
     #[error("Cannot withdraw a route that is not yet advertised!")]
     WithdrawUnadvertisedRoute,
+    /// Config modifier does not cause any change in the given router.
+    #[error("Config modifier does not cause any change in the given router.")]
+    ModifierDoesNotAffectRouter,
 }
 
 /// Return `ExportError::NotEnoughAddresses` if the option is `None`.
