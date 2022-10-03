@@ -32,12 +32,14 @@ use crate::{
     types::{AsId, Prefix, RouterId},
 };
 
-pub mod cisco_frr;
+mod cisco_frr;
 pub mod cisco_frr_generators;
 mod default;
-pub mod exabgp;
+mod exabgp;
 
+pub use cisco_frr::CiscoFrrCfgGen;
 pub use default::DefaultAddressor;
+pub use exabgp::ExaBgpCfgGen;
 
 /// The internal AS Number
 const INTERNAL_AS: AsId = AsId(65535);

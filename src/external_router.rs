@@ -164,16 +164,7 @@ impl ExternalRouter {
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
 
-        let route = BgpRoute {
-            prefix,
-            as_path,
-            next_hop: self.router_id,
-            local_pref: None,
-            med,
-            community: community.into_iter().collect(),
-            originator_id: None,
-            cluster_list: Vec::new(),
-        };
+        let route = BgpRoute::new(self.router_id, prefix, as_path, med, community);
 
         let old_route = self.active_routes.insert(prefix, route.clone());
 

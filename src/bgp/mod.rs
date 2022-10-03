@@ -60,6 +60,32 @@ impl Ord for BgpRoute {
 }
 
 impl BgpRoute {
+    /// Create a new BGP route from all attributes that are transitive.
+    pub fn new<A, C>(
+        next_hop: RouterId,
+        prefix: impl Into<Prefix>,
+        as_path: A,
+        med: Option<u32>,
+        community: C,
+    ) -> Self
+    where
+        A: IntoIterator,
+        A::Item: Into<AsId>,
+        C: IntoIterator<Item = u32>,
+    {
+        let as_path: Vec<AsId> = as_path.into_iter().map(|id| id.into()).collect();
+        Self {
+            prefix: prefix.into(),
+            as_path,
+            next_hop,
+            local_pref: None,
+            med,
+            community: community.into_iter().collect(),
+            originator_id: None,
+            cluster_list: Vec::new(),
+        }
+    }
+
     /// Applies the default values for any non-mandatory field
     #[allow(dead_code)]
     pub fn apply_default(&mut self) {

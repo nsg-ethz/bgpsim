@@ -19,7 +19,7 @@ use crate::{
     builder::{constant_link_weight, NetworkBuilder},
     event::BasicEventQueue,
     export::{
-        cisco_frr::CiscoFrrCfgGen, cisco_frr_generators::Target, DefaultAddressor, ExternalCfgGen,
+        cisco_frr_generators::Target, CiscoFrrCfgGen, DefaultAddressor, ExternalCfgGen,
         InternalCfgGen,
     },
     network::Network,

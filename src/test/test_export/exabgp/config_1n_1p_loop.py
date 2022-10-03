@@ -10,4 +10,4 @@ sys.stdout.write("neighbor 10.192.0.1 announce route 128.0.0.0/16 next-hop self 
 sys.stdout.flush()
 
 while True:
-    time.sleep(1)
+    time.sleep(10)

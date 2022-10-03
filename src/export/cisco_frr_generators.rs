@@ -1592,8 +1592,8 @@ impl RouteMapItem {
     /// );
     /// ```
     ///
-    /// To replace the match on the prefix-list, first call [`no_match_prefix_list`] with the old
-    /// prefix-list, and then call `match_prefix_list` with the new one:
+    /// To replace the match on the prefix-list, first call [`RouteMapItem::no_match_prefix_list`]
+    /// with the old prefix-list, and then call `match_prefix_list` with the new one:
     ///
     /// ```
     /// # use netsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
@@ -1658,8 +1658,8 @@ impl RouteMapItem {
     /// );
     /// ```
     ///
-    /// To replace the current community-list, simply call [`no_match_community_list`] with the old
-    /// community-list first, followed by `match_community_list` with the new one:
+    /// To replace the current community-list, simply call [`RouteMapItem::no_match_community_list`]
+    /// with the old community-list first, followed by `match_community_list` with the new one:
     ///
     /// ```
     /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
@@ -1726,8 +1726,8 @@ impl RouteMapItem {
     /// );
     /// ```
     ///
-    /// To replace an as-path access-list, first call [`no_match_as_path_list`] with the old
-    /// access-list, followed by `match_as_path_list` with the new one:
+    /// To replace an as-path access-list, first call [`RouteMapItem::no_match_as_path_list`] with
+    /// the old access-list, followed by `match_as_path_list` with the new one:
     ///
     /// ```
     /// # use netsim::export::cisco_frr_generators::{RouteMapItem, AsPathList, Target};
@@ -1792,8 +1792,8 @@ impl RouteMapItem {
     /// );
     /// ```
     ///
-    /// To replace the match on the next-hop, first call [`no_match_next_hop`] with the old
-    /// prefix-list, followed by `match_next_hop` with the new one:
+    /// To replace the match on the next-hop, first call [`RouteMapItem::no_match_next_hop`] with
+    /// the old prefix-list, followed by `match_next_hop` with the new one:
     ///
     /// ```
     /// # use netsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
