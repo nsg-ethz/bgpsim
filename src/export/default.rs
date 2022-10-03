@@ -19,105 +19,20 @@
 
 use std::{
     collections::{hash_map::Entry, HashMap},
-    marker::PhantomData,
     net::Ipv4Addr,
 };
 
 use ipnet::{Ipv4Net, Ipv4Subnets};
 
-use super::{ip_err, ExportError, Exporter, ExternalCfgGen, InternalCfgGen, IpAddressor, LinkId};
+use super::{ip_err, Addressor, ExportError, LinkId};
 use crate::{
     network::Network,
     types::{AsId, Prefix, RouterId},
 };
 
-/// The default Config generator creates configurations using the default IP addressor. All internal
-/// routers will habe the same config generator, and so do all external routers.
-#[derive(Debug)]
-pub struct DefaultExporter<'a, Int, Ext> {
-    internal_ip_range: Ipv4Net,
-    external_ip_range: Ipv4Net,
-    prefix_ip_range: Ipv4Net,
-    local_prefix_len: u8,
-    link_prefix_len: u8,
-    external_prefix_len: u8,
-    prefix_len: u8,
-    _marker: PhantomData<&'a (Int, Ext)>,
-}
-
-impl<'a, Int, Ext> Default for DefaultExporter<'a, Int, Ext> {
-    fn default() -> Self {
-        Self {
-            internal_ip_range: Ipv4Net::new(Ipv4Addr::new(10, 0, 0, 0), 8).unwrap(),
-            external_ip_range: Ipv4Net::new(Ipv4Addr::new(20, 0, 0, 0), 8).unwrap(),
-            prefix_ip_range: Ipv4Net::new(Ipv4Addr::new(100, 0, 0, 0), 8).unwrap(),
-            local_prefix_len: 24,
-            link_prefix_len: 30,
-            external_prefix_len: 16,
-            prefix_len: 24,
-            _marker: Default::default(),
-        }
-    }
-}
-
-impl<'a, Int, Ext> DefaultExporter<'a, Int, Ext> {
-    /// Create a new default configuration generator. See [`DefaultIpAddressor`] for an explenation
-    /// of the attributes.
-    pub fn new(
-        internal_ip_range: Ipv4Net,
-        external_ip_range: Ipv4Net,
-        prefix_ip_range: Ipv4Net,
-        local_prefix_len: u8,
-        link_prefix_len: u8,
-        external_prefix_len: u8,
-        prefix_len: u8,
-    ) -> Self {
-        Self {
-            internal_ip_range,
-            external_ip_range,
-            prefix_ip_range,
-            local_prefix_len,
-            link_prefix_len,
-            external_prefix_len,
-            prefix_len,
-            _marker: PhantomData,
-        }
-    }
-}
-
-impl<'a, Q, Int, Ext> Exporter<'a, Q> for DefaultExporter<'a, Int, Ext>
-where
-    Q: 'a,
-    Int: InternalCfgGen<Q, DefaultIpAddressor<'a, Q>>,
-    Int: ExternalCfgGen<Q, DefaultIpAddressor<'a, Q>>,
-{
-    type Ip = DefaultIpAddressor<'a, Q>;
-
-    fn addressor(&mut self, net: &'a Network<Q>) -> Result<Self::Ip, super::ExportError> {
-        Self::Ip::new(
-            net,
-            self.internal_ip_range,
-            self.external_ip_range,
-            self.prefix_ip_range,
-            self.local_prefix_len,
-            self.link_prefix_len,
-            self.external_prefix_len,
-            self.prefix_len,
-        )
-    }
-
-    fn internal_gen(&mut self, router: RouterId) -> Box<dyn InternalCfgGen<Q, Self::Ip>> {
-        todo!()
-    }
-
-    fn external_gen(&mut self, router: RouterId) -> Box<dyn ExternalCfgGen<Q, Self::Ip>> {
-        todo!()
-    }
-}
-
 /// The default IP addressor uses.
 #[derive(Debug)]
-pub struct DefaultIpAddressor<'a, Q> {
+pub struct DefaultAddressor<'a, Q> {
     net: &'a Network<Q>,
     /// The internal netowrk
     internal_net: Ipv4Net,
@@ -145,7 +60,7 @@ pub struct DefaultIpAddressor<'a, Q> {
     interfaces: HashMap<RouterId, HashMap<RouterId, (usize, Ipv4Addr)>>,
 }
 
-impl<'a, Q> DefaultIpAddressor<'a, Q> {
+impl<'a, Q> DefaultAddressor<'a, Q> {
     /// Create a new Default IP Addressor. The attributes have the following meaning:
     ///
     /// - `internal_ip_range`: This is the IP range available for the entire internal network. This
@@ -194,7 +109,7 @@ impl<'a, Q> DefaultIpAddressor<'a, Q> {
     }
 }
 
-impl<'a, Q> IpAddressor for DefaultIpAddressor<'a, Q> {
+impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
     fn internal_network(&mut self) -> Ipv4Net {
         self.internal_net
     }
@@ -279,7 +194,7 @@ mod test {
     use crate::{
         builder::NetworkBuilder,
         event::BasicEventQueue,
-        export::{DefaultIpAddressor, IpAddressor},
+        export::{Addressor, DefaultAddressor},
         network::Network,
     };
 
@@ -304,7 +219,7 @@ mod test {
         net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
             .unwrap();
 
-        let mut ip = DefaultIpAddressor::new(
+        let mut ip = DefaultAddressor::new(
             &net,
             "10.0.0.0/8".parse().unwrap(),
             "20.0.0.0/8".parse().unwrap(),

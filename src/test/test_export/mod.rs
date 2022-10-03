@@ -19,8 +19,8 @@ use crate::{
     builder::{constant_link_weight, NetworkBuilder},
     event::BasicEventQueue,
     export::{
-        cisco_frr::CiscoFrrCfgGen, cisco_frr_generators::Target, DefaultIpAddressor,
-        ExternalCfgGen, InternalCfgGen,
+        cisco_frr::CiscoFrrCfgGen, cisco_frr_generators::Target, DefaultAddressor, ExternalCfgGen,
+        InternalCfgGen,
     },
     network::Network,
     route_map::{RouteMapBuilder, RouteMapDirection},
@@ -46,7 +46,7 @@ pub(self) fn generate_internal_config_full_mesh(target: Target) -> String {
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
 
-    let mut ip = DefaultIpAddressor::new(
+    let mut ip = DefaultAddressor::new(
         &net,
         "10.0.0.0/8".parse().unwrap(),
         "20.0.0.0/8".parse().unwrap(),
@@ -72,7 +72,7 @@ pub(self) fn generate_internal_config_route_reflector(target: Target) -> String 
         .unwrap();
     net.build_ebgp_sessions().unwrap();
 
-    let mut ip = DefaultIpAddressor::new(
+    let mut ip = DefaultAddressor::new(
         &net,
         "10.0.0.0/8".parse().unwrap(),
         "20.0.0.0/8".parse().unwrap(),
@@ -137,7 +137,7 @@ pub(self) fn generate_internal_config_route_maps(target: Target) -> String {
     )
     .unwrap();
 
-    let mut ip = DefaultIpAddressor::new(
+    let mut ip = DefaultAddressor::new(
         &net,
         "10.0.0.0/8".parse().unwrap(),
         "20.0.0.0/8".parse().unwrap(),
@@ -164,7 +164,7 @@ pub(self) fn generate_external_config(target: Target) -> String {
     net.advertise_external_route(4.into(), Prefix::from(0), [4, 4, 4, 2, 1], None, None)
         .unwrap();
 
-    let mut ip = DefaultIpAddressor::new(
+    let mut ip = DefaultAddressor::new(
         &net,
         "10.0.0.0/8".parse().unwrap(),
         "20.0.0.0/8".parse().unwrap(),
@@ -193,7 +193,7 @@ pub(self) fn generate_external_config_withdraw(target: Target) -> (String, Strin
     net.advertise_external_route(4.into(), Prefix::from(1), [4, 5, 5, 6], None, None)
         .unwrap();
 
-    let mut ip = DefaultIpAddressor::new(
+    let mut ip = DefaultAddressor::new(
         &net,
         "10.0.0.0/8".parse().unwrap(),
         "20.0.0.0/8".parse().unwrap(),

@@ -47,11 +47,10 @@ use super::{
         RouteMapItem, RouterBgp, RouterBgpNeighbor, RouterOspf, StaticRoute as StaticRouteGen,
         Target,
     },
-    ExportError, ExternalCfgGen, InternalCfgGen, IpAddressor,
+    Addressor, ExportError, ExternalCfgGen, InternalCfgGen, INTERNAL_AS,
 };
 
 /// constant for the internal AS number
-const INTERNAL_AS: AsId = AsId(65535);
 const EXTERNAL_RM_IN: &str = "neighbor-in";
 const EXTERNAL_RM_OUT: &str = "neighbor-out";
 
@@ -107,7 +106,7 @@ impl CiscoFrrCfgGen {
     /// return `Err(ExportError::ModifierDoesNotAffectRouter)`. We use `a` and `b`, instead of only
     /// `target`, such that one can call this function without knowing which of `a` and `b` is
     /// `self.router`.
-    fn iface<Ip: IpAddressor>(
+    fn iface<Ip: Addressor>(
         &self,
         a: RouterId,
         b: RouterId,
@@ -123,7 +122,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create all the interface configuration
-    fn iface_config<Ip: IpAddressor, Q>(
+    fn iface_config<Ip: Addressor, Q>(
         &self,
         net: &Network<Q>,
         addressor: &mut Ip,
@@ -167,7 +166,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the static route config
-    fn static_route_config<Ip: IpAddressor, Q>(
+    fn static_route_config<Ip: Addressor, Q>(
         &self,
         net: &Network<Q>,
         router: &Router,
@@ -187,7 +186,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Generate a single static route line
-    fn static_route<Ip: IpAddressor, Q>(
+    fn static_route<Ip: Addressor, Q>(
         &self,
         net: &Network<Q>,
         addressor: &mut Ip,
@@ -208,7 +207,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the ospf configuration
-    fn ospf_config<Ip: IpAddressor>(
+    fn ospf_config<Ip: Addressor>(
         &self,
         router: &Router,
         addressor: &mut Ip,
@@ -225,7 +224,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the BGP configuration
-    fn bgp_config<Ip: IpAddressor, Q>(
+    fn bgp_config<Ip: Addressor, Q>(
         &self,
         net: &Network<Q>,
         router: &Router,
@@ -264,7 +263,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the configuration for a BGP neighbor
-    fn bgp_neigbor_config<Ip: IpAddressor, Q>(
+    fn bgp_neigbor_config<Ip: Addressor, Q>(
         &self,
         net: &Network<Q>,
         addressor: &mut Ip,
@@ -299,7 +298,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create all route-maps
-    fn route_map_config<Ip: IpAddressor, Q>(
+    fn route_map_config<Ip: Addressor, Q>(
         &self,
         net: &Network<Q>,
         addressor: &mut Ip,
@@ -353,7 +352,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create a route-map item from a [`RouteMap`]
-    fn route_map_item<Ip: IpAddressor, Q>(
+    fn route_map_item<Ip: Addressor, Q>(
         &self,
         name: &str,
         rm: &RouteMap,
@@ -434,7 +433,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Transform the router-id into an IP address (when writing route-maps)
-    fn router_id_to_ip<Ip: IpAddressor, Q>(
+    fn router_id_to_ip<Ip: Addressor, Q>(
         &self,
         r: RouterId,
         net: &Network<Q>,
@@ -471,7 +470,7 @@ fn rm_name<Q>(net: &Network<Q>, router: RouterId) -> String {
 
 impl<Q, Ip> InternalCfgGen<Q, Ip> for CiscoFrrCfgGen
 where
-    Ip: IpAddressor,
+    Ip: Addressor,
 {
     fn generate_config(
         &mut self,
@@ -742,7 +741,7 @@ where
 
 impl<Q, Ip> ExternalCfgGen<Q, Ip> for CiscoFrrCfgGen
 where
-    Ip: IpAddressor,
+    Ip: Addressor,
 {
     fn generate_config(
         &mut self,

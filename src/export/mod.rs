@@ -29,14 +29,17 @@ use crate::{
     bgp::BgpRoute,
     config::ConfigModifier,
     network::Network,
-    types::{Prefix, RouterId},
+    types::{AsId, Prefix, RouterId},
 };
 
 pub mod cisco_frr;
 pub mod cisco_frr_generators;
 mod default;
 
-pub use default::{DefaultExporter, DefaultIpAddressor};
+pub use default::DefaultAddressor;
+
+/// The internal AS Number
+const INTERNAL_AS: AsId = AsId(65535);
 
 /// Link index used in the IP addressor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -57,22 +60,6 @@ impl From<(RouterId, RouterId)> for LinkId {
     fn from(x: (RouterId, RouterId)) -> Self {
         Self::new(x.0, x.1)
     }
-}
-
-/// An `CfgExporter` orchestrates the export of an entire netowrk. Further, it can be used to create
-/// modifications to configurations.
-pub trait Exporter<'a, Q> {
-    /// Type of Ip Addressor to use.
-    type Ip: IpAddressor;
-
-    /// Create the addressor used by this config generator.
-    fn addressor(&mut self, net: &'a Network<Q>) -> Result<Self::Ip, ExportError>;
-
-    /// Create a config generator for an internal router.
-    fn internal_gen(&mut self, router: RouterId) -> Box<dyn InternalCfgGen<Q, Self::Ip>>;
-
-    /// Create a config generator for an external router.
-    fn external_gen(&mut self, router: RouterId) -> Box<dyn ExternalCfgGen<Q, Self::Ip>>;
 }
 
 /// A trait for generating configurations for an internal router
@@ -127,8 +114,8 @@ pub trait ExternalCfgGen<Q, Ip> {
     ) -> Result<String, ExportError>;
 }
 
-/// A trait for generating address ranges and addresses for specific devices
-pub trait IpAddressor {
+/// A trait for generating IP address ranges and AS numbers.
+pub trait Addressor {
     /// Get the internal network
     fn internal_network(&mut self) -> Ipv4Net;
 
