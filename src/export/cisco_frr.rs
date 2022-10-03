@@ -106,11 +106,11 @@ impl CiscoFrrCfgGen {
     /// return `Err(ExportError::ModifierDoesNotAffectRouter)`. We use `a` and `b`, instead of only
     /// `target`, such that one can call this function without knowing which of `a` and `b` is
     /// `self.router`.
-    fn iface<Ip: Addressor>(
+    fn iface<A: Addressor>(
         &self,
         a: RouterId,
         b: RouterId,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<&str, ExportError> {
         if a == self.router {
             self.iface_idx(addressor.iface_index(a, b)?)
@@ -122,10 +122,10 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create all the interface configuration
-    fn iface_config<Ip: Addressor, Q>(
+    fn iface_config<A: Addressor, Q>(
         &self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
         let r = self.router;
@@ -166,11 +166,11 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the static route config
-    fn static_route_config<Ip: Addressor, Q>(
+    fn static_route_config<A: Addressor, Q>(
         &self,
         net: &Network<Q>,
         router: &Router,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::from("!\n! Static Routes\n!\n");
 
@@ -186,10 +186,10 @@ impl CiscoFrrCfgGen {
     }
 
     /// Generate a single static route line
-    fn static_route<Ip: Addressor, Q>(
+    fn static_route<A: Addressor, Q>(
         &self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         prefix: Prefix,
         sr: StaticRoute,
     ) -> Result<StaticRouteGen, ExportError> {
@@ -207,10 +207,10 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the ospf configuration
-    fn ospf_config<Ip: Addressor>(
+    fn ospf_config<A: Addressor>(
         &self,
         router: &Router,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
 
@@ -224,11 +224,11 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the BGP configuration
-    fn bgp_config<Ip: Addressor, Q>(
+    fn bgp_config<A: Addressor, Q>(
         &self,
         net: &Network<Q>,
         router: &Router,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
         let mut default_rm = String::new();
@@ -263,10 +263,10 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the configuration for a BGP neighbor
-    fn bgp_neigbor_config<Ip: Addressor, Q>(
+    fn bgp_neigbor_config<A: Addressor, Q>(
         &self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         n: RouterId,
         ty: BgpSessionType,
         rm_name: &str,
@@ -298,10 +298,10 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create all route-maps
-    fn route_map_config<Ip: Addressor, Q>(
+    fn route_map_config<A: Addressor, Q>(
         &self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
 
@@ -352,12 +352,12 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create a route-map item from a [`RouteMap`]
-    fn route_map_item<Ip: Addressor, Q>(
+    fn route_map_item<A: Addressor, Q>(
         &self,
         name: &str,
         rm: &RouteMap,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         cont: i16,
     ) -> Result<RouteMapItem, ExportError> {
         let ord = order(rm.order);
@@ -433,11 +433,11 @@ impl CiscoFrrCfgGen {
     }
 
     /// Transform the router-id into an IP address (when writing route-maps)
-    fn router_id_to_ip<Ip: Addressor, Q>(
+    fn router_id_to_ip<A: Addressor, Q>(
         &self,
         r: RouterId,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<Ipv4Addr, ExportError> {
         if net.get_device(r).is_internal() && net.get_device(self.router).is_internal() {
             addressor.router_address(r)
@@ -468,14 +468,11 @@ fn rm_name<Q>(net: &Network<Q>, router: RouterId) -> String {
     }
 }
 
-impl<Q, Ip> InternalCfgGen<Q, Ip> for CiscoFrrCfgGen
-where
-    Ip: Addressor,
-{
+impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
     fn generate_config(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<String, ExportError> {
         // generate all route-maps, and stre them in the local structure, for easy modifications.
         self.route_maps = if let Some(r) = net.get_device(self.router).internal() {
@@ -514,7 +511,7 @@ where
     fn generate_command(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         cmd: ConfigModifier,
     ) -> Result<String, ExportError> {
         match cmd {
@@ -739,14 +736,11 @@ where
     }
 }
 
-impl<Q, Ip> ExternalCfgGen<Q, Ip> for CiscoFrrCfgGen
-where
-    Ip: Addressor,
-{
+impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
     fn generate_config(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
         let router = net
@@ -799,7 +793,7 @@ where
     fn advertise_route(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         route: &BgpRoute,
     ) -> Result<String, ExportError> {
         // check if the prefix is already present. If so, first withdraw the route
@@ -846,7 +840,7 @@ where
     fn withdraw_route(
         &mut self,
         _net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         prefix: Prefix,
     ) -> Result<String, ExportError> {
         let loopback = self
@@ -889,7 +883,7 @@ where
     fn establish_ebgp_session(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
         Ok(RouterBgp::new(self.as_id)

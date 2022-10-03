@@ -35,6 +35,7 @@ use crate::{
 pub mod cisco_frr;
 pub mod cisco_frr_generators;
 mod default;
+pub mod exabgp;
 
 pub use default::DefaultAddressor;
 
@@ -63,37 +64,37 @@ impl From<(RouterId, RouterId)> for LinkId {
 }
 
 /// A trait for generating configurations for an internal router
-pub trait InternalCfgGen<Q, Ip> {
+pub trait InternalCfgGen<Q, A> {
     /// Generate all configuration files for the device.
     fn generate_config(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<String, ExportError>;
 
     /// generate the reconfiguration command(s) for a config modification
     fn generate_command(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         cmd: ConfigModifier,
     ) -> Result<String, ExportError>;
 }
 
 /// A trait for generating configurations for an external router
-pub trait ExternalCfgGen<Q, Ip> {
+pub trait ExternalCfgGen<Q, A> {
     /// Generate all configuration files for the device.
     fn generate_config(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
     ) -> Result<String, ExportError>;
 
     /// Generate the commands for advertising a new route
     fn advertise_route(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         route: &BgpRoute,
     ) -> Result<String, ExportError>;
 
@@ -101,7 +102,7 @@ pub trait ExternalCfgGen<Q, Ip> {
     fn withdraw_route(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         prefix: Prefix,
     ) -> Result<String, ExportError>;
 
@@ -109,7 +110,7 @@ pub trait ExternalCfgGen<Q, Ip> {
     fn establish_ebgp_session(
         &mut self,
         net: &Network<Q>,
-        addressor: &mut Ip,
+        addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError>;
 }
