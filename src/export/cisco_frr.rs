@@ -152,6 +152,8 @@ impl CiscoFrrCfgGen {
 
             if is_internal {
                 iface.cost(*edge.weight());
+                iface.hello_interval(1);
+                iface.dead_interval(5);
                 if let Ok(area) = net.get_ospf_area(r, n) {
                     iface.area(area);
                     self.local_area = Some(self.local_area.map(|x| x.min(area)).unwrap_or(area));
