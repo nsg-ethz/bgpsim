@@ -93,7 +93,7 @@ impl CiscoFrrCfgGen {
     }
 
     /// Get the interface name at the given index
-    fn iface_idx(&self, idx: usize) -> Result<&str, ExportError> {
+    pub fn iface_name(&self, idx: usize) -> Result<&str, ExportError> {
         if let Some(iface) = self.ifaces.get(idx) {
             Ok(iface.as_str())
         } else {
@@ -113,9 +113,9 @@ impl CiscoFrrCfgGen {
         addressor: &mut A,
     ) -> Result<&str, ExportError> {
         if a == self.router {
-            self.iface_idx(addressor.iface_index(a, b)?)
+            self.iface_name(addressor.iface_index(a, b)?)
         } else if b == self.router {
-            self.iface_idx(addressor.iface_index(b, a)?)
+            self.iface_name(addressor.iface_index(b, a)?)
         } else {
             Err(ExportError::ModifierDoesNotAffectRouter)
         }
