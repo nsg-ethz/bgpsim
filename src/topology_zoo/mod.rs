@@ -265,7 +265,7 @@ impl TopologyZooParser {
                 if AttrType::String != key.ty {
                     return Err(TopologyZooError::AttrInvalidType(AttrType::String, key.ty));
                 }
-                name = Some(value);
+                name = Some(value.chars().filter(|c| !c.is_whitespace()).collect());
             } else if &key.name == "Latitude" {
                 if AttrType::Float != key.ty {
                     return Err(TopologyZooError::AttrInvalidType(AttrType::String, key.ty));

@@ -8,6 +8,8 @@ interface Ethernet8/1
   ip address 10.128.0.1/30
   ip ospf cost 100
   ip router ospf 10 area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
   no shutdown
 exit
 !
@@ -15,6 +17,8 @@ interface Ethernet8/2
   ip address 10.128.0.5/30
   ip ospf cost 100
   ip router ospf 10 area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
   no shutdown
 exit
 !
@@ -22,6 +26,8 @@ interface Ethernet8/3
   ip address 10.128.0.9/30
   ip ospf cost 100
   ip router ospf 10 area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
   no shutdown
 exit
 !
@@ -29,6 +35,8 @@ interface Ethernet8/4
   ip address 10.192.0.1/30
   ip ospf cost 1
   ip router ospf 10 area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
   no shutdown
 exit
 !

@@ -6,6 +6,8 @@ interface eth1
   ip address 10.128.0.1/30
   ip ospf cost 100
   ip ospf area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
   no shutdown
 exit
 !
@@ -13,6 +15,8 @@ interface eth2
   ip address 10.128.0.5/30
   ip ospf cost 100
   ip ospf area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
   no shutdown
 exit
 !
@@ -20,6 +24,8 @@ interface eth3
   ip address 10.128.0.9/30
   ip ospf cost 100
   ip ospf area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
   no shutdown
 exit
 !
@@ -27,6 +33,8 @@ interface eth4
   ip address 10.192.0.1/30
   ip ospf cost 1
   ip ospf area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
   no shutdown
 exit
 !

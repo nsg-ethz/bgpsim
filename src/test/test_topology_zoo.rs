@@ -32,10 +32,10 @@ fn test_all() {
 fn test_extract() {
     let n = TopologyZoo::Epoch.build(BasicEventQueue::new());
 
-    assert_eq!(n.get_device(0.into()).unwrap_internal().name(), "Palo Alto");
+    assert_eq!(n.get_device(0.into()).unwrap_internal().name(), "PaloAlto");
     assert_eq!(
         n.get_device(1.into()).unwrap_internal().name(),
-        "Los Angeles"
+        "LosAngeles"
     );
     assert_eq!(n.get_device(2.into()).unwrap_internal().name(), "Denver");
     assert_eq!(n.get_device(3.into()).unwrap_internal().name(), "Chicago");

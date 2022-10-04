@@ -268,7 +268,8 @@ impl GeoTimingModel {
                     (*r1, *r2),
                     NotNan::new(
                         p1.distance_to(p2)
-                            .unwrap_or_else(|_| p1.haversine_distance_to(p2)),
+                            .unwrap_or_else(|_| p1.haversine_distance_to(p2))
+                            .meters(),
                     )
                     .unwrap(),
                 )

@@ -112,7 +112,7 @@ fn test_build_ibgp_rr_most_important() {
         .unwrap();
     assert_eq!(reflectors.len(), 3);
     assert!(reflectors.contains(&net.get_router_id("Praha").unwrap()));
-    assert!(reflectors.contains(&net.get_router_id("Hradec Kralove").unwrap()));
+    assert!(reflectors.contains(&net.get_router_id("HradecKralove").unwrap()));
     assert!(reflectors.contains(&net.get_router_id("Brno").unwrap()));
 }
 
