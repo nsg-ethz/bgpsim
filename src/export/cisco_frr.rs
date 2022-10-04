@@ -67,6 +67,8 @@ pub struct CiscoFrrCfgGen {
     /// Used to remember which loopback addresses were already used, and for which prefix. Only used
     /// for external routers.
     loopback_prefixes: BiMap<u8, Prefix>,
+    /// local OSPF Area, which is the lowest as id used in any of its adjacent interfaces
+    local_area: Option<OspfArea>,
 }
 
 impl CiscoFrrCfgGen {
@@ -89,7 +91,16 @@ impl CiscoFrrCfgGen {
             as_id,
             route_maps: Default::default(),
             loopback_prefixes: Default::default(),
+            local_area: Default::default(),
         })
+    }
+
+    /// Get the local OSPF area of the router. This is equal to the OSPF area with the lowest ID
+    /// which is adjacent to that router.
+    ///
+    /// *Warning*: This field is only computed after generating the configuration!.
+    pub fn local_area(&self) -> Option<OspfArea> {
+        self.local_area
     }
 
     /// Get the interface name at the given index
@@ -123,7 +134,7 @@ impl CiscoFrrCfgGen {
 
     /// Create all the interface configuration
     fn iface_config<A: Addressor, Q>(
-        &self,
+        &mut self,
         net: &Network<Q>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
@@ -132,7 +143,6 @@ impl CiscoFrrCfgGen {
         let is_internal = net.get_device(self.router).is_internal();
 
         config.push_str("!\n! Interfaces\n!\n");
-        let mut min_ospf_area: Option<OspfArea> = None;
         for edge in net.get_topology().edges(r).sorted_by_key(|x| x.id()) {
             let n = edge.target();
 
@@ -144,7 +154,7 @@ impl CiscoFrrCfgGen {
                 iface.cost(*edge.weight());
                 if let Ok(area) = net.get_ospf_area(r, n) {
                     iface.area(area);
-                    min_ospf_area = Some(min_ospf_area.map(|x| x.min(area)).unwrap_or(area));
+                    self.local_area = Some(self.local_area.map(|x| x.min(area)).unwrap_or(area));
                 };
             }
 
@@ -154,9 +164,9 @@ impl CiscoFrrCfgGen {
 
         // configure the loopback address
         let mut lo = Interface::new(loopback_iface(self.target, 0));
-        lo.ip_address(addressor.router_address_full(r)?);
+        lo.ip_address(Ipv4Net::new(addressor.router_address(r)?, 32)?);
         lo.no_shutdown();
-        if let Some(area) = min_ospf_area {
+        if let Some(area) = self.local_area {
             lo.cost(1.0);
             lo.area(area);
         }
@@ -263,7 +273,6 @@ impl CiscoFrrCfgGen {
         config.push_str(
             &StaticRouteGen::new(addressor.internal_network())
                 .blackhole()
-                .preference(255)
                 .build(self.target),
         );
 
@@ -785,6 +794,12 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
         config.push_str("!\n");
         // then, push the config
         config.push_str(&router_bgp.build(self.target));
+        config.push_str("!\n");
+        config.push_str(
+            &StaticRouteGen::new(addressor.router_network(self.router)?)
+                .blackhole()
+                .build(self.target),
+        );
 
         // create the two route-maps that allow everything
 

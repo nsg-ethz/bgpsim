@@ -9,7 +9,7 @@ interface Ethernet8/1
 exit
 !
 interface Loopback0
-  ip address 20.0.0.1/24
+  ip address 20.0.0.1/32
   no shutdown
 exit
 !
@@ -34,6 +34,8 @@ router bgp 4
     network 20.0.0.0/24
   exit
 exit
+!
+ip route 20.0.0.0/24 null 0
 !
 ! Create external advertisements
 !

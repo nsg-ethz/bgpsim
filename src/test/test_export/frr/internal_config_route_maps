@@ -31,7 +31,7 @@ interface eth4
 exit
 !
 interface lo
-  ip address 10.0.0.1/24
+  ip address 10.0.0.1/32
   ip ospf cost 1
   ip ospf area 0
   no shutdown
@@ -94,7 +94,7 @@ router bgp 65535
   exit-address-family
 exit
 !
-ip route 10.0.0.0/8 Null0 255
+ip route 10.0.0.0/8 Null0
 !
 ! Route-Maps
 !
