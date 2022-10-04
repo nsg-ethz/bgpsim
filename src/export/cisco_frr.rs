@@ -258,6 +258,14 @@ impl CiscoFrrCfgGen {
         config.push_str(&default_rm);
         config.push_str("!\n");
         config.push_str(&router_bgp.build(self.target));
+        // push the static route for the entire internal network with the lowest preference.
+        config.push_str("!\n");
+        config.push_str(
+            &StaticRouteGen::new(addressor.internal_network())
+                .blackhole()
+                .preference(255)
+                .build(self.target),
+        );
 
         Ok(config)
     }

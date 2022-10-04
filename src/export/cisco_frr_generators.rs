@@ -1403,6 +1403,7 @@ impl From<&mut RouterBgpNeighbor> for RouterBgpNeighbor {
 pub struct StaticRoute {
     destination: Ipv4Net,
     target: Option<String>,
+    pref: Option<u8>,
 }
 
 impl StaticRoute {
@@ -1412,6 +1413,7 @@ impl StaticRoute {
         Self {
             destination,
             target: Default::default(),
+            pref: Default::default(),
         }
     }
 
@@ -1475,11 +1477,11 @@ impl StaticRoute {
     /// let dest: Ipv4Net = "1.0.0.0/8".parse().unwrap();
     /// assert_eq!(
     ///     StaticRoute::new(dest).blackhole().build(Target::CiscoNexus7000),
-    ///     "ip route 1.0.0.0/8 null\n"
+    ///     "ip route 1.0.0.0/8 null 0\n"
     /// );
     /// assert_eq!(
     ///     StaticRoute::new(dest).build(Target::CiscoNexus7000),
-    ///     "ip route 1.0.0.0/8 null\n"
+    ///     "ip route 1.0.0.0/8 null 0\n"
     /// );
     /// ```
     pub fn blackhole(&mut self) -> &mut Self {
@@ -1487,17 +1489,37 @@ impl StaticRoute {
         self
     }
 
+    /// Set the administrative distance of the static route. 1 (default) has the highest preference,
+    /// while 255 has the lowest preference.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{StaticRoute, Target};
+    /// use ipnet::Ipv4Net;
+    ///
+    /// let dest: Ipv4Net = "1.0.0.0/8".parse().unwrap();
+    /// assert_eq!(
+    ///     StaticRoute::new(dest).blackhole().preference(255).build(Target::CiscoNexus7000),
+    ///     "ip route 1.0.0.0/8 null 0 255\n"
+    /// );
+    /// ```
+    pub fn preference(&mut self, pref: u8) -> &mut Self {
+        self.pref = Some(pref);
+        self
+    }
+
     /// Build the command. If you have neither called `via_address` or `via_interface`, the `build`
     /// function will create a command that will blackhole all traffic.
     pub fn build(&self, target: Target) -> String {
         let null = match target {
-            Target::CiscoNexus7000 => "null",
+            Target::CiscoNexus7000 => "null 0",
             Target::Frr => "Null0",
         };
+        let pref = self.pref.map(|p| format!(" {}", p)).unwrap_or_default();
         format!(
-            "ip route {} {}\n",
+            "ip route {} {}{}\n",
             self.destination,
-            self.target.as_deref().unwrap_or(null)
+            self.target.as_deref().unwrap_or(null),
+            pref
         )
     }
 }

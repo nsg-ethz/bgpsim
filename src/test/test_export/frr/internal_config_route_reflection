@@ -97,5 +97,7 @@ router bgp 65535
   exit-address-family
 exit
 !
+ip route 10.0.0.0/8 Null0 255
+!
 ! Route-Maps
 !
