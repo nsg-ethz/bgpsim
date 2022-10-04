@@ -48,6 +48,10 @@ pub struct Interface {
     no_cost: bool,
     area: Option<OspfArea>,
     no_area: bool,
+    dead_interval: Option<u16>,
+    no_dead_interval: bool,
+    hello_interval: Option<u16>,
+    no_hello_interval: bool,
     shutdown: Option<bool>,
 }
 
@@ -63,6 +67,10 @@ impl Interface {
             area: None,
             no_area: false,
             shutdown: None,
+            dead_interval: None,
+            no_dead_interval: false,
+            hello_interval: None,
+            no_hello_interval: false,
         }
     }
 
@@ -209,6 +217,86 @@ impl Interface {
         self
     }
 
+    /// Set the dead-interval to some time (in seconds). This number is used for Wait Timer and
+    /// Inactivity Timer. This value must be the same for all routers attached to a common
+    /// network. The default value is 40 seconds.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1").dead_interval(10).build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   ip ospf dead-interval 10
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn dead_interval(&mut self, seconds: u16) -> &mut Self {
+        self.dead_interval = Some(seconds);
+        self
+    }
+
+    /// Unset the dead-interval to some time (in seconds). This number is used for Wait Timer and
+    /// Inactivity Timer. This value must be the same for all routers attached to a common
+    /// network. This will reset this number back to 40.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1").no_dead_interval().build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   no ip ospf dead-interval
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn no_dead_interval(&mut self) -> &mut Self {
+        self.no_dead_interval = true;
+        self
+    }
+
+    /// Set the hello-interval to some time (in seconds). Setting this value, Hello packet will be
+    /// sent every timer value seconds on the specified interface. This value must be the same for
+    /// all routers attached to a common network. This will reset this number back to 10.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1").hello_interval(10).build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   ip ospf hello-interval 10
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn hello_interval(&mut self, seconds: u16) -> &mut Self {
+        self.hello_interval = Some(seconds);
+        self
+    }
+
+    /// Unset the hello-interval to some time (in seconds). Setting this value, Hello packet will be
+    /// sent every timer value seconds on the specified interface. This value must be the same for
+    /// all routers attached to a common network. This will reset this number back to 10.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1").no_hello_interval().build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   no ip ospf hello-interval
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn no_hello_interval(&mut self) -> &mut Self {
+        self.no_hello_interval = true;
+        self
+    }
+
     /// Disable the interface by setting the `shutdown` command.
     ///
     /// ```
@@ -279,7 +367,7 @@ impl Interface {
         format!(
             "\
 interface {iface}\
-{addr}{cost}{area}{shutdown}
+{addr}{cost}{area}{dead}{hello}{shutdown}
 exit
 ",
             iface = self.iface_name,
@@ -296,6 +384,16 @@ exit
             area = match (self.area, self.no_area) {
                 (Some(area), false) => format!("\n  {} {}", ospf_area_cmd, area.0),
                 (_, true) => format!("\n  no {}", ospf_area_cmd),
+                (None, false) => String::new(),
+            },
+            dead = match (self.dead_interval, self.no_dead_interval) {
+                (Some(seconds), false) => format!("\n  ip ospf dead-interval {}", seconds),
+                (_, true) => String::from("\n  no ip ospf dead-interval"),
+                (None, false) => String::new(),
+            },
+            hello = match (self.hello_interval, self.no_hello_interval) {
+                (Some(seconds), false) => format!("\n  ip ospf hello-interval {}", seconds),
+                (_, true) => String::from("\n  no ip ospf hello-interval"),
                 (None, false) => String::new(),
             },
             shutdown = match self.shutdown {
