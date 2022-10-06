@@ -1643,7 +1643,7 @@ impl StaticRoute {
 /// ip prefix-list test-nh seq 1 permit 10.0.1.1/32
 /// route-map test permit 10
 ///   match community test-cl
-///   match ip next-hop test-nh
+///   match ip next-hop prefix-list test-nh
 ///   set weight 200
 ///   set local-preference 200
 ///   continue 20
@@ -1706,7 +1706,7 @@ impl RouteMapItem {
     ///     "\
     /// ip prefix-list test-pl seq 1 permit 10.0.0.0/8
     /// route-map test permit 10
-    ///   match ip address test-pl
+    ///   match ip address prefix-list test-pl
     /// exit
     /// "
     /// );
@@ -1729,8 +1729,8 @@ impl RouteMapItem {
     /// no ip prefix-list test-pl-old
     /// ip prefix-list test-pl-new seq 1 permit 20.0.0.0/8
     /// route-map test permit 10
-    ///   no match ip address test-pl-old
-    ///   match ip address test-pl-new
+    ///   no match ip address prefix-list test-pl-old
+    ///   match ip address prefix-list test-pl-new
     /// exit
     /// "
     /// );
@@ -1751,7 +1751,7 @@ impl RouteMapItem {
     ///     "\
     /// no ip prefix-list test-pl
     /// route-map test permit 10
-    ///   no match ip address test-pl
+    ///   no match ip address prefix-list test-pl
     /// exit
     /// "
     /// );
@@ -1906,7 +1906,7 @@ impl RouteMapItem {
     ///     "\
     /// ip prefix-list test-nh-pl seq 1 permit 10.0.0.0/8
     /// route-map test permit 10
-    ///   match ip next-hop test-nh-pl
+    ///   match ip next-hop prefix-list test-nh-pl
     /// exit
     /// "
     /// );
@@ -1929,8 +1929,8 @@ impl RouteMapItem {
     /// no ip prefix-list test-nh-pl-old
     /// ip prefix-list test-nh-pl-new seq 1 permit 20.0.0.0/8
     /// route-map test permit 10
-    ///   no match ip next-hop test-nh-pl-old
-    ///   match ip next-hop test-nh-pl-new
+    ///   no match ip next-hop prefix-list test-nh-pl-old
+    ///   match ip next-hop prefix-list test-nh-pl-new
     /// exit
     /// "
     /// );
@@ -1951,7 +1951,7 @@ impl RouteMapItem {
     ///     "\
     /// no ip prefix-list test-nh-pl
     /// route-map test permit 10
-    ///   no match ip next-hop test-nh-pl
+    ///   no match ip next-hop prefix-list test-nh-pl
     /// exit
     /// "
     /// );
@@ -2373,7 +2373,7 @@ impl RouteMapItem {
         // match_prefix_list: Vec<(PrefixList, bool)>,
         for (pl, mode) in self.match_prefix_list.iter() {
             cfg.push_str(if *mode { "  " } else { "  no " });
-            cfg.push_str(&format!("match ip address {}\n", pl.name));
+            cfg.push_str(&format!("match ip address prefix-list {}\n", pl.name));
         }
         // match_community_list: Vec<(CommunityList, bool)>,
         for (cl, mode) in self.match_community_list.iter() {
@@ -2388,7 +2388,7 @@ impl RouteMapItem {
         // match_next_hop_pl: Vec<(PrefixList, bool)>,
         for (pl, mode) in self.match_next_hop_pl.iter() {
             cfg.push_str(if *mode { "  " } else { "  no " });
-            cfg.push_str(&format!("match ip next-hop {}\n", pl.name));
+            cfg.push_str(&format!("match ip next-hop prefix-list {}\n", pl.name));
         }
         // set_next_hop: Option<(Ipv4Addr, bool)>,
         match self.set_next_hop {

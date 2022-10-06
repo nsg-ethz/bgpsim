@@ -73,6 +73,7 @@
 //!   `HashSet<Prefix, T>` will be transformed into a `Option<T>`. This significantly improves
 //!   performance. To disable `multi_prefix`, add the option `default-features = false` to the
 //!   dependency declaration in your `cargo.toml` file.
+//! - `layout`: Utilities to automatically create a layout of the network.
 //!
 //! ## Example usage
 //!

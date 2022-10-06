@@ -109,7 +109,7 @@ ip route 10.0.0.0/8 Null0
 ip prefix-list neighbor-R0_ext_4-in-32778-pl seq 1 permit 128.0.0.0/16
 bgp community-list standard neighbor-R0_ext_4-in-32778-cl permit 65535:10
 route-map neighbor-R0_ext_4-in permit 32778
-  match ip address neighbor-R0_ext_4-in-32778-pl
+  match ip address prefix-list neighbor-R0_ext_4-in-32778-pl
   match community neighbor-R0_ext_4-in-32778-cl
   set weight 10
   continue 32788
@@ -118,7 +118,7 @@ exit
 ip prefix-list neighbor-R0_ext_4-in-32788-pl seq 1 permit 128.1.0.0/16
 bgp community-list standard neighbor-R0_ext_4-in-32788-cl permit 65535:20
 route-map neighbor-R0_ext_4-in permit 32788
-  match ip address neighbor-R0_ext_4-in-32788-pl
+  match ip address prefix-list neighbor-R0_ext_4-in-32788-pl
   match community neighbor-R0_ext_4-in-32788-cl
   set weight 200
   continue 65535

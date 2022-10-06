@@ -185,6 +185,22 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
             }
         })
     }
+
+    fn list_ifaces(&self, router: RouterId) -> Vec<(RouterId, Ipv4Addr, Ipv4Net, usize)> {
+        self.interfaces
+            .get(&router)
+            .into_iter()
+            .flatten()
+            .filter_map(|(neighbor, (iface_idx, addr))| {
+                Some((
+                    *neighbor,
+                    *addr,
+                    *self.link_addrs.get(&(router, *neighbor).into())?,
+                    *iface_idx,
+                ))
+            })
+            .collect()
+    }
 }
 
 #[cfg(test)]

@@ -188,6 +188,11 @@ pub trait Addressor {
         router: RouterId,
         neighbor: RouterId,
     ) -> Result<(Ipv4Addr, Ipv4Net, usize), ExportError>;
+
+    /// Get a list of all interfaces of a single router. Each interface is a four-tuple, containing
+    /// the connected router-id, the IP address of the interface, the network of the link, and the
+    /// interface index. The returned list **may not** be ordered.
+    fn list_ifaces(&self, router: RouterId) -> Vec<(RouterId, Ipv4Addr, Ipv4Net, usize)>;
 }
 
 /// Error thrown by the exporter
