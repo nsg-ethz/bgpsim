@@ -193,6 +193,30 @@ pub trait Addressor {
     /// the connected router-id, the IP address of the interface, the network of the link, and the
     /// interface index. The returned list **may not** be ordered.
     fn list_ifaces(&self, router: RouterId) -> Vec<(RouterId, Ipv4Addr, Ipv4Net, usize)>;
+
+    /// Lookup an IP address in the addressor, and return the RouterId to which the address belongs
+    /// to. You can provide either an Ipv4Net or an Ipv4Addr. In case the provided address is a link
+    /// network, and the IP does not match one of the connected routers, this function will return
+    /// the router along the following list of preference:
+    /// - Internal router before external router
+    /// - Router with the lower IP address specified on the link.
+    fn find_address(&self, address: impl Into<Ipv4Net>) -> Result<RouterId, ExportError>;
+
+    /// Compute the next-hop router-id of the next-hop. The next-hop IP is searched as follows: If
+    /// the IP belongs to a router, and this router is adjacent to `router`, then return that
+    /// router. If the IP address belongs to an interface adjacent to `router`, then return the
+    /// RouterId of this neighbor. In any other case, return `Err(ExportError::AddressNotFound)`.
+    fn find_next_hop(
+        &self,
+        router: RouterId,
+        address: impl Into<Ipv4Net>,
+    ) -> Result<RouterId, ExportError>;
+
+    /// Find the prefix that contains the given address.
+    fn find_prefix(&self, address: impl Into<Ipv4Net>) -> Result<Prefix, ExportError>;
+
+    /// Find the neighbor RouterId that is connected to the `router` with the given `iface_idx`.
+    fn find_neighbor(&self, router: RouterId, iface_idx: usize) -> Result<RouterId, ExportError>;
 }
 
 /// Error thrown by the exporter
@@ -231,6 +255,15 @@ pub enum ExportError {
     /// Config modifier does not cause any change in the given router.
     #[error("Config modifier does not cause any change in the given router.")]
     ModifierDoesNotAffectRouter,
+    /// The given IP Address could not be found.
+    #[error("IP Address {0} could not be associated with any router!")]
+    AddressNotFound(Ipv4Net),
+    /// The interface was not found.
+    #[error("Interface {1} of router {0:?} does not exist!")]
+    InterfaceNotFound(RouterId, String),
+    /// The given IP Address could not be found.
+    #[error("The two routers {0:?} and {1:?} are not connected via an interface!")]
+    RoutersNotConnected(RouterId, RouterId),
 }
 
 /// Return `ExportError::NotEnoughAddresses` if the option is `None`.

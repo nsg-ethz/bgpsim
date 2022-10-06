@@ -201,6 +201,111 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
             })
             .collect()
     }
+
+    fn find_address(&self, address: impl Into<Ipv4Net>) -> Result<RouterId, ExportError> {
+        let address: Ipv4Net = address.into();
+        let ip = address.addr();
+        let net = Ipv4Net::new(address.network(), address.prefix_len())?;
+        // first, check if any router uses that address
+        if let Some((r, _)) = self
+            .router_addrs
+            .iter()
+            .find(|(_, (x, _))| x.contains(&net))
+        {
+            return Ok(*r);
+        }
+        // then, check if any interface has that specifc address
+        if let Some((r, _)) = self
+            .interfaces
+            .iter()
+            .find(|(_, ifaces)| ifaces.iter().any(|(_, (_, x))| ip == *x))
+        {
+            return Ok(*r);
+        }
+        // Finally, check if the address belongs to an interface
+        if let Some((link, _)) = self.link_addrs.iter().find(|(_, x)| x.contains(&net)) {
+            let (a, b) = (link.0, link.1);
+            let a_int = self.net.get_device(a).is_internal();
+            let b_int = self.net.get_device(b).is_internal();
+            return if a_int == b_int {
+                // either both are internal, or both are external. Return the router with the lower
+                // IP address.
+                let a_ip = self.interfaces.get(&a).unwrap().get(&b).unwrap().1;
+                let b_ip = self.interfaces.get(&b).unwrap().get(&a).unwrap().1;
+                Ok(if a_ip < b_ip { a } else { b })
+            } else if a_int {
+                // a is internal, but b is not. Return a
+                Ok(a)
+            } else {
+                // b is internal, but a is not. Return b
+                Ok(b)
+            };
+        }
+
+        Err(ExportError::AddressNotFound(address))
+    }
+
+    fn find_next_hop(
+        &self,
+        router: RouterId,
+        address: impl Into<Ipv4Net>,
+    ) -> Result<RouterId, ExportError> {
+        let address: Ipv4Net = address.into();
+
+        if let Some((neighbor, _)) = self
+            .router_addrs
+            .iter()
+            .find(|(_, (net, _))| net.contains(&address))
+        {
+            // check if the neighbor is adjacent to router
+            if self
+                .interfaces
+                .get(&router)
+                .map(|x| x.contains_key(neighbor))
+                .unwrap_or(false)
+            {
+                return Ok(*neighbor);
+            } else {
+                return Err(ExportError::RoutersNotConnected(router, *neighbor));
+            }
+        }
+
+        // search all interfaces of that router
+        self.interfaces
+            .get(&router)
+            .into_iter()
+            .flatten()
+            .map(|(n, _)| *n)
+            .find(|n| {
+                self.link_addrs
+                    .get(&(router, *n).into())
+                    .map(|net| net.contains(&address))
+                    .unwrap_or(false)
+            })
+            .ok_or(ExportError::AddressNotFound(address))
+    }
+
+    fn find_prefix(&self, address: impl Into<Ipv4Net>) -> Result<Prefix, ExportError> {
+        let address = address.into();
+        self.prefix_addrs
+            .iter()
+            .find(|(_, n)| n.contains(&address))
+            .map(|(x, _)| *x)
+            .ok_or(ExportError::AddressNotFound(address))
+    }
+
+    fn find_neighbor(&self, router: RouterId, iface_idx: usize) -> Result<RouterId, ExportError> {
+        self.interfaces
+            .get(&router)
+            .into_iter()
+            .flatten()
+            .find(|(_, (x, _))| *x == iface_idx)
+            .map(|(x, _)| *x)
+            .ok_or(ExportError::InterfaceNotFound(
+                router,
+                format!("at {}", iface_idx),
+            ))
+    }
 }
 
 #[cfg(test)]
@@ -225,6 +330,54 @@ mod test {
     macro_rules! cmp_net {
         ($acq:expr, $exp:expr) => {
             pretty_assertions::assert_eq!($acq.unwrap(), $exp.parse::<Ipv4Net>().unwrap())
+        };
+    }
+
+    macro_rules! finds_prefix {
+        ($ip:expr, $p:expr) => {
+            assert!($ip.find_prefix($p.parse::<Ipv4Net>().unwrap()).is_err())
+        };
+        ($ip:expr, $p:expr, $exp:expr) => {
+            pretty_assertions::assert_eq!(
+                $ip.find_prefix($p.parse::<Ipv4Net>().unwrap()).unwrap(),
+                $exp.into()
+            )
+        };
+    }
+
+    macro_rules! finds_address {
+        ($ip:expr, $p:expr) => {
+            assert!($ip.find_address($p.parse::<Ipv4Net>().unwrap()).is_err())
+        };
+        ($ip:expr, $p:expr, $exp:expr) => {
+            pretty_assertions::assert_eq!(
+                $ip.find_address($p.parse::<Ipv4Net>().unwrap()).unwrap(),
+                $exp.into()
+            )
+        };
+    }
+
+    macro_rules! finds_next_hop {
+        ($ip:expr, $r:expr, $p:expr) => {
+            assert!($ip
+                .find_next_hop($r.into(), $p.parse::<Ipv4Net>().unwrap())
+                .is_err())
+        };
+        ($ip:expr, $r:expr, $p:expr, $exp:expr) => {
+            pretty_assertions::assert_eq!(
+                $ip.find_next_hop($r.into(), $p.parse::<Ipv4Net>().unwrap())
+                    .unwrap(),
+                $exp.into()
+            )
+        };
+    }
+
+    macro_rules! finds_neighbor {
+        ($ip:expr, $r:expr, $i:expr) => {
+            assert!($ip.find_neighbor($r.into(), $i).is_err())
+        };
+        ($ip:expr, $r:expr, $i:expr, $exp:expr) => {
+            pretty_assertions::assert_eq!($ip.find_neighbor($r.into(), $i).unwrap(), $exp.into())
         };
     }
 
@@ -287,5 +440,119 @@ mod test {
             cmp_net!(ip.prefix(2.into()), "128.1.0.0/16");
             cmp_net!(ip.prefix(1.into()), "128.2.0.0/16");
         }
+    }
+
+    #[test]
+    fn reverse_ip_addressor() {
+        let mut net: Network<BasicEventQueue> =
+            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+        net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+            .unwrap();
+
+        let mut ip = DefaultAddressor::new(
+            &net,
+            "10.0.0.0/8".parse().unwrap(),
+            "20.0.0.0/8".parse().unwrap(),
+            "128.0.0.0/1".parse().unwrap(),
+            24,
+            30,
+            24,
+            16,
+        )
+        .unwrap();
+
+        cmp_addr!(ip.router_address(0.into()), "10.0.0.1");
+        cmp_addr!(ip.router_address(1.into()), "10.0.1.1");
+        cmp_addr!(ip.router_address(2.into()), "10.0.2.1");
+        cmp_addr!(ip.router_address(3.into()), "10.0.3.1");
+        cmp_addr!(ip.router_address(4.into()), "20.0.0.1");
+        cmp_addr!(ip.router_address(5.into()), "20.0.1.1");
+
+        cmp_addr!(ip.iface_address(0.into(), 1.into()), "10.128.0.1");
+        cmp_addr!(ip.iface_address(0.into(), 2.into()), "10.128.0.5");
+        cmp_addr!(ip.iface_address(0.into(), 3.into()), "10.128.0.9");
+        cmp_addr!(ip.iface_address(1.into(), 2.into()), "10.128.0.13");
+        cmp_addr!(ip.iface_address(1.into(), 3.into()), "10.128.0.17");
+        cmp_addr!(ip.iface_address(0.into(), 4.into()), "10.192.0.1");
+        cmp_addr!(ip.iface_address(5.into(), 1.into()), "10.192.0.5");
+
+        cmp_net!(ip.prefix(0.into()), "128.0.0.0/16");
+        cmp_net!(ip.prefix(1.into()), "128.1.0.0/16");
+        cmp_net!(ip.prefix(2.into()), "128.2.0.0/16");
+
+        finds_prefix!(ip, "128.0.0.0/16", 0);
+        finds_prefix!(ip, "128.1.0.0/16", 1);
+        finds_prefix!(ip, "128.2.0.0/16", 2);
+        finds_prefix!(ip, "128.0.0.1/32", 0);
+        finds_prefix!(ip, "128.1.2.1/32", 1);
+        finds_prefix!(ip, "128.2.5.9/32", 2);
+
+        finds_address!(ip, "10.0.0.1/32", 0);
+        finds_address!(ip, "10.0.1.1/32", 1);
+        finds_address!(ip, "10.0.2.1/32", 2);
+        finds_address!(ip, "10.0.3.1/32", 3);
+        finds_address!(ip, "20.0.0.1/32", 4);
+        finds_address!(ip, "20.0.1.1/32", 5);
+        finds_address!(ip, "10.0.0.2/32", 0);
+        finds_address!(ip, "10.0.1.2/32", 1);
+        finds_address!(ip, "10.0.2.2/32", 2);
+        finds_address!(ip, "10.0.3.2/32", 3);
+        finds_address!(ip, "20.0.0.2/32", 4);
+        finds_address!(ip, "20.0.1.2/32", 5);
+
+        finds_address!(ip, "10.128.0.0/30", 0);
+        finds_address!(ip, "10.128.0.1/32", 0);
+        finds_address!(ip, "10.128.0.2/32", 1);
+        finds_address!(ip, "10.128.0.4/30", 0);
+        finds_address!(ip, "10.128.0.5/32", 0);
+        finds_address!(ip, "10.128.0.6/32", 2);
+        finds_address!(ip, "10.128.0.8/30", 0);
+        finds_address!(ip, "10.128.0.9/32", 0);
+        finds_address!(ip, "10.128.0.10/32", 3);
+        finds_address!(ip, "10.128.0.12/30", 1);
+        finds_address!(ip, "10.128.0.13/32", 1);
+        finds_address!(ip, "10.128.0.14/32", 2);
+        finds_address!(ip, "10.128.0.16/30", 1);
+        finds_address!(ip, "10.128.0.17/32", 1);
+        finds_address!(ip, "10.128.0.18/32", 3);
+        finds_address!(ip, "10.128.0.16/30", 1);
+        finds_address!(ip, "10.128.0.17/32", 1);
+        finds_address!(ip, "10.128.0.18/32", 3);
+        finds_address!(ip, "10.192.0.0/30", 0);
+        finds_address!(ip, "10.192.0.1/32", 0);
+        finds_address!(ip, "10.192.0.2/32", 4);
+        finds_address!(ip, "10.192.0.4/30", 1);
+        finds_address!(ip, "10.192.0.5/32", 5);
+        finds_address!(ip, "10.192.0.6/32", 1);
+
+        finds_address!(ip, "10.0.0.0/8");
+
+        finds_next_hop!(ip, 2, "10.0.0.1/32", 0);
+        finds_next_hop!(ip, 2, "10.0.1.3/32", 1);
+        finds_next_hop!(ip, 2, "10.0.1.0/24", 1);
+        finds_next_hop!(ip, 2, "10.0.3.0/32");
+        finds_next_hop!(ip, 2, "10.128.0.5/32", 0);
+        finds_next_hop!(ip, 2, "10.128.0.4/30", 0);
+        finds_next_hop!(ip, 2, "10.128.0.6/30", 0);
+        finds_next_hop!(ip, 2, "10.128.0.1/30");
+        finds_next_hop!(ip, 0, "10.192.0.0/30", 4);
+        finds_next_hop!(ip, 0, "10.192.0.1/32", 4);
+        finds_next_hop!(ip, 0, "10.192.0.2/32", 4);
+        finds_next_hop!(ip, 1, "10.192.0.4/30", 5);
+        finds_next_hop!(ip, 1, "10.192.0.5/32", 5);
+        finds_next_hop!(ip, 1, "10.192.0.6/32", 5);
+
+        finds_neighbor!(ip, 0, 0, 1);
+        finds_neighbor!(ip, 0, 1, 2);
+        finds_neighbor!(ip, 0, 2, 3);
+        finds_neighbor!(ip, 0, 3, 4);
+        finds_neighbor!(ip, 1, 0, 0);
+        finds_neighbor!(ip, 1, 1, 2);
+        finds_neighbor!(ip, 1, 2, 3);
+        finds_neighbor!(ip, 1, 3, 5);
+        finds_neighbor!(ip, 2, 0, 0);
+        finds_neighbor!(ip, 2, 1, 1);
+        finds_neighbor!(ip, 3, 0, 0);
+        finds_neighbor!(ip, 3, 1, 1);
     }
 }

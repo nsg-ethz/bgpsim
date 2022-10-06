@@ -112,6 +112,17 @@ impl CiscoFrrCfgGen {
         }
     }
 
+    /// Get the interface index given an interface name.
+    pub fn iface_idx(&self, name: impl AsRef<str>) -> Result<usize, ExportError> {
+        let name = name.as_ref();
+        self.ifaces
+            .iter()
+            .enumerate()
+            .find(|(_, x)| x.as_str() == name)
+            .map(|(x, _)| x)
+            .ok_or_else(|| ExportError::InterfaceNotFound(self.router, name.to_string()))
+    }
+
     /// Get the interface name of this router that is connected to either `a` or `b`. This function
     /// will also make sure that either `a` or `b` is `self.router`. If not, this function will
     /// return `Err(ExportError::ModifierDoesNotAffectRouter)`. We use `a` and `b`, instead of only
