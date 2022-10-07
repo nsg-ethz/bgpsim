@@ -275,7 +275,10 @@ impl Eq for BgpRibEntry {}
 
 impl PartialEq for BgpRibEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.route == other.route && self.from_id == other.from_id
+        self.route == other.route
+            && self.from_id == other.from_id
+            && self.weight == other.weight
+            && self.igp_cost.unwrap_or_default() == other.igp_cost.unwrap_or_default()
     }
 }
 
