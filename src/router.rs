@@ -1055,6 +1055,8 @@ impl Router {
         // set the next hop to the egress from router if the message came from externally
         if entry.from_type.is_ebgp() {
             entry.route.next_hop = entry.from_id;
+            // set the cost to zero.
+            entry.igp_cost = Some(Default::default());
         }
 
         // set the default values
@@ -1076,6 +1078,11 @@ impl Router {
         mut entry: BgpRibEntry,
         target_peer: RouterId,
     ) -> Result<Option<BgpRibEntry>, DeviceError> {
+        let target_session_type = *self
+            .bgp_sessions
+            .get(&target_peer)
+            .ok_or(DeviceError::NoBgpSession(target_peer))?;
+
         // before applying the route-map, set the next-hop to self if the route was learned over
         // eBGP.
         // TODO: add a configuration variable to control wether to change the next-hop.
@@ -1085,7 +1092,7 @@ impl Router {
 
         // Further, we check if the route is reflected. If so, modify the ORIGINATOR_ID and the
         // CLUSTER_LIST.
-        if entry.from_type.is_ibgp() && self.bgp_sessions.get(&target_peer).unwrap().is_ibgp() {
+        if entry.from_type.is_ibgp() && target_session_type.is_ibgp() {
             // route is to be reflected. Modify the ORIGINATOR_ID and the CLUSTER_LIST.
             entry.route.originator_id.get_or_insert(entry.from_id);
             // append self to the cluster_list
@@ -1096,7 +1103,7 @@ impl Router {
         entry.to_id = Some(target_peer);
 
         // apply bgp_route_map_out
-        let mut maps = self.get_bgp_route_maps(target_peer, Outgoing).into_iter();
+        let mut maps = self.get_bgp_route_maps(target_peer, Outgoing).iter();
         let mut entry = loop {
             match maps.next() {
                 Some(map) => {
@@ -1112,10 +1119,7 @@ impl Router {
         };
 
         // get the peer type
-        entry.from_type = *self
-            .bgp_sessions
-            .get(&target_peer)
-            .ok_or(DeviceError::NoBgpSession(target_peer))?;
+        entry.from_type = target_session_type;
 
         // if the peer type is external, overwrite the next hop and reset the local-pref. Also,
         // remove the ORIGINATOR_ID and the CLUSTER_LIST

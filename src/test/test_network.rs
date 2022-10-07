@@ -31,6 +31,7 @@ use crate::{
 };
 use lazy_static::lazy_static;
 use maplit::{btreemap, btreeset};
+use ordered_float::NotNan;
 use petgraph::algo::FloatMeasure;
 use pretty_assertions::assert_eq;
 
@@ -356,6 +357,99 @@ fn test_bgp_connectivity_undo() {
     assert_eq!(net, net_hist_2);
     net.undo_action().unwrap();
     assert_eq!(net, net_hist_1);
+}
+
+#[test]
+fn test_bgp_rib_entries() {
+    let mut net = get_test_net_bgp();
+
+    let p = Prefix::from(0);
+
+    // advertise prefix on e1
+    net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        .unwrap();
+
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
+
+    let r1_rib = net
+        .get_device(*R1)
+        .unwrap_internal()
+        .get_bgp_rib()
+        .get(&p)
+        .unwrap();
+    let r2_rib = net
+        .get_device(*R2)
+        .unwrap_internal()
+        .get_bgp_rib()
+        .get(&p)
+        .unwrap();
+    let r3_rib = net
+        .get_device(*R3)
+        .unwrap_internal()
+        .get_bgp_rib()
+        .get(&p)
+        .unwrap();
+    let r4_rib = net
+        .get_device(*R4)
+        .unwrap_internal()
+        .get_bgp_rib()
+        .get(&p)
+        .unwrap();
+
+    assert_eq!(r1_rib.route.next_hop, *E1);
+    assert_eq!(r2_rib.route.next_hop, *R1);
+    assert_eq!(r3_rib.route.next_hop, *R1);
+    assert_eq!(r4_rib.route.next_hop, *R1);
+    assert_eq!(r1_rib.igp_cost.unwrap(), NotNan::new(0.0).unwrap());
+    assert_eq!(r2_rib.igp_cost.unwrap(), NotNan::new(2.0).unwrap());
+    assert_eq!(r3_rib.igp_cost.unwrap(), NotNan::new(1.0).unwrap());
+    assert_eq!(r4_rib.igp_cost.unwrap(), NotNan::new(3.0).unwrap());
+
+    // advertise prefix on e4
+    net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        .unwrap();
+
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *E4]);
+
+    let r1_rib = net
+        .get_device(*R1)
+        .unwrap_internal()
+        .get_bgp_rib()
+        .get(&p)
+        .unwrap();
+    let r2_rib = net
+        .get_device(*R2)
+        .unwrap_internal()
+        .get_bgp_rib()
+        .get(&p)
+        .unwrap();
+    let r3_rib = net
+        .get_device(*R3)
+        .unwrap_internal()
+        .get_bgp_rib()
+        .get(&p)
+        .unwrap();
+    let r4_rib = net
+        .get_device(*R4)
+        .unwrap_internal()
+        .get_bgp_rib()
+        .get(&p)
+        .unwrap();
+
+    assert_eq!(r1_rib.route.next_hop, *E1);
+    assert_eq!(r2_rib.route.next_hop, *R4);
+    assert_eq!(r3_rib.route.next_hop, *R1);
+    assert_eq!(r4_rib.route.next_hop, *E4);
+    assert_eq!(r1_rib.igp_cost.unwrap(), NotNan::new(0.0).unwrap());
+    assert_eq!(r2_rib.igp_cost.unwrap(), NotNan::new(1.0).unwrap());
+    assert_eq!(r3_rib.igp_cost.unwrap(), NotNan::new(1.0).unwrap());
+    assert_eq!(r4_rib.igp_cost.unwrap(), NotNan::new(0.0).unwrap());
 }
 
 #[test]
