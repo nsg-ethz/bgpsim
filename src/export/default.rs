@@ -234,10 +234,10 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
                 let b_ip = self.interfaces.get(&b).unwrap().get(&a).unwrap().1;
                 Ok(if a_ip < b_ip { a } else { b })
             } else if a_int {
-                // a is internal, but b is not. Return a
+                // a is internal, but b is external. Return a
                 Ok(a)
             } else {
-                // b is internal, but a is not. Return b
+                // b is internal, but a is external. Return b
                 Ok(b)
             };
         }

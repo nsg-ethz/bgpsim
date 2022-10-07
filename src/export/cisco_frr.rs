@@ -315,14 +315,13 @@ impl CiscoFrrCfgGen {
         bgp_neighbor.weight(100);
         bgp_neighbor.route_map_in(format!("{}-in", rm_name));
         bgp_neighbor.route_map_out(format!("{}-out", rm_name));
+        bgp_neighbor.next_hop_self();
         match ty {
             BgpSessionType::IBgpPeer => {}
             BgpSessionType::IBgpClient => {
                 bgp_neighbor.route_reflector_client();
             }
-            BgpSessionType::EBgp => {
-                bgp_neighbor.next_hop_self();
-            }
+            BgpSessionType::EBgp => {}
         }
         Ok(bgp_neighbor)
     }

@@ -82,6 +82,7 @@ router bgp 65535
     update-source Loopback0
     address-family ipv4 unicast
       weight 100
+      next-hop-self
       route-map neighbor-R1-in in
       route-map neighbor-R1-out out
     exit
@@ -90,6 +91,7 @@ router bgp 65535
     update-source Loopback0
     address-family ipv4 unicast
       weight 100
+      next-hop-self
       route-map neighbor-R2-in in
       route-map neighbor-R2-out out
     exit
@@ -98,6 +100,7 @@ router bgp 65535
     update-source Loopback0
     address-family ipv4 unicast
       weight 100
+      next-hop-self
       route-map neighbor-R3-in in
       route-map neighbor-R3-out out
     exit

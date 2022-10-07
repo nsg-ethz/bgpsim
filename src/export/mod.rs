@@ -198,7 +198,7 @@ pub trait Addressor {
     /// to. You can provide either an Ipv4Net or an Ipv4Addr. In case the provided address is a link
     /// network, and the IP does not match one of the connected routers, this function will return
     /// the router along the following list of preference:
-    /// - Internal router before external router
+    /// - internal routers over external ones.
     /// - Router with the lower IP address specified on the link.
     fn find_address(&self, address: impl Into<Ipv4Net>) -> Result<RouterId, ExportError>;
 
