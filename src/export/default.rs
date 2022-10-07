@@ -35,7 +35,11 @@ use crate::{
 pub struct DefaultAddressor<'a, Q> {
     net: &'a Network<Q>,
     /// The internal netowrk
-    internal_net: Ipv4Net,
+    internal_ip_range: Ipv4Net,
+    /// the ip range for external networks
+    external_ip_range: Ipv4Net,
+    /// The ip range for prefix netwokrs
+    prefix_ip_range: Ipv4Net,
     /// Iterator over all networks of internal routers
     internal_router_addr_iter: Ipv4Subnets,
     /// Iterator over all internal link networks
@@ -93,7 +97,9 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
         let external_link_addr_range = ip_err(third_and_forth_quarter.next())?;
         Ok(Self {
             net,
-            internal_net: internal_ip_range,
+            internal_ip_range,
+            external_ip_range,
+            prefix_ip_range,
             internal_router_addr_iter: internal_router_addr_range.subnets(local_prefix_len)?,
             internal_link_addr_iter: internal_link_addr_range.subnets(link_prefix_len)?,
             external_link_addr_iter: external_link_addr_range.subnets(link_prefix_len)?,
@@ -109,9 +115,50 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
     }
 }
 
+impl<'a, Q> DefaultAddressor<'a, Q> {
+    /// Get the subnet reserved for internal routers.
+    pub fn subnet_for_internal_routers(&self) -> Ipv4Net {
+        // unwrapping here is allowed, we have already done this operation successfully.
+        self.internal_ip_range
+            .subnets(self.internal_ip_range.prefix_len() + 1)
+            .unwrap()
+            .next()
+            .unwrap()
+    }
+
+    /// Get the subnet reserved for internal routers.
+    pub fn subnet_for_external_routers(&self) -> Ipv4Net {
+        self.external_ip_range
+    }
+
+    /// Get the subnet reserved for internal routers.
+    pub fn subnet_for_prefix_networks(&self) -> Ipv4Net {
+        self.prefix_ip_range
+    }
+
+    /// Get the subnet reserved for internal links
+    pub fn subnet_for_internal_links(&self) -> Ipv4Net {
+        // unwrapping here is allowed, we have already done this operation successfully.
+        self.internal_ip_range
+            .subnets(self.internal_ip_range.prefix_len() + 2)
+            .unwrap()
+            .nth(2)
+            .unwrap()
+    }
+
+    /// Get the subnet reserved for external links
+    pub fn subnet_for_external_links(&self) -> Ipv4Net {
+        self.internal_ip_range
+            .subnets(self.internal_ip_range.prefix_len() + 2)
+            .unwrap()
+            .nth(3)
+            .unwrap()
+    }
+}
+
 impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
     fn internal_network(&mut self) -> Ipv4Net {
-        self.internal_net
+        self.internal_ip_range
     }
 
     fn router(&mut self, router: RouterId) -> Result<(Ipv4Net, Ipv4Addr), ExportError> {
