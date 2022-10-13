@@ -115,6 +115,14 @@ pub trait ExternalCfgGen<Q, A> {
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError>;
+
+    /// Generate the command for removing an existing BGP session.
+    fn teardown_ebgp_session(
+        &mut self,
+        net: &Network<Q>,
+        addressor: &mut A,
+        neighbor: RouterId,
+    ) -> Result<String, ExportError>;
 }
 
 /// A trait for generating IP address ranges and AS numbers.

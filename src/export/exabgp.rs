@@ -508,4 +508,14 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for ExaBgpCfgGen {
         self.neighbors.insert(neighbor);
         self.generate_config(net, addressor)
     }
+
+    fn teardown_ebgp_session(
+        &mut self,
+        net: &Network<Q>,
+        addressor: &mut A,
+        neighbor: RouterId,
+    ) -> Result<String, ExportError> {
+        self.neighbors.remove(&neighbor);
+        self.generate_config(net, addressor)
+    }
 }

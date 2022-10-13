@@ -582,7 +582,7 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                     let rm_name = rm_name(net, neighbor);
                     Ok(format!(
                         "{}{}{}",
-                        RouterBgp::new(INTERNAL_AS)
+                        RouterBgp::new(self.as_id)
                             .neighbor(
                                 self.bgp_neigbor_config(net, addressor, neighbor, ty, &rm_name)?
                             )
@@ -732,7 +732,9 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                     } else {
                         return Ok(String::new());
                     }
-                    Ok(neighbor.build(self.target))
+                    Ok(RouterBgp::new(self.as_id)
+                        .neighbor(neighbor)
+                        .build(self.target))
                 }
                 ConfigExpr::BgpRouteMap {
                     neighbor,
@@ -931,6 +933,19 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
                     .route_map_out(EXTERNAL_RM_OUT),
             )
             .build(self.target))
+    }
+
+    fn teardown_ebgp_session(
+        &mut self,
+        net: &Network<Q>,
+        addressor: &mut A,
+        neighbor: RouterId,
+    ) -> Result<String, ExportError> {
+        Ok(RouterBgp::new(self.as_id)
+            .neighbor(RouterBgpNeighbor::new(
+                self.router_id_to_ip(neighbor, net, addressor)?,
+            ))
+            .no())
     }
 }
 
