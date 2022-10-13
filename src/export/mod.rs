@@ -42,7 +42,7 @@ pub use default::DefaultAddressor;
 pub use exabgp::ExaBgpCfgGen;
 
 /// The internal AS Number
-const INTERNAL_AS: AsId = AsId(65535);
+pub const INTERNAL_AS: AsId = AsId(65535);
 
 /// Link index used in the IP addressor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
