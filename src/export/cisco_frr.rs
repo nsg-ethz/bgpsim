@@ -606,7 +606,7 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                         .expect_err("Route-map already exists, but we try to add it here!");
                     maps.insert(pos, map.clone());
                     // insert the new route-map
-                    let last_map = if pos > 1 {
+                    let last_map = if pos >= 1 {
                         let last_map = maps.get(pos - 1).unwrap();
                         if last_map.state.is_allow() {
                             let mut rm = RouteMapItem::new(
