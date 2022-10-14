@@ -6,7 +6,7 @@ edition = "2021"
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-netsim = { path = "../netsim", features = ["serde"] }
+netsim = { path = "netsim", features = ["serde"] }
 yew = { git = "https://github.com/yewstack/yew.git", features = ["csr"] }
 yew-router = { git = "https://github.com/yewstack/yew.git" }
 yewdux = { git = "https://github.com/intendednull/yewdux.git", rev = "7b50745" }
