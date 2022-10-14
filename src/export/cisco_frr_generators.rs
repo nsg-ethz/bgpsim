@@ -1518,14 +1518,17 @@ impl StaticRoute {
     /// Remove any static route for that destination.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::StaticRoute;
+    /// # use netsim::export::cisco_frr_generators::{StaticRoute, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let dest: Ipv4Net = "1.0.0.0/8".parse().unwrap();
-    /// assert_eq!(StaticRoute::new(dest).no(), "no ip route 1.0.0.0/8\n");
+    /// assert_eq!(
+    ///     StaticRoute::new(dest).via_interface("eth1").no(Target::Frr),
+    ///     "no ip route 1.0.0.0/8 eth1\n"
+    /// );
     /// ```
-    pub fn no(&self) -> String {
-        format!("no ip route {}\n", self.destination)
+    pub fn no(&self, target: Target) -> String {
+        format!("no {}", self.build(target))
     }
 
     /// Route packets via the given address (i.e., pick the same next-hop as written in the routing

@@ -634,9 +634,9 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                         addressor,
                     )?
                     .no(self.target)),
-                ConfigExpr::StaticRoute { prefix, .. } => {
-                    Ok(StaticRouteGen::new(addressor.prefix(prefix)?).no())
-                }
+                ConfigExpr::StaticRoute { prefix, target, .. } => Ok(self
+                    .static_route(net, addressor, prefix, target)?
+                    .no(self.target)),
                 ConfigExpr::LoadBalancing { .. } => {
                     Ok(RouterOspf::new().maximum_paths(1).build(self.target))
                 }
@@ -693,9 +693,19 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                         unreachable!("Config Modifier must update the same kind of expression")
                     }
                 }
-                ConfigExpr::StaticRoute { prefix, target, .. } => Ok(self
-                    .static_route(net, addressor, prefix, target)?
-                    .build(self.target)),
+                ConfigExpr::StaticRoute { prefix, target, .. } => {
+                    if let ConfigExpr::StaticRoute { target: old_sr, .. } = from {
+                        Ok(format!(
+                            "{}{}",
+                            self.static_route(net, addressor, prefix, old_sr)?
+                                .no(self.target),
+                            self.static_route(net, addressor, prefix, target)?
+                                .build(self.target)
+                        ))
+                    } else {
+                        unreachable!("Config Modifier must update the same kind of expression")
+                    }
+                }
                 ConfigExpr::LoadBalancing { .. } => unreachable!(),
             },
         }
