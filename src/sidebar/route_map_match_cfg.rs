@@ -1,5 +1,6 @@
-use std::rc::Rc;
+use std::{collections::BTreeSet, rc::Rc};
 
+use itertools::Itertools;
 use netsim::{
     formatter::NetworkFormatter,
     route_map::{RouteMapMatch, RouteMapMatchAsPath, RouteMapMatchClause},
@@ -147,7 +148,7 @@ impl Component for RouteMapMatchCfg {
                 Component::update(self, ctx, Msg::ValueUpdate);
             }
             Msg::ValueUpdate => {
-                if let Some(m) = match_update(&ctx.props().m, self.v1v, self.v2v) {
+                if let Some(m) = match_update(&ctx.props().m, self.v1v.clone(), self.v2v.clone()) {
                     ctx.props().on_update.emit((ctx.props().index, Some(m)))
                 }
             }
@@ -201,19 +202,25 @@ impl RouteMapMatchCfg {
     }
 }
 
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 enum MatchValue {
     None,
     Integer(u32),
     Router(RouterId),
+    List(BTreeSet<u32>),
 }
 
 impl MatchValue {
-    fn update(self, s: &str) -> Option<Self> {
+    fn update(&self, s: &str) -> Option<Self> {
         match self {
             MatchValue::None => Some(MatchValue::None),
             MatchValue::Integer(_) => s.parse().ok().map(MatchValue::Integer),
             MatchValue::Router(_) => s.parse().ok().map(|i: u32| MatchValue::Router(i.into())),
+            MatchValue::List(_) => s
+                .split(|c| c == ',' || c == ';')
+                .map(|x| x.trim().parse::<u32>().ok())
+                .collect::<Option<BTreeSet<u32>>>()
+                .map(MatchValue::List),
         }
     }
 
@@ -222,6 +229,7 @@ impl MatchValue {
             MatchValue::None => String::new(),
             MatchValue::Integer(x) => x.to_string(),
             MatchValue::Router(r) => r.fmt(&net.net()).to_string(),
+            MatchValue::List(x) => x.iter().join("; "),
         }
     }
 }
@@ -241,7 +249,7 @@ fn match_kind_text(m: &RouteMapMatch) -> &'static str {
 
 fn match_kind_options() -> Vec<(RouteMapMatch, String)> {
     [
-        RouteMapMatch::Prefix(Default::default()),
+        RouteMapMatch::Prefix([Prefix::from(0)].into()),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(0.into())),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(0))),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(
@@ -261,8 +269,7 @@ fn match_kind_options() -> Vec<(RouteMapMatch, String)> {
 fn match_values(m: &RouteMapMatch) -> (MatchValue, MatchValue) {
     match m {
         RouteMapMatch::Prefix(ps) => (
-            // TODO implement prefix lists
-            MatchValue::Integer(ps.iter().next().unwrap().0),
+            MatchValue::List(ps.iter().map(|x| x.0).collect()),
             MatchValue::None,
         ),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(v)) => {
@@ -283,8 +290,8 @@ fn match_values(m: &RouteMapMatch) -> (MatchValue, MatchValue) {
 
 fn match_update(m: &RouteMapMatch, val1: MatchValue, val2: MatchValue) -> Option<RouteMapMatch> {
     Some(match (m, val1, val2) {
-        (RouteMapMatch::Prefix(_), MatchValue::Integer(x), MatchValue::None) => {
-            RouteMapMatch::Prefix([Prefix::from(x)].into())
+        (RouteMapMatch::Prefix(_), MatchValue::List(x), MatchValue::None) => {
+            RouteMapMatch::Prefix(x.into_iter().map(Prefix::from).collect())
         }
         (
             RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(_)),
