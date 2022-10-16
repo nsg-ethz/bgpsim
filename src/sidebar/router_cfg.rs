@@ -33,7 +33,7 @@ pub enum Msg {
     AddBgpSession(RouterId),
     RemoveBgpSession(RouterId),
     UpdateBgpSession(RouterId, BgpSessionTypeSymmetric),
-    UpdateRouteMap(usize, Option<RouteMap>, RouteMapDirection),
+    UpdateRouteMap(isize, Option<RouteMap>, RouteMapDirection),
     AddRouteMapInOrderChange(String),
     AddRouteMapIn(String),
     AddRouteMapOutOrderChange(String),
@@ -101,20 +101,20 @@ impl Component for RouterCfg {
 
         let on_in_order_change = ctx.link().callback(Msg::AddRouteMapInOrderChange);
         let on_in_route_map_add = ctx.link().callback(Msg::AddRouteMapIn);
-        let incoming_rms: Vec<(usize, RouteMap)> = r
+        let incoming_rms: Vec<(isize, RouteMap)> = r
             .get_bgp_route_maps_in()
             .map(|r| (r.order, r.clone()))
             .collect();
-        let incoming_existing: Rc<HashSet<usize>> =
+        let incoming_existing: Rc<HashSet<isize>> =
             Rc::new(incoming_rms.iter().map(|(o, _)| *o).collect());
 
         let on_out_order_change = ctx.link().callback(Msg::AddRouteMapOutOrderChange);
         let on_out_route_map_add = ctx.link().callback(Msg::AddRouteMapOut);
-        let outgoing_rms: Vec<(usize, RouteMap)> = r
+        let outgoing_rms: Vec<(isize, RouteMap)> = r
             .get_bgp_route_maps_out()
             .map(|r| (r.order, r.clone()))
             .collect();
-        let outgoing_existing: Rc<HashSet<usize>> =
+        let outgoing_existing: Rc<HashSet<isize>> =
             Rc::new(outgoing_rms.iter().map(|(o, _)| *o).collect());
 
         let change_lb = ctx.link().callback(Msg::ChangeLoadBalancing);
@@ -263,7 +263,7 @@ impl Component for RouterCfg {
             Msg::AddRouteMapInOrderChange(o) => match self.net.net().get_device(router) {
                 NetworkDevice::InternalRouter(r) => {
                     self.rm_in_order_correct = o
-                        .parse::<usize>()
+                        .parse::<isize>()
                         .ok()
                         .map(|o| r.get_bgp_route_map_in(o).is_none())
                         .unwrap_or(false);
@@ -292,7 +292,7 @@ impl Component for RouterCfg {
             Msg::AddRouteMapOutOrderChange(o) => match self.net.net().get_device(router) {
                 NetworkDevice::InternalRouter(r) => {
                     self.rm_out_order_correct = o
-                        .parse::<usize>()
+                        .parse::<isize>()
                         .ok()
                         .map(|o| r.get_bgp_route_map_out(o).is_none())
                         .unwrap_or(false);

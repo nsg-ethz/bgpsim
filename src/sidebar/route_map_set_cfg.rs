@@ -189,8 +189,10 @@ fn set_kind_text(set: &RouteMapSet) -> &'static str {
         RouteMapSet::Med(Some(_)) => "set MED",
         RouteMapSet::Med(None) => "clear MED",
         RouteMapSet::IgpCost(_) => "IGP weight",
-        RouteMapSet::SetCommunity(_) => "Set community",
-        RouteMapSet::DelCommunity(_) => "Del community",
+        RouteMapSet::SetCommunity(_) => "set community",
+        RouteMapSet::DelCommunity(_) => "del community",
+        RouteMapSet::Weight(Some(_)) => "set weight",
+        RouteMapSet::Weight(None) => "clear weight",
     }
 }
 
@@ -204,6 +206,8 @@ fn set_kind_options(router: RouterId) -> Vec<(RouteMapSet, String)> {
         RouteMapSet::IgpCost(1.0),
         RouteMapSet::SetCommunity(0),
         RouteMapSet::DelCommunity(0),
+        RouteMapSet::Weight(Some(100)),
+        RouteMapSet::Weight(None),
     ]
     .map(|kind| {
         let text = set_kind_text(&kind).to_string();
@@ -223,6 +227,8 @@ fn set_value(set: &RouteMapSet) -> SetValue {
         RouteMapSet::IgpCost(x) => SetValue::Float(*x),
         RouteMapSet::SetCommunity(x) => SetValue::Integer(*x),
         RouteMapSet::DelCommunity(x) => SetValue::Integer(*x),
+        RouteMapSet::Weight(Some(x)) => SetValue::Integer(*x),
+        RouteMapSet::Weight(None) => SetValue::None,
     }
 }
 
@@ -236,6 +242,8 @@ fn set_update(set: &RouteMapSet, val: SetValue) -> Option<RouteMapSet> {
         (RouteMapSet::IgpCost(_), SetValue::Float(x)) => RouteMapSet::IgpCost(x),
         (RouteMapSet::SetCommunity(_), SetValue::Integer(x)) => RouteMapSet::SetCommunity(x),
         (RouteMapSet::DelCommunity(_), SetValue::Integer(x)) => RouteMapSet::DelCommunity(x),
+        (RouteMapSet::Weight(Some(_)), SetValue::Integer(x)) => RouteMapSet::Weight(Some(x)),
+        (RouteMapSet::Weight(None), SetValue::None) => RouteMapSet::Weight(None),
         _ => return None,
     })
 }

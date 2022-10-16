@@ -220,7 +220,7 @@ impl Component for PrefixSelection {
             }
             Msg::StateNet(n) => {
                 if self.last_prefix.is_none() {
-                    let new_prefix = n.net().get_known_prefixes().iter().next().cloned();
+                    let new_prefix = n.net().get_known_prefixes().next().cloned();
                     if new_prefix != self.last_prefix {
                         self.state_dispatch
                             .reduce_mut(move |s| s.set_prefix(new_prefix));

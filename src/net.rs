@@ -83,6 +83,10 @@ impl EventQueue for Queue {
     unsafe fn clone_events(&self, _: Self) -> Self {
         self.clone()
     }
+
+    fn get_time(&self) -> Option<f64> {
+        None
+    }
 }
 
 #[derive(Clone, PartialEq, Store)]
@@ -171,7 +175,7 @@ impl Net {
                             .iter()
                             .filter_map(|n| net.get_device(*n).internal().map(|r| (*n, r)))
                             .filter_map(|(n, r)| {
-                                r.get_bgp_rib_out().get(&(prefix, id)).map(|r| (n, r))
+                                r.get_bgp_rib_out().get(&(id, prefix)).map(|r| (n, r))
                             })
                             .map(|(n, e)| (n, id, e.route.clone())),
                     );

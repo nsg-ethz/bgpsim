@@ -85,7 +85,6 @@ pub fn generate_latex(net: &Net) -> String {
 
     let prefix_choices = n
         .get_known_prefixes()
-        .iter()
         .map(|p| format!("prefix{}", p.0))
         .join(", ");
 
@@ -140,7 +139,6 @@ pub fn generate_latex(net: &Net) -> String {
 
     let next_hops = n
         .get_known_prefixes()
-        .iter()
         .map(|p| {
             format!(
                 "    \\ifdefined\\prefix{}\n{}\n  \\fi",
@@ -191,7 +189,6 @@ pub fn generate_latex(net: &Net) -> String {
 
     let bgp_propagations = n
         .get_known_prefixes()
-        .iter()
         .map(|p| {
             format!(
                 "    \\ifdefined\\prefix{}\n{}\n  \\fi",

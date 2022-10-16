@@ -28,11 +28,11 @@ pub enum Msg {
 #[derive(Properties, PartialEq)]
 pub struct Properties {
     pub router: RouterId,
-    pub order: usize,
+    pub order: isize,
     pub map: RouteMap,
-    pub existing: Rc<HashSet<usize>>,
-    pub on_update: Callback<(usize, RouteMap)>,
-    pub on_remove: Callback<usize>,
+    pub existing: Rc<HashSet<isize>>,
+    pub on_update: Callback<(isize, RouteMap)>,
+    pub on_remove: Callback<isize>,
 }
 
 impl Component for RouteMapCfg {
@@ -122,14 +122,14 @@ impl Component for RouteMapCfg {
         match msg {
             Msg::OrderChange(o) => {
                 self.order_input_correct = o
-                    .parse::<usize>()
+                    .parse::<isize>()
                     .map(|o| !ctx.props().existing.contains(&o))
                     .unwrap_or(false);
                 true
             }
             Msg::OrderSet(o) => {
                 let mut map = ctx.props().map.clone();
-                map.order = if let Ok(o) = o.parse::<usize>() {
+                map.order = if let Ok(o) = o.parse::<isize>() {
                     o
                 } else {
                     self.order_input_correct = false;
