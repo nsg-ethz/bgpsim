@@ -37,7 +37,8 @@ pub enum Msg {
     AddBgpSession(RouterId),
     RemoveBgpSession(RouterId),
     UpdateBgpSession(RouterId, BgpSessionTypeSymmetric),
-    UpdateRouteMap(RouterId, i16, Option<RouteMap>, RouteMapDirection),
+    ChooseRMNeighbor(RouterId),
+    UpdateRM(RouterId, i16, Option<RouteMap>, RouteMapDirection),
     ChangeRMOrder(RouterId, RouteMapDirection, String),
     AddRM(RouterId, RouteMapDirection, String),
     ChangeLoadBalancing(bool),
@@ -83,6 +84,10 @@ impl Component for RouterCfg {
         let on_name_set = ctx.link().callback(Msg::OnNameSet);
 
         let bgp_sessions = get_sessions(router, &self.net);
+        let bgp_peers = bgp_sessions
+            .iter()
+            .map(|(x, name, _)| (*x, name.clone()))
+            .collect::<Vec<_>>();
         let sessions_dict = bgp_sessions
             .iter()
             .map(|(r, _, _)| *r)
@@ -102,7 +107,10 @@ impl Component for RouterCfg {
         let on_session_add = ctx.link().callback(Msg::AddBgpSession);
         let on_session_remove = ctx.link().callback(Msg::RemoveBgpSession);
 
-        let rm_config = if let Some(neighbor) = self.rm_neighbor {
+        let rm_config = if let Some(neighbor) = self
+            .rm_neighbor
+            .or_else(|| bgp_peers.first().map(|(x, _)| *x))
+        {
             let on_in_order_change = ctx
                 .link()
                 .callback(move |x| Msg::ChangeRMOrder(neighbor, Incoming, x));
@@ -133,26 +141,30 @@ impl Component for RouterCfg {
 
             html! {
                 <>
-                    <ExpandableDivider text={String::from("Incoming Route Maps")} >
+                    <Divider text={"BGP Route-Maps"} />
+                    <Element text={"Neighbor"}>
+                        <Select<RouterId> text={neighbor.fmt(n).to_string()} options={bgp_peers} on_select={ctx.link().callback(Msg::ChooseRMNeighbor)} />
+                    </Element>
+                    <ExpandableDivider text={String::from("Incoming Route Map")} >
                         <Element text={"New route map"} >
                             <TextField text={""} placeholder={"order"} on_change={on_in_order_change} on_set={on_in_route_map_add} correct={self.rm_in_order_correct} button_text={"Add"}/>
                         </Element>
                         {
                             incoming_rms.into_iter().map(|(order, map)|  {
-                                let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRouteMap(neighbor, order, Some(map), Incoming));
-                                let on_remove = ctx.link().callback(move |order| Msg::UpdateRouteMap(neighbor, order, None, Incoming));
+                                let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Incoming));
+                                let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Incoming));
                                 html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove}/> }
                             }).collect::<Html>()
                         }
                     </ExpandableDivider>
-                    <ExpandableDivider text={String::from("Outgoing Route Maps")} >
+                    <ExpandableDivider text={String::from("Outgoing Route Map")} >
                         <Element text={"New route map"} >
                             <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"}/>
                         </Element>
                         {
                             outgoing_rms.into_iter().map(|(order, map)| {
-                                let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRouteMap(neighbor, order, Some(map), Outgoing));
-                                let on_remove = ctx.link().callback(move |order| Msg::UpdateRouteMap(neighbor, order, None, Outgoing));
+                                let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Outgoing));
+                                let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Outgoing));
                                 html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove}/> }
                             }).collect::<Html>()
                         }
@@ -197,7 +209,6 @@ impl Component for RouterCfg {
                         }
                     }).collect::<Html>()
                 }
-                { rm_config }
                 <ExpandableDivider text={String::from("Static Routes")} >
                     <Element text={"New static route"} >
                         <TextField text={""} placeholder={"prefix"} on_change={on_new_sr_change} on_set={on_new_sr} correct={self.new_sr_correct} button_text={"Add"}/>
@@ -210,6 +221,7 @@ impl Component for RouterCfg {
                         }).collect::<Html>()
                     }
                 </ExpandableDivider>
+                { rm_config }
                 <Divider />
             </div>
         }
@@ -283,6 +295,10 @@ impl Component for RouterCfg {
                 }
                 false
             }
+            Msg::ChooseRMNeighbor(neighbor) => {
+                self.rm_neighbor = Some(neighbor);
+                true
+            }
             Msg::ChangeRMOrder(neighbor, direction, o) => match self.net.net().get_device(router) {
                 NetworkDevice::InternalRouter(r) => {
                     self.rm_in_order_correct = o
@@ -312,7 +328,7 @@ impl Component for RouterCfg {
                 });
                 false
             }
-            Msg::UpdateRouteMap(neighbor, order, map, direction) => {
+            Msg::UpdateRM(neighbor, order, map, direction) => {
                 self.net_dispatch.reduce_mut(move |n| {
                     if let Some(map) = map {
                         if order != map.order {
