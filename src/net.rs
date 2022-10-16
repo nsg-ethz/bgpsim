@@ -568,10 +568,12 @@ fn net_from_config_nodes(
             },
             ConfigExpr::BgpRouteMap {
                 router,
+                neighbor,
                 direction,
                 map,
             } => ConfigExpr::BgpRouteMap {
                 router: node(router)?,
+                neighbor: node(neighbor)?,
                 direction,
                 map,
             },

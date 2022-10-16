@@ -3,7 +3,10 @@ use std::{collections::HashSet, ops::Deref, rc::Rc};
 use netsim::{
     formatter::NetworkFormatter,
     prelude::BgpSessionType,
-    route_map::{RouteMap, RouteMapBuilder, RouteMapDirection},
+    route_map::{
+        RouteMap, RouteMapBuilder,
+        RouteMapDirection::{self, Incoming, Outgoing},
+    },
     router::StaticRoute,
     types::{NetworkDevice, Prefix, RouterId},
 };
@@ -24,6 +27,7 @@ pub struct RouterCfg {
     rm_in_order_correct: bool,
     rm_out_order_correct: bool,
     new_sr_correct: bool,
+    rm_neighbor: Option<RouterId>,
 }
 
 pub enum Msg {
@@ -33,11 +37,9 @@ pub enum Msg {
     AddBgpSession(RouterId),
     RemoveBgpSession(RouterId),
     UpdateBgpSession(RouterId, BgpSessionTypeSymmetric),
-    UpdateRouteMap(isize, Option<RouteMap>, RouteMapDirection),
-    AddRouteMapInOrderChange(String),
-    AddRouteMapIn(String),
-    AddRouteMapOutOrderChange(String),
-    AddRouteMapOut(String),
+    UpdateRouteMap(RouterId, i16, Option<RouteMap>, RouteMapDirection),
+    ChangeRMOrder(RouterId, RouteMapDirection, String),
+    AddRM(RouterId, RouteMapDirection, String),
     ChangeLoadBalancing(bool),
     NewStaticRouteChange(String),
     InsertStaticRoute(String),
@@ -63,6 +65,7 @@ impl Component for RouterCfg {
             rm_in_order_correct: true,
             rm_out_order_correct: true,
             new_sr_correct: true,
+            rm_neighbor: None,
         }
     }
 
@@ -99,23 +102,66 @@ impl Component for RouterCfg {
         let on_session_add = ctx.link().callback(Msg::AddBgpSession);
         let on_session_remove = ctx.link().callback(Msg::RemoveBgpSession);
 
-        let on_in_order_change = ctx.link().callback(Msg::AddRouteMapInOrderChange);
-        let on_in_route_map_add = ctx.link().callback(Msg::AddRouteMapIn);
-        let incoming_rms: Vec<(isize, RouteMap)> = r
-            .get_bgp_route_maps_in()
-            .map(|r| (r.order, r.clone()))
-            .collect();
-        let incoming_existing: Rc<HashSet<isize>> =
-            Rc::new(incoming_rms.iter().map(|(o, _)| *o).collect());
+        let rm_config = if let Some(neighbor) = self.rm_neighbor {
+            let on_in_order_change = ctx
+                .link()
+                .callback(move |x| Msg::ChangeRMOrder(neighbor, Incoming, x));
+            let on_in_route_map_add = ctx
+                .link()
+                .callback(move |x| Msg::AddRM(neighbor, Incoming, x));
+            let incoming_rms: Vec<(i16, RouteMap)> = r
+                .get_bgp_route_maps(neighbor, Incoming)
+                .iter()
+                .map(|r| (r.order, r.clone()))
+                .collect();
+            let incoming_existing: Rc<HashSet<i16>> =
+                Rc::new(incoming_rms.iter().map(|(o, _)| *o).collect());
 
-        let on_out_order_change = ctx.link().callback(Msg::AddRouteMapOutOrderChange);
-        let on_out_route_map_add = ctx.link().callback(Msg::AddRouteMapOut);
-        let outgoing_rms: Vec<(isize, RouteMap)> = r
-            .get_bgp_route_maps_out()
-            .map(|r| (r.order, r.clone()))
-            .collect();
-        let outgoing_existing: Rc<HashSet<isize>> =
-            Rc::new(outgoing_rms.iter().map(|(o, _)| *o).collect());
+            let on_out_order_change = ctx
+                .link()
+                .callback(move |x| Msg::ChangeRMOrder(neighbor, Outgoing, x));
+            let on_out_route_map_add = ctx
+                .link()
+                .callback(move |x| Msg::AddRM(neighbor, Outgoing, x));
+            let outgoing_rms: Vec<(i16, RouteMap)> = r
+                .get_bgp_route_maps(neighbor, Outgoing)
+                .iter()
+                .map(|r| (r.order, r.clone()))
+                .collect();
+            let outgoing_existing: Rc<HashSet<i16>> =
+                Rc::new(outgoing_rms.iter().map(|(o, _)| *o).collect());
+
+            html! {
+                <>
+                    <ExpandableDivider text={String::from("Incoming Route Maps")} >
+                        <Element text={"New route map"} >
+                            <TextField text={""} placeholder={"order"} on_change={on_in_order_change} on_set={on_in_route_map_add} correct={self.rm_in_order_correct} button_text={"Add"}/>
+                        </Element>
+                        {
+                            incoming_rms.into_iter().map(|(order, map)|  {
+                                let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRouteMap(neighbor, order, Some(map), Incoming));
+                                let on_remove = ctx.link().callback(move |order| Msg::UpdateRouteMap(neighbor, order, None, Incoming));
+                                html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove}/> }
+                            }).collect::<Html>()
+                        }
+                    </ExpandableDivider>
+                    <ExpandableDivider text={String::from("Outgoing Route Maps")} >
+                        <Element text={"New route map"} >
+                            <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"}/>
+                        </Element>
+                        {
+                            outgoing_rms.into_iter().map(|(order, map)| {
+                                let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRouteMap(neighbor, order, Some(map), Outgoing));
+                                let on_remove = ctx.link().callback(move |order| Msg::UpdateRouteMap(neighbor, order, None, Outgoing));
+                                html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove}/> }
+                            }).collect::<Html>()
+                        }
+                    </ExpandableDivider>
+                </>
+            }
+        } else {
+            html!()
+        };
 
         let change_lb = ctx.link().callback(Msg::ChangeLoadBalancing);
         let lb_enabled = r.get_load_balancing();
@@ -151,30 +197,7 @@ impl Component for RouterCfg {
                         }
                     }).collect::<Html>()
                 }
-                <ExpandableDivider text={String::from("Incoming Route Maps")} >
-                    <Element text={"New route map"} >
-                        <TextField text={""} placeholder={"order"} on_change={on_in_order_change} on_set={on_in_route_map_add} correct={self.rm_in_order_correct} button_text={"Add"}/>
-                    </Element>
-                    {
-                        incoming_rms.into_iter().map(|(order, map)|  {
-                            let on_update = ctx.link().callback(|(order, map)| Msg::UpdateRouteMap(order, Some(map), RouteMapDirection::Incoming));
-                            let on_remove = ctx.link().callback(|order| Msg::UpdateRouteMap(order, None, RouteMapDirection::Incoming));
-                            html!{ <RouteMapCfg {router} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove}/> }
-                        }).collect::<Html>()
-                    }
-                </ExpandableDivider>
-                <ExpandableDivider text={String::from("Outgoing Route Maps")} >
-                    <Element text={"New route map"} >
-                        <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"}/>
-                    </Element>
-                    {
-                        outgoing_rms.into_iter().map(|(order, map)| {
-                            let on_update = ctx.link().callback(|(order, map)| Msg::UpdateRouteMap(order, Some(map), RouteMapDirection::Outgoing));
-                            let on_remove = ctx.link().callback(|order| Msg::UpdateRouteMap(order, None, RouteMapDirection::Outgoing));
-                            html!{ <RouteMapCfg {router} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove}/> }
-                        }).collect::<Html>()
-                    }
-                </ExpandableDivider>
+                { rm_config }
                 <ExpandableDivider text={String::from("Static Routes")} >
                     <Element text={"New static route"} >
                         <TextField text={""} placeholder={"prefix"} on_change={on_new_sr_change} on_set={on_new_sr} correct={self.new_sr_correct} button_text={"Add"}/>
@@ -260,12 +283,12 @@ impl Component for RouterCfg {
                 }
                 false
             }
-            Msg::AddRouteMapInOrderChange(o) => match self.net.net().get_device(router) {
+            Msg::ChangeRMOrder(neighbor, direction, o) => match self.net.net().get_device(router) {
                 NetworkDevice::InternalRouter(r) => {
                     self.rm_in_order_correct = o
-                        .parse::<isize>()
+                        .parse::<i16>()
                         .ok()
-                        .map(|o| r.get_bgp_route_map_in(o).is_none())
+                        .map(|o| r.get_bgp_route_map(neighbor, direction, o).is_none())
                         .unwrap_or(false);
                     true
                 }
@@ -274,7 +297,7 @@ impl Component for RouterCfg {
                     false
                 }
             },
-            Msg::AddRouteMapIn(o) => {
+            Msg::AddRM(neighbor, direction, o) => {
                 let o = if let Ok(o) = o.parse() {
                     o
                 } else {
@@ -284,54 +307,25 @@ impl Component for RouterCfg {
                 let rm = RouteMapBuilder::new().order(o).allow().build();
                 self.net_dispatch.reduce_mut(move |n| {
                     n.net_mut()
-                        .set_bgp_route_map(router, rm, RouteMapDirection::Incoming)
+                        .set_bgp_route_map(router, neighbor, direction, rm)
                         .unwrap()
                 });
                 false
             }
-            Msg::AddRouteMapOutOrderChange(o) => match self.net.net().get_device(router) {
-                NetworkDevice::InternalRouter(r) => {
-                    self.rm_out_order_correct = o
-                        .parse::<isize>()
-                        .ok()
-                        .map(|o| r.get_bgp_route_map_out(o).is_none())
-                        .unwrap_or(false);
-                    true
-                }
-                _ => {
-                    self.rm_out_order_correct = false;
-                    false
-                }
-            },
-            Msg::AddRouteMapOut(o) => {
-                let o = if let Ok(o) = o.parse::<usize>() {
-                    o
-                } else {
-                    self.rm_out_order_correct = false;
-                    return true;
-                };
-                let rm = RouteMapBuilder::new().order(o).allow().build();
-                self.net_dispatch.reduce_mut(move |n| {
-                    n.net_mut()
-                        .set_bgp_route_map(router, rm, RouteMapDirection::Outgoing)
-                        .unwrap()
-                });
-                false
-            }
-            Msg::UpdateRouteMap(order, map, direction) => {
+            Msg::UpdateRouteMap(neighbor, order, map, direction) => {
                 self.net_dispatch.reduce_mut(move |n| {
                     if let Some(map) = map {
                         if order != map.order {
                             n.net_mut()
-                                .remove_bgp_route_map(router, order, direction)
+                                .remove_bgp_route_map(router, neighbor, direction, order)
                                 .unwrap();
                         }
                         n.net_mut()
-                            .set_bgp_route_map(router, map, direction)
+                            .set_bgp_route_map(router, neighbor, direction, map)
                             .unwrap();
                     } else {
                         n.net_mut()
-                            .remove_bgp_route_map(router, order, direction)
+                            .remove_bgp_route_map(router, neighbor, direction, order)
                             .unwrap();
                     }
                 });

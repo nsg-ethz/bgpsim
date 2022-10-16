@@ -3,7 +3,7 @@ use std::rc::Rc;
 use netsim::{
     formatter::NetworkFormatter,
     route_map::{RouteMapMatch, RouteMapMatchAsPath, RouteMapMatchClause},
-    types::RouterId,
+    types::{Prefix, RouterId},
 };
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
@@ -78,23 +78,13 @@ impl Component for RouteMapMatchCfg {
 
         let kind_text = match_kind_text(&ctx.props().m);
 
-        let is_peer = matches!(ctx.props().m, RouteMapMatch::Neighbor(_));
         let is_nh = matches!(ctx.props().m, RouteMapMatch::NextHop(_));
 
-        let value_html = if is_peer || is_nh {
-            let options: Vec<(RouterId, String)> = if is_peer {
-                peers
-                    .iter()
-                    .map(|n| (*n, n.fmt(&self.net.net()).to_string()))
-                    .collect()
-            } else {
-                self.net
-                    .net()
-                    .get_topology()
-                    .node_indices()
-                    .map(|n| (n, n.fmt(&self.net.net()).to_string()))
-                    .collect::<Vec<_>>()
-            };
+        let value_html = if is_nh {
+            let options: Vec<(RouterId, String)> = peers
+                .iter()
+                .map(|n| (*n, n.fmt(&self.net.net()).to_string()))
+                .collect();
             let current_text = self.v1v.fmt(&self.net);
             let on_select = ctx.link().callback(Msg::ValueUpdateRouter);
             html! {<div class="flex-1 ml-2"><Select<RouterId> text={current_text} {options} {on_select} button_class={Classes::from("text-sm")} /></div>}
@@ -139,7 +129,7 @@ impl Component for RouteMapMatchCfg {
 
         html! {
             <div class="w-full flex">
-                <div class="w-40"><Select<RouteMapMatch> text={kind_text} options={match_kind_options(&peers)} {on_select} button_class={Classes::from("text-sm")} /></div>
+                <div class="w-40"><Select<RouteMapMatch> text={kind_text} options={match_kind_options()} {on_select} button_class={Classes::from("text-sm")} /></div>
                 { value_html }
                 <button class="ml-2 hover hover:text-red-700 focus:outline-none transition duration-150 ease-in-out" onclick={on_delete}> <yew_lucide::X class="w-3 h-3 text-center" /> </button>
             </div>
@@ -238,8 +228,6 @@ impl MatchValue {
 
 fn match_kind_text(m: &RouteMapMatch) -> &'static str {
     match m {
-        RouteMapMatch::Neighbor(_) => "Peer is",
-        RouteMapMatch::Prefix(RouteMapMatchClause::Equal(_)) => "Prefix is",
         RouteMapMatch::Prefix(_) => "Prefix in",
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(_)) => "Path has",
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(_))) => {
@@ -251,11 +239,9 @@ fn match_kind_text(m: &RouteMapMatch) -> &'static str {
     }
 }
 
-fn match_kind_options(peers: &[RouterId]) -> Vec<(RouteMapMatch, String)> {
+fn match_kind_options() -> Vec<(RouteMapMatch, String)> {
     [
-        RouteMapMatch::Neighbor(peers.get(0).copied().unwrap_or_else(|| 0.into())),
-        RouteMapMatch::Prefix(RouteMapMatchClause::Equal(0.into())),
-        RouteMapMatch::Prefix(RouteMapMatchClause::Range(0.into(), 0.into())),
+        RouteMapMatch::Prefix(Default::default()),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(0.into())),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(0))),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(
@@ -274,13 +260,11 @@ fn match_kind_options(peers: &[RouterId]) -> Vec<(RouteMapMatch, String)> {
 
 fn match_values(m: &RouteMapMatch) -> (MatchValue, MatchValue) {
     match m {
-        RouteMapMatch::Neighbor(v) => (MatchValue::Router(*v), MatchValue::None),
-        RouteMapMatch::Prefix(RouteMapMatchClause::Equal(v)) => {
-            (MatchValue::Integer(v.0), MatchValue::None)
-        }
-        RouteMapMatch::Prefix(RouteMapMatchClause::Range(v1, v2)) => {
-            (MatchValue::Integer(v1.0), MatchValue::Integer(v2.0))
-        }
+        RouteMapMatch::Prefix(ps) => (
+            // TODO implement prefix lists
+            MatchValue::Integer(ps.iter().next().unwrap().0),
+            MatchValue::None,
+        ),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(v)) => {
             (MatchValue::Integer(v.0), MatchValue::None)
         }
@@ -299,19 +283,9 @@ fn match_values(m: &RouteMapMatch) -> (MatchValue, MatchValue) {
 
 fn match_update(m: &RouteMapMatch, val1: MatchValue, val2: MatchValue) -> Option<RouteMapMatch> {
     Some(match (m, val1, val2) {
-        (RouteMapMatch::Neighbor(_), MatchValue::Router(r), MatchValue::None) => {
-            RouteMapMatch::Neighbor(r)
+        (RouteMapMatch::Prefix(_), MatchValue::Integer(x), MatchValue::None) => {
+            RouteMapMatch::Prefix([Prefix::from(x)].into())
         }
-        (
-            RouteMapMatch::Prefix(RouteMapMatchClause::Equal(_)),
-            MatchValue::Integer(x),
-            MatchValue::None,
-        ) => RouteMapMatch::Prefix(RouteMapMatchClause::Equal(x.into())),
-        (
-            RouteMapMatch::Prefix(RouteMapMatchClause::Range(_, _)),
-            MatchValue::Integer(x),
-            MatchValue::Integer(y),
-        ) => RouteMapMatch::Prefix(RouteMapMatchClause::Range(x.into(), y.into())),
         (
             RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(_)),
             MatchValue::Integer(x),
