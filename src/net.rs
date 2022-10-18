@@ -1,22 +1,20 @@
 use std::{
-    collections::{vec_deque::Iter, HashMap, HashSet, VecDeque},
+    collections::{vec_deque::Iter, HashMap, VecDeque},
     ops::{Deref, DerefMut},
 };
 
 use forceatlas2::{Layout, Nodes, Settings};
 use getrandom::getrandom;
-use itertools::Itertools;
 use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
 use netsim::{
     bgp::{BgpRoute, BgpSessionType},
-    config::{ConfigExpr, ConfigModifier, NetworkConfig},
     event::{Event, EventQueue},
     network::Network,
     router::Router,
-    types::{AsId, IgpNetwork, NetworkDevice, Prefix, RouterId},
+    types::{IgpNetwork, NetworkDevice, Prefix, RouterId},
 };
 use serde::{Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::Value;
 use wasm_bindgen::JsCast;
 use web_sys::{window, HtmlElement};
 use yewdux::{mrc::Mrc, prelude::*};
@@ -396,66 +394,27 @@ fn rand_uniform() -> f64 {
 fn net_to_string(net: &Net, compact: bool) -> String {
     let net_borrow = net.net();
     let n = net_borrow.deref();
-    let config = Vec::from_iter(n.get_config().unwrap().iter().cloned());
     let pos_borrow = net.pos();
     let p = pos_borrow.deref();
-    let node_indices = n.get_topology().node_indices().sorted();
-    let nodes: Vec<(RouterId, String, Option<AsId>)> = node_indices
-        .map(|id| match n.get_device(id) {
-            NetworkDevice::InternalRouter(r) => (id, r.name().to_string(), None),
-            NetworkDevice::ExternalRouter(r) => (id, r.name().to_string(), Some(r.as_id())),
-            NetworkDevice::None(_) => unreachable!(),
-        })
-        .collect();
-    let routes: Vec<(RouterId, BgpRoute)> = n
-        .get_external_routers()
-        .into_iter()
-        .map(|r| (r, n.get_device(r).unwrap_external()))
-        .flat_map(|(id, r)| {
-            r.get_advertised_routes()
-                .values()
-                .map(move |route| (id, route.clone()))
-        })
-        .collect();
     serde_json::to_string(&if compact {
-        json!({
-            "config_nodes_routes": serde_json::to_value(&(config, nodes, routes)).unwrap(),
-            "pos": serde_json::to_value(p).unwrap(),
-        })
+        let mut network = serde_json::from_str::<Value>(&n.as_json_str_compact()).unwrap();
+        let obj = network.as_object_mut().unwrap();
+        obj.insert("pos".to_string(), serde_json::to_value(p).unwrap());
+        network
     } else {
-        json!({
-            "net": serde_json::to_value(n).unwrap(),
-            "config_nodes_routes": serde_json::to_value(&(config, nodes, routes)).unwrap(),
-            "pos": serde_json::to_value(p).unwrap(),
-        })
+        let mut network = serde_json::from_str::<Value>(&n.as_json_str()).unwrap();
+        let obj = network.as_object_mut().unwrap();
+        obj.insert("pos".to_string(), serde_json::to_value(p).unwrap());
+        network
     })
     .unwrap()
 }
 
 fn net_from_str(s: &str) -> Result<Net, String> {
     // first, try to deserialize the network. If that works, ignore the config
+    let net = Network::from_json_str(s, Queue::default).map_err(|x| x.to_string())?;
     let content: Value =
         serde_json::from_str(s).map_err(|e| format!("cannot parse json file! {}", e))?;
-    let net: Network<Queue> = if let Some(net) = content
-        .get("net")
-        .and_then(|v| serde_json::from_value(v.clone()).ok())
-    {
-        net
-    } else {
-        content
-            .get("config_nodes_routes")
-            .and_then(|v| v.as_array())
-            .ok_or_else(|| {
-                String::from("Neither a network nor a configuration was found in the file!")
-            })
-            .and_then(|v| {
-                if v.len() == 3 {
-                    net_from_config_nodes(v[0].clone(), v[1].clone(), v[2].clone())
-                } else {
-                    Err(String::from("\"config_nodes_routes\" needs 3 values!"))
-                }
-            })?
-    };
     let (pos, rerun_layout) = if let Some(pos) = content
         .get("pos")
         .and_then(|v| serde_json::from_value::<HashMap<RouterId, Point>>(v.clone()).ok())
@@ -487,115 +446,4 @@ fn net_from_str(s: &str) -> Result<Net, String> {
         result.spring_layout();
     }
     Ok(result)
-}
-
-fn net_from_config_nodes(
-    config: Value,
-    nodes: Value,
-    routes: Value,
-) -> Result<Network<Queue>, String> {
-    let config: Vec<ConfigExpr> =
-        serde_json::from_value(config).map_err(|e| format!("Cannot parse config: {}", e))?;
-    let nodes: Vec<(RouterId, String, Option<AsId>)> =
-        serde_json::from_value(nodes).map_err(|e| format!("Cannot parse nodes: {}", e))?;
-    let routes: Vec<(RouterId, BgpRoute)> =
-        serde_json::from_value(routes).map_err(|e| format!("Cannot parse rotues: {}", e))?;
-    let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();
-    let links: HashSet<(RouterId, RouterId)> = config
-        .iter()
-        .filter_map(|e| {
-            if let ConfigExpr::IgpLinkWeight { source, target, .. } = e {
-                if source.index() < target.index() {
-                    Some((*target, *source))
-                } else {
-                    Some((*source, *target))
-                }
-            } else {
-                None
-            }
-        })
-        .collect();
-    let mut net = Network::new(Queue::new());
-    // add all nodes and create the lut
-    for (id, name, as_id) in nodes.into_iter() {
-        let new_id = if let Some(as_id) = as_id {
-            net.add_external_router(name, as_id)
-        } else {
-            net.add_router(name)
-        };
-        nodes_lut.insert(id, new_id);
-    }
-    // create the function to lookup nodes
-    let node = |id: RouterId| {
-        nodes_lut
-            .get(&id)
-            .copied()
-            .ok_or_else(|| String::from("Unknown Router ID!"))
-    };
-    // add all links
-    for (src, dst) in links {
-        net.add_link(node(src)?, node(dst)?);
-    }
-    // apply all configurations
-    for expr in config.iter() {
-        let expr = match expr.clone() {
-            ConfigExpr::IgpLinkWeight {
-                source,
-                target,
-                weight,
-            } => ConfigExpr::IgpLinkWeight {
-                source: node(source)?,
-                target: node(target)?,
-                weight,
-            },
-            ConfigExpr::OspfArea {
-                source,
-                target,
-                area,
-            } => ConfigExpr::OspfArea {
-                source: node(source)?,
-                target: node(target)?,
-                area,
-            },
-            ConfigExpr::BgpSession {
-                source,
-                target,
-                session_type,
-            } => ConfigExpr::BgpSession {
-                source: node(source)?,
-                target: node(target)?,
-                session_type,
-            },
-            ConfigExpr::BgpRouteMap {
-                router,
-                neighbor,
-                direction,
-                map,
-            } => ConfigExpr::BgpRouteMap {
-                router: node(router)?,
-                neighbor: node(neighbor)?,
-                direction,
-                map,
-            },
-            ConfigExpr::StaticRoute {
-                router,
-                prefix,
-                target,
-            } => ConfigExpr::StaticRoute {
-                router: node(router)?,
-                prefix,
-                target,
-            },
-            ConfigExpr::LoadBalancing { router } => ConfigExpr::LoadBalancing {
-                router: node(router)?,
-            },
-        };
-        net.apply_modifier(&ConfigModifier::Insert(expr))
-            .map_err(|e| format!("cannot apply modifier! {}", e))?;
-    }
-    for (src, route) in routes.into_iter() {
-        net.advertise_external_route(src, route.prefix, route.as_path, route.med, route.community)
-            .map_err(|e| format!("Cannot advertise rotue: {}", e))?;
-    }
-    Ok(net)
 }

@@ -606,7 +606,7 @@ dependencies = [
 
 [[package]]
 name = "netsim"
-version = "0.7.3"
+version = "0.7.5"
 dependencies = [
  "im",
  "itertools",
@@ -617,6 +617,7 @@ dependencies = [
  "petgraph",
  "priority-queue",
  "serde",
+ "serde_json",
  "serde_with",
  "thiserror",
 ]
