@@ -760,6 +760,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for NetworkError {
             }
             NetworkError::EmptyUndoStack => String::from("Undo stack is empty!"),
             NetworkError::UndoError(s) => format!("Undo error occurred: {}", s),
+            #[cfg(feature = "serde")]
             NetworkError::JsonError(e) => format!("Json error occurred: {}", e),
         }
     }

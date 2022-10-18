@@ -550,6 +550,7 @@ impl PartialEq for NetworkError {
             }
             (Self::InvalidBgpTable(l0), Self::InvalidBgpTable(r0)) => l0 == r0,
             (Self::UndoError(l0), Self::UndoError(r0)) => l0 == r0,
+            #[cfg(feature = "serde")]
             (Self::JsonError(l), Self::JsonError(r)) => l.to_string() == r.to_string(),
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
