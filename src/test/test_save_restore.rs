@@ -82,3 +82,22 @@ fn import_with_config() {
     let restored = Network::from_json_str(&modified_json_str, BasicEventQueue::default).unwrap();
     assert!(restored.weak_eq(&net));
 }
+
+#[test]
+fn import_wrong_net() {
+    let net = get_net();
+    let json_str = net.as_json_str();
+    let mut json_obj: Value = serde_json::from_str(&json_str).unwrap();
+    let _ = json_obj["net"]["routers"].take();
+    let modified_json_str = serde_json::to_string(&json_obj).unwrap();
+    let restored = Network::from_json_str(&modified_json_str, BasicEventQueue::default).unwrap();
+    assert!(restored.weak_eq(&net));
+}
+
+#[test]
+fn import_compact_net() {
+    let net = get_net();
+    let json_str = net.as_json_str_compact();
+    let restored = Network::from_json_str(&json_str, BasicEventQueue::default).unwrap();
+    assert!(restored.weak_eq(&net));
+}
