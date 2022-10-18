@@ -163,6 +163,9 @@ pub mod prelude;
 pub mod record;
 pub mod route_map;
 pub mod router;
+#[cfg(feature = "serde")]
+#[cfg_attr(docsrs, doc(cfg(feature = "topology_zoo")))]
+mod serde;
 #[cfg(feature = "topology_zoo")]
 #[cfg_attr(docsrs, doc(cfg(feature = "topology_zoo")))]
 pub mod topology_zoo;

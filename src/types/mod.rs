@@ -475,8 +475,7 @@ pub enum DeviceError {
 }
 
 /// Network Errors
-#[derive(Error, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Error, Debug)]
 pub enum NetworkError {
     /// Device Error which cannot be handled
     #[error("Device Error: {0}")]
@@ -525,4 +524,34 @@ pub enum NetworkError {
     /// Some undo error happened.
     #[error("Undo error: {0}")]
     UndoError(String),
+    #[cfg(feature = "serde")]
+    /// Json error
+    #[error("{0}")]
+    JsonError(#[from] serde_json::Error),
+}
+
+impl PartialEq for NetworkError {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::DeviceError(l0), Self::DeviceError(r0)) => l0 == r0,
+            (Self::ConfigError(l0), Self::ConfigError(r0)) => l0 == r0,
+            (Self::DeviceNotFound(l0), Self::DeviceNotFound(r0)) => l0 == r0,
+            (Self::DeviceNameNotFound(l0), Self::DeviceNameNotFound(r0)) => l0 == r0,
+            (Self::DeviceIsExternalRouter(l0), Self::DeviceIsExternalRouter(r0)) => l0 == r0,
+            (Self::DeviceIsInternalRouter(l0), Self::DeviceIsInternalRouter(r0)) => l0 == r0,
+            (Self::LinkNotFound(l0, l1), Self::LinkNotFound(r0, r1)) => l0 == r0 && l1 == r1,
+            (Self::ForwardingLoop(l0), Self::ForwardingLoop(r0)) => l0 == r0,
+            (Self::ForwardingBlackHole(l0), Self::ForwardingBlackHole(r0)) => l0 == r0,
+            (Self::InvalidBgpSessionType(l0, l1, l2), Self::InvalidBgpSessionType(r0, r1, r2)) => {
+                l0 == r0 && l1 == r1 && l2 == r2
+            }
+            (Self::InconsistentBgpSession(l0, l1), Self::InconsistentBgpSession(r0, r1)) => {
+                l0 == r0 && l1 == r1
+            }
+            (Self::InvalidBgpTable(l0), Self::InvalidBgpTable(r0)) => l0 == r0,
+            (Self::UndoError(l0), Self::UndoError(r0)) => l0 == r0,
+            (Self::JsonError(l), Self::JsonError(r)) => l.to_string() == r.to_string(),
+            _ => core::mem::discriminant(self) == core::mem::discriminant(other),
+        }
+    }
 }

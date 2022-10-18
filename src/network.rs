@@ -984,9 +984,8 @@ where
     Q: EventQueue + PartialEq,
     Q::Priority: Default,
 {
-    /// Checks for weak equivalence, by only comparing the BGP tables. This funciton assumes that
-    /// both networks have identical routers, identical topologies, identical configuration and that
-    /// the same routes are advertised by the same external routers.
+    /// Checks for weak equivalence, by only comparing the IGP and BGP tables, as well as the event
+    /// queue. The function also checks that the same routers are present.
     #[cfg(not(tarpaulin_include))]
     pub fn weak_eq(&self, other: &Self) -> bool {
         // check if the queue is the same. Notice that the length of the queue will be checked
@@ -997,6 +996,12 @@ where
 
         // check if the forwarding state is the same
         if self.get_forwarding_state() != other.get_forwarding_state() {
+            return false;
+        }
+
+        if self.routers.keys().collect::<HashSet<_>>()
+            != other.routers.keys().collect::<HashSet<_>>()
+        {
             return false;
         }
 
@@ -1040,10 +1045,10 @@ where
             return false;
         }
 
-        #[cfg(feature = "undo")]
-        if self.undo_stack != other.undo_stack {
-            return false;
-        }
+        // #[cfg(feature = "undo")]
+        // if self.undo_stack != other.undo_stack {
+        //     return false;
+        // }
 
         let self_ns = HashSet::<RouterId>::from_iter(self.net.node_indices());
         let other_ns = HashSet::<RouterId>::from_iter(other.net.node_indices());

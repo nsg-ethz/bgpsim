@@ -46,7 +46,7 @@ use std::collections::HashSet;
 ///   a bit more expensive. However, it is to be expected that neighbors are added and removed more
 ///   often. In this case, we need to iterate over the `active_routes`, which is faster than using a
 ///   `HashMap`. Also, cloning the External Router is faster when we have a vector.
-#[derive(Debug, PartialEq, Eq)]
+#[derive(Debug, Eq)]
 #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
 pub struct ExternalRouter {
     name: String,
@@ -56,6 +56,17 @@ pub struct ExternalRouter {
     pub(crate) active_routes: CowMapPrefix<BgpRoute>,
     #[cfg(feature = "undo")]
     pub(crate) undo_stack: CowVec<Vec<UndoAction>>,
+}
+
+impl PartialEq for ExternalRouter {
+    fn eq(&self, other: &Self) -> bool {
+        self.name == other.name
+            && self.router_id == other.router_id
+            && self.as_id == other.as_id
+            && self.neighbors == other.neighbors
+            && self.active_routes == other.active_routes
+        // && self.undo_stack == other.undo_stack
+    }
 }
 
 impl Clone for ExternalRouter {

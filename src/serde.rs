@@ -1,0 +1,243 @@
+// NetSim: BGP Network Simulator written in Rust
+// Copyright (C) 2022 Tibor Schneider
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+//! This module contains functions to save the network to a file, and restore it from a file.
+
+use std::collections::{BTreeSet, HashMap, HashSet};
+
+use itertools::Itertools;
+use serde::{Deserialize, Serialize};
+use serde_json::json;
+
+use crate::{
+    config::{ConfigExpr, ConfigModifier, NetworkConfig},
+    event::{EventQueue, FmtPriority},
+    network::Network,
+    types::{AsId, NetworkDevice, NetworkError, Prefix, RouterId},
+};
+
+const JSON_FIELD_NAME_NETWORK: &str = "net";
+const JSON_FIELD_NAME_CONFIG: &str = "config_nodes_routes";
+
+type ExportRoutes = (RouterId, Prefix, Vec<AsId>, Option<u32>, BTreeSet<u32>);
+
+impl<Q> Network<Q>
+where
+    Q: EventQueue + Serialize,
+    Q::Priority: Default + FmtPriority + Clone,
+{
+    /// Create a json string from the network. This string will contain both the actual network
+    /// state and the configuration. In case the network state can no longer be deserialized, the
+    /// configuration can be used to restore the network to a similar state.
+    pub fn as_json_str(&self) -> String {
+        let config = Vec::from_iter(self.get_config().unwrap().iter().cloned());
+        let node_indices = self.get_topology().node_indices().sorted();
+        let nodes: Vec<(RouterId, String, Option<AsId>)> = node_indices
+            .map(|id| match self.get_device(id) {
+                NetworkDevice::InternalRouter(r) => (id, r.name().to_string(), None),
+                NetworkDevice::ExternalRouter(r) => (id, r.name().to_string(), Some(r.as_id())),
+                NetworkDevice::None(_) => unreachable!(),
+            })
+            .collect();
+        let routes: Vec<ExportRoutes> = self
+            .get_external_routers()
+            .into_iter()
+            .filter_map(|r| Some((r, self.get_device(r).external()?)))
+            .flat_map(|(id, r)| {
+                r.get_advertised_routes().values().map(move |route| {
+                    (
+                        id,
+                        route.prefix,
+                        route.as_path.clone(),
+                        route.med,
+                        route.community.clone(),
+                    )
+                })
+            })
+            .collect();
+        serde_json::to_string(&json!({
+            JSON_FIELD_NAME_NETWORK: serde_json::to_value(self).unwrap(),
+            JSON_FIELD_NAME_CONFIG: serde_json::to_value(&(config, nodes, routes)).unwrap(),
+        }))
+        .unwrap()
+    }
+}
+
+impl<Q> Network<Q>
+where
+    Q: EventQueue,
+    for<'a> Q: Deserialize<'a>,
+    Q::Priority: Default + FmtPriority + Clone,
+{
+    /// Read a json file containing the network and create the network. If the network cannot be
+    /// deserialized directly, reconstruct it from the configuration that should also be part of the
+    /// exported file.
+    ///
+    /// The `default_queue` function must return a queue in case the network cannot be deserialized
+    /// directly, but it needs to be built up from the configuration. For instance, use
+    /// `Default::default` for a queue `Q` like `BasicEventQueue` that implements `Default`.
+    pub fn from_json_str<F>(s: &str, default_queue: F) -> Result<Self, NetworkError>
+    where
+        F: FnOnce() -> Q,
+    {
+        // first, try to deserialize the network. If that works, ignore the config
+        let content: serde_json::Value = serde_json::from_str(s)?;
+        if let Some(net) = content
+            .get(JSON_FIELD_NAME_NETWORK)
+            .and_then(|v| serde_json::from_value(v.clone()).ok())
+        {
+            Ok(net)
+        } else {
+            match content
+                .get(JSON_FIELD_NAME_CONFIG)
+                .and_then(|v| v.as_array())
+            {
+                Some(v) if v.len() == 3 => Self::from_config_nodes_routes(
+                    v[0].clone(),
+                    v[1].clone(),
+                    v[2].clone(),
+                    default_queue,
+                ),
+                _ => Err(serde_json::from_str::<ConfigNodeRoutes>(s).unwrap_err())?,
+            }
+        }
+    }
+}
+
+impl<Q> Network<Q>
+where
+    Q: EventQueue,
+    Q::Priority: Default + FmtPriority + Clone,
+{
+    /// Deserialize the json structure containing configuration, nodes and routes.
+    fn from_config_nodes_routes<F>(
+        config: serde_json::Value,
+        nodes: serde_json::Value,
+        routes: serde_json::Value,
+        default_queue: F,
+    ) -> Result<Self, NetworkError>
+    where
+        F: FnOnce() -> Q,
+    {
+        let config: Vec<ConfigExpr> = serde_json::from_value(config)?;
+        let nodes: Vec<(RouterId, String, Option<AsId>)> = serde_json::from_value(nodes)?;
+        let routes: Vec<ExportRoutes> = serde_json::from_value(routes)?;
+        let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();
+        let links: HashSet<(RouterId, RouterId)> = config
+            .iter()
+            .filter_map(|e| {
+                if let ConfigExpr::IgpLinkWeight { source, target, .. } = e {
+                    if source.index() < target.index() {
+                        Some((*target, *source))
+                    } else {
+                        Some((*source, *target))
+                    }
+                } else {
+                    None
+                }
+            })
+            .collect();
+        let mut net = Network::new(default_queue());
+        // add all nodes and create the lut
+        for (id, name, as_id) in nodes.into_iter() {
+            let new_id = if let Some(as_id) = as_id {
+                net.add_external_router(name, as_id)
+            } else {
+                net.add_router(name)
+            };
+            nodes_lut.insert(id, new_id);
+        }
+        // create the function to lookup nodes
+        let node = |id: RouterId| {
+            nodes_lut
+                .get(&id)
+                .copied()
+                .ok_or(NetworkError::DeviceNotFound(id))
+        };
+        // add all links
+        for (src, dst) in links {
+            net.add_link(node(src)?, node(dst)?);
+        }
+        // apply all configurations
+        for expr in config.iter() {
+            let expr = match expr.clone() {
+                ConfigExpr::IgpLinkWeight {
+                    source,
+                    target,
+                    weight,
+                } => ConfigExpr::IgpLinkWeight {
+                    source: node(source)?,
+                    target: node(target)?,
+                    weight,
+                },
+                ConfigExpr::OspfArea {
+                    source,
+                    target,
+                    area,
+                } => ConfigExpr::OspfArea {
+                    source: node(source)?,
+                    target: node(target)?,
+                    area,
+                },
+                ConfigExpr::BgpSession {
+                    source,
+                    target,
+                    session_type,
+                } => ConfigExpr::BgpSession {
+                    source: node(source)?,
+                    target: node(target)?,
+                    session_type,
+                },
+                ConfigExpr::BgpRouteMap {
+                    router,
+                    neighbor,
+                    direction,
+                    map,
+                } => ConfigExpr::BgpRouteMap {
+                    router: node(router)?,
+                    neighbor: node(neighbor)?,
+                    direction,
+                    map,
+                },
+                ConfigExpr::StaticRoute {
+                    router,
+                    prefix,
+                    target,
+                } => ConfigExpr::StaticRoute {
+                    router: node(router)?,
+                    prefix,
+                    target,
+                },
+                ConfigExpr::LoadBalancing { router } => ConfigExpr::LoadBalancing {
+                    router: node(router)?,
+                },
+            };
+            net.apply_modifier(&ConfigModifier::Insert(expr))?;
+        }
+        for (src, prefix, as_path, med, community) in routes.into_iter() {
+            net.advertise_external_route(src, prefix, as_path, med, community)?;
+        }
+        Ok(net)
+    }
+}
+
+/// Dummy struct that allows us to create meaningful error messages
+#[derive(Debug, Deserialize)]
+struct ConfigNodeRoutes {
+    #[allow(dead_code)]
+    config_nodes_routes: (serde_json::Value, serde_json::Value, serde_json::Value),
+}

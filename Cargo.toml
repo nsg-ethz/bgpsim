@@ -1,6 +1,6 @@
 [package]
 name = "netsim"
-version = "0.7.3"
+version = "0.7.4"
 edition = "2021"
 
 [package.metadata.docs.rs]
@@ -29,7 +29,7 @@ multi_prefix = []
 undo = []
 rand = ["dep:rand"]
 rand_queue = ["dep:rand", "dep:rand_distr", "dep:priority-queue", "dep:geoutils"]
-serde = ["dep:serde", "dep:serde_with", "petgraph/serde-1", "ordered-float/serde", "priority-queue?/serde", "im?/serde"]
+serde = ["dep:serde", "dep:serde_with", "petgraph/serde-1", "ordered-float/serde", "priority-queue?/serde", "im?/serde", "dep:serde_json"]
 topology_zoo = ["dep:xmltree", "dep:geoutils"]
 cow = ["dep:im"]
 export = ["dep:ipnet", "dep:bimap"]
@@ -45,6 +45,7 @@ priority-queue = { version = "1.2.2", optional = true }
 rand = { version = "0.8.4", optional = true }
 rand_distr = { version = "0.4.3", optional = true }
 serde = { version = "1", features = [ "derive" ], optional = true }
+serde_json = { version = "1", optional = true }
 serde_with = { version = "2.0", features = [], optional = true }
 xmltree = { version = "0.10", optional = true }
 geoutils = { version = "0.5.1", optional = true }

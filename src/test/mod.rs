@@ -108,5 +108,7 @@ mod test_record;
 mod test_roland;
 mod test_route_map;
 mod test_router;
+#[cfg(all(feature = "topology_zoo", feature = "rand", feature = "serde"))]
+mod test_save_restore;
 #[cfg(feature = "topology_zoo")]
 mod test_topology_zoo;

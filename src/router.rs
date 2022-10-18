@@ -1178,10 +1178,10 @@ impl PartialEq for Router {
         {
             return false;
         }
-        #[cfg(feature = "undo")]
-        if self.undo_stack != other.undo_stack {
-            return false;
-        }
+        // #[cfg(feature = "undo")]
+        // if self.undo_stack != other.undo_stack {
+        //     return false;
+        // }
         let prefix_union = self.bgp_known_prefixes.union(&other.bgp_known_prefixes);
         for prefix in prefix_union {
             assert_eq!(
