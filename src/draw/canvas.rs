@@ -23,6 +23,7 @@ use super::next_hop::NextHop;
 use super::router::Router;
 use crate::dim::Dim;
 use crate::draw::arrows::CurvedArrow;
+use crate::draw::forwarding_path::ForwardingPath;
 use crate::draw::propagation::Propagation;
 use crate::draw::SvgColor;
 use crate::net::Net;
@@ -50,6 +51,7 @@ pub struct Canvas {
     events: HashMap<RouterId, Vec<(usize, Event<()>)>>,
     hover_event: Option<(RouterId, RouterId)>,
     last_layer: Option<Layer>,
+    last_hover: Option<Hover>,
     resize_listener: Option<Closure<dyn Fn(MouseEvent)>>,
 }
 
@@ -81,6 +83,7 @@ impl Component for Canvas {
             events: HashMap::new(),
             hover_event: None,
             last_layer: None,
+            last_hover: None,
             resize_listener: None,
         }
     }
@@ -121,6 +124,15 @@ impl Component for Canvas {
                                 html!{<Propagation {src} {dst} {route} />}
                             }).collect::<Html>()
                         } else { html!{} }
+                    }
+                    {
+                        if let Hover::Router(r) = self.state.hover() {
+                            if self.state.layer() == Layer::FwState {
+                                if let Some(prefix) = self.state.prefix() {
+                                    html!{<ForwardingPath router_id={r} {prefix} />}
+                                } else { html!() }
+                            } else { html!() }
+                        } else { html!() }
                     }
                     {
                         if let Some((src, dst)) = self.hover_event {
@@ -206,6 +218,8 @@ impl Component for Canvas {
             _ => None,
         });
         ret |= update(&mut self.last_layer, || Some(self.state.layer()));
+
+        ret |= update(&mut self.last_hover, || Some(self.state.hover()));
 
         ret
     }

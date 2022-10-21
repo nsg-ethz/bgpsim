@@ -5,6 +5,7 @@ pub mod arrows;
 pub mod bgp_session;
 pub mod canvas;
 pub mod events;
+pub mod forwarding_path;
 pub mod link;
 pub mod link_weight;
 pub mod next_hop;
