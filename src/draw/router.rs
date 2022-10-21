@@ -123,11 +123,9 @@ impl Component for Router {
                 };
             }
             Msg::OnMouseEnter(_) => {
-                if self.dragging.is_none() {
-                    let router_id = ctx.props().router_id;
-                    self.state_dispatch
-                        .reduce_mut(move |s| s.set_hover(Hover::Router(router_id)));
-                }
+                let router_id = ctx.props().router_id;
+                self.state_dispatch
+                    .reduce_mut(move |s| s.set_hover(Hover::Router(router_id)));
                 return false;
             }
             Msg::OnMouseLeave => {
@@ -156,7 +154,6 @@ impl Component for Router {
                 return false;
             }
             Msg::OnMouseDown(e) => {
-                self.state_dispatch.reduce_mut(move |s| s.clear_hover());
                 self.move_p = Point::new(e.client_x(), e.client_y());
                 let link = ctx.link().clone();
                 let listener = Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e| {
