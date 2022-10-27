@@ -354,3 +354,21 @@ impl PartialOrd for BgpRibEntry {
         Some(Ordering::Equal)
     }
 }
+
+impl PartialEq<Option<&BgpRibEntry>> for BgpRibEntry {
+    fn eq(&self, other: &Option<&BgpRibEntry>) -> bool {
+        match other {
+            None => false,
+            Some(o) => self.eq(*o),
+        }
+    }
+}
+
+impl PartialOrd<Option<&BgpRibEntry>> for BgpRibEntry {
+    fn partial_cmp(&self, other: &Option<&BgpRibEntry>) -> Option<Ordering> {
+        match other {
+            None => Some(Ordering::Greater),
+            Some(o) => self.partial_cmp(*o),
+        }
+    }
+}

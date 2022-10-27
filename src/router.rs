@@ -225,9 +225,9 @@ impl Router {
                     return Ok((StepUpdate::new(prefix, old.clone(), old), vec![]));
                 }
                 // phase 1 of BGP protocol
-                let prefix = match bgp_event {
+                let (prefix, new) = match bgp_event {
                     BgpEvent::Update(route) => match self.insert_bgp_route(route, from)? {
-                        (p, true) => p,
+                        (p, true) => (p, true),
                         (p, false) => {
                             // there is nothing to do here. we simply ignore this event!
                             trace!("Ignore BGP update with ORIGINATOR_ID of self.");
@@ -235,7 +235,7 @@ impl Router {
                             return Ok((StepUpdate::new(p, old.clone(), old), vec![]));
                         }
                     },
-                    BgpEvent::Withdraw(prefix) => self.remove_bgp_route(prefix, from),
+                    BgpEvent::Withdraw(prefix) => (self.remove_bgp_route(prefix, from), false),
                 };
                 let new_prefix = self.bgp_known_prefixes.insert(prefix);
                 if new_prefix {
@@ -249,7 +249,11 @@ impl Router {
 
                 // phase 2
                 let old = self.get_next_hop(prefix);
-                let changed = self.run_bgp_decision_process_for_prefix(prefix)?;
+                let changed = if new {
+                    self.run_bgp_decision_process_for_new_route(prefix, from)
+                } else {
+                    self.run_bgp_decision_process_for_prefix(prefix)
+                }?;
                 if changed {
                     let new = self.get_next_hop(prefix);
                     // phase 3
@@ -813,6 +817,59 @@ impl Router {
     // -----------------
     // Private Functions
     // -----------------
+
+    /// Only run bgp decision process (phase 2) in case a new route appears for a specific
+    /// prefix. This function assumes that the route was already added to `self.bgp_rib_in`, so the
+    /// arguments of this function are both the prefix and the neighbor. This function will then
+    /// only only process this new BGP route and compare it to the currently best route. If it is
+    /// better, then update `self.bgp_rib[prefix]` and return `Ok(true)`.
+    ///
+    /// *Undo Functionality*: this function will push some actions to the last undo event.
+    fn run_bgp_decision_process_for_new_route(
+        &mut self,
+        prefix: Prefix,
+        neighbor: RouterId,
+    ) -> Result<bool, DeviceError> {
+        // search the best route and compare
+        let old_entry = self.bgp_rib.get(&prefix);
+        let new_entry = self
+            .bgp_rib_in
+            .get(&prefix)
+            .and_then(|rib| rib.get(&neighbor))
+            .and_then(|e| self.process_bgp_rib_in_route(e.clone()).ok().flatten());
+
+        match (old_entry, new_entry) {
+            // Still no route available. nothing to do
+            (None, None) => Ok(false),
+            // otherwise, if the new route is better than the old one, we can replace it in any
+            // case, even if the origin of both routes would be the same.
+            (old, Some(new)) if new > old => {
+                // replace the old with the better, new route
+                let _old_entry = self.bgp_rib.insert(prefix, new);
+                // add the undo action
+                #[cfg(feature = "undo")]
+                self.undo_stack
+                    .last_mut()
+                    .unwrap()
+                    .push(UndoAction::BgpRib(prefix, _old_entry));
+
+                Ok(true)
+            }
+            // However, if the origin of the old route is the same as the neighbor, then it must be
+            // replaced. Since we already know that the old route is preferred over the new one, we
+            // need to re-run the entire decision process.
+            (Some(old), _) if old.from_id == neighbor => {
+                // the old is replaced by the new. Now, we need to re-run the decision process.
+                self.run_bgp_decision_process_for_prefix(prefix)
+            }
+            // If the old selected route is not from that neighbor that is updated right now, and
+            // the new route is worse than the old route (due to the second case in this match
+            // statement), we don't need to update any tables.
+            (Some(_), _) => Ok(false),
+            // This case is unreachable! This would already match in the second case statement.
+            (None, Some(_)) => unreachable!(),
+        }
+    }
 
     /// only run bgp decision process (phase 2). This function may change
     /// `self.bgp_rib[prefix]`. This function returns `Ok(true)` if the selected route was changed
