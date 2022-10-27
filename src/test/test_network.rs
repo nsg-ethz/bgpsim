@@ -547,6 +547,12 @@ fn test_bgp_decision() {
     net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
         .unwrap();
 
+    // The network must have converged back
+    test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *E4]);
+
     // change the AS path
     net.advertise_external_route(
         *E4,
