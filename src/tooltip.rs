@@ -1,9 +1,9 @@
 use std::{ops::Deref, rc::Rc};
 
 use gloo_utils::window;
-use itertools::join;
+use itertools::{join, Itertools};
 use netsim::{
-    bgp::{BgpEvent, BgpRoute},
+    bgp::{BgpEvent, BgpRibEntry, BgpRoute},
     event::Event,
     formatter::NetworkFormatter,
     interactive::InteractiveNetwork,
@@ -19,7 +19,7 @@ use crate::{
     net::Net,
     point::Point,
     sidebar::queue_cfg::PrefixTable,
-    state::{Hover, State},
+    state::{Hover, Layer, State},
 };
 
 pub struct Tooltip {
@@ -76,6 +76,22 @@ impl Component for Tooltip {
             return html! {};
         }
         let content: Html = match hover {
+            Hover::Router(r) if self.state.layer() == Layer::RouteProp => {
+                if let Some(x) = self.net.net().get_device(r).internal() {
+                    html! {
+                        <>
+                            <p class={"font-bold text-center flex-0"}> {
+                                format!("BGP Table of {}", r.fmt(&self.net.net()))
+                            } </p>
+                            <RibTable rib={
+                                x.get_processed_bgp_rib(self.state.prefix().unwrap_or_else(|| 0.into()))
+                            }/>
+                        </>
+                    }
+                } else {
+                    html! {<p> {r.fmt(&self.net.net()).to_string()} </p> }
+                }
+            }
             Hover::Router(r) => {
                 html! {<p> {r.fmt(&self.net.net()).to_string()} </p> }
             }
@@ -251,6 +267,48 @@ pub fn route_table(props: &RouteTableProps) -> Html {
                 if !props.route.community.is_empty() {
                     html!{<tr> <td class="italic text-gray-400"> {"Communities: "} </td> <td> {join(props.route.community.iter(), ", ")} </td> </tr>}
                 } else { html!{} }
+            }
+        </table>
+    }
+}
+
+#[derive(Properties, PartialEq, Eq)]
+pub struct RibTableProps {
+    pub rib: Vec<(BgpRibEntry, bool)>,
+}
+
+#[function_component(RibTable)]
+pub fn rib_table(props: &RibTableProps) -> Html {
+    let (net, _) = use_store::<Net>();
+    let net = net.net();
+    let n = net.deref();
+
+    html! {
+        <table class="table-auto border-separate border-spacing-x-3">
+            <tr>
+              <td class="italic text-gray-400"></td>
+              <td class="italic text-gray-400"> {"Peer"} </td>
+              <td class="italic text-gray-400"> {"Path"} </td>
+              <td class="italic text-gray-400"> {"LP."} </td>
+              <td class="italic text-gray-400"> {"MED"} </td>
+              <td class="italic text-gray-400"> {"Cost"} </td>
+              <td class="italic text-gray-400"> {"Comm."} </td>
+            </tr>
+
+            {
+                props.rib.iter().map(|(r, s)| {
+                    html!{
+                        <tr>
+                            <td> {if *s { "*" } else { "" }} </td>
+                            <td> {r.from_id.fmt(n)} </td>
+                            <td> {r.route.as_path.iter().map(|x| x.0).join(", ")} </td>
+                            <td> {r.route.local_pref.map(|x| x.to_string()).unwrap_or_default()} </td>
+                            <td> {r.route.med.map(|x| x.to_string()).unwrap_or_default()} </td>
+                            <td> {r.igp_cost.map(|x| x.to_string()).unwrap_or_default()} </td>
+                            <td> {r.route.community.iter().join(", ")} </td>
+                        </tr>
+                    }
+                }).collect::<Html>()
             }
         </table>
     }

@@ -66,7 +66,7 @@ impl Component for QueueCfg {
                 let checked = self.next_checked;
                 let translate = if Some(i) == self.last_transition {
                     1
-                } else if Some(i - 1) == self.last_transition {
+                } else if i >= 1 && Some(i - 1) == self.last_transition {
                     -1
                 } else {
                     0
