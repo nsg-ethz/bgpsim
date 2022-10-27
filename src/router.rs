@@ -720,6 +720,28 @@ impl Router {
         self.bgp_rib_out.inner()
     }
 
+    /// Get the processed BGP RIB table for a specific prefix. This function will apply all incoming
+    /// route-maps to all entries in `RIB_IN`, and return the current table from which the router
+    /// has selected a route. Along with the routes, this function will also return a boolean wether
+    /// this route was actually selected. The vector is sorted by the neighboring ID.
+    pub fn get_processed_bgp_rib(&self, prefix: Prefix) -> Vec<(BgpRibEntry, bool)> {
+        let best_route = self.bgp_rib.get(&prefix);
+        self.bgp_rib_in
+            .get(&prefix)
+            .into_iter()
+            .flatten()
+            .filter_map(|(_, rib)| {
+                let proc = self.process_bgp_rib_in_route(rib.clone()).ok().flatten();
+                if proc.as_ref() == best_route {
+                    Some((proc?, true))
+                } else {
+                    Some((proc?, false))
+                }
+            })
+            .sorted_by_key(|(r, _)| r.from_id)
+            .collect()
+    }
+
     /// write forawrding table based on graph and return the set of events triggered by this action.
     /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables.
     ///
