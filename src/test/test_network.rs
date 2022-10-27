@@ -579,6 +579,17 @@ fn test_bgp_decision() {
 
     // we now expect all routers to choose R1 as an egress
     test_route!(net, *R1, p, [*R1, *E1]);
+    test_route!(net, *R2, p, [*R2, *R4, *E4]);
+    test_route!(net, *R3, p, [*R3, *R1, *E1]);
+    test_route!(net, *R4, p, [*R4, *E4]);
+
+    // change the MED, such that it has the same AS ID in the first entry, so that MED is actually
+    // compared!
+    net.advertise_external_route(*E4, p, vec![AsId(65101), AsId(65201)], Some(20), None)
+        .unwrap();
+
+    // we now expect all routers to choose R1 as an egress
+    test_route!(net, *R1, p, [*R1, *E1]);
     test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
     test_route!(net, *R3, p, [*R3, *R1, *E1]);
     test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);

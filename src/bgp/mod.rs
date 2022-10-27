@@ -139,10 +139,12 @@ impl PartialOrd for BgpRoute {
             Ordering::Less => return Some(Ordering::Greater),
         }
 
-        match s.med.unwrap().cmp(&o.med.unwrap()) {
-            Ordering::Equal => {}
-            Ordering::Greater => return Some(Ordering::Less),
-            Ordering::Less => return Some(Ordering::Greater),
+        if s.as_path.first() == o.as_path.first() {
+            match s.med.unwrap().cmp(&o.med.unwrap()) {
+                Ordering::Equal => {}
+                Ordering::Greater => return Some(Ordering::Less),
+                Ordering::Less => return Some(Ordering::Greater),
+            }
         }
 
         match s.cluster_list.len().cmp(&o.cluster_list.len()) {
@@ -303,10 +305,12 @@ impl PartialOrd for BgpRibEntry {
             Ordering::Less => return Some(Ordering::Greater),
         }
 
-        match s.med.unwrap().cmp(&o.med.unwrap()) {
-            Ordering::Equal => {}
-            Ordering::Greater => return Some(Ordering::Less),
-            Ordering::Less => return Some(Ordering::Greater),
+        if s.as_path.first() == o.as_path.first() {
+            match s.med.unwrap().cmp(&o.med.unwrap()) {
+                Ordering::Equal => {}
+                Ordering::Greater => return Some(Ordering::Less),
+                Ordering::Less => return Some(Ordering::Greater),
+            }
         }
 
         if self.from_type.is_ebgp() && other.from_type.is_ibgp() {
