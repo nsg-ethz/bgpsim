@@ -1,17 +1,21 @@
 use netsim::{
     bgp::BgpRoute,
+    config::ConfigModifier,
     types::{Prefix, RouterId},
 };
 use strum_macros::EnumIter;
 use yewdux::prelude::Store;
 
-#[derive(Clone, Default, Debug, PartialEq, Eq, Store)]
+#[derive(Clone, Default, Debug, PartialEq, Store)]
 pub struct State {
     selected: Selected,
     hover: Hover,
     layer: Layer,
     prefix: Option<Prefix>,
+    migration: Vec<ConfigModifier>,
 }
+
+impl Eq for State {}
 
 impl State {
     pub fn selected(&self) -> Selected {
@@ -28,6 +32,10 @@ impl State {
 
     pub fn prefix(&self) -> Option<Prefix> {
         self.prefix
+    }
+
+    pub fn get_migratoin(&self) -> &[ConfigModifier] {
+        &self.migration
     }
 
     pub fn set_selected(&mut self, selected: Selected) {
@@ -60,6 +68,7 @@ pub enum Selected {
     None,
     Router(RouterId),
     Queue,
+    Migration,
 }
 
 impl Default for Selected {

@@ -2,14 +2,11 @@ pub mod button;
 pub mod divider;
 pub mod element;
 pub mod external_router_cfg;
+pub mod migration_cfg;
 pub mod multi_select;
 pub mod queue_cfg;
-pub mod route_map_cfg;
-pub mod route_map_match_cfg;
-pub mod route_map_set_cfg;
 pub mod router_cfg;
 pub mod select;
-pub mod static_route_cfg;
 pub mod text_field;
 pub mod toggle;
 pub mod topology_cfg;
@@ -23,6 +20,7 @@ pub use text_field::TextField;
 pub use toggle::Toggle;
 
 use external_router_cfg::ExternalRouterCfg;
+use migration_cfg::MigrationCfg;
 use queue_cfg::QueueCfg;
 use router_cfg::RouterCfg;
 
@@ -75,6 +73,7 @@ impl Component for Sidebar {
             }
             Selected::Router(r) => html! { <ExternalRouterCfg router={r} /> },
             Selected::Queue => html! { <QueueCfg /> },
+            Selected::Migration => html! { <MigrationCfg /> },
         };
 
         html! {

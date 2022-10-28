@@ -8,10 +8,8 @@ use yew::prelude::*;
 
 use crate::draw::SvgColor;
 
-use super::{
-    route_map_match_cfg::RouteMapMatchCfg, route_map_set_cfg::RouteMapSetCfg, Button, Element,
-    ExpandableSection, TextField, Toggle,
-};
+use super::super::{Button, Element, ExpandableSection, TextField, Toggle};
+use super::{route_map_match_cfg::RouteMapMatchCfg, route_map_set_cfg::RouteMapSetCfg};
 
 pub struct RouteMapCfg {
     order_input_correct: bool,

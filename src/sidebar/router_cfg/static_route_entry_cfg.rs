@@ -9,9 +9,9 @@ use yewdux::prelude::*;
 
 use crate::{draw::SvgColor, net::Net};
 
-use super::{Button, Element, ExpandableSection, Select, Toggle};
+use super::super::{Button, Element, ExpandableSection, Select, Toggle};
 
-pub struct StaticRouteCfg {
+pub struct StaticRouteEntryCfg {
     net: Rc<Net>,
     _net_dispatch: Dispatch<Net>,
 }
@@ -33,13 +33,13 @@ pub struct Properties {
     pub on_remove: Callback<Prefix>,
 }
 
-impl Component for StaticRouteCfg {
+impl Component for StaticRouteEntryCfg {
     type Message = Msg;
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
         let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        StaticRouteCfg {
+        StaticRouteEntryCfg {
             net: _net_dispatch.get(),
             _net_dispatch,
         }
