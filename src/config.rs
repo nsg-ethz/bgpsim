@@ -81,7 +81,7 @@ use crate::{
     ospf::OspfArea,
     route_map::{RouteMap, RouteMapDirection},
     router::StaticRoute,
-    types::{ConfigError, LinkWeight, NetworkError, Prefix, RouterId},
+    types::{ConfigError, LinkWeight, NetworkDevice, NetworkError, Prefix, RouterId},
 };
 
 use petgraph::algo::FloatMeasure;
@@ -630,6 +630,9 @@ pub trait NetworkConfig {
     /// in an undefined state, and it should be rebuilt.
     fn apply_modifier(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError>;
 
+    /// Check if a modifier can be applied.
+    fn can_apply_modifier(&self, expr: &ConfigModifier) -> bool;
+
     /// Get the current running configuration. This structure will be constructed by gathering all
     /// necessary information from routers.
     fn get_config(&self) -> Result<Config, NetworkError>;
@@ -815,6 +818,88 @@ where
                 _ => Err(NetworkError::ConfigError(ConfigError::ConfigModifierError(
                     modifier.clone(),
                 ))),
+            },
+        }
+    }
+
+    /// Check if a modifier can be applied.
+    fn can_apply_modifier(&self, expr: &ConfigModifier) -> bool {
+        match expr {
+            ConfigModifier::Insert(x) => match x {
+                ConfigExpr::IgpLinkWeight { source, target, .. } => self
+                    .get_link_weigth(*source, *target)
+                    .map(|x| x.is_infinite())
+                    .unwrap_or(false),
+                ConfigExpr::OspfArea { source, target, .. } => self
+                    .get_ospf_area(*source, *target)
+                    .map(|x| x == OspfArea::BACKBONE)
+                    .unwrap_or(false),
+                ConfigExpr::BgpSession { source, target, .. } => match self.get_device(*source) {
+                    NetworkDevice::InternalRouter(r) => !r.bgp_sessions.contains_key(target),
+                    NetworkDevice::ExternalRouter(r) => !r.neighbors.contains(target),
+                    NetworkDevice::None(_) => false,
+                },
+                ConfigExpr::BgpRouteMap {
+                    router,
+                    neighbor,
+                    direction,
+                    map,
+                } => self
+                    .get_device(*router)
+                    .internal()
+                    .map(|r| {
+                        r.get_bgp_route_map(*neighbor, *direction, map.order)
+                            .is_none()
+                    })
+                    .unwrap_or(false),
+                ConfigExpr::StaticRoute { router, prefix, .. } => self
+                    .get_device(*router)
+                    .internal()
+                    .map(|r| r.static_routes.get(prefix).is_none())
+                    .unwrap_or(false),
+                ConfigExpr::LoadBalancing { router } => self
+                    .get_device(*router)
+                    .internal()
+                    .map(|r| !r.get_load_balancing())
+                    .unwrap_or(false),
+            },
+            ConfigModifier::Remove(x) | ConfigModifier::Update { from: x, .. } => match x {
+                ConfigExpr::IgpLinkWeight { source, target, .. } => self
+                    .get_link_weigth(*source, *target)
+                    .map(|x| !x.is_infinite())
+                    .unwrap_or(false),
+                ConfigExpr::OspfArea { source, target, .. } => self
+                    .get_ospf_area(*source, *target)
+                    .map(|x| x != OspfArea::BACKBONE)
+                    .unwrap_or(false),
+                ConfigExpr::BgpSession { source, target, .. } => match self.get_device(*source) {
+                    NetworkDevice::InternalRouter(r) => r.bgp_sessions.contains_key(target),
+                    NetworkDevice::ExternalRouter(r) => r.neighbors.contains(target),
+                    NetworkDevice::None(_) => false,
+                },
+                ConfigExpr::BgpRouteMap {
+                    router,
+                    neighbor,
+                    direction,
+                    map,
+                } => self
+                    .get_device(*router)
+                    .internal()
+                    .map(|r| {
+                        r.get_bgp_route_map(*neighbor, *direction, map.order)
+                            .is_some()
+                    })
+                    .unwrap_or(false),
+                ConfigExpr::StaticRoute { router, prefix, .. } => self
+                    .get_device(*router)
+                    .internal()
+                    .map(|r| r.static_routes.get(prefix).is_some())
+                    .unwrap_or(false),
+                ConfigExpr::LoadBalancing { router } => self
+                    .get_device(*router)
+                    .internal()
+                    .map(|r| r.get_load_balancing())
+                    .unwrap_or(false),
             },
         }
     }
