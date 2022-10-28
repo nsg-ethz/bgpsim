@@ -53,8 +53,7 @@ impl Component for InteractivePlayer {
             return html! {};
         }
 
-        let style = format!("left: {}px;", self.dim.width);
-        let class = "absolute right-4 flex flex-1 space-x-4 rounded-full z-10 p-2 px-4 drop-shadow bg-white text-gray-700 flex justify-between items-center pointer-events-auto";
+        let class = "space-x-4 rounded-full z-10 p-2 px-4 drop-shadow bg-white text-gray-700 flex justify-between items-center pointer-events-auto";
         let badge_class = "absolute inline-block top-2 right-2 bottom-auto left-auto translate-x-2/4 -translate-y-1/2 scale-x-100 scale-y-100 py-1 px-2.5 text-xs leading-none text-center whitespace-nowrap align-baseline font-bold bg-blue-700 text-white rounded-full z-10";
 
         let play = ctx.link().callback(|_| Msg::PlayAll);
@@ -84,13 +83,12 @@ impl Component for InteractivePlayer {
         };
 
         html! {
-            <div class="absolute top-4 h-0 w-0 pointer-events-none" {style}>
-                <div {class}>
-                    <button class={play_class} onclick={play}> <yew_lucide::ListVideo class="w-6 h-6"/> </button>
-                    <button class={step_class} onclick={step}> <yew_lucide::SkipForward class="w-6 h-6"/> </button>
-                    <div class={badge_class}>{queue_size_s}</div>
-                    <button class="text-gray-700 hover:text-black" onclick={open_queue}> <yew_lucide::ListOrdered class="w-6 h-6"/> </button>
-                </div>
+            <div {class}>
+                <p class="mr-4">{ "Queue:" } </p>
+                <button class={play_class} onclick={play}> <yew_lucide::ListVideo class="w-6 h-6"/> </button>
+                <button class={step_class} onclick={step}> <yew_lucide::Forward class="w-6 h-6"/> </button>
+                <div class={badge_class}>{queue_size_s}</div>
+                <button class="text-gray-700 hover:text-black" onclick={open_queue}> <yew_lucide::ListOrdered class="w-6 h-6"/> </button>
             </div>
         }
     }

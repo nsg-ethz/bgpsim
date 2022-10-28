@@ -26,9 +26,9 @@ pub struct Properties {
 pub fn header(props: &Properties) -> Html {
     html! {
         <>
-            <div class="absolute flex">
-                <MainMenu node_ref={props.node_ref.clone()}/>
-                <div class="absolute mt-4 ml-20 w-full flex space-x-4">
+            <MainMenu node_ref={props.node_ref.clone()}/>
+            <div class="absolute w-full p-4 pointer-events-none flex space-x-6">
+                <div class="ml-20 flex-1 flex space-x-4">
                     <AddRouter />
                     <LayerSelection />
                     <PrefixSelection />

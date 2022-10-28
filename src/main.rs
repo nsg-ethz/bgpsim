@@ -24,8 +24,10 @@ fn app() -> Html {
     html! {
         <div class="flex w-screen h-screen max-h-screen max-w-screen bg-gray-50 overflow-scroll">
             <Tooltip />
-            <Header node_ref={header_ref.clone()} />
-            <Canvas header_ref={header_ref.clone()} />
+            <div class="relative flex-1 h-full p-0 bg-gray-50">
+              <Header node_ref={header_ref.clone()} />
+              <Canvas header_ref={header_ref.clone()} />
+            </div>
             <Sidebar />
         </div>
     }

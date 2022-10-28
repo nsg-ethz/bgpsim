@@ -91,7 +91,7 @@ impl Component for Canvas {
     fn view(&self, _ctx: &Context<Self>) -> Html {
         // initialize the network
         html! {
-            <div class="flex-1 h-full p-0 bg-gray-50" ref={self.div_ref.clone()}>
+            <div class="h-full w-full" ref={self.div_ref.clone()}>
                 <svg width="100%" height="100%">
                     <ArrowMarkers />
                     // draw all links

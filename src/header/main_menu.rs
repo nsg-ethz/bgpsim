@@ -75,7 +75,7 @@ impl Component for MainMenu {
         let import = ctx.link().callback(|_| Msg::ImportClick);
 
         html! {
-            <span>
+            <>
                 <input type="checkbox" value="" class="sr-only peer" checked={self.shown}/>
                 <button class={button_class} onclick={show} ref={ctx.props().node_ref.clone()}> <yew_lucide::Menu class="w-6 h-6" /> </button>
                 <button class={bg_class} onclick={hide}> </button>
@@ -120,7 +120,7 @@ impl Component for MainMenu {
                         }
                     </div>
                 </div>
-            </span>
+            </>
         }
     }
 

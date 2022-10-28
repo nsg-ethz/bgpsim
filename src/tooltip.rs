@@ -287,12 +287,13 @@ pub fn rib_table(props: &RibTableProps) -> Html {
         <table class="table-auto border-separate border-spacing-x-3">
             <tr>
               <td class="italic text-gray-400"></td>
-              <td class="italic text-gray-400"> {"Peer"} </td>
-              <td class="italic text-gray-400"> {"Path"} </td>
+              <td class="italic text-gray-400"> {"peer"} </td>
+              <td class="italic text-gray-400"> {"nh"} </td>
+              <td class="italic text-gray-400"> {"path"} </td>
               <td class="italic text-gray-400"> {"LP."} </td>
               <td class="italic text-gray-400"> {"MED"} </td>
-              <td class="italic text-gray-400"> {"Cost"} </td>
-              <td class="italic text-gray-400"> {"Comm."} </td>
+              <td class="italic text-gray-400"> {"cost"} </td>
+              <td class="italic text-gray-400"> {"comm."} </td>
             </tr>
 
             {
@@ -301,6 +302,7 @@ pub fn rib_table(props: &RibTableProps) -> Html {
                         <tr>
                             <td> {if *s { "*" } else { "" }} </td>
                             <td> {r.from_id.fmt(n)} </td>
+                            <td> {r.route.next_hop.fmt(n)} </td>
                             <td> {r.route.as_path.iter().map(|x| x.0).join(", ")} </td>
                             <td> {r.route.local_pref.map(|x| x.to_string()).unwrap_or_default()} </td>
                             <td> {r.route.med.map(|x| x.to_string()).unwrap_or_default()} </td>
