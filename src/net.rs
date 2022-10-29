@@ -10,6 +10,7 @@ use netsim::{
     bgp::{BgpRoute, BgpSessionType},
     event::{Event, EventQueue},
     network::Network,
+    policies::FwPolicy,
     router::Router,
     types::{IgpNetwork, NetworkDevice, Prefix, RouterId},
 };
@@ -91,6 +92,7 @@ impl EventQueue for Queue {
 pub struct Net {
     pub net: Mrc<Network<Queue>>,
     pub pos: Mrc<HashMap<RouterId, Point>>,
+    pub spec: Mrc<HashMap<RouterId, Vec<FwPolicy>>>,
     speed: Mrc<HashMap<RouterId, Point>>,
 }
 
@@ -99,6 +101,7 @@ impl Default for Net {
         Self {
             net: Mrc::new(Network::new(Queue::new())),
             pos: Default::default(),
+            spec: Default::default(),
             speed: Default::default(),
         }
     }
@@ -123,6 +126,14 @@ impl Net {
 
     pub fn pos_mut(&mut self) -> impl DerefMut<Target = HashMap<RouterId, Point>> + '_ {
         self.pos.borrow_mut()
+    }
+
+    pub fn spec(&self) -> impl Deref<Target = HashMap<RouterId, Vec<FwPolicy>>> + '_ {
+        self.spec.borrow()
+    }
+
+    pub fn spec_mut(&self) -> impl DerefMut<Target = HashMap<RouterId, Vec<FwPolicy>>> + '_ {
+        self.spec.borrow_mut()
     }
 
     pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {
@@ -396,18 +407,21 @@ fn net_to_string(net: &Net, compact: bool) -> String {
     let n = net_borrow.deref();
     let pos_borrow = net.pos();
     let p = pos_borrow.deref();
-    serde_json::to_string(&if compact {
-        let mut network = serde_json::from_str::<Value>(&n.as_json_str_compact()).unwrap();
-        let obj = network.as_object_mut().unwrap();
-        obj.insert("pos".to_string(), serde_json::to_value(p).unwrap());
-        network
+    let spec_borrow = net.spec();
+    let spec = spec_borrow.deref();
+
+    let mut network = if compact {
+        serde_json::from_str::<Value>(&n.as_json_str_compact())
     } else {
-        let mut network = serde_json::from_str::<Value>(&n.as_json_str()).unwrap();
-        let obj = network.as_object_mut().unwrap();
-        obj.insert("pos".to_string(), serde_json::to_value(p).unwrap());
-        network
-    })
-    .unwrap()
+        serde_json::from_str::<Value>(&n.as_json_str())
+    }
+    .unwrap();
+
+    let obj = network.as_object_mut().unwrap();
+    obj.insert("pos".to_string(), serde_json::to_value(p).unwrap());
+    obj.insert("spec".to_string(), serde_json::to_value(spec).unwrap());
+
+    serde_json::to_string(&network).unwrap()
 }
 
 fn net_from_str(s: &str) -> Result<Net, String> {
@@ -415,6 +429,10 @@ fn net_from_str(s: &str) -> Result<Net, String> {
     let net = Network::from_json_str(s, Queue::default).map_err(|x| x.to_string())?;
     let content: Value =
         serde_json::from_str(s).map_err(|e| format!("cannot parse json file! {}", e))?;
+    let spec = content
+        .get("spec")
+        .and_then(|v| serde_json::from_value::<HashMap<RouterId, Vec<FwPolicy>>>(v.clone()).ok())
+        .unwrap_or_default();
     let (pos, rerun_layout) = if let Some(pos) = content
         .get("pos")
         .and_then(|v| serde_json::from_value::<HashMap<RouterId, Point>>(v.clone()).ok())
@@ -440,6 +458,7 @@ fn net_from_str(s: &str) -> Result<Net, String> {
     let mut result = Net {
         net: Mrc::new(net),
         pos: Mrc::new(pos),
+        spec: Mrc::new(spec),
         speed: Default::default(),
     };
     if rerun_layout {

@@ -1,8 +1,10 @@
 mod bgp_cfg;
+mod fw_policy_cfg;
 mod route_map_item_cfg;
 mod route_map_match_cfg;
 mod route_map_set_cfg;
 mod route_maps_cfg;
+mod specification_cfg;
 mod static_route_entry_cfg;
 mod static_routes_cfg;
 
@@ -14,7 +16,7 @@ use yewdux::prelude::*;
 
 use crate::{draw::SvgColor, net::Net};
 
-use self::bgp_cfg::BgpCfg;
+use self::{bgp_cfg::BgpCfg, specification_cfg::SpecificationCfg};
 
 use super::{topology_cfg::TopologyCfg, Divider, Element, Select, TextField, Toggle};
 use static_routes_cfg::StaticRoutesCfg;
@@ -79,6 +81,7 @@ impl Component for RouterCfg {
                 <TopologyCfg {router} only_internal={false}/>
                 <StaticRoutesCfg {router}/>
                 <BgpCfg {router}/>
+                <SpecificationCfg {router} />
                 <Divider />
             </div>
         }
