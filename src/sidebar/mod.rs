@@ -10,6 +10,7 @@ pub mod select;
 pub mod text_field;
 pub mod toggle;
 pub mod topology_cfg;
+pub mod verifier_viewer;
 
 pub use button::Button;
 pub use divider::{Divider, ExpandableDivider, ExpandableSection};
@@ -23,6 +24,7 @@ use external_router_cfg::ExternalRouterCfg;
 use migration_cfg::MigrationCfg;
 use queue_cfg::QueueCfg;
 use router_cfg::RouterCfg;
+use verifier_viewer::VerifierViewer;
 
 use std::rc::Rc;
 
@@ -74,6 +76,7 @@ impl Component for Sidebar {
             Selected::Router(r) => html! { <ExternalRouterCfg router={r} /> },
             Selected::Queue => html! { <QueueCfg /> },
             Selected::Migration => html! { <MigrationCfg /> },
+            Selected::Verifier => html! { <VerifierViewer /> },
         };
 
         html! {

@@ -6,6 +6,7 @@ use itertools::Itertools;
 use netsim::bgp::BgpRoute;
 use netsim::event::Event;
 use netsim::interactive::InteractiveNetwork;
+use netsim::policies::Policy;
 use netsim::prelude::BgpSessionType;
 use netsim::types::{Prefix, RouterId};
 use wasm_bindgen::prelude::Closure;
@@ -17,6 +18,7 @@ use yewdux::prelude::*;
 use super::arrows::ArrowMarkers;
 use super::bgp_session::BgpSession;
 use super::events::BgpSessionQueue;
+use super::forwarding_path::PathKind;
 use super::link::Link;
 use super::link_weight::LinkWeight;
 use super::next_hop::NextHop;
@@ -130,6 +132,16 @@ impl Component for Canvas {
                             if self.state.layer() == Layer::FwState {
                                 if let Some(prefix) = self.state.prefix() {
                                     html!{<ForwardingPath router_id={r} {prefix} />}
+                                } else { html!() }
+                            } else { html!() }
+                        } else { html!() }
+                    }
+                    {
+                        if let Hover::Policy(r, idx) = self.state.hover() {
+                            if let Some((policy, result)) = self.net.spec().get(&r).and_then(|x| x.get(idx)) {
+                                if let Some(prefix) = policy.prefix() {
+                                    let kind = if result.is_ok() { PathKind::Valid } else { PathKind::Invalid };
+                                    html!{<ForwardingPath router_id={r} {prefix} {kind} />}
                                 } else { html!() }
                             } else { html!() }
                         } else { html!() }

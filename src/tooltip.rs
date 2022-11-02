@@ -142,6 +142,7 @@ impl Component for Tooltip {
                 }
             }
             Hover::Message(_, _, _, _) => return html! {},
+            Hover::Policy(_, _) => return html! {},
             Hover::None => unreachable!(),
         };
 

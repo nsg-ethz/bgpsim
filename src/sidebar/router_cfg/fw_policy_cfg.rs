@@ -11,7 +11,7 @@ use yewdux::prelude::*;
 
 use crate::{
     net::{Net, Queue},
-    sidebar::{Divider, Element, Select, TextField},
+    sidebar::{Element, Select, TextField},
 };
 
 pub struct FwPolicyCfg {
@@ -58,15 +58,15 @@ impl Component for FwPolicyCfg {
             return html!();
         }
 
-        let prefix = self.net.spec()[&router][idx].prefix().unwrap();
+        let prefix = self.net.spec()[&router][idx].0.prefix().unwrap();
 
         if !self.net.spec().contains_key(&router) {
             return html!();
         }
 
-        let current_kind = policy_name(&self.net.spec()[&router][idx]);
+        let current_kind = policy_name(&self.net.spec()[&router][idx].0);
         let regex_field = if let Some(rex) =
-            regex_text(&self.net.spec()[&router][idx], &self.net.net())
+            regex_text(&self.net.spec()[&router][idx].0, &self.net.net())
         {
             html! {
                 <Element text={ "Regex" }>
@@ -129,20 +129,20 @@ impl Component for FwPolicyCfg {
                         .entry(router)
                         .or_default()
                         .get_mut(idx)
-                        .unwrap() = policy
+                        .unwrap() = (policy, Ok(()))
                 });
                 false
             }
             Msg::SetRegex(rex) => {
                 let cond = text_to_path_condition(&rex, &self.net.net()).unwrap();
-                let prefix = self.net.spec()[&router][idx].prefix().unwrap();
+                let prefix = self.net.spec()[&router][idx].0.prefix().unwrap();
                 let policy = FwPolicy::PathCondition(router, prefix, cond);
                 self.net_dispatch.reduce_mut(|n| {
                     *n.spec_mut()
                         .entry(router)
                         .or_default()
                         .get_mut(idx)
-                        .unwrap() = policy
+                        .unwrap() = (policy, Ok(()))
                 });
                 false
             }
@@ -157,7 +157,7 @@ impl Component for FwPolicyCfg {
             }
             Msg::SetPrefix(p) => {
                 let prefix = Prefix::from(p.parse::<u32>().unwrap());
-                let policy = match &self.net.spec()[&router][idx] {
+                let policy = match &self.net.spec()[&router][idx].0 {
                     FwPolicy::Reachable(_, _) => FwPolicy::Reachable(router, prefix),
                     FwPolicy::NotReachable(_, _) => FwPolicy::NotReachable(router, prefix),
                     FwPolicy::PathCondition(_, _, cond) => {
@@ -171,7 +171,7 @@ impl Component for FwPolicyCfg {
                         .entry(router)
                         .or_default()
                         .get_mut(idx)
-                        .unwrap() = policy
+                        .unwrap() = (policy, Ok(()))
                 });
                 false
             }

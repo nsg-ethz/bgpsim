@@ -30,6 +30,7 @@ pub enum Msg {
 pub struct Properties {
     pub router_id: RouterId,
     pub prefix: Prefix,
+    pub kind: Option<PathKind>,
 }
 
 impl Component for ForwardingPath {
@@ -48,11 +49,15 @@ impl Component for ForwardingPath {
         }
     }
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
+    fn view(&self, ctx: &Context<Self>) -> Html {
         if self.paths.is_empty() {
             html! {}
         } else {
-            let color = SvgColor::BlueLight;
+            let color = match ctx.props().kind.unwrap_or_default() {
+                PathKind::Normal => SvgColor::BlueLight,
+                PathKind::Valid => SvgColor::GreenLight,
+                PathKind::Invalid => SvgColor::RedLight,
+            };
             let class = classes! {
                 "stroke-current", "stroke-4", "drop-shadows-md", "peer-hover:drop-shadows-lg", "fill-transparent",
                 color.peer_classes()
@@ -131,5 +136,18 @@ fn get_paths(net: &Net, dim: &Dim, router: RouterId, prefix: Prefix) -> Vec<Vec<
         .collect()
     } else {
         Vec::new()
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum PathKind {
+    Normal,
+    Valid,
+    Invalid,
+}
+
+impl Default for PathKind {
+    fn default() -> Self {
+        PathKind::Normal
     }
 }

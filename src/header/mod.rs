@@ -1,6 +1,7 @@
 mod interactive;
 mod main_menu;
 mod migration_planner;
+mod verifier;
 
 use std::{collections::HashSet, rc::Rc};
 
@@ -18,6 +19,7 @@ use crate::{
 use interactive::InteractivePlayer;
 use main_menu::MainMenu;
 use migration_planner::MigrationButton;
+use verifier::Verifier;
 
 #[derive(Properties, PartialEq)]
 pub struct Properties {
@@ -35,6 +37,7 @@ pub fn header(props: &Properties) -> Html {
                     <LayerSelection />
                     <PrefixSelection />
                 </div>
+                <Verifier />
                 <MigrationButton />
                 <InteractivePlayer />
             </div>

@@ -69,6 +69,7 @@ pub enum Selected {
     Router(RouterId),
     Queue,
     Migration,
+    Verifier,
 }
 
 impl Default for Selected {
@@ -85,6 +86,7 @@ pub enum Hover {
     NextHop(RouterId, RouterId),
     RouteProp(RouterId, RouterId, BgpRoute),
     Message(RouterId, RouterId, usize, bool),
+    Policy(RouterId, usize),
 }
 
 impl Default for Hover {

@@ -64,7 +64,7 @@ impl Component for SpecificationCfg {
                     n.spec_mut()
                         .entry(router)
                         .or_default()
-                        .push(FwPolicy::Reachable(router, 0.into()))
+                        .push((FwPolicy::Reachable(router, 0.into()), Ok(())))
                 });
                 false
             }

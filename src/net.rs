@@ -10,7 +10,7 @@ use netsim::{
     bgp::{BgpRoute, BgpSessionType},
     event::{Event, EventQueue},
     network::Network,
-    policies::FwPolicy,
+    policies::{FwPolicy, PolicyError},
     router::Router,
     types::{IgpNetwork, NetworkDevice, Prefix, RouterId},
 };
@@ -92,7 +92,7 @@ impl EventQueue for Queue {
 pub struct Net {
     pub net: Mrc<Network<Queue>>,
     pub pos: Mrc<HashMap<RouterId, Point>>,
-    pub spec: Mrc<HashMap<RouterId, Vec<FwPolicy>>>,
+    pub spec: Mrc<HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>>,
     speed: Mrc<HashMap<RouterId, Point>>,
 }
 
@@ -128,11 +128,16 @@ impl Net {
         self.pos.borrow_mut()
     }
 
-    pub fn spec(&self) -> impl Deref<Target = HashMap<RouterId, Vec<FwPolicy>>> + '_ {
+    pub fn spec(
+        &self,
+    ) -> impl Deref<Target = HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>> + '_ {
         self.spec.borrow()
     }
 
-    pub fn spec_mut(&self) -> impl DerefMut<Target = HashMap<RouterId, Vec<FwPolicy>>> + '_ {
+    pub fn spec_mut(
+        &self,
+    ) -> impl DerefMut<Target = HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>> + '_
+    {
         self.spec.borrow_mut()
     }
 
@@ -348,6 +353,7 @@ impl Net {
             Ok(n) => {
                 self.net = n.net;
                 self.pos = n.pos;
+                self.spec = n.spec;
             }
             Err(e) => log::error!("Could not import the network! {}", e),
         }
@@ -431,7 +437,12 @@ fn net_from_str(s: &str) -> Result<Net, String> {
         serde_json::from_str(s).map_err(|e| format!("cannot parse json file! {}", e))?;
     let spec = content
         .get("spec")
-        .and_then(|v| serde_json::from_value::<HashMap<RouterId, Vec<FwPolicy>>>(v.clone()).ok())
+        .and_then(|v| {
+            serde_json::from_value::<HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>>(
+                v.clone(),
+            )
+            .ok()
+        })
         .unwrap_or_default();
     let (pos, rerun_layout) = if let Some(pos) = content
         .get("pos")
