@@ -630,6 +630,11 @@ pub trait NetworkConfig {
     /// in an undefined state, and it should be rebuilt.
     fn apply_modifier(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError>;
 
+    /// Apply a single configuration modification without checking that the modifier can be
+    /// applied. This function ignores the old value stored in `ConfigModifier`, and just makes sure
+    /// that the network will have the new value applied in the network.
+    fn apply_modifier_unchecked(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError>;
+
     /// Check if a modifier can be applied.
     fn can_apply_modifier(&self, expr: &ConfigModifier) -> bool;
 
@@ -673,11 +678,24 @@ where
     /// current configuration. All messages are exchanged. The process fails, then the network is
     /// in an undefined state, and it should be rebuilt.
     fn apply_modifier(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError> {
+        if self.can_apply_modifier(modifier) {
+            self.apply_modifier_unchecked(modifier)
+        } else {
+            Err(NetworkError::ConfigError(ConfigError::ConfigModifierError(
+                modifier.clone(),
+            )))
+        }
+    }
+
+    /// Apply a single configuration modification without checking that the modifier can be
+    /// applied. This function ignores the old value stored in `ConfigModifier`, and just makes sure
+    /// that the network will have the new value applied in the network.
+    fn apply_modifier_unchecked(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError> {
         debug!("Applying modifier: {}", modifier.fmt(self));
 
         // If the modifier can be applied, then everything is ok and we can do the actual change.
         match modifier {
-            ConfigModifier::Insert(expr) => match expr {
+            ConfigModifier::Insert(expr) | ConfigModifier::Update { to: expr, .. } => match expr {
                 ConfigExpr::IgpLinkWeight {
                     source,
                     target,
@@ -753,72 +771,6 @@ where
                     Ok(())
                 }
             },
-            ConfigModifier::Update { from, to } => match (from, to) {
-                (
-                    ConfigExpr::IgpLinkWeight {
-                        source: s1,
-                        target: t1,
-                        weight: _,
-                    },
-                    ConfigExpr::IgpLinkWeight {
-                        source: s2,
-                        target: t2,
-                        weight: w,
-                    },
-                ) if s1 == s2 && t1 == t2 => {
-                    // check if router has a link to target
-                    self.set_link_weight(*s1, *t1, *w).map(|_| ())
-                }
-                (
-                    ConfigExpr::BgpSession {
-                        source: s1,
-                        target: t1,
-                        session_type: _,
-                    },
-                    ConfigExpr::BgpSession {
-                        source: s2,
-                        target: t2,
-                        session_type: x,
-                    },
-                ) if (s1 == s2 && t1 == t2) || (s1 == t2 && t1 == s2) => {
-                    self.set_bgp_session(*s2, *t2, Some(*x))
-                }
-                (
-                    ConfigExpr::BgpRouteMap {
-                        router: r1,
-                        neighbor: n1,
-                        direction: d1,
-                        map: _m1,
-                    },
-                    ConfigExpr::BgpRouteMap {
-                        router: r2,
-                        neighbor: n2,
-                        direction: d2,
-                        map: m2,
-                    },
-                ) if r1 == r2 && d1 == d2 && n1 == n2 => self
-                    .set_bgp_route_map(*r1, *n1, *d1, m2.clone())
-                    .map(|_| ()),
-                (
-                    ConfigExpr::StaticRoute {
-                        router: r1,
-                        prefix: p1,
-                        target: _,
-                    },
-                    ConfigExpr::StaticRoute {
-                        router: r2,
-                        prefix: p2,
-                        target: t,
-                    },
-                ) if r1 == r2 && p1 == p2 => {
-                    // check if router has a link to target
-                    self.set_static_route(*r1, *p1, Some(*t))?;
-                    Ok(())
-                }
-                _ => Err(NetworkError::ConfigError(ConfigError::ConfigModifierError(
-                    modifier.clone(),
-                ))),
-            },
         }
     }
 
@@ -864,10 +816,9 @@ where
                     .unwrap_or(false),
             },
             ConfigModifier::Remove(x) | ConfigModifier::Update { from: x, .. } => match x {
-                ConfigExpr::IgpLinkWeight { source, target, .. } => self
-                    .get_link_weigth(*source, *target)
-                    .map(|x| !x.is_infinite())
-                    .unwrap_or(false),
+                ConfigExpr::IgpLinkWeight { source, target, .. } => {
+                    self.get_link_weigth(*source, *target).is_ok()
+                }
                 ConfigExpr::OspfArea { source, target, .. } => self
                     .get_ospf_area(*source, *target)
                     .map(|x| x != OspfArea::BACKBONE)
