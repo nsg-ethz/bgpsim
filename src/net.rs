@@ -8,6 +8,7 @@ use getrandom::getrandom;
 use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
 use netsim::{
     bgp::{BgpRoute, BgpSessionType},
+    config::{ConfigModifier, NetworkConfig},
     event::{Event, EventQueue},
     network::Network,
     policies::{FwPolicy, PolicyError},
@@ -93,6 +94,8 @@ pub struct Net {
     pub net: Mrc<Network<Queue>>,
     pub pos: Mrc<HashMap<RouterId, Point>>,
     pub spec: Mrc<HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>>,
+    pub migration: Mrc<Vec<ConfigModifier>>,
+    recorder: Option<Network<Queue>>,
     speed: Mrc<HashMap<RouterId, Point>>,
 }
 
@@ -102,7 +105,9 @@ impl Default for Net {
             net: Mrc::new(Network::new(Queue::new())),
             pos: Default::default(),
             spec: Default::default(),
+            migration: Default::default(),
             speed: Default::default(),
+            recorder: None,
         }
     }
 }
@@ -139,6 +144,32 @@ impl Net {
     ) -> impl DerefMut<Target = HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>> + '_
     {
         self.spec.borrow_mut()
+    }
+
+    pub fn migration(&self) -> impl Deref<Target = Vec<ConfigModifier>> + '_ {
+        self.migration.borrow()
+    }
+
+    pub fn migration_mut(&self) -> impl DerefMut<Target = Vec<ConfigModifier>> + '_ {
+        self.migration.borrow_mut()
+    }
+
+    pub fn start_recording(&mut self) {
+        self.recorder = Some(self.net.borrow().clone());
+    }
+
+    pub fn stop_recording(&mut self) {
+        if let Some(old_net) = self.recorder.take() {
+            let old_config = old_net.get_config().unwrap();
+            let new_config = self.net().get_config().unwrap();
+            let delta = old_config.get_diff(&new_config);
+            self.net = Mrc::new(old_net);
+            self.migration = Mrc::new(delta.modifiers);
+        }
+    }
+
+    pub fn is_recording(&self) -> bool {
+        self.recorder.is_some()
     }
 
     pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {
@@ -354,6 +385,7 @@ impl Net {
                 self.net = n.net;
                 self.pos = n.pos;
                 self.spec = n.spec;
+                self.migration = n.migration;
             }
             Err(e) => log::error!("Could not import the network! {}", e),
         }
@@ -415,6 +447,8 @@ fn net_to_string(net: &Net, compact: bool) -> String {
     let p = pos_borrow.deref();
     let spec_borrow = net.spec();
     let spec = spec_borrow.deref();
+    let migration_borrow = net.migration();
+    let migration = migration_borrow.deref();
 
     let mut network = if compact {
         serde_json::from_str::<Value>(&n.as_json_str_compact())
@@ -426,6 +460,10 @@ fn net_to_string(net: &Net, compact: bool) -> String {
     let obj = network.as_object_mut().unwrap();
     obj.insert("pos".to_string(), serde_json::to_value(p).unwrap());
     obj.insert("spec".to_string(), serde_json::to_value(spec).unwrap());
+    obj.insert(
+        "migration".to_string(),
+        serde_json::to_value(migration).unwrap(),
+    );
 
     serde_json::to_string(&network).unwrap()
 }
@@ -443,6 +481,10 @@ fn net_from_str(s: &str) -> Result<Net, String> {
             )
             .ok()
         })
+        .unwrap_or_default();
+    let migration = content
+        .get("migration")
+        .and_then(|v| serde_json::from_value::<Vec<ConfigModifier>>(v.clone()).ok())
         .unwrap_or_default();
     let (pos, rerun_layout) = if let Some(pos) = content
         .get("pos")
@@ -470,7 +512,9 @@ fn net_from_str(s: &str) -> Result<Net, String> {
         net: Mrc::new(net),
         pos: Mrc::new(pos),
         spec: Mrc::new(spec),
+        migration: Mrc::new(migration),
         speed: Default::default(),
+        recorder: None,
     };
     if rerun_layout {
         result.spring_layout();

@@ -1,6 +1,5 @@
 use netsim::{
     bgp::BgpRoute,
-    config::ConfigModifier,
     types::{Prefix, RouterId},
 };
 use strum_macros::EnumIter;
@@ -12,7 +11,6 @@ pub struct State {
     hover: Hover,
     layer: Layer,
     prefix: Option<Prefix>,
-    migration: Vec<ConfigModifier>,
 }
 
 impl Eq for State {}
@@ -32,10 +30,6 @@ impl State {
 
     pub fn prefix(&self) -> Option<Prefix> {
         self.prefix
-    }
-
-    pub fn get_migratoin(&self) -> &[ConfigModifier] {
-        &self.migration
     }
 
     pub fn set_selected(&mut self, selected: Selected) {

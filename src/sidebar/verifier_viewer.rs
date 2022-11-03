@@ -50,6 +50,7 @@ impl Component for VerifierViewer {
 
         html! {
             <div class="w-full space-y-2 mt-2">
+                <Divider text={"Specification".to_string()}/>
                 { content }
             </div>
         }
@@ -97,7 +98,7 @@ pub fn property_viewer(props: &PropertyViewerProps) -> Html {
     let onmouseleave = dispatch.reduce_mut_callback(|s| s.clear_hover());
 
     html! {
-        <div class="w-full flex m-4 space-x-4" {onmouseenter} {onmouseleave}>
+        <div class="w-full flex m-4 space-x-4 cursor-default" {onmouseenter} {onmouseleave}>
             { sym }
             <div class="flex-1">
                 { repr }
