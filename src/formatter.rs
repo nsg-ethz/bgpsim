@@ -606,12 +606,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for FwPolicy {
             }
             Self::NotReachable(r, p) => format!("Isolation({}, {})", r.fmt(net), p),
             Self::PathCondition(r, p, c) => {
-                format!(
-                    "PathCondition({}, {}, condition {})",
-                    r.fmt(net),
-                    p,
-                    c.fmt(net)
-                )
+                format!("PathCondition({}, {}, {})", r.fmt(net), p, c.fmt(net))
             }
             Self::LoopFree(r, p) => {
                 format!("LoopFree({}, {})", r.fmt(net), p)
@@ -632,8 +627,8 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for PathCondition {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         match self {
-            Self::Node(r) => format!("[.* {} .*]", r.fmt(net)),
-            Self::Edge(a, b) => format!("[.* ({},{}) .*]", a.fmt(net), b.fmt(net)),
+            Self::Node(r) => format!("[* {} *]", r.fmt(net)),
+            Self::Edge(a, b) => format!("[* ({},{}) *]", a.fmt(net), b.fmt(net)),
             Self::And(v) if v.is_empty() => String::from("(true)"),
             Self::And(v) => format!("({})", v.iter().map(|c| c.fmt(net)).join(" && ")),
             Self::Or(v) if v.is_empty() => String::from("(false)"),
@@ -649,8 +644,8 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for Waypoint {
 
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         match self {
-            Waypoint::Any => ".",
-            Waypoint::Star => ".*",
+            Waypoint::Any => "?",
+            Waypoint::Star => "*",
             Waypoint::Fix(r) => r.fmt(net),
         }
     }
