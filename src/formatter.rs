@@ -602,11 +602,11 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for FwPolicy {
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         match self {
             Self::Reachable(r, p) => {
-                format!("Reachability({}, {})", r.fmt(net), p)
+                format!("Reachable({}, {})", r.fmt(net), p)
             }
             Self::NotReachable(r, p) => format!("Isolation({}, {})", r.fmt(net), p),
             Self::PathCondition(r, p, c) => {
-                format!("PathCondition({}, {}, {})", r.fmt(net), p, c.fmt(net))
+                format!("Path({}, {}, {})", r.fmt(net), p, c.fmt(net))
             }
             Self::LoopFree(r, p) => {
                 format!("LoopFree({}, {})", r.fmt(net), p)
