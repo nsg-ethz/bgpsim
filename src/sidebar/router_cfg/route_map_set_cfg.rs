@@ -1,19 +1,16 @@
 use std::rc::Rc;
 
 use netsim::{formatter::NetworkFormatter, route_map::RouteMapSet, types::RouterId};
-use web_sys::HtmlInputElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::net::Net;
+use crate::{net::Net, sidebar::TextField};
 
 use super::Select;
 
 pub struct RouteMapSetCfg {
-    v_r: NodeRef,
-    v_s: String,
-    v_v: SetValue,
-    v_c: bool,
+    value: SetValue,
+    correct: bool,
     net: Rc<Net>,
     _net_dispatch: Dispatch<Net>,
 }
@@ -21,9 +18,9 @@ pub struct RouteMapSetCfg {
 pub enum Msg {
     StateNet(Rc<Net>),
     KindUpdate(RouteMapSet),
-    InputUpdate,
-    ValueUpdate,
-    ValueUpdateRouter(RouterId),
+    InputSetRouter(RouterId),
+    InputChange(String),
+    InputSet(String),
     Delete,
 }
 
@@ -42,10 +39,8 @@ impl Component for RouteMapSetCfg {
     fn create(ctx: &Context<Self>) -> Self {
         let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         let mut s = RouteMapSetCfg {
-            v_r: NodeRef::default(),
-            v_s: String::new(),
-            v_v: SetValue::None,
-            v_c: true,
+            value: SetValue::None,
+            correct: true,
             net: Default::default(),
             _net_dispatch,
         };
@@ -67,29 +62,17 @@ impl Component for RouteMapSetCfg {
                 .node_indices()
                 .map(|n| (n, n.fmt(&self.net.net()).to_string()))
                 .collect::<Vec<_>>();
-            let current_text = self.v_v.fmt(&self.net);
-            let on_select = ctx.link().callback(Msg::ValueUpdateRouter);
-            html! {<div class="flex-1 ml-2"><Select<RouterId> text={current_text} {options} {on_select} button_class={Classes::from("text-sm")} /></div>}
-        } else if matches!(self.v_v, SetValue::None) {
-            html! {<div class="flex-1 ml-2"></div>}
+            let current_text = self.value.fmt(&self.net);
+            let on_select = ctx.link().callback(Msg::InputSetRouter);
+            html! {<Select<RouterId> text={current_text} {options} {on_select} button_class={Classes::from("text-sm")} />}
+        } else if matches!(self.value, SetValue::None) {
+            html! {}
         } else {
-            let input_class = "flex-1 w-8 px-3 text-base font-normal bg-white bg-clip-padding border border-solid rounded transition ease-in-out m-0 focus:outline-none";
-            let tt_class =
-                "text-gray-700 border-blue-300 focus:border-blue-600 focus:text-gray-700";
-            let tf_class = "text-gray-700 border-red-300 focus:border-red-600 focus:text-gray-700";
-            let f_class = "text-gray-500 border-gray-300 focus:border-blue-600 focus:text-gray-700";
-            let v_class = match (
-                set_value(&ctx.props().set).fmt(&self.net) != self.v_s,
-                self.v_c,
-            ) {
-                (true, true) => tt_class,
-                (true, false) => tf_class,
-                (false, _) => f_class,
-            };
-            let v_class = classes!(input_class, v_class, "ml-2");
-            let v_u = ctx.link().callback(|_| Msg::InputUpdate);
+            let text = self.value.fmt(self.net.as_ref());
+            let on_change = ctx.link().callback(Msg::InputChange);
+            let on_set = ctx.link().callback(Msg::InputSet);
             html! {
-                <input type="text" class={v_class} value={self.v_s.clone()} onchange={v_u.reform(|_| ())} onkeypress={v_u.reform(|_| ())} onpaste={v_u.reform(|_| ())} oninput={v_u.reform(|_| ())} ref={self.v_r.clone()}/>
+                <TextField {text} {on_change} {on_set} correct={self.correct} />
             }
         };
 
@@ -98,8 +81,10 @@ impl Component for RouteMapSetCfg {
 
         html! {
             <div class="w-full flex">
-                <div class="w-36"><Select<RouteMapSet> text={kind_text} options={set_kind_options(ctx.props().router)} {on_select} button_class={Classes::from("text-sm")} /></div>
-                { value_html }
+                <div class="w-72"><Select<RouteMapSet> text={kind_text} options={set_kind_options(ctx.props().router)} {on_select} button_class={Classes::from("text-sm")} /></div>
+                <div class="w-full ml-2">
+                    { value_html }
+                </div>
                 <button class="ml-2 hover hover:text-red-700 focus:outline-none transition duration-150 ease-in-out" onclick={on_delete}> <yew_lucide::X class="w-3 h-3 text-center" /> </button>
             </div>
         }
@@ -111,28 +96,22 @@ impl Component for RouteMapSetCfg {
                 self.net = n;
             }
             Msg::KindUpdate(k) => ctx.props().on_update.emit((ctx.props().index, Some(k))),
-            Msg::ValueUpdateRouter(r) => {
-                self.v_v = SetValue::Router(r);
-                Component::update(self, ctx, Msg::ValueUpdate);
+            Msg::Delete => ctx.props().on_update.emit((ctx.props().index, None)),
+            Msg::InputChange(s) => {
+                self.correct = SetValue::parse(&s)
+                    .and_then(|x| set_update(&ctx.props().set, x))
+                    .is_some();
             }
-            Msg::ValueUpdate => {
-                if let Some(set) = set_update(&ctx.props().set, self.v_v) {
+            Msg::InputSet(s) => {
+                if let Some(set) = SetValue::parse(&s).and_then(|x| set_update(&ctx.props().set, x))
+                {
                     ctx.props().on_update.emit((ctx.props().index, Some(set)))
                 }
             }
-            Msg::Delete => ctx.props().on_update.emit((ctx.props().index, None)),
-            Msg::InputUpdate => {
-                self.v_s = self
-                    .v_r
-                    .cast::<HtmlInputElement>()
-                    .map(|e| e.value())
-                    .unwrap_or_default();
-                if let Some(val) = self.v_v.update(&self.v_s) {
-                    self.v_v = val;
-                    self.v_c = true;
-                    Component::update(self, ctx, Msg::ValueUpdate);
-                } else {
-                    self.v_c = false;
+            Msg::InputSetRouter(r) => {
+                self.value = SetValue::Router(r);
+                if let Some(set) = set_update(&ctx.props().set, self.value) {
+                    ctx.props().on_update.emit((ctx.props().index, Some(set)))
                 }
             }
         }
@@ -147,9 +126,8 @@ impl Component for RouteMapSetCfg {
 
 impl RouteMapSetCfg {
     fn update_from_props(&mut self, set: &RouteMapSet) {
-        self.v_v = set_value(set);
-        self.v_s = self.v_v.fmt(self.net.as_ref());
-        self.v_c = true;
+        self.value = set_value(set);
+        self.correct = true;
     }
 }
 
@@ -162,13 +140,11 @@ enum SetValue {
 }
 
 impl SetValue {
-    fn update(self, s: &str) -> Option<Self> {
-        match self {
-            SetValue::None => Some(SetValue::None),
-            SetValue::Integer(_) => s.parse().ok().map(SetValue::Integer),
-            SetValue::Float(_) => s.parse().ok().map(SetValue::Float),
-            SetValue::Router(_) => s.parse().ok().map(|i: u32| SetValue::Router(i.into())),
-        }
+    fn parse(s: &str) -> Option<Self> {
+        s.parse::<u32>()
+            .map(Self::Integer)
+            .ok()
+            .or_else(|| s.parse::<f64>().map(Self::Float).ok())
     }
 
     fn fmt(&self, net: &Net) -> String {
@@ -240,6 +216,7 @@ fn set_update(set: &RouteMapSet, val: SetValue) -> Option<RouteMapSet> {
         (RouteMapSet::Med(Some(_)), SetValue::Integer(x)) => RouteMapSet::Med(Some(x)),
         (RouteMapSet::Med(None), SetValue::None) => RouteMapSet::Med(None),
         (RouteMapSet::IgpCost(_), SetValue::Float(x)) => RouteMapSet::IgpCost(x),
+        (RouteMapSet::IgpCost(_), SetValue::Integer(x)) => RouteMapSet::IgpCost(x as f64),
         (RouteMapSet::SetCommunity(_), SetValue::Integer(x)) => RouteMapSet::SetCommunity(x),
         (RouteMapSet::DelCommunity(_), SetValue::Integer(x)) => RouteMapSet::DelCommunity(x),
         (RouteMapSet::Weight(Some(_)), SetValue::Integer(x)) => RouteMapSet::Weight(Some(x)),
