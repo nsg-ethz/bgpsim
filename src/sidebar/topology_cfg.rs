@@ -91,10 +91,13 @@ impl Component for TopologyCfg {
                 let neighbor_external = self.net.net().get_device(neighbor).is_external();
                 self.net_dispatch.reduce_mut(move |n| {
                     n.net_mut().add_link(router, neighbor);
-                    if self_external || neighbor_external {
-                        n.net_mut().set_link_weight(router, neighbor, 1.0).unwrap();
-                        n.net_mut().set_link_weight(neighbor, router, 1.0).unwrap();
-                    }
+                    let w = if self_external || neighbor_external {
+                        1.0
+                    } else {
+                        100.0
+                    };
+                    n.net_mut().set_link_weight(router, neighbor, w).unwrap();
+                    n.net_mut().set_link_weight(neighbor, router, w).unwrap();
                 });
                 false
             }

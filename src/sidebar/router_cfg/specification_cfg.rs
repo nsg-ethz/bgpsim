@@ -44,7 +44,7 @@ impl Component for SpecificationCfg {
 
         html! {
             <ExpandableDivider text={String::from("Specification")} >
-                <div class="w-full flex"><div class="flex-1"></div><Button text={"Add"} {on_click} /></div>
+                <div class="w-full flex"><p class="w-full grow">{"Forwarding policies for Router"}</p><Button text={"Add"} {on_click} full={false} /></div>
                 {
                     (0..self.net.spec().get(&router).map(|x| x.len()).unwrap_or(0)).map(|idx| html!{ <FwPolicyCfg {router} {idx} /> }).collect::<Html>()
                 }

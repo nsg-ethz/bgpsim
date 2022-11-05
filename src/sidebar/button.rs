@@ -11,6 +11,7 @@ pub struct Properties {
     pub text: String,
     pub color: Option<SvgColor>,
     pub on_click: Callback<()>,
+    pub full: Option<bool>,
 }
 
 impl Component for Button {
@@ -61,8 +62,14 @@ impl Component for Button {
             "focus:outline-none",
         );
 
+        let div_class = if ctx.props().full.unwrap_or(true) {
+            classes!("w-full", "justify-end", "flex")
+        } else {
+            classes!("justify-end", "flex")
+        };
+
         html! {
-            <div class="w-full justify-end flex">
+            <div class={div_class}>
                 <button {class} {onclick}> {&ctx.props().text} </button>
             </div>
         }

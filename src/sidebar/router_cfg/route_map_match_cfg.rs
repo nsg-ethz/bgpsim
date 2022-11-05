@@ -6,23 +6,16 @@ use netsim::{
     route_map::{RouteMapMatch, RouteMapMatchAsPath, RouteMapMatchClause},
     types::{Prefix, RouterId},
 };
-use web_sys::HtmlInputElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::net::Net;
+use crate::{net::Net, sidebar::TextField};
 
 use super::Select;
 
 pub struct RouteMapMatchCfg {
-    v1r: NodeRef,
-    v2r: NodeRef,
-    v1s: String,
-    v2s: String,
-    v1v: MatchValue,
-    v2v: MatchValue,
-    v1c: bool,
-    v2c: bool,
+    value: MatchValue,
+    correct: bool,
     net: Rc<Net>,
     _net_dispatch: Dispatch<Net>,
 }
@@ -30,10 +23,9 @@ pub struct RouteMapMatchCfg {
 pub enum Msg {
     StateNet(Rc<Net>),
     KindUpdate(RouteMapMatch),
-    Input1Update,
-    Input2Update,
-    ValueUpdate,
-    ValueUpdateRouter(RouterId),
+    InputUpdateRouter(RouterId),
+    InputChange(String),
+    InputSet(String),
     Delete,
 }
 
@@ -52,14 +44,8 @@ impl Component for RouteMapMatchCfg {
     fn create(ctx: &Context<Self>) -> Self {
         let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         let mut s = RouteMapMatchCfg {
-            v1r: NodeRef::default(),
-            v2r: NodeRef::default(),
-            v1s: String::new(),
-            v2s: String::new(),
-            v1v: MatchValue::None,
-            v2v: MatchValue::None,
-            v1c: true,
-            v2c: true,
+            value: MatchValue::None,
+            correct: true,
             net: Default::default(),
             _net_dispatch,
         };
@@ -86,42 +72,15 @@ impl Component for RouteMapMatchCfg {
                 .iter()
                 .map(|n| (*n, n.fmt(&self.net.net()).to_string()))
                 .collect();
-            let current_text = self.v1v.fmt(&self.net);
-            let on_select = ctx.link().callback(Msg::ValueUpdateRouter);
-            html! {<div class="flex-1 ml-2"><Select<RouterId> text={current_text} {options} {on_select} button_class={Classes::from("text-sm")} /></div>}
+            let current_text = self.value.fmt(&self.net);
+            let on_select = ctx.link().callback(Msg::InputUpdateRouter);
+            html! {<Select<RouterId> text={current_text} {options} {on_select} button_class={Classes::from("text-sm")} />}
         } else {
-            let input_class = "flex-1 w-8 px-3 text-base font-normal bg-white bg-clip-padding border border-solid rounded transition ease-in-out m-0 focus:outline-none";
-            let tt_class =
-                "text-gray-700 border-blue-300 focus:border-blue-600 focus:text-gray-700";
-            let tf_class = "text-gray-700 border-red-300 focus:border-red-600 focus:text-gray-700";
-            let f_class = "text-gray-500 border-gray-300 focus:border-blue-600 focus:text-gray-700";
-            let (original_v1, original_v2) = match_values(&ctx.props().m);
-            let v1class = match (original_v1.fmt(&self.net) != self.v1s, self.v1c) {
-                (true, true) => tt_class,
-                (true, false) => tf_class,
-                (false, _) => f_class,
-            };
-            let v1class = classes!(input_class, v1class, "ml-2");
-            let v1u = ctx.link().callback(|_| Msg::Input1Update);
-            let v1_html = html! {
-                <input type="text" class={v1class} value={self.v1s.clone()} onchange={v1u.reform(|_| ())} onkeypress={v1u.reform(|_| ())} onpaste={v1u.reform(|_| ())} oninput={v1u.reform(|_| ())} ref={self.v1r.clone()}/>
-            };
-            if !matches!(self.v2v, MatchValue::None) {
-                let v2class = match (original_v2.fmt(&self.net) != self.v2s, self.v2c) {
-                    (true, true) => tt_class,
-                    (true, false) => tf_class,
-                    (false, _) => f_class,
-                };
-                let v2class = classes!(input_class, v2class, "ml-0");
-                let v2u = ctx.link().callback(|_| Msg::Input2Update);
-                html! {
-                    <>
-                        {v1_html} {"-"}
-                        <input type="text" class={v2class} value={self.v2s.clone()} onchange={v2u.reform(|_| ())} onkeypress={v2u.reform(|_| ())} onpaste={v2u.reform(|_| ())} oninput={v2u.reform(|_| ())} ref={self.v2r.clone()}/>
-                    </>
-                }
-            } else {
-                v1_html
+            let text = self.value.fmt(self.net.as_ref());
+            let on_change = ctx.link().callback(Msg::InputChange);
+            let on_set = ctx.link().callback(Msg::InputSet);
+            html! {
+                <TextField {text} {on_change} {on_set} correct={self.correct} />
             }
         };
 
@@ -130,8 +89,10 @@ impl Component for RouteMapMatchCfg {
 
         html! {
             <div class="w-full flex">
-                <div class="w-40"><Select<RouteMapMatch> text={kind_text} options={match_kind_options()} {on_select} button_class={Classes::from("text-sm")} /></div>
-                { value_html }
+                <div class="w-72"><Select<RouteMapMatch> text={kind_text} options={match_kind_options()} {on_select} button_class={Classes::from("text-sm")} /></div>
+                <div class="w-full ml-2">
+                  { value_html }
+                </div>
                 <button class="ml-2 hover hover:text-red-700 focus:outline-none transition duration-150 ease-in-out" onclick={on_delete}> <yew_lucide::X class="w-3 h-3 text-center" /> </button>
             </div>
         }
@@ -143,42 +104,22 @@ impl Component for RouteMapMatchCfg {
                 self.net = n;
             }
             Msg::KindUpdate(k) => ctx.props().on_update.emit((ctx.props().index, Some(k))),
-            Msg::ValueUpdateRouter(r) => {
-                self.v1v = MatchValue::Router(r);
-                Component::update(self, ctx, Msg::ValueUpdate);
+            Msg::Delete => ctx.props().on_update.emit((ctx.props().index, None)),
+            Msg::InputChange(s) => {
+                self.correct = MatchValue::parse(&s)
+                    .and_then(|x| match_update(&ctx.props().m, x))
+                    .is_some();
             }
-            Msg::ValueUpdate => {
-                if let Some(m) = match_update(&ctx.props().m, self.v1v.clone(), self.v2v.clone()) {
+            Msg::InputSet(s) => {
+                if let Some(m) = MatchValue::parse(&s).and_then(|x| match_update(&ctx.props().m, x))
+                {
                     ctx.props().on_update.emit((ctx.props().index, Some(m)))
                 }
             }
-            Msg::Delete => ctx.props().on_update.emit((ctx.props().index, None)),
-            Msg::Input1Update => {
-                self.v1s = self
-                    .v1r
-                    .cast::<HtmlInputElement>()
-                    .map(|e| e.value())
-                    .unwrap_or_default();
-                if let Some(val) = self.v1v.update(&self.v1s) {
-                    self.v1v = val;
-                    self.v1c = true;
-                    Component::update(self, ctx, Msg::ValueUpdate);
-                } else {
-                    self.v1c = false;
-                }
-            }
-            Msg::Input2Update => {
-                self.v2s = self
-                    .v2r
-                    .cast::<HtmlInputElement>()
-                    .map(|e| e.value())
-                    .unwrap_or_default();
-                if let Some(val) = self.v2v.update(&self.v2s) {
-                    self.v2v = val;
-                    self.v2c = true;
-                    Component::update(self, ctx, Msg::ValueUpdate);
-                } else {
-                    self.v2c = false;
+            Msg::InputUpdateRouter(r) => {
+                self.value = MatchValue::Router(r);
+                if let Some(m) = match_update(&ctx.props().m, self.value.clone()) {
+                    ctx.props().on_update.emit((ctx.props().index, Some(m)))
                 }
             }
         }
@@ -193,12 +134,7 @@ impl Component for RouteMapMatchCfg {
 
 impl RouteMapMatchCfg {
     fn update_from_props(&mut self, m: &RouteMapMatch) {
-        (self.v1v, self.v2v) = match_values(m);
-        (self.v1s, self.v2s) = (
-            self.v1v.fmt(self.net.as_ref()),
-            self.v2v.fmt(self.net.as_ref()),
-        );
-        (self.v1c, self.v2c) = (true, true)
+        self.value = match_values(m);
     }
 }
 
@@ -208,20 +144,28 @@ enum MatchValue {
     Integer(u32),
     Router(RouterId),
     List(BTreeSet<u32>),
+    Range(u32, u32),
 }
 
 impl MatchValue {
-    fn update(&self, s: &str) -> Option<Self> {
-        match self {
-            MatchValue::None => Some(MatchValue::None),
-            MatchValue::Integer(_) => s.parse().ok().map(MatchValue::Integer),
-            MatchValue::Router(_) => s.parse().ok().map(|i: u32| MatchValue::Router(i.into())),
-            MatchValue::List(_) => s
-                .split(|c| c == ',' || c == ';')
-                .map(|x| x.trim().parse::<u32>().ok())
-                .collect::<Option<BTreeSet<u32>>>()
-                .map(MatchValue::List),
+    fn parse(s: &str) -> Option<Self> {
+        if let Ok(x) = s.parse::<u32>() {
+            return Some(Self::Integer(x));
         }
+        if let Some(vs) = s
+            .split(|c| c == ',' || c == ';')
+            .map(|x| x.trim().parse::<u32>().ok())
+            .collect::<Option<BTreeSet<u32>>>()
+        {
+            return Some(Self::List(vs));
+        }
+        if let Some((x, y)) = s
+            .split_once('-')
+            .and_then(|(a, b)| Some((a.trim().parse::<u32>().ok()?, b.trim().parse::<u32>().ok()?)))
+        {
+            return Some(Self::Range(x, y));
+        }
+        None
     }
 
     fn fmt(&self, net: &Net) -> String {
@@ -230,6 +174,7 @@ impl MatchValue {
             MatchValue::Integer(x) => x.to_string(),
             MatchValue::Router(r) => r.fmt(&net.net()).to_string(),
             MatchValue::List(x) => x.iter().join("; "),
+            MatchValue::Range(x, y) => format!("{} - {}", x, y),
         }
     }
 }
@@ -238,10 +183,7 @@ fn match_kind_text(m: &RouteMapMatch) -> &'static str {
     match m {
         RouteMapMatch::Prefix(_) => "Prefix in",
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(_)) => "Path has",
-        RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(_))) => {
-            "Path len is"
-        }
-        RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(_)) => "Path len in",
+        RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(_)) => "Path len",
         RouteMapMatch::NextHop(_) => "Next-Hop is",
         RouteMapMatch::Community(_) => "Community has",
     }
@@ -251,9 +193,8 @@ fn match_kind_options() -> Vec<(RouteMapMatch, String)> {
     [
         RouteMapMatch::Prefix([Prefix::from(0)].into()),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(0.into())),
-        RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(0))),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(
-            0, 0,
+            1, 10,
         ))),
         RouteMapMatch::NextHop(0.into()),
         RouteMapMatch::Community(0),
@@ -266,58 +207,42 @@ fn match_kind_options() -> Vec<(RouteMapMatch, String)> {
     .collect()
 }
 
-fn match_values(m: &RouteMapMatch) -> (MatchValue, MatchValue) {
+fn match_values(m: &RouteMapMatch) -> MatchValue {
     match m {
-        RouteMapMatch::Prefix(ps) => (
-            MatchValue::List(ps.iter().map(|x| x.0).collect()),
-            MatchValue::None,
-        ),
-        RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(v)) => {
-            (MatchValue::Integer(v.0), MatchValue::None)
-        }
+        RouteMapMatch::Prefix(ps) => MatchValue::List(ps.iter().map(|x| x.0).collect()),
+        RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(v)) => MatchValue::Integer(v.0),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(v))) => {
-            (MatchValue::Integer(*v as u32), MatchValue::None)
+            MatchValue::Integer(*v as u32)
         }
-        RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(v1, v2))) => (
-            MatchValue::Integer(*v1 as u32),
-            MatchValue::Integer(*v2 as u32),
-        ),
-        RouteMapMatch::NextHop(v) => (MatchValue::Router(*v), MatchValue::None),
-        RouteMapMatch::Community(v) => (MatchValue::Integer(*v), MatchValue::None),
-        _ => (MatchValue::None, MatchValue::None),
+        RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(v1, v2))) => {
+            MatchValue::Range(*v1 as u32, *v2 as u32)
+        }
+        RouteMapMatch::NextHop(v) => MatchValue::Router(*v),
+        RouteMapMatch::Community(v) => MatchValue::Integer(*v),
+        _ => MatchValue::None,
     }
 }
 
-fn match_update(m: &RouteMapMatch, val1: MatchValue, val2: MatchValue) -> Option<RouteMapMatch> {
-    Some(match (m, val1, val2) {
-        (RouteMapMatch::Prefix(_), MatchValue::List(x), MatchValue::None) => {
+fn match_update(m: &RouteMapMatch, val: MatchValue) -> Option<RouteMapMatch> {
+    Some(match (m, val) {
+        (RouteMapMatch::Prefix(_), MatchValue::List(x)) => {
             RouteMapMatch::Prefix(x.into_iter().map(Prefix::from).collect())
         }
-        (
-            RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(_)),
-            MatchValue::Integer(x),
-            MatchValue::None,
-        ) => RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(x.into())),
-        (
-            RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(_))),
-            MatchValue::Integer(x),
-            MatchValue::None,
-        ) => RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(
-            x as usize,
-        ))),
-        (
-            RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(_, _))),
-            MatchValue::Integer(x),
-            MatchValue::Integer(y),
-        ) => RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(
-            x as usize, y as usize,
-        ))),
-        (RouteMapMatch::NextHop(_), MatchValue::Router(r), MatchValue::None) => {
-            RouteMapMatch::NextHop(r)
+        (RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(_)), MatchValue::Integer(x)) => {
+            RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(x.into()))
         }
-        (RouteMapMatch::Community(_), MatchValue::Integer(x), MatchValue::None) => {
-            RouteMapMatch::Community(x)
+        (RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(_)), MatchValue::Integer(x)) => {
+            RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(
+                x as usize,
+            )))
         }
+        (RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(_)), MatchValue::Range(x, y)) => {
+            RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(
+                x as usize, y as usize,
+            )))
+        }
+        (RouteMapMatch::NextHop(_), MatchValue::Router(r)) => RouteMapMatch::NextHop(r),
+        (RouteMapMatch::Community(_), MatchValue::Integer(x)) => RouteMapMatch::Community(x),
         _ => return None,
     })
 }

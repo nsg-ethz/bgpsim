@@ -10,8 +10,9 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
+    draw::SvgColor,
     net::{Net, Queue},
-    sidebar::{Element, Select, TextField},
+    sidebar::{Button, Element, ExpandableSection, Select, TextField},
 };
 
 pub struct FwPolicyCfg {
@@ -28,6 +29,7 @@ pub enum Msg {
     CheckPrefix(String),
     SetRegex(String),
     CheckRegex(String),
+    Remove,
 }
 
 #[derive(Properties, PartialEq, Eq)]
@@ -100,18 +102,23 @@ impl Component for FwPolicyCfg {
             ),
         ];
         let on_select = ctx.link().callback(Msg::ChangeKind);
+        let on_remove = ctx.link().callback(|_| Msg::Remove);
+
+        let section_text = self.net.spec()[&router][idx].0.fmt(&self.net.net());
 
         html! {
-            <>
-                <div class="w-full py-2"></div>
-                <Element text={ "Kind" }>
+            <ExpandableSection text={section_text}>
+                <Element text={ "Policy kind" }>
                     <Select<FwPolicy> text={current_kind} {options} {on_select} />
                 </Element>
                 <Element text={ "Prefix" }>
                 <TextField text={prefix.0.to_string()} correct={self.prefix_correct} on_change={ctx.link().callback(Msg::CheckPrefix)} on_set={ctx.link().callback(Msg::SetPrefix)} />
                 </Element>
                 { regex_field }
-            </>
+                <Element text={""}>
+                    <Button text="Delete" color={SvgColor::RedLight} on_click={on_remove} />
+                </Element>
+            </ExpandableSection>
         }
     }
 
@@ -183,6 +190,11 @@ impl Component for FwPolicyCfg {
                 } else {
                     false
                 }
+            }
+            Msg::Remove => {
+                self.net_dispatch
+                    .reduce_mut(|n| n.spec_mut().entry(router).or_default().remove(idx));
+                false
             }
         }
     }

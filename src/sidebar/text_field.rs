@@ -5,6 +5,7 @@ pub struct TextField {
     current_text: String,
     original_text: String,
     node_ref: NodeRef,
+    ignore_changed: bool,
 }
 
 pub enum Msg {
@@ -21,6 +22,7 @@ pub struct Properties {
     pub placeholder: Option<String>,
     pub on_change: Callback<String>,
     pub on_set: Callback<String>,
+    pub class: Option<Classes>,
 }
 
 impl Component for TextField {
@@ -32,6 +34,7 @@ impl Component for TextField {
             current_text: ctx.props().text.clone(),
             original_text: ctx.props().text.clone(),
             node_ref: Default::default(),
+            ignore_changed: false,
         }
     }
 
@@ -48,7 +51,11 @@ impl Component for TextField {
                 classes! {"text-gray-500", "border-gray-300", "focus:border-blue-600", "focus:text-gray-700"}
             }
         };
-        let class = classes! {"flex-1", "w-16", "px-3", "text-base", "font-normal", "bg-white", "bg-clip-padding", "border", "border-solid", "rounded", "transition", "ease-in-out", "m-0", "focus:outline-none", colors};
+        let class = classes! {
+            "flex-1", "w-16", "px-3", "text-base", "font-normal", "bg-white", "bg-clip-padding", "border", "border-solid", "rounded", "transition", "ease-in-out", "m-0", "focus:outline-none",
+            colors,
+            ctx.props().class.clone().unwrap_or_default()
+        };
 
         let node_ref = self.node_ref.clone();
 
@@ -120,6 +127,12 @@ impl Component for TextField {
         if self.original_text != ctx.props().text {
             self.current_text = ctx.props().text.clone();
             self.original_text = ctx.props().text.clone();
+        }
+        if self.ignore_changed {
+            self.ignore_changed = false;
+        } else {
+            ctx.props().on_change.emit(self.current_text.clone());
+            self.ignore_changed = true;
         }
         true
     }
