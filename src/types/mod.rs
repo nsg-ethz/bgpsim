@@ -530,6 +530,7 @@ pub enum NetworkError {
     JsonError(Box<serde_json::Error>),
 }
 
+#[cfg(feature = "serde")]
 impl From<serde_json::Error> for NetworkError {
     fn from(value: serde_json::Error) -> Self {
         Self::JsonError(Box::new(value))
