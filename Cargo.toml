@@ -3,18 +3,14 @@ name = "netsim-web"
 version = "0.7.3"
 edition = "2021"
 
-[profile.release]
-lto = true
-opt-level = 's'
-
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-netsim = { path = "netsim", features = ["serde"] }
-yew = { git = "https://github.com/yewstack/yew.git", features = ["csr"] }
-yew-router = { git = "https://github.com/yewstack/yew.git" }
-yewdux = { git = "https://github.com/intendednull/yewdux.git", rev = "7b50745" }
-yew-lucide = { path = "./yew-lucide" }
+netsim = { path = "../netsim", features = ["serde"] }
+yew = { version = "0.19" }
+yew-router = { version = "0.16" }
+yewdux = { version = "0.8"}
+yew-lucide = "0.91"
 web-sys = { version = "0.3", features = [ "HtmlDivElement", "SvgGraphicsElement", "SvgRect", "Window", "KeyboardEvent", "Document", "Element", "HtmlElement", "FileList", "FileReader", "Blob", "ProgressEvent", "History"] }
 js-sys = "0.3"
 log = "0.4.17"
@@ -25,7 +21,7 @@ gloo-timers = "0.2.4"
 gloo-utils = "0.1.4"
 petgraph = "0.6"
 itertools = "0.10"
-wasm-bindgen = "0.2.81"
+wasm-bindgen = "=0.2.83"
 strum = "0.24"
 strum_macros = "0.24"
 forceatlas2 = { version = "0.4", features = [] }

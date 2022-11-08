@@ -12,7 +12,7 @@ use header::Header;
 use sidebar::Sidebar;
 use tooltip::Tooltip;
 
-use yew::{prelude::*, Renderer};
+use yew::prelude::*;
 use yew_router::prelude::*;
 use yewdux::prelude::*;
 
@@ -42,7 +42,7 @@ enum Route {
     ImportNet { d: String },
 }
 
-fn switch(route: Route) -> Html {
+fn switch(route: &Route) -> Html {
     match route {
         Route::Home => html! {<App />},
         Route::ImportNet { d } => {
@@ -57,12 +57,12 @@ fn switch(route: Route) -> Html {
 fn entry() -> Html {
     html! {
         <BrowserRouter>
-            <Switch<Route> render={switch} />
+            <Switch<Route> render={Switch::render(switch)} />
         </BrowserRouter>
     }
 }
 
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
-    Renderer::<Entry>::new().render();
+    yew::start_app::<Entry>();
 }

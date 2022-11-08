@@ -1,3 +1,0 @@
-[submodule "netsim"]
-	path = netsim
-	url = git@gitlab.ethz.ch:nsg/employees/sctibor/projects/netsim.git
