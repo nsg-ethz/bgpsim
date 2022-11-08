@@ -131,7 +131,7 @@ fn test_bgp_single() {
         match event {
             Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
                 assert_eq!(from, 0.into());
-                assert!(hashset![4, 5, 6, 100].contains(&(to.index() as usize)));
+                assert!(hashset![4, 5, 6, 100].contains(&(to.index())));
                 if to == 100.into() {
                     assert_eq!(r.next_hop, 0.into());
                 } else {
@@ -217,7 +217,7 @@ fn test_bgp_single() {
         match event {
             Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
                 assert_eq!(from, 0.into());
-                assert!(hashset![1, 2, 3, 4, 6, 100].contains(&(to.index() as usize)));
+                assert!(hashset![1, 2, 3, 4, 6, 100].contains(&(to.index())));
                 if to == 100.into() {
                     assert_eq!(r.next_hop, 0.into());
                     assert_eq!(r.local_pref, None);
@@ -274,7 +274,7 @@ fn test_bgp_single() {
         match event {
             Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
                 assert_eq!(from, 0.into());
-                assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index() as usize)));
+                assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index())));
                 assert_eq!(r.next_hop, 0.into()); // next-hop must be changed to self.
                 assert_eq!(r.local_pref, Some(100));
             }
@@ -307,7 +307,7 @@ fn test_bgp_single() {
         match event {
             Event::Bgp(_, from, to, BgpEvent::Withdraw(p)) if p == p200 => {
                 assert_eq!(from, 0.into());
-                assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index() as usize)));
+                assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index())));
             }
             _ => panic!(),
         }

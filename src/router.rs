@@ -1102,7 +1102,7 @@ impl Router {
     ) -> Result<Option<BgpRibEntry>, DeviceError> {
         // apply bgp_route_map_in
         let neighbor = entry.from_id;
-        let mut maps = self.get_bgp_route_maps(neighbor, Incoming).into_iter();
+        let mut maps = self.get_bgp_route_maps(neighbor, Incoming).iter();
         let mut entry = loop {
             match maps.next() {
                 Some(map) => {

@@ -79,6 +79,7 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
     ///   prefix length `local_prefix_len`.
     /// - `prefix_ip_range`: This is the IP range used to assign concrete IP networks to the
     ///   announced [`Prefix`]es, with the prefix length of `prefix_len`.
+    #[allow(clippy::too_many_arguments)]
     pub fn new(
         net: &'a Network<Q>,
         internal_ip_range: Ipv4Net,
@@ -348,10 +349,7 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
             .flatten()
             .find(|(_, (x, _))| *x == iface_idx)
             .map(|(x, _)| *x)
-            .ok_or(ExportError::InterfaceNotFound(
-                router,
-                format!("at {}", iface_idx),
-            ))
+            .ok_or_else(|| ExportError::InterfaceNotFound(router, format!("at {}", iface_idx)))
     }
 }
 

@@ -165,7 +165,7 @@ pub enum ConfigError {
     /// 2. The ConfigModifier::Remove would remove an non-existing expression
     /// 3. The ConfigModifier::Update would update an non-existing expression
     #[error("The ConfigModifier cannot be applied: {0:?}")]
-    ConfigModifierError(ConfigModifier),
+    ConfigModifierError(Box<ConfigModifier>),
 }
 
 /// # Network Device (similar to `Option`)
@@ -527,7 +527,13 @@ pub enum NetworkError {
     #[cfg(feature = "serde")]
     /// Json error
     #[error("{0}")]
-    JsonError(#[from] serde_json::Error),
+    JsonError(Box<serde_json::Error>),
+}
+
+impl From<serde_json::Error> for NetworkError {
+    fn from(value: serde_json::Error) -> Self {
+        Self::JsonError(Box::new(value))
+    }
 }
 
 impl PartialEq for NetworkError {

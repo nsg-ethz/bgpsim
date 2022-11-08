@@ -147,15 +147,15 @@ impl Config {
             ConfigModifier::Insert(expr) => {
                 if let Some(old_expr) = self.expr.insert(expr.key(), expr.clone()) {
                     self.expr.insert(old_expr.key(), old_expr);
-                    return Err(ConfigError::ConfigModifierError(modifier.clone()));
+                    return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())));
                 }
             }
             ConfigModifier::Remove(expr) => match self.expr.remove(&expr.key()) {
                 Some(old_expr) if &old_expr != expr => {
                     self.expr.insert(old_expr.key(), old_expr);
-                    return Err(ConfigError::ConfigModifierError(modifier.clone()));
+                    return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())));
                 }
-                None => return Err(ConfigError::ConfigModifierError(modifier.clone())),
+                None => return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone()))),
                 _ => {}
             },
             ConfigModifier::Update {
@@ -165,14 +165,16 @@ impl Config {
                 // check if both are similar
                 let key = expr_a.key();
                 if key != expr_b.key() {
-                    return Err(ConfigError::ConfigModifierError(modifier.clone()));
+                    return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())));
                 }
                 match self.expr.remove(&key) {
                     Some(old_expr) if &old_expr != expr_a => {
                         self.expr.insert(key, old_expr);
-                        return Err(ConfigError::ConfigModifierError(modifier.clone()));
+                        return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())));
                     }
-                    None => return Err(ConfigError::ConfigModifierError(modifier.clone())),
+                    None => {
+                        return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())))
+                    }
                     _ => {}
                 }
                 self.expr.insert(key, expr_b.clone());
@@ -682,7 +684,7 @@ where
             self.apply_modifier_unchecked(modifier)
         } else {
             Err(NetworkError::ConfigError(ConfigError::ConfigModifierError(
-                modifier.clone(),
+                Box::new(modifier.clone()),
             )))
         }
     }

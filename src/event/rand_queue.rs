@@ -23,7 +23,7 @@ use crate::{
 };
 
 use geoutils::Location;
-use itertools::{zip, Itertools};
+use itertools::Itertools;
 use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
 use rand::prelude::*;
@@ -33,6 +33,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::Reverse,
     collections::{HashMap, HashSet},
+    iter::zip,
 };
 
 use super::{Event, EventQueue};
