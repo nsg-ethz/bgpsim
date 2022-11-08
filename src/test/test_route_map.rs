@@ -147,6 +147,7 @@ fn simple_matches() {
 }
 
 #[test]
+#[cfg(feature = "multi_prefix")]
 fn complex_matches() {
     let default_entry = BgpRibEntry {
         route: BgpRoute {

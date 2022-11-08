@@ -31,7 +31,6 @@ use crate::{
 };
 use lazy_static::lazy_static;
 use maplit::{btreemap, btreeset};
-use ordered_float::NotNan;
 use petgraph::algo::FloatMeasure;
 use pretty_assertions::assert_eq;
 
@@ -360,7 +359,10 @@ fn test_bgp_connectivity_undo() {
 }
 
 #[test]
+#[cfg(feature = "multi_prefix")]
 fn test_bgp_rib_entries() {
+    use ordered_float::NotNan;
+
     let mut net = get_test_net_bgp();
 
     let p = Prefix::from(0);
