@@ -91,7 +91,7 @@ impl Component for RouterCfg {
         let router = ctx.props().router;
         match msg {
             Msg::OnNameChange(new_name) => {
-                self.name_input_correct = match self.net.net().get_router_id(&new_name) {
+                self.name_input_correct = match self.net.net().get_router_id(new_name) {
                     Err(_) => true,
                     Ok(r) if r == router => true,
                     Ok(_) => false,

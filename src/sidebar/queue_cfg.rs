@@ -223,12 +223,9 @@ fn allow_swap(queue: &Queue, pos: usize) -> bool {
     if pos + 1 >= queue.len() {
         return false;
     }
-    match (queue.get(pos), queue.get(pos + 1)) {
+    !matches! {
+        (queue.get(pos), queue.get(pos + 1)),
         (Some(Event::Bgp(_, s1, d1, _)), Some(Event::Bgp(_, s2, d2, _)))
-            if (s1, d1) == (s2, d2) =>
-        {
-            false
-        }
-        _ => true,
+        if (s1, d1) == (s2, d2)
     }
 }

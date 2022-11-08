@@ -89,6 +89,7 @@ impl EventQueue for Queue {
     }
 }
 
+#[allow(clippy::type_complexity)]
 #[derive(Clone, PartialEq, Store)]
 pub struct Net {
     pub net: Mrc<Network<Queue>>,
@@ -420,7 +421,7 @@ impl Net {
     pub fn export_url(&self) -> String {
         let json_data = net_to_string(self, true);
         let compressed_data = compress_to_vec(json_data.as_bytes(), 8);
-        let encoded_data = base64::encode_config(&compressed_data, base64_config());
+        let encoded_data = base64::encode_config(compressed_data, base64_config());
         let url = window()
             .and_then(|w| w.location().href().ok())
             .unwrap_or_else(|| String::from("netsim.ethz.ch/"));

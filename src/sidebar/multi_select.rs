@@ -124,7 +124,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
                 let height = self
                     .div_ref
                     .cast::<HtmlElement>()
-                    .map(|div| div.client_height() as i32 + 28i32)
+                    .map(|div| div.client_height() + 28i32)
                     .unwrap_or(24);
                 if max_y - cur_y < height {
                     self.pop_above = true;
