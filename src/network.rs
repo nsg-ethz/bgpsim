@@ -405,6 +405,7 @@ where
 {
     /// Swap out the queue with a different one. This requires that the queue is empty! If it is
     /// not, then nothing is changed.
+    #[allow(clippy::result_large_err)]
     pub fn swap_queue<QA>(self, mut queue: QA) -> Result<Network<QA>, Self>
     where
         QA: EventQueue,
