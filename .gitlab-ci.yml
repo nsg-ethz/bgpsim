@@ -1,0 +1,21 @@
+stages:
+  - build
+
+rust-latest-build:
+  stage: build
+  image: rust:latest
+  script:
+    - cargo install --locked trunk
+    - cargo install --locked wasm-bindgen-cli
+    - trunk build
+    - trunk build --features "atomic_bgp"
+
+rust-nightly-build:
+  stage: build
+  image: rustlang/rust:nightly
+  script:
+    - cargo install --locked trunk
+    - cargo install --locked wasm-bindgen-cli
+    - trunk build
+    - trunk build --features "atomic_bgp"
+  allow_failure: true
