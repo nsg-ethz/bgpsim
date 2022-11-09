@@ -11,6 +11,7 @@ rust-latest-build:
     - chmod +x tailwindcss-linux-x64
     - mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/netsim.git ../netsim
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/atomic-bgp.git ../atomic-bgp
     - trunk build
     - trunk build --features "atomic_bgp"
 
@@ -24,6 +25,7 @@ rust-nightly-build:
     - chmod +x tailwindcss-linux-x64
     - mv tailwindcss-linux-x64 /usr/local/bin/tailwindcss
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/netsim.git ../netsim
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/atomic-bgp.git ../atomic-bgp
     - trunk build
     - trunk build --features "atomic_bgp"
   allow_failure: true
