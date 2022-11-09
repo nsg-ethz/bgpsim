@@ -11,6 +11,7 @@ use crate::{
 pub struct MigrationButton {
     net: Rc<Net>,
     state_dispatch: Dispatch<State>,
+    _net_dispatch: Dispatch<Net>,
 }
 
 pub enum Msg {
@@ -32,16 +33,17 @@ impl Component for MigrationButton {
         MigrationButton {
             net: Default::default(),
             state_dispatch,
+            _net_dispatch,
         }
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let open_planner = ctx.link().callback(|_| Msg::Show);
 
-        let migration = self.net.migration();
+        let total = self.net.migration().len();
         let step = self.net.migration_step;
 
-        if migration.len() == 0 {
+        if total == 0 {
             return html!();
         }
 
@@ -51,7 +53,7 @@ impl Component for MigrationButton {
         html! {
             <button {class} onclick={open_planner}>
                 { "Migration" }
-                <div class={badge_class}>{migration.len()} {"/"} {step}</div>
+                <div class={badge_class}>{step + 1} {"/"} {total}</div>
             </button>
         }
     }

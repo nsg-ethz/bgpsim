@@ -25,7 +25,7 @@ pub fn migration_viewer() -> Html {
 
         html! {
             <div class="w-full space-y-2 mt-2">
-                <Divider text={"Specification".to_string()}/>
+                <Divider text={"Migration".to_string()}/>
                 { content }
             </div>
         }
@@ -56,9 +56,9 @@ pub fn atomic_command_group_viewer(props: &AtomicCommandGroupProps) -> Html {
         .collect();
 
     let text = if active {
-        format!("Step {} (current)", major)
+        format!("Step {} (current)", major + 1)
     } else {
-        format!("Step {}", major)
+        format!("Step {}", major + 1)
     };
 
     html! {

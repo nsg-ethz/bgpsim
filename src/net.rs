@@ -381,6 +381,7 @@ impl Net {
                 #[cfg(feature = "atomic_bgp")]
                 {
                     self.migration = n.migration;
+                    self.migration_step = n.migration_step;
                 }
             }
             Err(e) => log::error!("Could not import the network! {}", e),

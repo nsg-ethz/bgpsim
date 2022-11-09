@@ -16,9 +16,9 @@ use yewdux::prelude::*;
 
 use crate::{draw::SvgColor, net::Net};
 
-use self::{bgp_cfg::BgpCfg, specification_cfg::SpecificationCfg};
-
 use super::{topology_cfg::TopologyCfg, Divider, Element, Select, TextField, Toggle};
+use bgp_cfg::BgpCfg;
+use specification_cfg::SpecificationCfg;
 use static_routes_cfg::StaticRoutesCfg;
 
 pub struct RouterCfg {
@@ -81,6 +81,7 @@ impl Component for RouterCfg {
                 <TopologyCfg {router} only_internal={false}/>
                 <StaticRoutesCfg {router}/>
                 <BgpCfg {router}/>
+                <div></div>
                 <SpecificationCfg {router} />
                 <Divider />
             </div>
