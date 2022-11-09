@@ -2,7 +2,10 @@ use netsim::prelude::NetworkFormatter;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{net::Net, sidebar::Divider};
+use crate::{
+    net::Net,
+    sidebar::{Divider, ExpandableSection},
+};
 
 #[function_component(MigrationViewer)]
 pub fn migration_viewer() -> Html {
@@ -15,8 +18,9 @@ pub fn migration_viewer() -> Html {
             </div>
         }
     } else {
+        let step = net.migration_step;
         let content = (0..net.migration().len())
-            .map(|idx| html!( <> <ModifierViewer {idx} /> <Divider /> </> ))
+            .map(|major| html!( <AtomicCommandGroupViewer {major} active={major == step} />))
             .collect::<Html>();
 
         html! {
@@ -29,23 +33,70 @@ pub fn migration_viewer() -> Html {
 }
 
 #[derive(Properties, PartialEq)]
-pub struct ModifierViewerProps {
-    pub idx: usize,
+pub struct AtomicCommandGroupProps {
+    pub major: usize,
+    pub active: bool,
 }
 
-#[function_component(ModifierViewer)]
-pub fn modifier_viewer(props: &ModifierViewerProps) -> Html {
+#[function_component(AtomicCommandGroupViewer)]
+pub fn atomic_command_group_viewer(props: &AtomicCommandGroupProps) -> Html {
     let (net, _) = use_store::<Net>();
-    let idx = props.idx;
+    let major = props.major;
 
-    let p = net.migration().get(idx).cloned();
+    let num_cmds = net
+        .migration()
+        .get(major)
+        .map(|x| x.len())
+        .unwrap_or_default();
 
-    if let Some(modifier) = p {
-        let text = modifier.fmt(&net.net());
+    let active = props.active;
+
+    let content: Html = (0..num_cmds)
+        .map(|minor| html! {<AtomicCommandViewer {major} {minor} {active} />})
+        .collect();
+
+    let text = if active {
+        format!("Step {} (current)", major)
+    } else {
+        format!("Step {}", major)
+    };
+
+    html! {
+        <ExpandableSection {text}>
+            { content }
+        </ExpandableSection>
+    }
+}
+
+#[derive(Properties, PartialEq)]
+pub struct AtomicCommandProps {
+    pub major: usize,
+    pub minor: usize,
+    pub active: bool,
+}
+
+#[function_component(AtomicCommandViewer)]
+pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
+    let (net, _) = use_store::<Net>();
+    let major = props.major;
+    let minor = props.minor;
+
+    let cmd = net
+        .migration()
+        .get(major)
+        .and_then(|x| x.get(minor))
+        .cloned();
+
+    if let Some(cmd) = cmd {
+        let pre = cmd.precondition.fmt(&net.net());
+        let text = cmd.command.fmt(&net.net());
+        let post = cmd.postcondition.fmt(&net.net());
         html! {
-            <p class="w-full flex m-4">
-                { text }
-            </p>
+            <>
+                <p class="w-full flex m-4"> { pre } </p><br />
+                <p class="w-full flex m-4"> { text } </p><br />
+                <p class="w-full flex m-4"> { post } </p><br />
+            </>
         }
     } else {
         html! {}

@@ -4,13 +4,13 @@ version = "0.7.3"
 edition = "2021"
 
 [features]
-atomic_bgp = ["dep:atomic-bgp"]
+atomic_bgp = ["dep:atomic-command"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 netsim = { path = "../netsim", features = ["serde"] }
-atomic-bgp = { path = "../atomic-bgp", optional = true }
+atomic-command = { path = "../atomic-bgp/atomic-command", features = ["serde"], optional = true }
 yew = { version = "0.19" }
 yew-router = { version = "0.16" }
 yewdux = { version = "0.8"}

@@ -62,6 +62,7 @@ pub enum Selected {
     None,
     Router(RouterId),
     Queue,
+    #[cfg(feature = "atomic_bgp")]
     Migration,
     Verifier,
 }

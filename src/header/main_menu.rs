@@ -11,7 +11,6 @@ use crate::{net::Net, sidebar::Toggle};
 pub struct MainMenu {
     shown: bool,
     auto_simulate: bool,
-    recording: bool,
     net: Rc<Net>,
     net_dispatch: Dispatch<Net>,
     file_ref: NodeRef,
@@ -29,7 +28,6 @@ pub enum Msg {
     OpenMenu,
     CloseMenu,
     SaveLatex,
-    ToggleRecorder,
 }
 
 #[derive(Properties, PartialEq)]
@@ -46,7 +44,6 @@ impl Component for MainMenu {
         MainMenu {
             shown: false,
             auto_simulate: true,
-            recording: false,
             net: Default::default(),
             net_dispatch,
             file_ref: NodeRef::default(),
@@ -76,13 +73,6 @@ impl Component for MainMenu {
 
         let on_file_import = ctx.link().callback(|_| Msg::Import);
         let import = ctx.link().callback(|_| Msg::ImportClick);
-
-        let recording_text = if self.recording {
-            html! { <> <yew_lucide::StopCircle class="h-6 mr-4 text-red-600" /><p class="text-red-600">{ "Stop recording" } </p></> }
-        } else {
-            html! { <> <yew_lucide::Voicemail class="h-6 mr-4" />{ "Record a migration" } </> }
-        };
-        let toggle_recording = ctx.link().callback(|_| Msg::ToggleRecorder);
 
         html! {
             <>
@@ -128,9 +118,6 @@ impl Component for MainMenu {
                                 {self.url_network.as_ref().unwrap()}
                             </div>
                         }
-                        <button class={element_class} onclick={toggle_recording}>
-                            { recording_text }
-                        </button>
                     </div>
                 </div>
             </>
@@ -142,11 +129,9 @@ impl Component for MainMenu {
             Msg::StateNet(n) => {
                 self.net = n;
                 let auto_simulate = self.net.net().auto_simulation_enabled();
-                let recording = self.net.is_recording();
                 self.url_network = None;
-                if auto_simulate != (self.auto_simulate) || recording == self.recording {
+                if auto_simulate != (self.auto_simulate) {
                     self.auto_simulate = auto_simulate;
-                    self.recording = recording;
                     true
                 } else {
                     false
@@ -231,16 +216,6 @@ impl Component for MainMenu {
                 self.file_listener = Some(listener);
 
                 self.shown = false;
-                true
-            }
-            Msg::ToggleRecorder => {
-                if self.net.is_recording() {
-                    self.net_dispatch.reduce_mut(|n| n.stop_recording());
-                    self.recording = false;
-                } else {
-                    self.net_dispatch.reduce_mut(|n| n.start_recording());
-                    self.recording = true;
-                }
                 true
             }
         }

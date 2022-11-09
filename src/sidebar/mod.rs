@@ -2,6 +2,7 @@ pub mod button;
 pub mod divider;
 pub mod element;
 pub mod external_router_cfg;
+#[cfg(feature = "atomic_bgp")]
 pub mod migration_viewer;
 pub mod multi_select;
 pub mod queue_cfg;
@@ -21,6 +22,7 @@ pub use text_field::TextField;
 pub use toggle::Toggle;
 
 use external_router_cfg::ExternalRouterCfg;
+#[cfg(feature = "atomic_bgp")]
 use migration_viewer::MigrationViewer;
 use queue_cfg::QueueCfg;
 use router_cfg::RouterCfg;
@@ -75,6 +77,7 @@ impl Component for Sidebar {
             }
             Selected::Router(r) => html! { <ExternalRouterCfg router={r} /> },
             Selected::Queue => html! { <QueueCfg /> },
+            #[cfg(feature = "atomic_bgp")]
             Selected::Migration => html! { <MigrationViewer /> },
             Selected::Verifier => html! { <VerifierViewer /> },
         };

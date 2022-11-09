@@ -8,7 +8,6 @@ use getrandom::getrandom;
 use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
 use netsim::{
     bgp::{BgpRoute, BgpSessionType},
-    config::{ConfigModifier, NetworkConfig},
     event::{Event, EventQueue},
     network::Network,
     policies::{FwPolicy, PolicyError},
@@ -20,6 +19,9 @@ use serde_json::Value;
 use wasm_bindgen::JsCast;
 use web_sys::{window, HtmlElement};
 use yewdux::{mrc::Mrc, prelude::*};
+
+#[cfg(feature = "atomic_bgp")]
+use atomic_command::AtomicCommand;
 
 use crate::{latex_export, point::Point};
 
@@ -95,9 +97,12 @@ pub struct Net {
     pub net: Mrc<Network<Queue>>,
     pub pos: Mrc<HashMap<RouterId, Point>>,
     pub spec: Mrc<HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>>,
-    pub migration: Mrc<Vec<ConfigModifier>>,
     recorder: Option<Network<Queue>>,
     speed: Mrc<HashMap<RouterId, Point>>,
+    #[cfg(feature = "atomic_bgp")]
+    pub migration: Mrc<Vec<Vec<AtomicCommand>>>,
+    #[cfg(feature = "atomic_bgp")]
+    pub migration_step: usize,
 }
 
 impl Default for Net {
@@ -106,7 +111,10 @@ impl Default for Net {
             net: Mrc::new(Network::new(Queue::new())),
             pos: Default::default(),
             spec: Default::default(),
+            #[cfg(feature = "atomic_bgp")]
             migration: Default::default(),
+            #[cfg(feature = "atomic_bgp")]
+            migration_step: 0,
             speed: Default::default(),
             recorder: None,
         }
@@ -147,30 +155,14 @@ impl Net {
         self.spec.borrow_mut()
     }
 
-    pub fn migration(&self) -> impl Deref<Target = Vec<ConfigModifier>> + '_ {
+    #[cfg(feature = "atomic_bgp")]
+    pub fn migration(&self) -> impl Deref<Target = Vec<Vec<AtomicCommand>>> + '_ {
         self.migration.borrow()
     }
 
-    pub fn migration_mut(&self) -> impl DerefMut<Target = Vec<ConfigModifier>> + '_ {
+    #[cfg(feature = "atomic_bgp")]
+    pub fn migration_mut(&self) -> impl DerefMut<Target = Vec<Vec<AtomicCommand>>> + '_ {
         self.migration.borrow_mut()
-    }
-
-    pub fn start_recording(&mut self) {
-        self.recorder = Some(self.net.borrow().clone());
-    }
-
-    pub fn stop_recording(&mut self) {
-        if let Some(old_net) = self.recorder.take() {
-            let old_config = old_net.get_config().unwrap();
-            let new_config = self.net().get_config().unwrap();
-            let delta = old_config.get_diff(&new_config);
-            self.net = Mrc::new(old_net);
-            self.migration = Mrc::new(delta.modifiers);
-        }
-    }
-
-    pub fn is_recording(&self) -> bool {
-        self.recorder.is_some()
     }
 
     pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {
@@ -386,7 +378,10 @@ impl Net {
                 self.net = n.net;
                 self.pos = n.pos;
                 self.spec = n.spec;
-                self.migration = n.migration;
+                #[cfg(feature = "atomic_bgp")]
+                {
+                    self.migration = n.migration;
+                }
             }
             Err(e) => log::error!("Could not import the network! {}", e),
         }
@@ -448,8 +443,6 @@ fn net_to_string(net: &Net, compact: bool) -> String {
     let p = pos_borrow.deref();
     let spec_borrow = net.spec();
     let spec = spec_borrow.deref();
-    let migration_borrow = net.migration();
-    let migration = migration_borrow.deref();
 
     let mut network = if compact {
         serde_json::from_str::<Value>(&n.as_json_str_compact())
@@ -461,10 +454,20 @@ fn net_to_string(net: &Net, compact: bool) -> String {
     let obj = network.as_object_mut().unwrap();
     obj.insert("pos".to_string(), serde_json::to_value(p).unwrap());
     obj.insert("spec".to_string(), serde_json::to_value(spec).unwrap());
-    obj.insert(
-        "migration".to_string(),
-        serde_json::to_value(migration).unwrap(),
-    );
+
+    #[cfg(feature = "atomic_bgp")]
+    {
+        let migration_borrow = net.migration();
+        let migration = migration_borrow.deref();
+        obj.insert(
+            "migration".to_string(),
+            serde_json::to_value(migration).unwrap(),
+        );
+        obj.insert(
+            "migration_step".to_string(),
+            serde_json::to_value(net.migration_step).unwrap(),
+        );
+    }
 
     serde_json::to_string(&network).unwrap()
 }
@@ -482,10 +485,6 @@ fn net_from_str(s: &str) -> Result<Net, String> {
             )
             .ok()
         })
-        .unwrap_or_default();
-    let migration = content
-        .get("migration")
-        .and_then(|v| serde_json::from_value::<Vec<ConfigModifier>>(v.clone()).ok())
         .unwrap_or_default();
     let (pos, rerun_layout) = if let Some(pos) = content
         .get("pos")
@@ -513,7 +512,18 @@ fn net_from_str(s: &str) -> Result<Net, String> {
         net: Mrc::new(net),
         pos: Mrc::new(pos),
         spec: Mrc::new(spec),
-        migration: Mrc::new(migration),
+        #[cfg(feature = "atomic_bgp")]
+        migration: Mrc::new(
+            content
+                .get("migration")
+                .and_then(|v| serde_json::from_value::<Vec<Vec<AtomicCommand>>>(v.clone()).ok())
+                .unwrap_or_default(),
+        ),
+        #[cfg(feature = "atomic_bgp")]
+        migration_step: content
+            .get("migration_step")
+            .and_then(|v| serde_json::from_value::<usize>(v.clone()).ok())
+            .unwrap_or_default(),
         speed: Default::default(),
         recorder: None,
     };
