@@ -903,12 +903,12 @@ where
                             speaker_a: *rid,
                             speaker_b: *neighbor,
                         }) {
-                            if *old_session == BgpSessionType::EBgp
+                            if *old_session == BgpSessionType::IBgpPeer
                                 && *session_type == BgpSessionType::IBgpClient
                             {
                                 // remove the old key and add the new one
                                 std::mem::swap(source, target);
-                                *old_session = *session_type;
+                                *old_session = BgpSessionType::IBgpClient;
                             } else if *old_session == BgpSessionType::IBgpClient
                                 && *session_type == BgpSessionType::IBgpClient
                             {
