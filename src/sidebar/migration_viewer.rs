@@ -60,7 +60,7 @@ pub fn atomic_command_group_viewer(props: &AtomicCommandGroupProps) -> Html {
 
     html! {
         <ExpandableSection {text}>
-            <div class="flex flex-col space-y-4 mb-4">
+            <div class="flex flex-col space-y-4 pb-4">
                 { content }
             </div>
         </ExpandableSection>

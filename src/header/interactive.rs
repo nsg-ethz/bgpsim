@@ -1,6 +1,6 @@
 use std::rc::Rc;
 
-use netsim::{event::EventQueue, interactive::InteractiveNetwork};
+use netsim::{event::EventQueue, interactive::InteractiveNetwork, policies::Policy};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -84,7 +84,7 @@ impl Component for InteractivePlayer {
 
         html! {
             <div {class}>
-                <p class="mr-4">{ "Queue:" } </p>
+                // <p class="mr-4">{ "Queue:" } </p>
                 <button class={play_class} onclick={play}> <yew_lucide::ListVideo class="w-6 h-6"/> </button>
                 <button class={step_class} onclick={step}> <yew_lucide::Forward class="w-6 h-6"/> </button>
                 <div class={badge_class}>{queue_size_s}</div>
@@ -105,8 +105,7 @@ impl Component for InteractivePlayer {
                 true
             }
             Msg::PlayAll => {
-                self.net_dispatch
-                    .reduce_mut(|n| n.net_mut().simulate().unwrap());
+                self.net_dispatch.reduce_mut(simulate_verify);
                 false
             }
             Msg::Step => {
@@ -119,6 +118,29 @@ impl Component for InteractivePlayer {
                     .reduce_mut(|s| s.set_selected(Selected::Queue));
                 false
             }
+        }
+    }
+}
+
+fn simulate_verify(net: &mut Net) {
+    while !net.net().queue().is_empty() {
+        net.net_mut().simulate_step().unwrap();
+        // check all specifications
+        let mut all_valid = true;
+        let mut fw_state = net.net().get_forwarding_state();
+        net.spec_mut()
+            .values_mut()
+            .flat_map(|x| x.iter_mut())
+            .for_each(|(policy, val)| {
+                let result = policy.check(&mut fw_state);
+                if result.is_err() {
+                    all_valid = false;
+                }
+                *val = result;
+            });
+
+        if !all_valid {
+            break;
         }
     }
 }
