@@ -5,6 +5,7 @@ use std::{
 
 use forceatlas2::{Layout, Nodes, Settings};
 use getrandom::getrandom;
+#[cfg(feature = "atomic_bgp")]
 use itertools::Itertools;
 use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
 use netsim::{
@@ -116,7 +117,6 @@ impl Default for Net {
             migration: Default::default(),
             #[cfg(feature = "atomic_bgp")]
             migration_state: Default::default(),
-            #[cfg(feature = "atomic_bgp")]
             speed: Default::default(),
             recorder: None,
         }
@@ -172,6 +172,7 @@ impl Net {
         self.migration_state.borrow_mut()
     }
 
+    #[cfg(feature = "atomic_bgp")]
     pub fn migration_step(&self) -> usize {
         self.migration_state()
             .iter()
