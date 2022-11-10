@@ -291,6 +291,7 @@ pub fn rib_table(props: &RibTableProps) -> Html {
               <td class="italic text-gray-400"> {"peer"} </td>
               <td class="italic text-gray-400"> {"nh"} </td>
               <td class="italic text-gray-400"> {"path"} </td>
+              <td class="italic text-gray-400"> {"weight"} </td>
               <td class="italic text-gray-400"> {"LP."} </td>
               <td class="italic text-gray-400"> {"MED"} </td>
               <td class="italic text-gray-400"> {"cost"} </td>
@@ -305,6 +306,7 @@ pub fn rib_table(props: &RibTableProps) -> Html {
                             <td> {r.from_id.fmt(n)} </td>
                             <td> {r.route.next_hop.fmt(n)} </td>
                             <td> {r.route.as_path.iter().map(|x| x.0).join(", ")} </td>
+                            <td> {r.weight} </td>
                             <td> {r.route.local_pref.map(|x| x.to_string()).unwrap_or_default()} </td>
                             <td> {r.route.med.map(|x| x.to_string()).unwrap_or_default()} </td>
                             <td> {r.igp_cost.map(|x| x.to_string()).unwrap_or_default()} </td>

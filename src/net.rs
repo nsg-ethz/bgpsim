@@ -5,6 +5,7 @@ use std::{
 
 use forceatlas2::{Layout, Nodes, Settings};
 use getrandom::getrandom;
+use itertools::Itertools;
 use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
 use netsim::{
     bgp::{BgpRoute, BgpSessionType},
@@ -102,7 +103,7 @@ pub struct Net {
     #[cfg(feature = "atomic_bgp")]
     pub migration: Mrc<Vec<Vec<AtomicCommand>>>,
     #[cfg(feature = "atomic_bgp")]
-    pub migration_step: usize,
+    pub migration_state: Mrc<Vec<Vec<MigrationState>>>,
 }
 
 impl Default for Net {
@@ -114,7 +115,8 @@ impl Default for Net {
             #[cfg(feature = "atomic_bgp")]
             migration: Default::default(),
             #[cfg(feature = "atomic_bgp")]
-            migration_step: 0,
+            migration_state: Default::default(),
+            #[cfg(feature = "atomic_bgp")]
             speed: Default::default(),
             recorder: None,
         }
@@ -161,8 +163,21 @@ impl Net {
     }
 
     #[cfg(feature = "atomic_bgp")]
-    pub fn migration_mut(&self) -> impl DerefMut<Target = Vec<Vec<AtomicCommand>>> + '_ {
-        self.migration.borrow_mut()
+    pub fn migration_state(&self) -> impl Deref<Target = Vec<Vec<MigrationState>>> + '_ {
+        self.migration_state.borrow()
+    }
+
+    #[cfg(feature = "atomic_bgp")]
+    pub fn migration_state_mut(&self) -> impl DerefMut<Target = Vec<Vec<MigrationState>>> + '_ {
+        self.migration_state.borrow_mut()
+    }
+
+    pub fn migration_step(&self) -> usize {
+        self.migration_state()
+            .iter()
+            .find_position(|x| x.iter().any(|y| *y != MigrationState::Done))
+            .map(|(x, _)| x)
+            .unwrap_or_else(|| self.migration_state().len())
     }
 
     pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {
@@ -381,7 +396,7 @@ impl Net {
                 #[cfg(feature = "atomic_bgp")]
                 {
                     self.migration = n.migration;
-                    self.migration_step = n.migration_step;
+                    self.migration_state = n.migration_state;
                 }
             }
             Err(e) => log::error!("Could not import the network! {}", e),
@@ -464,9 +479,11 @@ fn net_to_string(net: &Net, compact: bool) -> String {
             "migration".to_string(),
             serde_json::to_value(migration).unwrap(),
         );
+        let migration_state_borrow = net.migration_state();
+        let migration_state = migration_state_borrow.deref();
         obj.insert(
-            "migration_step".to_string(),
-            serde_json::to_value(net.migration_step).unwrap(),
+            "migration_state".to_string(),
+            serde_json::to_value(migration_state).unwrap(),
         );
     }
 
@@ -517,14 +534,16 @@ fn net_from_str(s: &str) -> Result<Net, String> {
         migration: Mrc::new(
             content
                 .get("migration")
-                .and_then(|v| serde_json::from_value::<Vec<Vec<AtomicCommand>>>(v.clone()).ok())
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
                 .unwrap_or_default(),
         ),
         #[cfg(feature = "atomic_bgp")]
-        migration_step: content
-            .get("migration_step")
-            .and_then(|v| serde_json::from_value::<usize>(v.clone()).ok())
-            .unwrap_or_default(),
+        migration_state: Mrc::new(
+            content
+                .get("migration_state")
+                .and_then(|v| serde_json::from_value(v.clone()).ok())
+                .unwrap_or_default(),
+        ),
         speed: Default::default(),
         recorder: None,
     };
@@ -532,4 +551,18 @@ fn net_from_str(s: &str) -> Result<Net, String> {
         result.spring_layout();
     }
     Ok(result)
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
+pub enum MigrationState {
+    WaitPre,
+    Ready,
+    WaitPost,
+    Done,
+}
+
+impl Default for MigrationState {
+    fn default() -> Self {
+        Self::WaitPre
+    }
 }

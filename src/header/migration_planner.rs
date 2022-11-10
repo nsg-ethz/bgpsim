@@ -1,75 +1,153 @@
-use std::rc::Rc;
+use std::{iter::repeat, ops::Deref, rc::Rc};
 
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::Net,
+    net::{MigrationState, Net},
     state::{Selected, State},
 };
 
-pub struct MigrationButton {
-    net: Rc<Net>,
-    state_dispatch: Dispatch<State>,
-    _net_dispatch: Dispatch<Net>,
-}
+#[function_component(MigrationButton)]
+pub fn migration_button() -> Html {
+    let (net, net_dispatch) = use_store::<Net>();
+    let (_, state_dispatch) = use_store::<State>();
 
-pub enum Msg {
-    State(Rc<State>),
-    StateNet(Rc<Net>),
-    Show,
-}
+    let total = net.migration().len();
 
-#[derive(Properties, PartialEq, Eq)]
-pub struct Properties {}
-
-impl Component for MigrationButton {
-    type Message = Msg;
-    type Properties = Properties;
-
-    fn create(ctx: &Context<Self>) -> Self {
-        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
-        MigrationButton {
-            net: Default::default(),
-            state_dispatch,
-            _net_dispatch,
-        }
+    if total == 0 {
+        return html!();
     }
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let open_planner = ctx.link().callback(|_| Msg::Show);
+    let step = net.migration_step();
+    recompute_state(net, net_dispatch, step);
 
-        let total = self.net.migration().len();
-        let step = self.net.migration_step;
+    let class = "rounded-full z-10 p-2 px-4 drop-shadow hover:drop-shadow-lg bg-white text-gray-700 hover:text-black pointer-events-auto ease-in-out duration-150 transition";
+    let badge_class = "absolute inline-block top-2 right-2 bottom-auto left-auto translate-x-2/4 -translate-y-1/2 scale-x-100 scale-y-100 py-1 px-2.5 text-xs leading-none text-center whitespace-nowrap align-baseline font-bold text-white rounded-full z-10";
+    let badge_class = if total == step {
+        classes!(badge_class, "bg-green-600")
+    } else {
+        classes!(badge_class, "bg-blue-700")
+    };
 
-        if total == 0 {
-            return html!();
-        }
+    let open_planner = state_dispatch.reduce_mut_callback(|s| s.set_selected(Selected::Migration));
 
-        let class = "rounded-full z-10 p-2 px-4 drop-shadow hover:drop-shadow-lg bg-white text-gray-700 hover:text-black pointer-events-auto";
-        let badge_class = "absolute inline-block top-2 right-2 bottom-auto left-auto translate-x-2/4 -translate-y-1/2 scale-x-100 scale-y-100 py-1 px-2.5 text-xs leading-none text-center whitespace-nowrap align-baseline font-bold bg-blue-700 text-white rounded-full z-10";
+    html! {
+        <button {class} onclick={open_planner}>
+            { "Migration" }
+            <div class={badge_class}>{step} {"/"} {total}</div>
+        </button>
+    }
+}
 
-        html! {
-            <button {class} onclick={open_planner}>
-                { "Migration" }
-                <div class={badge_class}>{step + 1} {"/"} {total}</div>
-            </button>
+fn recompute_state(net: Rc<Net>, net_dispatch: Dispatch<Net>, major: usize) {
+    if !maybe_initialize_state(net.clone(), net_dispatch.clone()) {
+        let change = minors_to_change(&net, major);
+        if !change.is_empty() {
+            net_dispatch.reduce_mut(|n| {
+                proceed_migration_with_delta(n, change, major);
+            });
         }
     }
+}
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::State(_) => false,
-            Msg::StateNet(n) => {
-                self.net = n;
-                true
+/// only compute the minors to change to a new state.
+fn minors_to_change(net: &Net, major: usize) -> Vec<(usize, usize, MigrationState)> {
+    // early exit
+    if major >= net.migration().len() {
+        return Vec::new();
+    }
+
+    let num_minors = net.migration()[major].len();
+    let mut minors_to_change = Vec::new();
+    for minor in 0..num_minors {
+        let new_state = match net.migration_state()[major][minor] {
+            MigrationState::WaitPre => {
+                if net.migration()[major][minor]
+                    .precondition
+                    .check(&net.net())
+                    .unwrap_or_default()
+                {
+                    MigrationState::Ready
+                } else {
+                    continue;
+                }
             }
-            Msg::Show => {
-                self.state_dispatch
-                    .reduce_mut(|s| s.set_selected(Selected::Migration));
-                false
+            MigrationState::WaitPost => {
+                if net.migration()[major][minor]
+                    .postcondition
+                    .check(&net.net())
+                    .unwrap_or_default()
+                {
+                    MigrationState::Done
+                } else {
+                    continue;
+                }
             }
+            MigrationState::Ready | MigrationState::Done => continue,
+        };
+
+        minors_to_change.push((major, minor, new_state));
+    }
+
+    minors_to_change
+}
+
+/// Initialize the state
+fn maybe_initialize_state(net: Rc<Net>, net_dispatch: Dispatch<Net>) -> bool {
+    if net.migration().len() != net.migration_state().len()
+        || net
+            .migration()
+            .iter()
+            .zip(net.migration_state().iter())
+            .any(|(a, b)| a.len() != b.len())
+    {
+        // initialization necessary
+        net_dispatch.reduce_mut(|n| {
+            n.migration_state_mut().clear();
+            for (i, len) in n.migration().iter().map(|x| x.len()).enumerate() {
+                n.migration_state_mut()
+                    .push(repeat(MigrationState::default()).take(len).collect());
+            }
+        });
+        true
+    } else {
+        false
+    }
+}
+
+fn proceed_migration_with_delta(
+    net: &mut Net,
+    mut change: Vec<(usize, usize, MigrationState)>,
+    mut major: usize,
+) {
+    while !change.is_empty() {
+        log::debug!(
+            "Apply state update in step {} from {:?}",
+            major,
+            net.migration_state().deref(),
+        );
+        change
+            .into_iter()
+            .for_each(|(maj, minor, new_state)| net.migration_state_mut()[maj][minor] = new_state);
+
+        change = minors_to_change(net, major);
+    }
+
+    loop {
+        let new_major = net.migration_step();
+        if new_major <= major {
+            break;
+        }
+        major = new_major;
+
+        // check if we need to do something.
+        change = minors_to_change(net, major);
+        while !change.is_empty() {
+            change.into_iter().for_each(|(maj, minor, new_state)| {
+                net.migration_state_mut()[maj][minor] = new_state
+            });
+            change = minors_to_change(net, major);
         }
     }
 }
