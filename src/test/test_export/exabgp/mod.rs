@@ -49,7 +49,7 @@ fn config_1n() {
     let ext: RouterId = (num_neighbors as u32).into();
     let mut ip = addressor(&net);
 
-    let mut gen = ExaBgpCfgGen::new(&net, ext, "10.255.0.1".parse().unwrap()).unwrap();
+    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
 
     assert_eq!(cfg, include_str!("config_1n.ini"))
@@ -62,7 +62,7 @@ fn config_2n() {
     let ext: RouterId = (num_neighbors as u32).into();
     let mut ip = addressor(&net);
 
-    let mut gen = ExaBgpCfgGen::new(&net, ext, "10.255.0.1".parse().unwrap()).unwrap();
+    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
 
     assert_eq!(cfg, include_str!("config_2n.ini"))
@@ -77,7 +77,7 @@ fn script_1n_1p() {
         .unwrap();
     let mut ip = addressor(&net);
 
-    let mut gen = ExaBgpCfgGen::new(&net, ext, "10.255.0.1".parse().unwrap()).unwrap();
+    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
     assert_eq!(cfg, include_str!("config_1n.ini"));
     let script = gen.generate_script(&mut ip).unwrap();
@@ -95,7 +95,7 @@ fn script_1n_2p() {
         .unwrap();
     let mut ip = addressor(&net);
 
-    let mut gen = ExaBgpCfgGen::new(&net, ext, "10.255.0.1".parse().unwrap()).unwrap();
+    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
     assert_eq!(cfg, include_str!("config_1n.ini"));
     let script = gen.generate_script(&mut ip).unwrap();
@@ -115,7 +115,7 @@ fn script_1n_2p_withdraw() {
 
     let mut ip = addressor(&net);
 
-    let mut gen = ExaBgpCfgGen::new(&net, ext, "10.255.0.1".parse().unwrap()).unwrap();
+    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
     assert_eq!(cfg, include_str!("config_1n.ini"));
 
@@ -137,7 +137,7 @@ fn script_2n_2p_withdraw() {
         .unwrap();
     let mut ip = addressor(&net);
 
-    let mut gen = ExaBgpCfgGen::new(&net, ext, "10.255.0.1".parse().unwrap()).unwrap();
+    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
     assert_eq!(cfg, include_str!("config_2n.ini"));
     gen.step_time(Duration::from_secs(10));

@@ -195,7 +195,6 @@ pub struct ExaBgpCfgGen {
     as_id: AsId,
     routes: BTreeMap<Prefix, BTreeMap<Duration, Option<BgpRoute>>>,
     neighbors: BTreeSet<RouterId>,
-    local_address: Ipv4Addr,
     current_time: Duration,
 }
 
@@ -205,17 +204,12 @@ use maplit::btreemap;
 impl ExaBgpCfgGen {
     /// Create a new instance of the ExaBGP config generator. This will initialize all
     /// routes. Further, it will
-    pub fn new<Q>(
-        net: &Network<Q>,
-        router: RouterId,
-        local_address: Ipv4Addr,
-    ) -> Result<Self, ExportError> {
+    pub fn new<Q>(net: &Network<Q>, router: RouterId) -> Result<Self, ExportError> {
         let r = net
             .get_device(router)
             .external_or(ExportError::NotAnExternalRouter(router))?;
         Ok(Self {
             router,
-            local_address,
             as_id: r.as_id(),
             routes: r
                 .active_routes
@@ -342,12 +336,12 @@ neighbor {} {{
     local-address {};
     local-as {};
     peer-as {};
-    hold-time 180;
+    group-updates false;
     family {{ ipv4 unicast; }}
 }}",
             addressor.iface_address(neighbor, self.router)?,
             addressor.router_address(self.router)?,
-            self.local_address,
+            addressor.iface_address(self.router, neighbor)?,
             self.as_id.0,
             INTERNAL_AS.0,
         ))
