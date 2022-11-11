@@ -346,6 +346,11 @@ neighbor {} {{
             INTERNAL_AS.0,
         ))
     }
+
+    /// Function to get all neighbors of that external router.
+    pub fn neighbors(&self) -> &BTreeSet<RouterId> {
+        &self.neighbors
+    }
 }
 
 /// Get the text to announce a route.
