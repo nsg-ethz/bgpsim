@@ -44,8 +44,7 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// push a new entry for this route into the history, at the time set by calling
 /// `step_time`.
 ///
-/// `repeat` is disabled by default. This means that all events are triggered once, and the script
-/// will go into an infinite loop.
+/// All events are triggered once, and the script will go into an infinite loop.
 ///
 /// ## Configuation
 ///
@@ -198,7 +197,6 @@ pub struct ExaBgpCfgGen {
     neighbors: BTreeSet<RouterId>,
     local_address: Ipv4Addr,
     current_time: Duration,
-    repeat_time: Option<Duration>,
 }
 
 use itertools::Itertools;
@@ -226,7 +224,6 @@ impl ExaBgpCfgGen {
                 .collect(),
             neighbors: r.neighbors.iter().copied().collect(),
             current_time: Duration::ZERO,
-            repeat_time: None,
         })
     }
 
@@ -237,14 +234,6 @@ impl ExaBgpCfgGen {
         self.current_time += step;
     }
 
-    /// Set the script into repeat mode. In this mode, all updates of the announcements will be
-    /// triggered in a cycle. The cycle restarts with the time set in this function call. By
-    /// default, the `ExaBgpCfgGen` is not in repeat-mode. Passing `None` to this function will
-    /// disable the repeat mode.
-    pub fn repeat(&mut self, time: Option<Duration>) {
-        self.repeat_time = time;
-    }
-
     /// Generate the python script that loops over the history of routes, and replays that over and
     /// over again.
     pub fn generate_script<A: Addressor>(&self, addressor: &mut A) -> Result<String, ExportError> {
@@ -252,6 +241,16 @@ impl ExaBgpCfgGen {
             "#!/usr/bin/env python3\n\nimport sys\nimport time\n\n\ntime.sleep(5)\n\n",
         );
 
+        Ok(script + &self.generate_script_no_loop(addressor)?)
+    }
+
+    /// Generate all python command lines to advertise or withdraw the routes. This will create a
+    /// vector of strings for each time step, and return all of these time steps along with the
+    /// duration when they should be triggered.
+    pub fn generate_lines<A: Addressor>(
+        &self,
+        addressor: &mut A,
+    ) -> Result<Vec<(Vec<String>, Duration)>, ExportError> {
         let neighbors = self
             .neighbors
             .iter()
@@ -261,21 +260,8 @@ impl ExaBgpCfgGen {
             .map(|x| format!("neighbor {}", x))
             .join(", ");
 
-        Ok(script
-            + &if let Some(repeat_time) = self.repeat_time {
-                self.generate_script_with_loop(addressor, neighbors, repeat_time)?
-            } else {
-                self.generate_script_no_loop(addressor, neighbors)?
-            })
-    }
+        let mut result = Vec::new();
 
-    /// Generate the python script that does not loop, but trigger the events once. The header of
-    /// the script is not generated!
-    fn generate_script_no_loop<A: Addressor>(
-        &self,
-        addressor: &mut A,
-        neighbors: String,
-    ) -> Result<String, ExportError> {
         let mut times_routes: BTreeMap<Duration, Vec<(Prefix, Option<&BgpRoute>)>> =
             Default::default();
         for (p, routes) in self.routes.iter() {
@@ -287,10 +273,43 @@ impl ExaBgpCfgGen {
             }
         }
 
+        for (time, routes) in times_routes {
+            let ads = routes
+                .into_iter()
+                .map(|(p, r)| {
+                    Ok(if let Some(r) = r {
+                        format!(
+                            "sys.stdout.write(\"{} {}\\n\")",
+                            neighbors,
+                            route_text(r, addressor)?
+                        )
+                    } else {
+                        format!(
+                            "sys.stdout.write(\"{} withdraw route {}\\n\")",
+                            neighbors,
+                            addressor.prefix(p)?
+                        )
+                    })
+                })
+                .collect::<Result<Vec<String>, ExportError>>()?;
+            result.push((ads, time));
+        }
+
+        Ok(result)
+    }
+
+    /// Generate the python script that does not loop, but trigger the events once. The header of
+    /// the script is not generated!
+    fn generate_script_no_loop<A: Addressor>(
+        &self,
+        addressor: &mut A,
+    ) -> Result<String, ExportError> {
+        let lines = self.generate_lines(addressor)?;
+
         let mut script = String::new();
 
         let mut current_time = Duration::ZERO;
-        for (time, routes) in times_routes {
+        for (routes, time) in lines {
             if !time.is_zero() {
                 script.push_str(&format!(
                     "time.sleep({})\n",
@@ -298,111 +317,14 @@ impl ExaBgpCfgGen {
                 ));
             }
             current_time += time;
-            for (p, r) in routes {
-                script.push_str(&if let Some(r) = r {
-                    format!(
-                        "sys.stdout.write(\"{} {}\\n\")\n",
-                        neighbors,
-                        route_text(r, addressor)?
-                    )
-                } else {
-                    format!(
-                        "sys.stdout.write(\"{} withdraw route {}\\n\")\n",
-                        neighbors,
-                        addressor.prefix(p)?
-                    )
-                });
+            for route in routes {
+                script.push_str(&route);
+                script.push('\n');
             }
             script.push_str("sys.stdout.flush()\n");
         }
 
         script.push_str("\nwhile True:\n    time.sleep(1)\n");
-
-        Ok(script)
-    }
-
-    /// Generate the python script that loops over the events. The header of the script is not generated!
-    fn generate_script_with_loop<A: Addressor>(
-        &self,
-        addressor: &mut A,
-        neighbors: String,
-        repeat_time: Duration,
-    ) -> Result<String, ExportError> {
-        let mut times_routes: BTreeMap<Duration, Vec<(Prefix, Option<&BgpRoute>)>> =
-            Default::default();
-        let mut constant_routes: Vec<(Prefix, &BgpRoute)> = Default::default();
-        for (p, routes) in self.routes.iter() {
-            if routes.len() == 1 && routes.keys().next().unwrap().is_zero() {
-                if let Some(r) = routes.values().next().and_then(|x| x.as_ref()) {
-                    constant_routes.push((*p, r))
-                }
-            } else {
-                for (time, route) in routes.iter() {
-                    times_routes
-                        .entry(*time)
-                        .or_default()
-                        .push((*p, route.as_ref()));
-                }
-            }
-        }
-
-        let mut script = String::new();
-
-        if !constant_routes.is_empty() {
-            for (_, route) in constant_routes {
-                script.push_str(&format!(
-                    "sys.stdout.write(\"{} {}\\n\")\n",
-                    neighbors,
-                    route_text(route, addressor)?
-                ))
-            }
-            script.push_str("sys.stdout.flush()\n\n");
-        }
-
-        script.push_str("while True:\n");
-
-        let mut current_time = Duration::ZERO;
-        for (time, routes) in times_routes {
-            if !time.is_zero() {
-                script.push_str(&format!(
-                    "    time.sleep({})\n",
-                    (time - current_time).as_secs_f64()
-                ));
-            }
-            current_time += time;
-            for (p, r) in routes {
-                script.push_str(&if let Some(r) = r {
-                    format!(
-                        "    sys.stdout.write(\"{} {}\\n\")\n",
-                        neighbors,
-                        route_text(r, addressor)?
-                    )
-                } else {
-                    format!(
-                        "    sys.stdout.write(\"{} withdraw route {}\\n\")\n",
-                        neighbors,
-                        addressor.prefix(p)?
-                    )
-                });
-            }
-            script.push_str("    sys.stdout.flush()\n");
-        }
-        // wait for the repeat time
-        script.push_str(&format!("    time.sleep({})\n", repeat_time.as_secs_f64()));
-        // withdraw all routes that are not announced initially
-        let mut to_flush = false;
-        for (p, routes) in self.routes.iter() {
-            if routes.keys().next().map(|x| !x.is_zero()).unwrap_or(false) {
-                script.push_str(&format!(
-                    "    sys.stdout.write('withdraw route {}\\n')\n",
-                    addressor.prefix(*p)?
-                ));
-                to_flush = true;
-            }
-        }
-        if to_flush {
-            script.push_str("    sys.stdout.flush()\n");
-        }
 
         Ok(script)
     }
