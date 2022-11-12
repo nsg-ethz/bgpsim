@@ -133,7 +133,7 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// )?;
 ///
 /// // create the config generator
-/// let mut cfg = ExaBgpCfgGen::new(&net, router, "10.255.0.1".parse()?)?;
+/// let mut cfg = ExaBgpCfgGen::new(&net, router)?;
 ///
 /// // generate the configuration
 /// assert_eq!(
@@ -141,10 +141,10 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 ///     "\
 /// neighbor 10.192.0.1 {
 ///     router-id 20.0.0.1;
-///     local-address 10.255.0.1;
+///     local-address 10.192.0.2;
 ///     local-as 100;
 ///     peer-as 65535;
-///     hold-time 180;
+///     group-updates false;
 ///     family { ipv4 unicast; }
 /// }"
 /// );

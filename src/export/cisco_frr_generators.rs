@@ -52,6 +52,8 @@ pub struct Interface {
     no_dead_interval: bool,
     hello_interval: Option<u16>,
     no_hello_interval: bool,
+    mac_address: Option<[u8; 6]>,
+    no_mac_address: bool,
     shutdown: Option<bool>,
 }
 
@@ -71,6 +73,8 @@ impl Interface {
             no_dead_interval: false,
             hello_interval: None,
             no_hello_interval: false,
+            mac_address: None,
+            no_mac_address: false,
         }
     }
 
@@ -297,6 +301,46 @@ impl Interface {
         self
     }
 
+    /// Set the physical MAC address of the interface. This option is not available on
+    /// `Target::FRR`.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1")
+    ///         .mac_address([0xde, 0xad, 0xbe, 0xef, 0x00, 0x00])
+    ///         .build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   mac-address dead.beef.0000
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn mac_address(&mut self, addr: [u8; 6]) -> &mut Self {
+        self.mac_address = Some(addr);
+        self
+    }
+
+    /// Unset the physical MAC address of the interface. This option is not available on
+    /// Target::FRR`.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1").no_mac_address().build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   no mac-address
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn no_mac_address(&mut self) -> &mut Self {
+        self.no_mac_address = true;
+        self
+    }
+
     /// Disable the interface by setting the `shutdown` command.
     ///
     /// ```
@@ -366,8 +410,8 @@ impl Interface {
 
         format!(
             "\
-interface {iface}\
-{addr}{cost}{area}{dead}{hello}{shutdown}
+        interface {iface}\
+{addr}{cost}{area}{dead}{hello}{mac}{shutdown}
 exit
 ",
             iface = self.iface_name,
@@ -395,6 +439,14 @@ exit
                 (Some(seconds), false) => format!("\n  ip ospf hello-interval {}", seconds),
                 (_, true) => String::from("\n  no ip ospf hello-interval"),
                 (None, false) => String::new(),
+            },
+            mac = match (self.mac_address, self.no_mac_address) {
+                (Some(mac), false) if target != Target::Frr => format!(
+                    "\n  mac-address {:02x}{:02x}.{:02x}{:02x}.{:02x}{:02x}",
+                    mac[0], mac[1], mac[2], mac[3], mac[4], mac[5],
+                ),
+                (_, true) if target != Target::Frr => String::from("\n  no mac-address"),
+                _ => String::new(),
             },
             shutdown = match self.shutdown {
                 Some(true) => "\n  shutdown",

@@ -66,6 +66,8 @@ pub struct CiscoFrrCfgGen {
     loopback_prefixes: BiMap<u8, Prefix>,
     /// local OSPF Area, which is the lowest as id used in any of its adjacent interfaces
     local_area: Option<OspfArea>,
+    /// Used to set mac addresses
+    mac_addresses: HashMap<String, [u8; 6]>,
 }
 
 impl CiscoFrrCfgGen {
@@ -88,6 +90,7 @@ impl CiscoFrrCfgGen {
             as_id,
             loopback_prefixes: Default::default(),
             local_area: Default::default(),
+            mac_addresses: Default::default(),
         })
     }
 
@@ -117,6 +120,12 @@ impl CiscoFrrCfgGen {
             .find(|(_, x)| x.as_str() == name)
             .map(|(x, _)| x)
             .ok_or_else(|| ExportError::InterfaceNotFound(self.router, name.to_string()))
+    }
+
+    /// Set the MAC Address of a specific interface. This function has no effect on `Target::Frr`.
+    pub fn set_mac_address(&mut self, iface_name: impl AsRef<str>, mac_address: [u8; 6]) {
+        self.mac_addresses
+            .insert(iface_name.as_ref().to_string(), mac_address);
     }
 
     /// Get the interface name of this router that is connected to either `a` or `b`. This function
@@ -153,9 +162,15 @@ impl CiscoFrrCfgGen {
         for edge in net.get_topology().edges(r).sorted_by_key(|x| x.id()) {
             let n = edge.target();
 
-            let mut iface = Interface::new(self.iface(r, n, addressor)?);
+            let iface_name = self.iface(r, n, addressor)?;
+
+            let mut iface = Interface::new(iface_name);
             iface.ip_address(addressor.iface_address_full(r, n)?);
             iface.no_shutdown();
+
+            if let Some(mac) = self.mac_addresses.get(iface_name) {
+                iface.mac_address(*mac);
+            }
 
             if is_internal {
                 iface.cost(*edge.weight());
