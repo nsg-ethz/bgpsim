@@ -202,6 +202,10 @@ pub trait Addressor {
     /// interface index. The returned list **may not** be ordered.
     fn list_ifaces(&self, router: RouterId) -> Vec<(RouterId, Ipv4Addr, Ipv4Net, usize)>;
 
+    /// List all links in the network. Each link is a tuple of the two endpoints. Each endpoint is
+    /// represented by its router-id and the interface index.
+    fn list_links(&self) -> Vec<((RouterId, usize), (RouterId, usize))>;
+
     /// Lookup an IP address in the addressor, and return the RouterId to which the address belongs
     /// to. You can provide either an Ipv4Net or an Ipv4Addr. In case the provided address is a link
     /// network, and the IP does not match one of the connected routers, this function will return

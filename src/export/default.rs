@@ -18,7 +18,7 @@
 //! This module describes the default config generator and IP addressor.
 
 use std::{
-    collections::{hash_map::Entry, HashMap},
+    collections::{hash_map::Entry, HashMap, HashSet},
     net::Ipv4Addr,
 };
 
@@ -350,6 +350,26 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
             .find(|(_, (x, _))| *x == iface_idx)
             .map(|(x, _)| *x)
             .ok_or_else(|| ExportError::InterfaceNotFound(router, format!("at {}", iface_idx)))
+    }
+
+    fn list_links(&self) -> Vec<((RouterId, usize), (RouterId, usize))> {
+        let mut added_links = HashSet::new();
+        let mut links = Vec::new();
+        for (src, ifaces) in self.interfaces.iter() {
+            for (dst, (src_idx, _)) in ifaces.iter() {
+                if let Some((dst_idx, _)) = self.interfaces.get(dst).and_then(|x| x.get(src)) {
+                    // check if the link was already added
+                    if !added_links.contains(&((*src, *src_idx), (*dst, *dst_idx))) {
+                        // add the link
+                        links.push(((*src, *src_idx), (*dst, *dst_idx)));
+                        added_links.insert(((*src, *src_idx), (*dst, *dst_idx)));
+                        added_links.insert(((*dst, *dst_idx), (*src, *src_idx)));
+                    }
+                }
+            }
+        }
+
+        links
     }
 }
 

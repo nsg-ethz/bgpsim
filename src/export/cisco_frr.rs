@@ -68,6 +68,8 @@ pub struct CiscoFrrCfgGen {
     local_area: Option<OspfArea>,
     /// Used to set mac addresses
     mac_addresses: HashMap<String, [u8; 6]>,
+    /// OSPF parameters
+    ospf_params: (Option<u16>, Option<u16>),
 }
 
 impl CiscoFrrCfgGen {
@@ -91,6 +93,7 @@ impl CiscoFrrCfgGen {
             loopback_prefixes: Default::default(),
             local_area: Default::default(),
             mac_addresses: Default::default(),
+            ospf_params: (Some(1), Some(5)),
         })
     }
 
@@ -126,6 +129,14 @@ impl CiscoFrrCfgGen {
     pub fn set_mac_address(&mut self, iface_name: impl AsRef<str>, mac_address: [u8; 6]) {
         self.mac_addresses
             .insert(iface_name.as_ref().to_string(), mac_address);
+    }
+
+    /// Set the OSPF interval parameters on all routers. Both the `hello-interval` and
+    /// `dead-interval` are measured in seconds. By default, the `hello_interval = Some(1)` and
+    /// `dead_interval = Some(5)`. Setting both values to `None` will result in the `hello_interval`
+    /// to be 10, and the `dead_interval` to be 40.
+    pub fn set_ospf_parameters(&mut self, hello_interval: Option<u16>, dead_interval: Option<u16>) {
+        self.ospf_params = (hello_interval, dead_interval);
     }
 
     /// Get the interface name of this router that is connected to either `a` or `b`. This function
@@ -174,8 +185,12 @@ impl CiscoFrrCfgGen {
 
             if is_internal {
                 iface.cost(*edge.weight());
-                iface.hello_interval(1);
-                iface.dead_interval(5);
+                if let Some(hello) = self.ospf_params.0 {
+                    iface.hello_interval(hello);
+                }
+                if let Some(dead) = self.ospf_params.1 {
+                    iface.dead_interval(dead);
+                }
                 if let Ok(area) = net.get_ospf_area(r, n) {
                     iface.area(area);
                     self.local_area = Some(self.local_area.map(|x| x.min(area)).unwrap_or(area));
