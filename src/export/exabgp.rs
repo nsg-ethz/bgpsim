@@ -338,6 +338,7 @@ neighbor {} {{
     peer-as {};
     group-updates false;
     family {{ ipv4 unicast; }}
+    capability {{ route-refresh; }}
 }}",
             addressor.iface_address(neighbor, self.router)?,
             addressor.router_address(self.router)?,
