@@ -963,6 +963,7 @@ pub struct RouterBgpNeighbor {
     no_route_map_in: bool,
     route_map_out: Option<String>,
     no_route_map_out: bool,
+    send_community: Option<bool>,
 }
 
 impl RouterBgpNeighbor {
@@ -981,6 +982,7 @@ impl RouterBgpNeighbor {
             no_route_map_in: Default::default(),
             route_map_out: Default::default(),
             no_route_map_out: Default::default(),
+            send_community: Default::default(),
         }
     }
 
@@ -1450,6 +1452,80 @@ impl RouterBgpNeighbor {
         self
     }
 
+    /// Send BGP communities to the neighbor.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use std::net::Ipv4Addr;
+    /// # use netsim::types::AsId;
+    /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
+    /// assert_eq!(
+    ///     RouterBgpNeighbor::new(neighbor_addr)
+    ///         .send_community()
+    ///         .build(Target::CiscoNexus7000),
+    /// #   "  ".to_owned() +
+    ///     "\
+    ///   neighbor 20.0.0.1
+    ///     address-family ipv4 unicast
+    ///       send-community
+    ///     exit
+    ///   exit
+    /// "
+    /// );
+    /// assert_eq!(
+    ///     RouterBgpNeighbor::new(neighbor_addr)
+    ///         .send_community()
+    ///         .build(Target::Frr),
+    /// #   "  ".to_owned() +
+    ///     "\
+    ///   address-family ipv4 unicast
+    ///     neighbor 20.0.0.1 send-community
+    ///   exit
+    /// "
+    /// );
+    /// ```
+    pub fn send_community(&mut self) -> &mut Self {
+        self.send_community = Some(true);
+        self
+    }
+
+    /// Do not send communities to BGP neighbors
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use std::net::Ipv4Addr;
+    /// # use netsim::types::AsId;
+    /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
+    /// assert_eq!(
+    ///     RouterBgpNeighbor::new(neighbor_addr)
+    ///         .no_send_community()
+    ///         .build(Target::CiscoNexus7000),
+    /// #   "  ".to_owned() +
+    ///     "\
+    ///   neighbor 20.0.0.1
+    ///     address-family ipv4 unicast
+    ///       no send-community
+    ///     exit
+    ///   exit
+    /// "
+    /// );
+    /// assert_eq!(
+    ///     RouterBgpNeighbor::new(neighbor_addr)
+    ///         .no_send_community()
+    ///         .build(Target::Frr),
+    /// #   "  ".to_owned() +
+    ///     "\
+    ///   address-family ipv4 unicast
+    ///     no neighbor 20.0.0.1 send-community
+    ///   exit
+    /// "
+    /// );
+    /// ```
+    pub fn no_send_community(&mut self) -> &mut Self {
+        self.send_community = Some(false);
+        self
+    }
+
     /// Generate the configuration lines
     pub fn build(&self, target: Target) -> String {
         let (mut cfg, pre, tab, finish) = match target {
@@ -1526,6 +1602,13 @@ impl RouterBgpNeighbor {
             }
             (_, true) => cfg.push_str(&format!("\n  {}no {}update-source", tab, pre,)),
             (None, false) => {}
+        }
+
+        // send-community
+        match self.send_community.as_ref() {
+            Some(true) => af.push_str(&format!("\n    {}{}send-community", tab, pre)),
+            Some(false) => af.push_str(&format!("\n    {}no {}send-community", tab, pre)),
+            _ => {}
         }
 
         // address family

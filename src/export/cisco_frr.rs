@@ -336,6 +336,7 @@ impl CiscoFrrCfgGen {
         } else {
             bgp_neighbor.remote_as(INTERNAL_AS);
             bgp_neighbor.update_source(loopback_iface(self.target, 0));
+            bgp_neighbor.send_community();
         }
 
         bgp_neighbor.weight(100);

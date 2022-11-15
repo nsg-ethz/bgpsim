@@ -86,6 +86,7 @@ router bgp 65535
       route-reflector-client
       route-map neighbor-R1-in in
       route-map neighbor-R1-out out
+      send-community
     exit
   exit
   neighbor 10.0.2.1 remote-as 65535
@@ -96,6 +97,7 @@ router bgp 65535
       route-reflector-client
       route-map neighbor-R2-in in
       route-map neighbor-R2-out out
+      send-community
     exit
   exit
   neighbor 10.0.3.1 remote-as 65535
@@ -106,6 +108,7 @@ router bgp 65535
       route-reflector-client
       route-map neighbor-R3-in in
       route-map neighbor-R3-out out
+      send-community
     exit
   exit
   neighbor 10.192.0.2 remote-as 4
