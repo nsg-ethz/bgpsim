@@ -557,11 +557,7 @@ impl CiscoFrrCfgGen {
         Ok(route_map_item)
     }
 
-    /// Update the continue statement of the route-map that is coming before `order`. The strint
-    /// will also start with a new-line, such that it can be concatenated with another command.
-    ///
-    /// TODO: Concatenation is bad, as it requires many re-allocations. Refactor this code to make
-    /// it faster.
+    /// Update the continue statement of the route-map that is coming before `order`.
     fn fix_prev_rm_continue<Q>(
         &self,
         net: &Network<Q>,
@@ -575,11 +571,9 @@ impl CiscoFrrCfgGen {
         if last_state.is_allow() {
             let name = full_rm_name(net, neighbor, direction);
             Some(
-                String::from("\n")
-                    + RouteMapItem::new(name, order(*last_ord), true)
-                        .continues(order(ord))
-                        .build(self.target)
-                        .as_str(),
+                RouteMapItem::new(name, order(*last_ord), true)
+                    .continues(order(ord))
+                    .build(self.target),
             )
         } else {
             None

@@ -31,14 +31,14 @@ mod cisco;
 mod exabgp;
 mod frr;
 
-fn iface_names(target: Target) -> Vec<String> {
+pub(self) fn iface_names(target: Target) -> Vec<String> {
     match target {
         Target::CiscoNexus7000 => (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
         Target::Frr => (1..=8).map(|i| format!("eth{}", i)).collect(),
     }
 }
 
-fn addressor<Q>(net: &Network<Q>) -> DefaultAddressor<Q> {
+pub(self) fn addressor<Q>(net: &Network<Q>) -> DefaultAddressor<Q> {
     DefaultAddressor::new(
         net,
         "10.0.0.0/8".parse().unwrap(),
@@ -83,7 +83,7 @@ pub(self) fn generate_internal_config_route_reflector(target: Target) -> String 
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
-pub(self) fn generate_internal_config_route_maps(target: Target) -> String {
+pub(self) fn net_for_route_maps() -> Network<BasicEventQueue> {
     let mut net: Network<BasicEventQueue> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
@@ -132,8 +132,12 @@ pub(self) fn generate_internal_config_route_maps(target: Target) -> String {
     )
     .unwrap();
 
-    let mut ip = addressor(&net);
+    net
+}
 
+pub(self) fn generate_internal_config_route_maps(target: Target) -> String {
+    let net = net_for_route_maps();
+    let mut ip = addressor(&net);
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
