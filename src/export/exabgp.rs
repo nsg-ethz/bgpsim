@@ -60,6 +60,7 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 ///     peer-as 65535;
 ///     hold-time 180;
 ///     family { ipv4 unicast; }
+///     capability { route-refresh; }
 /// }
 /// ```
 ///
@@ -146,6 +147,7 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 ///     peer-as 65535;
 ///     group-updates false;
 ///     family { ipv4 unicast; }
+///     capability { route-refresh; }
 /// }"
 /// );
 ///

@@ -20,6 +20,7 @@
 use std::{
     cmp::Ordering,
     collections::{HashMap, HashSet},
+    iter::once,
     net::Ipv4Addr,
 };
 
@@ -36,6 +37,7 @@ use crate::{
     prelude::BgpSessionType,
     route_map::{
         RouteMap, RouteMapDirection as RmDir, RouteMapMatch, RouteMapMatchAsPath, RouteMapSet,
+        RouteMapState,
     },
     router::{Router, StaticRoute},
     types::{AsId, Prefix, RouterId},
@@ -70,6 +72,8 @@ pub struct CiscoFrrCfgGen {
     mac_addresses: HashMap<String, [u8; 6]>,
     /// OSPF parameters
     ospf_params: (Option<u16>, Option<u16>),
+    /// List of route map indices,
+    route_maps: HashMap<(RouterId, RmDir), Vec<(i16, RouteMapState)>>,
 }
 
 impl CiscoFrrCfgGen {
@@ -85,6 +89,30 @@ impl CiscoFrrCfgGen {
             .external()
             .map(|x| x.as_id())
             .unwrap_or(INTERNAL_AS);
+
+        // initialize all route-maps
+        let route_maps = net
+            .get_device(router)
+            .internal()
+            .map(|r| {
+                r.get_bgp_sessions()
+                    // build all keys
+                    .flat_map(|(n, _)| [(*n, RmDir::Incoming), (*n, RmDir::Outgoing)])
+                    .map(|(n, dir)| {
+                        (
+                            (n, dir),
+                            // build all values
+                            r.get_bgp_route_maps(n, dir)
+                                .iter()
+                                .map(|x| (x.order(), x.state()))
+                                .chain(once((i16::MAX, RouteMapState::Allow))) // add the last value
+                                .collect_vec(),
+                        )
+                    })
+                    .collect()
+            })
+            .unwrap_or_default();
+
         Ok(Self {
             target,
             ifaces,
@@ -94,6 +122,7 @@ impl CiscoFrrCfgGen {
             local_area: Default::default(),
             mac_addresses: Default::default(),
             ospf_params: (Some(1), Some(5)),
+            route_maps,
         })
     }
 
@@ -355,12 +384,13 @@ impl CiscoFrrCfgGen {
 
     /// Create all route-maps
     fn route_map_config<A: Addressor, Q>(
-        &self,
+        &mut self,
         net: &Network<Q>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
 
+        // Ordering for route_maps, such that the generated configuration is deterministic.
         let rm_order = |(r1, t1): &(RouterId, RmDir), (r2, t2): &(RouterId, RmDir)| match r1.cmp(r2)
         {
             Ordering::Equal => match (t1, t2) {
@@ -402,7 +432,8 @@ impl CiscoFrrCfgGen {
                 }
             );
             for rm in maps {
-                let route_map_item = self.route_map_item(&name, rm, net, addressor)?;
+                let next_ord = self.next_ord(*n, *ty, rm.order(), rm.state());
+                let route_map_item = self.route_map_item(&name, rm, next_ord, net, addressor)?;
                 config.push_str("!\n");
                 config.push_str(&route_map_item.build(self.target));
             }
@@ -411,11 +442,44 @@ impl CiscoFrrCfgGen {
         Ok(config)
     }
 
+    /// get the next route-map order. If the current order does not exist, it will be created.
+    fn next_ord(
+        &mut self,
+        neighbor: RouterId,
+        direction: RmDir,
+        ord: i16,
+        state: RouteMapState,
+    ) -> Option<i16> {
+        let rms = self
+            .route_maps
+            .entry((neighbor, direction))
+            .or_insert_with(|| vec![(i16::MAX, RouteMapState::Allow)]);
+        let pos = match rms.binary_search_by(|(probe, _)| probe.cmp(&ord)) {
+            Ok(pos) => pos,
+            Err(pos) => {
+                rms.insert(pos, (ord, state));
+                pos
+            }
+        };
+        // make sure that the state still matches
+        rms.get_mut(pos).unwrap().1 = state;
+        rms.get(pos + 1).map(|(x, _)| *x)
+    }
+
+    /// Remove the route-map from the list if it exists, and return the old next_ord.
+    fn next_ord_remove(&mut self, neighbor: RouterId, direction: RmDir, ord: i16) -> Option<i16> {
+        let rms = self.route_maps.get_mut(&(neighbor, direction))?;
+        let pos = rms.binary_search_by(|(probe, _)| probe.cmp(&ord)).ok()?;
+        rms.remove(pos);
+        rms.get(pos).map(|(x, _)| *x)
+    }
+
     /// Create a route-map item from a [`RouteMap`]
     fn route_map_item<A: Addressor, Q>(
         &self,
         name: &str,
         rm: &RouteMap,
+        next_ord: Option<i16>,
         net: &Network<Q>,
         addressor: &mut A,
     ) -> Result<RouteMapItem, ExportError> {
@@ -484,11 +548,42 @@ impl CiscoFrrCfgGen {
             };
         }
 
-        if rm.state.is_allow() && ord < u16::MAX {
-            route_map_item.continues(ord + 1);
+        if rm.state().is_allow() {
+            if let Some(next_ord) = next_ord {
+                route_map_item.continues(order(next_ord));
+            }
         }
 
         Ok(route_map_item)
+    }
+
+    /// Update the continue statement of the route-map that is coming before `order`. The strint
+    /// will also start with a new-line, such that it can be concatenated with another command.
+    ///
+    /// TODO: Concatenation is bad, as it requires many re-allocations. Refactor this code to make
+    /// it faster.
+    fn fix_prev_rm_continue<Q>(
+        &self,
+        net: &Network<Q>,
+        neighbor: RouterId,
+        direction: RmDir,
+        ord: i16,
+    ) -> Option<String> {
+        let rms = self.route_maps.get(&(neighbor, direction))?;
+        let pos = rms.binary_search_by(|(probe, _)| probe.cmp(&ord)).ok()?;
+        let (last_ord, last_state) = rms.get(pos.checked_sub(1)?)?;
+        if last_state.is_allow() {
+            let name = full_rm_name(net, neighbor, direction);
+            Some(
+                String::from("\n")
+                    + RouteMapItem::new(name, order(*last_ord), true)
+                        .continues(order(ord))
+                        .build(self.target)
+                        .as_str(),
+            )
+        } else {
+            None
+        }
     }
 
     /// Transform the router-id into an IP address (when writing route-maps)
@@ -595,6 +690,8 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                         return Err(ExportError::ModifierDoesNotAffectRouter);
                     };
                     let rm_name = rm_name(net, neighbor);
+                    // updating route-maps is not necessary, as `self.next_ord` will insert it if
+                    // missing.
                     Ok(format!(
                         "{}{}{}",
                         RouterBgp::new(self.as_id)
@@ -613,14 +710,23 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                     direction,
                     map,
                     ..
-                } => Ok(self
-                    .route_map_item(
-                        &full_rm_name(net, neighbor, direction),
-                        &map,
-                        net,
-                        addressor,
-                    )?
-                    .build(self.target)),
+                } => {
+                    let next_ord = self.next_ord(neighbor, direction, map.order(), map.state());
+                    Ok(format!(
+                        "{}{}",
+                        self.route_map_item(
+                            &full_rm_name(net, neighbor, direction),
+                            &map,
+                            next_ord,
+                            net,
+                            addressor,
+                        )?
+                        .build(self.target),
+                        // update the continues of the last route-map.
+                        self.fix_prev_rm_continue(net, neighbor, direction, map.order())
+                            .unwrap_or_default()
+                    ))
+                }
                 ConfigExpr::StaticRoute { prefix, target, .. } => Ok(self
                     .static_route(net, addressor, prefix, target)?
                     .build(self.target)),
@@ -657,14 +763,27 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                     direction,
                     map,
                     ..
-                } => Ok(self
-                    .route_map_item(
-                        &full_rm_name(net, neighbor, direction),
-                        &map,
-                        net,
-                        addressor,
-                    )?
-                    .no(self.target)),
+                } => {
+                    let next_ord = self.next_ord_remove(neighbor, direction, map.order());
+                    Ok(format!(
+                        "{}{}",
+                        self.route_map_item(
+                            &full_rm_name(net, neighbor, direction),
+                            &map,
+                            next_ord,
+                            net,
+                            addressor,
+                        )?
+                        .no(self.target),
+                        // update the continues of the previous route-map, but only if next_ord is
+                        // something.
+                        next_ord
+                            .and_then(|ord| {
+                                self.fix_prev_rm_continue(net, neighbor, direction, ord)
+                            })
+                            .unwrap_or_default(),
+                    ))
+                }
                 ConfigExpr::StaticRoute { prefix, target, .. } => Ok(self
                     .static_route(net, addressor, prefix, target)?
                     .no(self.target)),
@@ -713,11 +832,12 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                 } => {
                     if let ConfigExpr::BgpRouteMap { map: old_map, .. } = from {
                         let rm_name = full_rm_name(net, neighbor, direction);
+                        let next_ord = self.next_ord(neighbor, direction, map.order(), map.state());
                         Ok(format!(
                             "{}{}",
-                            self.route_map_item(&rm_name, &old_map, net, addressor)?
+                            self.route_map_item(&rm_name, &old_map, next_ord, net, addressor)?
                                 .no(self.target),
-                            self.route_map_item(&rm_name, &map, net, addressor)?
+                            self.route_map_item(&rm_name, &map, next_ord, net, addressor)?
                                 .build(self.target)
                         ))
                     } else {
