@@ -2258,6 +2258,20 @@ impl RouteMapItem {
     /// "
     /// );
     /// ```
+    ///
+    /// For Cisco devices, this will also add the `additive` tag:
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// assert_eq!(
+    ///     RouteMapItem::new("test", 10, true).set_community(10, 10).build(Target::CiscoNexus7000),
+    ///     "\
+    /// route-map test permit 10
+    ///   set community additive 10:10
+    /// exit
+    /// "
+    /// );
+    /// ```
     pub fn set_community(&mut self, as_id: impl Into<AsId>, community: u32) -> &mut Self {
         self.set_community
             .push((format!("{}:{}", as_id.into().0, community), true));
@@ -2273,6 +2287,22 @@ impl RouteMapItem {
     ///     "\
     /// route-map test permit 10
     ///   no set community 10:10
+    /// exit
+    /// "
+    /// );
+    /// ```
+    ///
+    /// For Cisco devices, this will remove the community using the `additive` tag.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// assert_eq!(
+    ///     RouteMapItem::new("test", 10, true)
+    ///         .no_set_community(10, 10)
+    ///         .build(Target::CiscoNexus7000),
+    ///     "\
+    /// route-map test permit 10
+    ///   no set community additive 10:10
     /// exit
     /// "
     /// );
@@ -2552,10 +2582,15 @@ impl RouteMapItem {
             Some((_, false)) => cfg.push_str("  no set metric\n"),
             None => {}
         }
+        // add the word `additive` only to cisco devices.
+        let additive = match target {
+            Target::CiscoNexus7000 => "additive ",
+            Target::Frr => "",
+        };
         // set_community: Vec<(String, bool)>,
         for (c, mode) in self.set_community.iter() {
             cfg.push_str(if *mode { "  " } else { "  no " });
-            cfg.push_str(&format!("set community {}\n", c));
+            cfg.push_str(&format!("set community {}{}\n", additive, c));
         }
         // remove_community: Vec<(CommunityList, bool)>,
         for (c, mode) in self.delete_community.iter() {

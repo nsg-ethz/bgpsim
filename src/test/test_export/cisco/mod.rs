@@ -133,7 +133,7 @@ exit
 ip community-list standard neighbor-R0_ext_4-in-32781-cl permit 65535:200
 route-map neighbor-R0_ext_4-in permit 32781
   match community neighbor-R0_ext_4-in-32781-cl
-  set community 65535:300
+  set community additive 65535:300
   continue 32788
 exit
 route-map neighbor-R0_ext_4-in permit 32780
