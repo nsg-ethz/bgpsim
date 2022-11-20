@@ -732,7 +732,6 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                 ConfigExpr::IgpLinkWeight { source, target, .. } => {
                     Ok(Interface::new(self.iface(source, target, addressor)?)
                         .no_cost()
-                        .no_area()
                         .shutdown()
                         .build(self.target))
                 }
