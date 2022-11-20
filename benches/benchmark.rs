@@ -15,6 +15,8 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+#![cfg(all(feature = "topology_zoo", feature = "rand_queue", feature = "rand"))]
+
 use std::time::Duration;
 use std::time::Instant;
 

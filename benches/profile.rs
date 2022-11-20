@@ -34,6 +34,7 @@ pub fn main() {
 use common::roland::*;
 use netsim::interactive::InteractiveNetwork;
 
+#[cfg(all(feature = "topology_zoo", feature = "rand_queue", feature = "rand"))]
 pub fn main() {
     let (mut net, prefix, policies, withdraw_at) = try_setup_net().unwrap();
     let (mut fw_state, trace) = setup_experiment(&mut net, prefix, withdraw_at).unwrap();
@@ -51,6 +52,11 @@ pub fn main() {
                 .conquer(worker);
         };
     }
+}
+
+#[cfg(not(all(feature = "topology_zoo", feature = "rand_queue", feature = "rand")))]
+pub fn main() {
+    panic!("Enable features: \"topology_zoo\", \"rand_queue\", and \"rand\".");
 }
 
 // pub fn main() {}
