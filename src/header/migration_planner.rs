@@ -105,7 +105,7 @@ fn maybe_initialize_state(net: Rc<Net>, net_dispatch: Dispatch<Net>) -> bool {
         // initialization necessary
         net_dispatch.reduce_mut(|n| {
             n.migration_state_mut().clear();
-            for (i, len) in n.migration().iter().map(|x| x.len()).enumerate() {
+            for (_, len) in n.migration().iter().map(|x| x.len()).enumerate() {
                 n.migration_state_mut()
                     .push(repeat(MigrationState::default()).take(len).collect());
             }
