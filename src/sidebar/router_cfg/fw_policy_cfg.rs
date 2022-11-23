@@ -23,6 +23,7 @@ use netsim::{
     prelude::{Network, NetworkFormatter},
     types::{Prefix, RouterId},
 };
+use sise::TreeNode;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -87,8 +88,39 @@ impl Component for FwPolicyCfg {
         let regex_field = if let Some(rex) =
             regex_text(&self.net.spec()[&router][idx].0, &self.net.net())
         {
+            // let help = html! {
+            //     <>
+            //         <p>{ "Specify an expression for the Path Condition. The path condition is evaluated on a sequence of router names. The following symbols are tokens are allowed:" }</p>
+            //         <ul class="list-disc list-inside">
+            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "NAME" }</span>{": Matching one specific router."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "*" }</span>{": Matching 0 or more arbitrary routers."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "?" }</span>{": Matching exactly one (1) arbitrary routers."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "(...)" }</span>{": Group a path condition together. Groups of conditions can then be transformed using boolean operations. Each group is evaluated on the entire path."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "!" }</span>{": Negation of a group (must be a group)."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "&" }</span>{": Conjunction of two groups (must be a group)."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "|" }</span>{": Disjunction of two groups (must be a group)."}</li>
+            //         </ul>
+            //     </>
+            // };
+            let help = html! {
+                <>
+                    <p>{ "Specify an expression for the Path Condition. The path condition is evaluated on a sequence of router names. The path condition is a Lisp expression. The first element of each list gives a function name, while the later elements are arguments to that function. The following functions exist:" }</p>
+                    <ul class="list-disc list-inside">
+                        <li><span class="font-mono bg-gray-100 text-black px-1">{ "(not ...)" }</span>{": Negation of a condition."}</li>
+                        <li><span class="font-mono bg-gray-100 text-black px-1">{ "(and ...)" }</span>{": Conjunction of conditions."}</li>
+                        <li><span class="font-mono bg-gray-100 text-black px-1">{ "(or ...)" }</span>{": Disjunction of conditions."}</li>
+                        <li><span class="font-mono bg-gray-100 text-black px-1">{ "(p ...)" }</span>{": Path condition (see below)."}</li>
+                    </ul>
+                    <p>{ "To create a path condition, you can use " }<span class="font-mono bg-gray-100 text-black px-1">{ "(p ...)" }</span>{". The arguments of this path can be one of the following tokens:"} </p>
+                     <ul class="list-disc list-inside">
+                         <li><span class="font-mono bg-gray-100 text-black px-1">{ "NAME" }</span>{": Matching one specific router."}</li>
+                         <li><span class="font-mono bg-gray-100 text-black px-1">{ "*" }</span>{": Matching 0 or more arbitrary routers."}</li>
+                         <li><span class="font-mono bg-gray-100 text-black px-1">{ "?" }</span>{": Matching exactly one (1) arbitrary routers."}</li>
+                     </ul>
+                </>
+            };
             html! {
-                <Element text={ "Regex" }>
+                <Element text={ "Condition" } {help}>
                     <TextField text={rex} correct={self.regex_correct} on_change={ctx.link().callback(Msg::CheckRegex)} on_set={ctx.link().callback(Msg::SetRegex)} />
                 </Element>
             }
@@ -229,29 +261,111 @@ fn policy_name(pol: &FwPolicy) -> &'static str {
 
 fn regex_text(pol: &FwPolicy, net: &Network<Queue>) -> Option<String> {
     match pol {
-        FwPolicy::PathCondition(_, _, PathCondition::Positional(v)) => Some(
-            v.iter()
-                .map(|x| match x {
-                    Waypoint::Any => "?",
-                    Waypoint::Star => "*",
-                    Waypoint::Fix(r) => r.fmt(net),
-                })
-                .join(" "),
-        ),
+        FwPolicy::PathCondition(_, _, c) => Some(path_condition_to_text(c, net)),
         _ => None,
     }
 }
 
+fn path_condition_to_text(cond: &PathCondition, net: &Network<Queue>) -> String {
+    match cond {
+        PathCondition::Node(r) => path_condition_to_text(
+            &PathCondition::Positional(vec![Waypoint::Star, Waypoint::Fix(*r), Waypoint::Star]),
+            net,
+        ),
+        PathCondition::Edge(a, b) => path_condition_to_text(
+            &PathCondition::Positional(vec![
+                Waypoint::Star,
+                Waypoint::Fix(*a),
+                Waypoint::Fix(*b),
+                Waypoint::Star,
+            ]),
+            net,
+        ),
+        PathCondition::And(v) => format!(
+            "(and {})",
+            v.iter().map(|x| path_condition_to_text(x, net)).join(" ")
+        ),
+        PathCondition::Or(v) => format!(
+            "(or {})",
+            v.iter().map(|x| path_condition_to_text(x, net)).join(" ")
+        ),
+        PathCondition::Not(x) => format!("(not {})", path_condition_to_text(x.as_ref(), net)),
+        PathCondition::Positional(xs) => {
+            format!(
+                "(p {})",
+                xs.iter()
+                    .map(|x| match x {
+                        Waypoint::Star => "*",
+                        Waypoint::Any => "?",
+                        Waypoint::Fix(r) => r.fmt(net),
+                    })
+                    .join(" ")
+            )
+        }
+    }
+}
+
 fn text_to_path_condition(text: &str, net: &Network<Queue>) -> Option<PathCondition> {
-    Some(PathCondition::Positional(
-        text.split(|c| c == ',' || c == ';' || c == ' ')
-            .map(|c| {
-                Some(match c {
-                    "*" => Waypoint::Star,
-                    "?" => Waypoint::Any,
-                    name => Waypoint::Fix(net.get_router_id(name).ok()?),
+    let mut parser = sise::Parser::new(text);
+    let tree = sise::parse_tree(&mut parser).ok()?;
+    node_to_path_condition(tree, net)
+}
+
+fn node_to_path_condition(node: TreeNode, net: &Network<Queue>) -> Option<PathCondition> {
+    // node must be a list
+    let mut elems = node.into_list()?;
+    // node must have at least 2 elements
+    if elems.len() < 2 {
+        return None;
+    }
+
+    // the first element must be the function name
+    let f = elems.remove(0).into_atom()?;
+
+    match f.as_str() {
+        "p" => {
+            // parse path
+            let path = elems
+                .into_iter()
+                .map(|e| match e.into_atom()?.as_ref() {
+                    "*" => Some(Waypoint::Star),
+                    "?" => Some(Waypoint::Any),
+                    r => net.get_router_id(r).map(Waypoint::Fix).ok(),
                 })
-            })
-            .collect::<Option<Vec<Waypoint>>>()?,
-    ))
+                .collect::<Option<Vec<_>>>()?;
+            // collect path condition ending in an external router
+            if path.len() == 2 && path[0] == Waypoint::Star {
+                if let Waypoint::Fix(r) = path[1] {
+                    if net.get_device(r).is_external() {
+                        return Some(PathCondition::Node(r));
+                    }
+                }
+            }
+            // collect path condition with a single node surrounded by *.
+            if path.len() == 3 && path[0] == Waypoint::Star && path[2] == Waypoint::Star {
+                if let Waypoint::Fix(r) = path[1] {
+                    return Some(PathCondition::Node(r));
+                }
+            }
+            // collect path condition with a single edge surrounded by *.
+            if path.len() == 4 && path[0] == Waypoint::Star && path[3] == Waypoint::Star {
+                if let (Waypoint::Fix(a), Waypoint::Fix(b)) = (path[1], path[2]) {
+                    return Some(PathCondition::Edge(a, b));
+                }
+            }
+            Some(PathCondition::Positional(path))
+        }
+        f => {
+            let mut args = elems
+                .into_iter()
+                .map(|n| node_to_path_condition(n, net))
+                .collect::<Option<Vec<PathCondition>>>()?;
+            match f {
+                "not" if args.len() == 1 => Some(PathCondition::Not(Box::new(args.pop().unwrap()))),
+                "and" => Some(PathCondition::And(args)),
+                "or" => Some(PathCondition::Or(args)),
+                _ => None,
+            }
+        }
+    }
 }
