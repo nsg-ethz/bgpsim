@@ -24,7 +24,10 @@ module.exports = {
               '7': '7',
               '8': '8',
               '9': '9',
-            }  
+            },
+            blur: {
+                xs: '1px',
+            }
         }      
     },         
     variants: {},

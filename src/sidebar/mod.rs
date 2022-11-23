@@ -19,6 +19,7 @@ pub mod button;
 pub mod divider;
 pub mod element;
 pub mod external_router_cfg;
+pub mod help;
 #[cfg(feature = "atomic_bgp")]
 pub mod migration_viewer;
 pub mod multi_select;
@@ -33,6 +34,7 @@ pub mod verifier_viewer;
 pub use button::Button;
 pub use divider::{Divider, ExpandableDivider, ExpandableSection};
 pub use element::Element;
+pub use help::Help;
 pub use multi_select::MultiSelect;
 pub use select::Select;
 pub use text_field::TextField;

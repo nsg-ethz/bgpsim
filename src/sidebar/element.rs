@@ -17,6 +17,8 @@
 
 use yew::prelude::*;
 
+use super::Help;
+
 pub struct Element {}
 
 pub enum Msg {}
@@ -27,6 +29,7 @@ pub struct Properties {
     pub children: Children,
     pub class: Option<Classes>,
     pub small: Option<bool>,
+    pub help: Option<Html>,
 }
 
 impl Component for Element {
@@ -44,9 +47,18 @@ impl Component for Element {
         } else {
             ("basis-2/5 flex-none", "basis-3/5 flex-none")
         };
+        let d1class = classes!(d1class, "flex", "space-x-2", "justify-end");
+
+        let help = if let Some(h) = ctx.props().help.clone() {
+            html! {<Help text={h} />}
+        } else {
+            html! {}
+        };
+
         html! {
             <div class="w-full flex">
                 <div class={d1class}>
+                    { help }
                     <p {class}>{ctx.props().text.as_str()}</p>
                 </div>
                 <div class={d2class}>

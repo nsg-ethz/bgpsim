@@ -158,6 +158,14 @@ impl Component for Tooltip {
                     return html! {};
                 }
             }
+            Hover::Help(content) => {
+                html! {
+                    <div class="max-w-md flex space-x-4 items-center ml-2">
+                        <div><p class="text-yellow-400 blur-xs" style="font-size: 2.5rem">{ "?" }</p></div>
+                        <div class="flex-1">{ content }</div>
+                    </div>
+                }
+            }
             Hover::Message(_, _, _, _) => return html! {},
             Hover::Policy(_, _) => return html! {},
             Hover::None => unreachable!(),

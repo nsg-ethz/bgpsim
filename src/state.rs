@@ -20,6 +20,7 @@ use netsim::{
     types::{Prefix, RouterId},
 };
 use strum_macros::EnumIter;
+use yew::prelude::Html;
 use yewdux::prelude::Store;
 
 #[derive(Clone, Default, Debug, PartialEq, Store)]
@@ -90,7 +91,7 @@ impl Default for Selected {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub enum Hover {
     None,
     Router(RouterId),
@@ -99,6 +100,7 @@ pub enum Hover {
     RouteProp(RouterId, RouterId, BgpRoute),
     Message(RouterId, RouterId, usize, bool),
     Policy(RouterId, usize),
+    Help(Html),
 }
 
 impl Default for Hover {
