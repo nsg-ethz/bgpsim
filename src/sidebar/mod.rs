@@ -102,7 +102,7 @@ impl Component for Sidebar {
         };
 
         html! {
-            <div class="w-96 h-full max-h-full pr-4 py-4 align-middle">
+            <div class="w-[30rem] h-full max-h-full pr-4 py-4 align-middle">
                 <div class="w-full h-full max-h-full px-4 bg-white shadow-lg flex flex-col rounded-lg overflow-scroll">
                     { content }
                 </div>
