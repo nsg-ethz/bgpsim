@@ -83,7 +83,7 @@ impl Component for MainMenu {
         let export_latex = ctx.link().callback(|_| Msg::SaveLatex);
         let export_copy_url = ctx.link().callback(|_| Msg::ExportCopyUrl);
 
-        let link_class = "border-b border-gray-200 hover:border-blue-600 hover:text-blue-600 transition duration-150 ease-in-out";
+        let link_class = "border-b border-base-4 hover:border-blue-600 hover:text-blue-600 transition duration-150 ease-in-out";
         let target = "_blank";
 
         let element_class = "w-full flex items-center py-4 px-6 h-12 overflow-hidden text-gray-700 text-ellipsis whitespace-nowrap rounded hover:text-blue-600 hover:bg-blue-50 transition duration-200 ease-in-out cursor-pointer active:ring-none";

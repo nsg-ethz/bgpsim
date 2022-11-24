@@ -98,7 +98,7 @@ fn layer_selection() -> Html {
                 s.set_layer(l);
             })
         };
-        html! { <button class="text-gray-700 hover:text-main hover:bg-gray-100 py-2 focus:outline-none" {onclick}>{text}</button> }
+        html! { <button class="text-gray-700 hover:text-main hover:bg-base-3 py-2 focus:outline-none" {onclick}>{text}</button> }
     }).collect::<Html>();
 
     html! {
@@ -149,8 +149,8 @@ fn add_router() -> Html {
             <button class={bg_class} onclick={hide}> </button>
             <button class={button_class} onclick={toggle}> <yew_lucide::Plus class="w-6 h-6"/> </button>
             <div class={content_class}>
-                <button class="text-gray-700 hover:text-main hover:bg-gray-100 py-2 focus:outline-none" onclick={add_internal}>{"Internal Router"}</button>
-                <button class="text-gray-700 hover:text-main hover:bg-gray-100 py-2 focus:outline-none" onclick={add_external}>{"External Router"}</button>
+                <button class="text-gray-700 hover:text-main hover:bg-base-3 py-2 focus:outline-none" onclick={add_internal}>{"Internal Router"}</button>
+                <button class="text-gray-700 hover:text-main hover:bg-base-3 py-2 focus:outline-none" onclick={add_external}>{"External Router"}</button>
             </div>
         </span>
     }

@@ -118,7 +118,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
                             let v = val.clone();
                             let onclick = ctx.link().callback(move |_| Msg::ToggleElement(v.clone()));
                             html! {
-                                <button class="flex w-full justify-between items-center px-4 py-1 hover:bg-gray-100" {onclick}>{ text }</button>
+                                <button class="flex w-full justify-between items-center px-4 py-1 hover:bg-base-3" {onclick}>{ text }</button>
                             }
                         }).collect::<Html>()
                     }
@@ -199,7 +199,7 @@ fn multi_select_item<T: Clone + PartialEq + 'static>(props: &ItemProperties<T>) 
         props.on_remove.reform(move |_| entry.clone())
     };
     html! {
-        <div class="px-3 py-0 m-0.5 rounded text-gray-700 bg-gray-200 text-sm flex flex-row items-center">
+        <div class="px-3 py-0 m-0.5 rounded text-gray-700 bg-base-4 text-sm flex flex-row items-center">
             { props.text.as_str() }
             <button class="pl-2 hover hover:text-red-700 focus:outline-none transition duration-150 ease-in-out" {onclick}>
                 <yew_lucide::X class="w-3 h-3 text-center" />

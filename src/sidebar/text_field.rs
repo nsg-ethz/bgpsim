@@ -85,7 +85,7 @@ impl Component for TextField {
         let button_class = if enabled {
             classes! {"ml-2", "px-2", "flex-none", "text-gray-700", "rounded", "shadow-md", "hover:shadow-lg", "transition", "ease-in-out", "border", "border-gray-300", "focus:border-blue-600", "focus:outline-none"}
         } else {
-            classes! {"ml-2", "px-2", "flex-none", "rounded", "bg-base-2", "transition", "ease-in-out", "border", "border-gray-200", "focus:outline-none", "text-gray-200"}
+            classes! {"ml-2", "px-2", "flex-none", "rounded", "bg-base-2", "transition", "ease-in-out", "border", "border-base-4", "focus:outline-none", "text-base-4"}
         };
 
         let button_text = ctx

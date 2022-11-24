@@ -106,7 +106,7 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
                             let v = val.clone();
                             let onclick = ctx.link().callback(move |_| Msg::OnSelect(v.clone()));
                             html! {
-                                <button class="flex w-full justify-between items-center px-4 py-1 hover:bg-gray-100" {onclick}>{ text }</button>
+                                <button class="flex w-full justify-between items-center px-4 py-1 hover:bg-base-3" {onclick}>{ text }</button>
                             }
                         }).collect::<Html>()
                     }

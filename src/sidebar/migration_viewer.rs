@@ -105,7 +105,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
 
     let entry_class = "flex space-x-4 px-4 py-2";
     let box_class =
-        "flex flex-col rounded-md my-2 py-2 bg-base-2 shadow-md border-gray-200 border divide-y space-y text-sm";
+        "flex flex-col rounded-md my-2 py-2 bg-base-2 shadow-md border-base-4 border divide-y space-y text-sm";
 
     if let Some(cmd) = cmd {
         let pre = cmd.precondition.fmt(&net.net());
@@ -126,7 +126,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
             Some(MigrationState::Ready) => {
                 let cmd = cmd.command;
                 (
-                        "hover:shadow-lg hover:text-main hover:bg-gray-100 transition ease-in-out duration-150 cursor-pointer",
+                        "hover:shadow-lg hover:text-main hover:bg-base-3 transition ease-in-out duration-150 cursor-pointer",
                         html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center"/>),
                         html!(<yew_lucide::ArrowRight class="w-4 h-4 self-center" />),
                         html!(<div class="w-4 h-4 self-center"></div>),
