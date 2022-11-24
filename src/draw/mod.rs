@@ -66,7 +66,7 @@ impl SvgColor {
             SvgColor::RedDark => classes! {"text-red-800", "hover:text-red-700"},
             SvgColor::YellowDark => classes! {"text-yellow-800", "hover:text-yellow-700"},
             SvgColor::Light => classes! {"text-main-ia", "hover:text-main-ia"},
-            SvgColor::Dark => classes! {"text-gray-800", "hover:text-main-ia"},
+            SvgColor::Dark => classes! {"text-main", "hover:text-main-ia"},
         }
     }
 
@@ -83,7 +83,7 @@ impl SvgColor {
             SvgColor::RedDark => classes! {"text-red-800", "peer-hover:text-red-700"},
             SvgColor::YellowDark => classes! {"text-yellow-800", "peer-hover:text-yellow-700"},
             SvgColor::Light => classes! {"text-main-ia", "peer-hover:text-main-ia"},
-            SvgColor::Dark => classes! {"text-gray-800", "peer-hover:text-main-ia"},
+            SvgColor::Dark => classes! {"text-main", "peer-hover:text-main-ia"},
         }
     }
 
@@ -100,7 +100,7 @@ impl SvgColor {
             SvgColor::RedDark => "arrow-tip-red-800",
             SvgColor::YellowDark => "arrow-tip-yellow-800",
             SvgColor::Light => "arrow-tip-base-5",
-            SvgColor::Dark => "arrow-tip-gray-800",
+            SvgColor::Dark => "arrow-tip-main",
         }
     }
 
@@ -116,8 +116,8 @@ impl SvgColor {
             SvgColor::GreenDark => "arrow-tip-green-800",
             SvgColor::RedDark => "arrow-tip-red-800",
             SvgColor::YellowDark => "arrow-tip-yellow-800",
-            SvgColor::Light => "arrow-tip-gray-800",
-            SvgColor::Dark => "arrow-tip-gray-800",
+            SvgColor::Light => "arrow-tip-main",
+            SvgColor::Dark => "arrow-tip-main",
         }
     }
 }

@@ -199,7 +199,7 @@ fn multi_select_item<T: Clone + PartialEq + 'static>(props: &ItemProperties<T>) 
         props.on_remove.reform(move |_| entry.clone())
     };
     html! {
-        <div class="px-3 py-0 m-0.5 rounded text-gray-700 bg-base-4 text-sm flex flex-row items-center">
+        <div class="px-3 py-0 m-0.5 rounded text-main bg-base-4 text-sm flex flex-row items-center">
             { props.text.as_str() }
             <button class="pl-2 hover hover:text-red-700 focus:outline-none transition duration-150 ease-in-out" {onclick}>
                 <yew_lucide::X class="w-3 h-3 text-center" />

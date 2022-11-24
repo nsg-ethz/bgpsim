@@ -101,7 +101,7 @@ impl Component for RouteMapCfg {
                         <Toggle text={state_text} checked={state_checked} on_click={on_state_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} />
                     </Element>
                     <Element text={"Match"} small={true}>
-                        <button class="px-2 text-gray-700 rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue-600 focus:outline-none" onclick={add_match}>
+                        <button class="px-2 text-main rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue-600 focus:outline-none" onclick={add_match}>
                             <span class="flex items-center"> <yew_lucide::Plus class="w-3 h-3 mr-2 text-center" /> {"new match"} </span>
                         </button>
                     </Element>
@@ -114,7 +114,7 @@ impl Component for RouteMapCfg {
                             }}).collect::<Html>()
                     }
                     <Element text={"Set"} small={true}>
-                        <button class="px-2 text-gray-700 rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue-600 focus:outline-none" onclick={add_set}>
+                        <button class="px-2 text-main rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue-600 focus:outline-none" onclick={add_set}>
                             <span class="flex items-center"> <yew_lucide::Plus class="w-3 h-3 mr-2 text-center" /> {"new set"} </span>
                         </button>
                     </Element>

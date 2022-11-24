@@ -56,7 +56,7 @@ impl Component for Toggle {
                 "peer-checked:bg-yellow-600 peer-checked:hover:bg-yellow-800"
             }
             SvgColor::Light | SvgColor::Dark => {
-                "peer-checked:bg-base-4 peer-checked:hover:bg-gray-800"
+                "peer-checked:bg-base-4 peer-checked:hover:bg-main"
             }
         };
         let unchecked_class = match ctx.props().unchecked_color.unwrap_or(SvgColor::Light) {
@@ -101,7 +101,7 @@ impl Component for Toggle {
                 <label class="inline-flex relative items-center cursor-pointer">
                     <input type="checkbox" value="" class="sr-only peer" {checked} {onclick}/>
                     <div {class}></div>
-                    <span class="ml-2 flex-none text-gray-700 flex-1">{ &ctx.props().text }</span>
+                    <span class="ml-2 flex-none text-main flex-1">{ &ctx.props().text }</span>
                 </label>
             </div>
         }

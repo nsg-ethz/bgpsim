@@ -60,7 +60,7 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
         let onclick_close = ctx.link().callback(|_| Msg::HideMenu);
         let disabled = ctx.props().options.len() <= 1;
 
-        let base_class = "w-full py-0.5 px-2 flex items-center border border-base-5 text-gray-700 bg-base-1 rounded";
+        let base_class = "w-full py-0.5 px-2 flex items-center border border-base-5 text-main bg-base-1 rounded";
         let mut button_class = if let Some(c) = ctx.props().button_class.clone() {
             classes!(base_class, c)
         } else {

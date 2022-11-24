@@ -166,7 +166,7 @@ fn event_cfg(props: &EventProps) -> Html {
     let (net, _) = use_store::<Net>();
     let net_borrow = net.net();
     let net = net_borrow.deref();
-    let dir_class = "text-gray-700 font-bold";
+    let dir_class = "text-main font-bold";
     let (src, dst, ty, content) = match props.event.clone() {
         Event::Bgp(_, src, dst, BgpEvent::Update(route)) => {
             (src, dst, "BGP Update", html! { <RouteTable {route} /> })

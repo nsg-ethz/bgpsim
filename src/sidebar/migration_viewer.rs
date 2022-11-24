@@ -117,7 +117,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
             .and_then(|x| x.get(minor))
         {
             Some(MigrationState::WaitPre) => (
-                "text-gray-700",
+                "text-main",
                 html!(<yew_lucide::Clock class="text-red-600 w-4 h-4 self-center"/>),
                 html!(<div class="w-4 h-4 self-center"></div>),
                 html!(<div class="w-4 h-4 self-center"></div>),
@@ -137,7 +137,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
                     )
             }
             Some(MigrationState::WaitPost) => (
-                "text-gray-700",
+                "text-main",
                 html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),
                 html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),
                 html!(<yew_lucide::Clock class="text-red-600 w-4 h-4 self-center" />),

@@ -71,7 +71,7 @@ impl Component for MainMenu {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let button_class = "absolute rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue-500 text-base-1 hover:bg-blue-600 focus:bg-blue-600 active:bg-blue-700 transition duration-150 ease-in-out";
-        let bg_class = "absolute z-20 h-screen w-screen bg-gray-900 bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-300 ease-in-out";
+        let bg_class = "absolute z-20 h-screen w-screen bg-main bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-300 ease-in-out";
         let sidebar_class = "absolute z-20 h-screen -left-96 w-96 bg-base-1 shadow-xl peer-checked:opacity-100 pointer-events-none peer-checked:pointer-events-auto peer-checked:translate-x-full transition duration-300 ease-in-out";
 
         let show = ctx.link().callback(|_| Msg::OpenMenu);
@@ -86,7 +86,7 @@ impl Component for MainMenu {
         let link_class = "border-b border-base-4 hover:border-blue-600 hover:text-blue-600 transition duration-150 ease-in-out";
         let target = "_blank";
 
-        let element_class = "w-full flex items-center py-4 px-6 h-12 overflow-hidden text-gray-700 text-ellipsis whitespace-nowrap rounded hover:text-blue-600 hover:bg-blue-50 transition duration-200 ease-in-out cursor-pointer active:ring-none";
+        let element_class = "w-full flex items-center py-4 px-6 h-12 overflow-hidden text-main text-ellipsis whitespace-nowrap rounded hover:text-blue-600 hover:bg-blue-50 transition duration-200 ease-in-out cursor-pointer active:ring-none";
 
         let on_file_import = ctx.link().callback(|_| Msg::Import);
         let import = ctx.link().callback(|_| Msg::ImportClick);

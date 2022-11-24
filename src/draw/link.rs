@@ -93,13 +93,13 @@ impl Component for Link {
             classes!("stroke-current", "stroke-1", "text-main-ia")
         } else if matches!(layer, Layer::Igp) && self.in_ospf {
             if self.area.is_backbone() {
-                classes!("stroke-current", "stroke-2", "text-gray-700")
+                classes!("stroke-current", "stroke-2", "text-main")
             } else {
                 let color_idx = (self.area.num() as usize - 1) % NUM_LINK_COLORS;
                 classes!("stroke-current", "stroke-2", LINK_COLORS[color_idx])
             }
         } else {
-            classes!("stroke-current", "stroke-1", "text-gray-700")
+            classes!("stroke-current", "stroke-1", "text-main")
         };
         html! {
             <line {class} x1={self.p1.x()} y1={self.p1.y()} x2={self.p2.x()} y2={self.p2.y()} />

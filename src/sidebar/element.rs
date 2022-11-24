@@ -41,7 +41,7 @@ impl Component for Element {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let class = classes! { "text-gray-700", "text-right", "pr-4", &ctx.props().class };
+        let class = classes! { "text-main", "text-right", "pr-4", &ctx.props().class };
         let (d1class, d2class) = if ctx.props().small.unwrap_or(false) {
             ("basis-1/5 flex-none", "basis-4/5 flex-none")
         } else {

@@ -91,7 +91,7 @@ pub fn expandable_divider(props: &ExpandableDividerProps) -> Html {
         <div class="w-full space-y-2">
             <div class="w-full flex py-3 items-center">
                 <div class="flex-grow border-t border-base-5"></div>
-                <button class="flex-shrink mx-4 text-main-ia hover:text-gray-700 transition duration-150 ease-in-out" {onclick}>{text}</button>
+                <button class="flex-shrink mx-4 text-main-ia hover:text-main transition duration-150 ease-in-out" {onclick}>{text}</button>
                 <div class="flex-grow border-t border-base-5"></div>
             </div>
         {
@@ -124,7 +124,7 @@ pub fn expandable_section(props: &ExpandableSectionProps) -> Html {
     };
     html! {
         <div class="w-full space-y-2">
-            <button class="w-full inline-flex items-center text-main-ia hover:text-gray-700 transition transition-150 ease-in-out" {onclick}>
+            <button class="w-full inline-flex items-center text-main-ia hover:text-main transition transition-150 ease-in-out" {onclick}>
                 {icon}
                 <span class="flex-shrink mx-2">{&props.text}</span>
             </button>
