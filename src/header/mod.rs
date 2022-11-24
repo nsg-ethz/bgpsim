@@ -217,7 +217,7 @@ impl Component for PrefixSelection {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let button_class = "z-10 p-2 px-4 flex justify-between items-center rounded-full drop-shadow bg-base-1 text-main opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-auto";
-        let text_input_class = "w-10 ml-2 px-2 border-b border-base-5 focus:border-main peer-checked:border-red-700 focus:outline-none focus:text-main transition duration-150 ease-in-out";
+        let text_input_class = "w-10 ml-2 px-2 border-b border-base-5 focus:border-main peer-checked:border-red-700 focus:outline-none focus:text-main transition duration-150 ease-in-out bg-base-1";
 
         let text_update = ctx.link().callback(|_| Msg::OnChange);
         html! {

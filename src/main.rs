@@ -27,8 +27,10 @@ mod sidebar;
 mod state;
 mod tooltip;
 use draw::canvas::Canvas;
+use gloo_utils::window;
 use header::Header;
 use sidebar::Sidebar;
+use state::State;
 use tooltip::Tooltip;
 
 use yew::prelude::*;
@@ -40,6 +42,22 @@ use crate::net::Net;
 #[function_component(App)]
 fn app() -> Html {
     let header_ref = use_node_ref();
+    // register event listener
+    if let Some(media) = window()
+        .match_media("(prefers-color-scheme: dark)")
+        .ok()
+        .flatten()
+    {
+        let dispatch = Dispatch::<State>::new();
+        dispatch.reduce_mut(|s| {
+            if media.matches() {
+                s.set_dark_mode()
+            } else {
+                s.set_light_mode()
+            }
+        });
+    }
+
     html! {
         <div class="flex w-screen h-screen max-h-screen max-w-screen bg-base-2 overflow-scroll text-main">
             <Tooltip />

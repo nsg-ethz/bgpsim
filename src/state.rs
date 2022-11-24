@@ -15,6 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use gloo_utils::document;
 use netsim::{
     bgp::BgpRoute,
     types::{Prefix, RouterId},
@@ -23,12 +24,25 @@ use strum_macros::EnumIter;
 use yew::prelude::Html;
 use yewdux::prelude::Store;
 
-#[derive(Clone, Default, Debug, PartialEq, Store)]
+#[derive(Clone, Debug, PartialEq, Store)]
 pub struct State {
     selected: Selected,
     hover: Hover,
     layer: Layer,
     prefix: Option<Prefix>,
+    dark_mode: bool,
+}
+
+impl Default for State {
+    fn default() -> Self {
+        Self {
+            selected: Default::default(),
+            hover: Default::default(),
+            layer: Layer::FwState,
+            prefix: Default::default(),
+            dark_mode: false,
+        }
+    }
 }
 
 impl Eq for State {}
@@ -72,6 +86,32 @@ impl State {
 
     pub fn set_prefix(&mut self, prefix: Option<Prefix>) {
         self.prefix = prefix
+    }
+
+    pub fn is_dark_mode(&self) -> bool {
+        self.dark_mode
+    }
+
+    pub fn set_dark_mode(&mut self) {
+        if !self.dark_mode {
+            self.toggle_dark_mode()
+        }
+    }
+
+    pub fn set_light_mode(&mut self) {
+        if self.dark_mode {
+            self.toggle_dark_mode()
+        }
+    }
+
+    pub fn toggle_dark_mode(&mut self) {
+        self.dark_mode = !self.dark_mode;
+        let body = document().body().unwrap();
+        if self.dark_mode {
+            body.set_attribute("data-dark-mode", "").unwrap();
+        } else {
+            body.remove_attribute("data-dark-mode").unwrap();
+        }
     }
 }
 

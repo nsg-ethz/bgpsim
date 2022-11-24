@@ -23,19 +23,22 @@ use web_sys::{Blob, FileReader, HtmlElement, HtmlInputElement};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{net::Net, sidebar::Toggle};
+use crate::{net::Net, sidebar::Toggle, state::State};
 
 pub struct MainMenu {
     shown: bool,
     auto_simulate: bool,
     net: Rc<Net>,
     net_dispatch: Dispatch<Net>,
+    state: Rc<State>,
+    state_dispatch: Dispatch<State>,
     file_ref: NodeRef,
     file_listener: Option<Closure<dyn Fn(ProgressEvent)>>,
     url_network: Option<String>,
 }
 
 pub enum Msg {
+    State(Rc<State>),
     StateNet(Rc<Net>),
     ToggleSimulationMode,
     Export,
@@ -58,11 +61,14 @@ impl Component for MainMenu {
 
     fn create(ctx: &Context<Self>) -> Self {
         let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         MainMenu {
             shown: false,
             auto_simulate: true,
             net: Default::default(),
             net_dispatch,
+            state: Default::default(),
+            state_dispatch,
             file_ref: NodeRef::default(),
             file_listener: None,
             url_network: None,
@@ -71,7 +77,7 @@ impl Component for MainMenu {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let button_class = "absolute rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue-500 text-base-1 hover:bg-blue-600 focus:bg-blue-600 active:bg-blue-700 transition duration-150 ease-in-out";
-        let bg_class = "absolute z-20 h-screen w-screen bg-main bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-300 ease-in-out";
+        let bg_class = "absolute z-20 h-screen w-screen bg-black bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-300 ease-in-out";
         let sidebar_class = "absolute z-20 h-screen -left-96 w-96 bg-base-1 shadow-xl peer-checked:opacity-100 pointer-events-none peer-checked:pointer-events-auto peer-checked:translate-x-full transition duration-300 ease-in-out";
 
         let show = ctx.link().callback(|_| Msg::OpenMenu);
@@ -91,13 +97,25 @@ impl Component for MainMenu {
         let on_file_import = ctx.link().callback(|_| Msg::Import);
         let import = ctx.link().callback(|_| Msg::ImportClick);
 
+        let on_dark_mode_toggle = self
+            .state_dispatch
+            .reduce_mut_callback(|s| s.toggle_dark_mode());
+        let dark_mode_symbol = if self.state.is_dark_mode() {
+            html! {<yew_lucide::Sun />}
+        } else {
+            html! {<yew_lucide::Moon />}
+        };
+
         html! {
             <>
                 <input type="checkbox" value="" class="sr-only peer" checked={self.shown}/>
                 <button class={button_class} onclick={show} ref={ctx.props().node_ref.clone()}> <yew_lucide::Menu class="w-6 h-6" /> </button>
                 <button class={bg_class} onclick={hide}> </button>
                 <div class={sidebar_class}>
-                    <div class="flex-1 flex flex-col items-center justify-center py-10">
+                    <div class="flex-1 flex justify-end">
+                        <div class="cursor-pointer m-2" onclick={on_dark_mode_toggle}>{ dark_mode_symbol }</div>
+                    </div>
+                    <div class="flex-1 flex flex-col items-center justify-center pt-2 pb-10">
                         <p class="text-2xl font-bold text-main"> {"Netsim"} </p>
                         <p class="text"> {"By "} <a class={link_class} href="https://tibors.ch" {target}>{"Tibor Schneider"}</a> {" @ "} <a class={link_class} href="https://nsg.ee.ethz.ch" {target}>{"NSG"}</a> </p>
                     </div>
@@ -153,6 +171,10 @@ impl Component for MainMenu {
                 } else {
                     false
                 }
+            }
+            Msg::State(s) => {
+                self.state = s;
+                true
             }
             Msg::ToggleSimulationMode => {
                 if self.auto_simulate {

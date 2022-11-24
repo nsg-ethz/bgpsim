@@ -32,8 +32,7 @@
     --color-purple-dark: var(--color-purple-800);
   }
 
-  /*
-  .dark {
+  [data-dark-mode] {
     --color-base1: var(--color-gray-900);
     --color-base2: var(--color-gray-800);
     --color-base3: var(--color-gray-700);
@@ -61,7 +60,6 @@
     --color-purple: var(--clor-purple-400);
     --color-purple-dark: var(--color-purple-600);
   }
-  */
 
   :root {
     --color-slate-50: 248 250 252;
