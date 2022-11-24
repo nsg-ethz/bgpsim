@@ -15,7 +15,10 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use netsim::{config::NetworkConfig, prelude::NetworkFormatter};
+use netsim::{
+    config::{ConfigModifier, NetworkConfig},
+    prelude::NetworkFormatter,
+};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -132,7 +135,10 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
                         html!(<div class="w-4 h-4 self-center"></div>),
                         net_dispatch.reduce_mut_callback(move |n| {
                             n.migration_state_mut()[major][minor] = MigrationState::WaitPost;
-                            n.net_mut().apply_modifier_unchecked(&cmd).unwrap();
+                            let raw: Vec<ConfigModifier> = cmd.clone().into();
+                            for c in raw {
+                                n.net_mut().apply_modifier_unchecked(&c).unwrap();
+                            }
                         }),
                     )
             }
