@@ -161,7 +161,7 @@ impl Component for Tooltip {
             Hover::Help(content) => {
                 html! {
                     <div class="max-w-md flex space-x-4 items-center ml-2">
-                        <div><p class="text-yellow-400 blur-xs" style="font-size: 2.5rem">{ "?" }</p></div>
+                        <div><p class="text-yellow blur-xs" style="font-size: 2.5rem">{ "?" }</p></div>
                         <div class="flex-1">{ content }</div>
                     </div>
                 }

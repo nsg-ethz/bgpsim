@@ -101,9 +101,9 @@ pub fn property_viewer(props: &PropertyViewerProps) -> Html {
         if let Some((policy, error)) = net.spec().get(&router).and_then(|x| x.get(idx)) {
             let repr = policy.fmt(&net.net());
             let sym = if error.is_ok() {
-                html!(<yew_lucide::Check class="w-6 h-6 text-green-600"/>)
+                html!(<yew_lucide::Check class="w-6 h-6 text-green"/>)
             } else {
-                html!(<yew_lucide::X class="w-6 h-6 text-red-600"/>)
+                html!(<yew_lucide::X class="w-6 h-6 text-red"/>)
             };
             (repr, sym)
         } else {

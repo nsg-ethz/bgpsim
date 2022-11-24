@@ -43,19 +43,19 @@ impl Component for Button {
         let onclick = ctx.props().on_click.reform(|_| ());
         let color_class = match ctx.props().color {
             Some(SvgColor::BlueLight) => Classes::from(
-                "bg-blue-600 hover:bg-blue-dark active:bg-blue-darker text-base-1 border-blue-800"
+                "bg-blue hover:bg-blue-dark active:bg-blue-darker text-base-1 border-blue-dark"
             ),
             Some(SvgColor::PurpleLight) => Classes::from(
-                "bg-purple-600 hover:bg-purple-dark active:bg-purple-darker text-base-1 border-purple-800"
+                "bg-purple hover:bg-purple-dark active:bg-purple-darker text-base-1 border-purple-dark"
             ),
             Some(SvgColor::GreenLight) => Classes::from(
-                "bg-green-500 hover:bg-green-dark active:bg-green-darker text-base-1 border-green-700"
+                "bg-green hover:bg-green-dark active:bg-green-darker text-base-1 border-green"
             ),
             Some(SvgColor::RedLight) => Classes::from(
-                "bg-red-600 hover:bg-red-dark active:bg-red-darker text-base-1 border-red-800"
+                "bg-red hover:bg-red-dark active:bg-red-darker text-base-1 border-red-dark"
             ),
             Some(SvgColor::YellowLight) => Classes::from(
-                "bg-yellow-500 hover:bg-yellow-dark active:bg-yellow-darker text-base-1 border-yellow-700"
+                "bg-yellow hover:bg-yellow-dark active:bg-yellow-darker text-base-1 border-yellow"
             ),
             Some(SvgColor::BlueDark)
             | Some(SvgColor::PurpleDark)
@@ -64,7 +64,7 @@ impl Component for Button {
             | Some(SvgColor::YellowDark)
             | Some(SvgColor::Light)
             | Some(SvgColor::Dark) => todo!(),
-            None => Classes::from("bg-base-1 text-main border-base-5 focus:border-blue-600"),
+            None => Classes::from("bg-base-1 text-main border-base-5 focus:border-blue"),
         };
         let class = classes!(
             color_class,

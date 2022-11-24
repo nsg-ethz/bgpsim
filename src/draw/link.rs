@@ -53,16 +53,14 @@ pub struct Properties {
     pub to: RouterId,
 }
 
-const NUM_LINK_COLORS: usize = 8;
+const NUM_LINK_COLORS: usize = 6;
 const LINK_COLORS: [&str; NUM_LINK_COLORS] = [
-    "text-red-700",
-    "text-green-700",
-    "text-blue-700",
-    "text-purple-700",
-    "text-Yellow-700",
-    "text-cyan-700",
-    "text-orange-700",
-    "text-lime-700",
+    "text-red",
+    "text-green",
+    "text-blue",
+    "text-purple",
+    "text-yellow",
+    "text-orange",
 ];
 
 impl Component for Link {

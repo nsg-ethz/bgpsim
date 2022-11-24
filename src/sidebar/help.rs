@@ -34,7 +34,7 @@ pub fn help(props: &HelpProps) -> Html {
     let onmouseleave = dispatch.reduce_mut_callback(|s| s.clear_hover());
 
     html! {
-        <div class="text-yellow-400" {onmouseenter} {onmouseleave}>
+        <div class="text-yellow" {onmouseenter} {onmouseleave}>
             { "?" }
         </div>
     }

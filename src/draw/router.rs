@@ -83,7 +83,7 @@ impl Component for Router {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let r = format!("{}", ROUTER_RADIUS);
         let color = if self.selected {
-            "text-blue-300 hover:text-blue-dark stroke-blue-500 hover:stroke-blue-dark drop-shadow-lg"
+            "text-blue hover:text-blue-dark stroke-blue hover:stroke-blue-dark drop-shadow-lg"
         } else {
             "text-base-1 hover:text-base-4 stroke-main drop-shadow-md"
         };

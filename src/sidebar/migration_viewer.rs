@@ -118,7 +118,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
         {
             Some(MigrationState::WaitPre) => (
                 "text-main",
-                html!(<yew_lucide::Clock class="text-red-600 w-4 h-4 self-center"/>),
+                html!(<yew_lucide::Clock class="text-red w-4 h-4 self-center"/>),
                 html!(<div class="w-4 h-4 self-center"></div>),
                 html!(<div class="w-4 h-4 self-center"></div>),
                 Callback::default(),
@@ -127,7 +127,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
                 let cmd = cmd.command;
                 (
                         "hover:shadow-lg hover:text-main hover:bg-base-3 transition ease-in-out duration-150 cursor-pointer",
-                        html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center"/>),
+                        html!(<yew_lucide::Check class="text-green w-4 h-4 self-center"/>),
                         html!(<yew_lucide::ArrowRight class="w-4 h-4 self-center" />),
                         html!(<div class="w-4 h-4 self-center"></div>),
                         net_dispatch.reduce_mut_callback(move |n| {
@@ -138,16 +138,16 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
             }
             Some(MigrationState::WaitPost) => (
                 "text-main",
-                html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),
-                html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),
-                html!(<yew_lucide::Clock class="text-red-600 w-4 h-4 self-center" />),
+                html!(<yew_lucide::Check class="text-green w-4 h-4 self-center" />),
+                html!(<yew_lucide::Check class="text-green w-4 h-4 self-center" />),
+                html!(<yew_lucide::Clock class="text-red w-4 h-4 self-center" />),
                 Callback::default(),
             ),
             _ => (
                 "text-main-ia",
-                html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),
-                html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),
-                html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),
+                html!(<yew_lucide::Check class="text-green w-4 h-4 self-center" />),
+                html!(<yew_lucide::Check class="text-green w-4 h-4 self-center" />),
+                html!(<yew_lucide::Check class="text-green w-4 h-4 self-center" />),
                 Callback::default(),
             ),
         };
