@@ -90,13 +90,13 @@ impl Component for InteractivePlayer {
         let play_class = if queue_empty {
             "text-main-ia cursor-default pointer-events-none"
         } else {
-            "text-main hover:text-green-700 pointer-events-auto"
+            "text-main hover:text-green-dark pointer-events-auto"
         };
 
         let step_class = if queue_empty {
             "text-main-ia cursor-default pointer-events-none"
         } else {
-            "text-main hover:text-blue-700 pointer-events-auto"
+            "text-main hover:text-blue-dark pointer-events-auto"
         };
 
         html! {

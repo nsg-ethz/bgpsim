@@ -102,7 +102,7 @@ impl Component for RouteMapSetCfg {
                 <div class="w-full ml-2">
                     { value_html }
                 </div>
-                <button class="ml-2 hover hover:text-red-700 focus:outline-none transition duration-150 ease-in-out" onclick={on_delete}> <yew_lucide::X class="w-3 h-3 text-center" /> </button>
+                <button class="ml-2 hover hover:text-red-dark focus:outline-none transition duration-150 ease-in-out" onclick={on_delete}> <yew_lucide::X class="w-3 h-3 text-center" /> </button>
             </div>
         }
     }

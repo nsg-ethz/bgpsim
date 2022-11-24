@@ -55,16 +55,16 @@ impl Default for SvgColor {
 impl SvgColor {
     pub fn classes(&self) -> Classes {
         match self {
-            SvgColor::BlueLight => classes! {"text-blue-500", "hover:text-blue-700"},
-            SvgColor::PurpleLight => classes! {"text-purple-500", "hover:text-purple-700"},
-            SvgColor::GreenLight => classes! {"text-green-500", "hover:text-green-700"},
-            SvgColor::RedLight => classes! {"text-red-500", "hover:text-red-700"},
-            SvgColor::YellowLight => classes! {"text-yellow-500", "hover:text-yellow-700"},
-            SvgColor::BlueDark => classes! {"text-blue-800", "hover:text-blue-700"},
-            SvgColor::PurpleDark => classes! {"text-purple-800", "hover:text-purple-700"},
-            SvgColor::GreenDark => classes! {"text-green-800", "hover:text-green-700"},
-            SvgColor::RedDark => classes! {"text-red-800", "hover:text-red-700"},
-            SvgColor::YellowDark => classes! {"text-yellow-800", "hover:text-yellow-700"},
+            SvgColor::BlueLight => classes! {"text-blue-500", "hover:text-blue-dark"},
+            SvgColor::PurpleLight => classes! {"text-purple-500", "hover:text-purple-dark"},
+            SvgColor::GreenLight => classes! {"text-green-500", "hover:text-green-dark"},
+            SvgColor::RedLight => classes! {"text-red-500", "hover:text-red-dark"},
+            SvgColor::YellowLight => classes! {"text-yellow-500", "hover:text-yellow-dark"},
+            SvgColor::BlueDark => classes! {"text-blue-800", "hover:text-blue-dark"},
+            SvgColor::PurpleDark => classes! {"text-purple-800", "hover:text-purple-dark"},
+            SvgColor::GreenDark => classes! {"text-green-800", "hover:text-green-dark"},
+            SvgColor::RedDark => classes! {"text-red-800", "hover:text-red-dark"},
+            SvgColor::YellowDark => classes! {"text-yellow-800", "hover:text-yellow-dark"},
             SvgColor::Light => classes! {"text-main-ia", "hover:text-main-ia"},
             SvgColor::Dark => classes! {"text-main", "hover:text-main-ia"},
         }
@@ -72,16 +72,16 @@ impl SvgColor {
 
     pub fn peer_classes(&self) -> Classes {
         match self {
-            SvgColor::BlueLight => classes! {"text-blue-500", "peer-hover:text-blue-700"},
-            SvgColor::PurpleLight => classes! {"text-purple-500", "peer-hover:text-purple-700"},
-            SvgColor::GreenLight => classes! {"text-green-500", "peer-hover:text-green-700"},
-            SvgColor::RedLight => classes! {"text-red-500", "peer-hover:text-red-700"},
-            SvgColor::YellowLight => classes! {"text-yellow-500", "peer-hover:text-yellow-700"},
-            SvgColor::BlueDark => classes! {"text-blue-800", "peer-hover:text-blue-700"},
-            SvgColor::PurpleDark => classes! {"text-purple-800", "peer-hover:text-purple-700"},
-            SvgColor::GreenDark => classes! {"text-green-800", "peer-hover:text-green-700"},
-            SvgColor::RedDark => classes! {"text-red-800", "peer-hover:text-red-700"},
-            SvgColor::YellowDark => classes! {"text-yellow-800", "peer-hover:text-yellow-700"},
+            SvgColor::BlueLight => classes! {"text-blue-500", "peer-hover:text-blue-dark"},
+            SvgColor::PurpleLight => classes! {"text-purple-500", "peer-hover:text-purple-dark"},
+            SvgColor::GreenLight => classes! {"text-green-500", "peer-hover:text-green-dark"},
+            SvgColor::RedLight => classes! {"text-red-500", "peer-hover:text-red-dark"},
+            SvgColor::YellowLight => classes! {"text-yellow-500", "peer-hover:text-yellow-dark"},
+            SvgColor::BlueDark => classes! {"text-blue-800", "peer-hover:text-blue-dark"},
+            SvgColor::PurpleDark => classes! {"text-purple-800", "peer-hover:text-purple-dark"},
+            SvgColor::GreenDark => classes! {"text-green-800", "peer-hover:text-green-dark"},
+            SvgColor::RedDark => classes! {"text-red-800", "peer-hover:text-red-dark"},
+            SvgColor::YellowDark => classes! {"text-yellow-800", "peer-hover:text-yellow-dark"},
             SvgColor::Light => classes! {"text-main-ia", "peer-hover:text-main-ia"},
             SvgColor::Dark => classes! {"text-main", "peer-hover:text-main-ia"},
         }

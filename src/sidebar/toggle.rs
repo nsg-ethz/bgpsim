@@ -41,30 +41,30 @@ impl Component for Toggle {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let checked_class = match ctx.props().checked_color.unwrap_or(SvgColor::BlueLight) {
             SvgColor::BlueLight | SvgColor::BlueDark => {
-                "peer-checked:bg-blue-700 peer-checked:hover:bg-blue-800"
+                "peer-checked:bg-blue-700 peer-checked:hover:bg-blue-dark"
             }
             SvgColor::PurpleLight | SvgColor::PurpleDark => {
-                "peer-checked:bg-purple-700 peer-checked:hover:bg-purple-800"
+                "peer-checked:bg-purple-700 peer-checked:hover:bg-purple-dark"
             }
             SvgColor::GreenLight | SvgColor::GreenDark => {
-                "peer-checked:bg-green-600 peer-checked:hover:bg-green-800"
+                "peer-checked:bg-green-600 peer-checked:hover:bg-green-dark"
             }
             SvgColor::RedLight | SvgColor::RedDark => {
-                "peer-checked:bg-red-700 peer-checked:hover:bg-red-800"
+                "peer-checked:bg-red-700 peer-checked:hover:bg-red-dark"
             }
             SvgColor::YellowLight | SvgColor::YellowDark => {
-                "peer-checked:bg-yellow-600 peer-checked:hover:bg-yellow-800"
+                "peer-checked:bg-yellow-600 peer-checked:hover:bg-yellow-dark"
             }
             SvgColor::Light | SvgColor::Dark => {
                 "peer-checked:bg-base-4 peer-checked:hover:bg-main"
             }
         };
         let unchecked_class = match ctx.props().unchecked_color.unwrap_or(SvgColor::Light) {
-            SvgColor::BlueLight | SvgColor::BlueDark => "bg-blue-700 hover:bg-blue-800",
-            SvgColor::PurpleLight | SvgColor::PurpleDark => "bg-purple-700 hover:bg-purple-800",
-            SvgColor::GreenLight | SvgColor::GreenDark => "bg-green-600 hover:bg-green-700",
-            SvgColor::RedLight | SvgColor::RedDark => "bg-red-700 hover:bg-red-800",
-            SvgColor::YellowLight | SvgColor::YellowDark => "bg-yellow-600 hover:bg-yellow-700",
+            SvgColor::BlueLight | SvgColor::BlueDark => "bg-blue-700 hover:bg-blue-dark",
+            SvgColor::PurpleLight | SvgColor::PurpleDark => "bg-purple-700 hover:bg-purple-dark",
+            SvgColor::GreenLight | SvgColor::GreenDark => "bg-green-600 hover:bg-green-dark",
+            SvgColor::RedLight | SvgColor::RedDark => "bg-red-700 hover:bg-red-dark",
+            SvgColor::YellowLight | SvgColor::YellowDark => "bg-yellow-600 hover:bg-yellow-dark",
             SvgColor::Light | SvgColor::Dark => "bg-base-4 hover:bg-base-5",
         };
         let class = classes!(
