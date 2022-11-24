@@ -67,7 +67,7 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
             Classes::from(base_class)
         };
         if !disabled {
-            button_class = classes! {button_class, "hover:text-black", "hover:shadow", "transition", "duration-150", "ease-in-out"};
+            button_class = classes! {button_class, "hover:text-main", "hover:shadow", "transition", "duration-150", "ease-in-out"};
         }
         let height = self
             .div_ref

@@ -98,7 +98,7 @@ fn layer_selection() -> Html {
                 s.set_layer(l);
             })
         };
-        html! { <button class="text-gray-700 hover:text-black hover:bg-gray-100 py-2 focus:outline-none" {onclick}>{text}</button> }
+        html! { <button class="text-gray-700 hover:text-main hover:bg-gray-100 py-2 focus:outline-none" {onclick}>{text}</button> }
     }).collect::<Html>();
 
     html! {
@@ -149,8 +149,8 @@ fn add_router() -> Html {
             <button class={bg_class} onclick={hide}> </button>
             <button class={button_class} onclick={toggle}> <yew_lucide::Plus class="w-6 h-6"/> </button>
             <div class={content_class}>
-                <button class="text-gray-700 hover:text-black hover:bg-gray-100 py-2 focus:outline-none" onclick={add_internal}>{"Internal Router"}</button>
-                <button class="text-gray-700 hover:text-black hover:bg-gray-100 py-2 focus:outline-none" onclick={add_external}>{"External Router"}</button>
+                <button class="text-gray-700 hover:text-main hover:bg-gray-100 py-2 focus:outline-none" onclick={add_internal}>{"Internal Router"}</button>
+                <button class="text-gray-700 hover:text-main hover:bg-gray-100 py-2 focus:outline-none" onclick={add_external}>{"External Router"}</button>
             </div>
         </span>
     }
@@ -217,7 +217,7 @@ impl Component for PrefixSelection {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let button_class = "z-10 p-2 px-4 flex justify-between items-center rounded-full drop-shadow bg-white text-gray-700 opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-auto";
-        let text_input_class = "w-10 ml-2 px-2 border-b border-gray-300 focus:border-gray-700 peer-checked:border-red-700 focus:outline-none focus:text-black transition duration-150 ease-in-out";
+        let text_input_class = "w-10 ml-2 px-2 border-b border-gray-300 focus:border-gray-700 peer-checked:border-red-700 focus:outline-none focus:text-main transition duration-150 ease-in-out";
 
         let text_update = ctx.link().callback(|_| Msg::OnChange);
         html! {

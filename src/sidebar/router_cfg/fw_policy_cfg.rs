@@ -92,13 +92,13 @@ impl Component for FwPolicyCfg {
             //     <>
             //         <p>{ "Specify an expression for the Path Condition. The path condition is evaluated on a sequence of router names. The following symbols are tokens are allowed:" }</p>
             //         <ul class="list-disc list-inside">
-            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "NAME" }</span>{": Matching one specific router."}</li>
-            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "*" }</span>{": Matching 0 or more arbitrary routers."}</li>
-            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "?" }</span>{": Matching exactly one (1) arbitrary routers."}</li>
-            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "(...)" }</span>{": Group a path condition together. Groups of conditions can then be transformed using boolean operations. Each group is evaluated on the entire path."}</li>
-            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "!" }</span>{": Negation of a group (must be a group)."}</li>
-            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "&" }</span>{": Conjunction of two groups (must be a group)."}</li>
-            //             <li><span class="font-mono bg-gray-100 text-black px-1">{ "|" }</span>{": Disjunction of two groups (must be a group)."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-main px-1">{ "NAME" }</span>{": Matching one specific router."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-main px-1">{ "*" }</span>{": Matching 0 or more arbitrary routers."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-main px-1">{ "?" }</span>{": Matching exactly one (1) arbitrary routers."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-main px-1">{ "(...)" }</span>{": Group a path condition together. Groups of conditions can then be transformed using boolean operations. Each group is evaluated on the entire path."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-main px-1">{ "!" }</span>{": Negation of a group (must be a group)."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-main px-1">{ "&" }</span>{": Conjunction of two groups (must be a group)."}</li>
+            //             <li><span class="font-mono bg-gray-100 text-main px-1">{ "|" }</span>{": Disjunction of two groups (must be a group)."}</li>
             //         </ul>
             //     </>
             // };
@@ -106,16 +106,16 @@ impl Component for FwPolicyCfg {
                 <>
                     <p>{ "Specify an expression for the Path Condition. The path condition is evaluated on a sequence of router names. The path condition is a Lisp expression. The first element of each list gives a function name, while the later elements are arguments to that function. The following functions exist:" }</p>
                     <ul class="list-disc list-inside">
-                        <li><span class="font-mono bg-gray-100 text-black px-1">{ "(not ...)" }</span>{": Negation of a condition."}</li>
-                        <li><span class="font-mono bg-gray-100 text-black px-1">{ "(and ...)" }</span>{": Conjunction of conditions."}</li>
-                        <li><span class="font-mono bg-gray-100 text-black px-1">{ "(or ...)" }</span>{": Disjunction of conditions."}</li>
-                        <li><span class="font-mono bg-gray-100 text-black px-1">{ "(p ...)" }</span>{": Path condition (see below)."}</li>
+                        <li><span class="font-mono bg-gray-100 text-main px-1">{ "(not ...)" }</span>{": Negation of a condition."}</li>
+                        <li><span class="font-mono bg-gray-100 text-main px-1">{ "(and ...)" }</span>{": Conjunction of conditions."}</li>
+                        <li><span class="font-mono bg-gray-100 text-main px-1">{ "(or ...)" }</span>{": Disjunction of conditions."}</li>
+                        <li><span class="font-mono bg-gray-100 text-main px-1">{ "(p ...)" }</span>{": Path condition (see below)."}</li>
                     </ul>
-                    <p>{ "To create a path condition, you can use " }<span class="font-mono bg-gray-100 text-black px-1">{ "(p ...)" }</span>{". The arguments of this path can be one of the following tokens:"} </p>
+                    <p>{ "To create a path condition, you can use " }<span class="font-mono bg-gray-100 text-main px-1">{ "(p ...)" }</span>{". The arguments of this path can be one of the following tokens:"} </p>
                      <ul class="list-disc list-inside">
-                         <li><span class="font-mono bg-gray-100 text-black px-1">{ "NAME" }</span>{": Matching one specific router."}</li>
-                         <li><span class="font-mono bg-gray-100 text-black px-1">{ "*" }</span>{": Matching 0 or more arbitrary routers."}</li>
-                         <li><span class="font-mono bg-gray-100 text-black px-1">{ "?" }</span>{": Matching exactly one (1) arbitrary routers."}</li>
+                         <li><span class="font-mono bg-gray-100 text-main px-1">{ "NAME" }</span>{": Matching one specific router."}</li>
+                         <li><span class="font-mono bg-gray-100 text-main px-1">{ "*" }</span>{": Matching 0 or more arbitrary routers."}</li>
+                         <li><span class="font-mono bg-gray-100 text-main px-1">{ "?" }</span>{": Matching exactly one (1) arbitrary routers."}</li>
                      </ul>
                 </>
             };

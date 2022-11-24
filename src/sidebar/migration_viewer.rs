@@ -126,7 +126,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
             Some(MigrationState::Ready) => {
                 let cmd = cmd.command;
                 (
-                        "hover:shadow-lg hover:text-black hover:bg-gray-100 transition ease-in-out duration-150 cursor-pointer",
+                        "hover:shadow-lg hover:text-main hover:bg-gray-100 transition ease-in-out duration-150 cursor-pointer",
                         html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center"/>),
                         html!(<yew_lucide::ArrowRight class="w-4 h-4 self-center" />),
                         html!(<div class="w-4 h-4 self-center"></div>),

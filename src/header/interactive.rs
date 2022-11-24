@@ -105,7 +105,7 @@ impl Component for InteractivePlayer {
                 <button class={play_class} onclick={play}> <yew_lucide::ListVideo class="w-6 h-6"/> </button>
                 <button class={step_class} onclick={step}> <yew_lucide::Forward class="w-6 h-6"/> </button>
                 <div class={badge_class}>{queue_size_s}</div>
-                <button class="text-gray-700 hover:text-black" onclick={open_queue}> <yew_lucide::ListOrdered class="w-6 h-6"/> </button>
+                <button class="text-gray-700 hover:text-main" onclick={open_queue}> <yew_lucide::ListOrdered class="w-6 h-6"/> </button>
             </div>
         }
     }

@@ -98,7 +98,7 @@ impl Component for MainMenu {
                 <button class={bg_class} onclick={hide}> </button>
                 <div class={sidebar_class}>
                     <div class="flex-1 flex flex-col items-center justify-center py-10">
-                        <p class="text-2xl font-bold text-black"> {"Netsim"} </p>
+                        <p class="text-2xl font-bold text-main"> {"Netsim"} </p>
                         <p class="text"> {"By "} <a class={link_class} href="https://tibors.ch" {target}>{"Tibor Schneider"}</a> {" @ "} <a class={link_class} href="https://nsg.ee.ethz.ch" {target}>{"NSG"}</a> </p>
                     </div>
                     <div class="p-2 flex flex-col space-y-2">
