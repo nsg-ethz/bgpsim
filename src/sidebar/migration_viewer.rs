@@ -31,7 +31,7 @@ pub fn migration_viewer() -> Html {
     if net.migration().is_empty() {
         html! {
             <div class="h-full w-full flex flex-col justify-center items-center">
-                <p class="text-gray-300 italic"> { "Migration is empty!" } </p>
+                <p class="text-main-ia italic"> { "Migration is empty!" } </p>
             </div>
         }
     } else {
@@ -144,7 +144,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
                 Callback::default(),
             ),
             _ => (
-                "text-gray-400",
+                "text-main-ia",
                 html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),
                 html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),
                 html!(<yew_lucide::Check class="text-green-600 w-4 h-4 self-center" />),

@@ -276,22 +276,22 @@ pub fn route_table(props: &RouteTableProps) -> Html {
 
     html! {
         <table class="table-auto border-separate border-spacing-x-3">
-            <tr> <td class="italic text-gray-400"> {"Prefix: "} </td> <td> {props.route.prefix} </td> </tr>
-            <tr> <td class="italic text-gray-400"> {"Path: "} </td> <td> {join(props.route.as_path.iter().map(|x| x.0), ", ")} </td> </tr>
-            <tr> <td class="italic text-gray-400"> {"Next Hop: "} </td> <td> {props.route.next_hop.fmt(n).to_string()} </td> </tr>
+            <tr> <td class="italic text-main-ia"> {"Prefix: "} </td> <td> {props.route.prefix} </td> </tr>
+            <tr> <td class="italic text-main-ia"> {"Path: "} </td> <td> {join(props.route.as_path.iter().map(|x| x.0), ", ")} </td> </tr>
+            <tr> <td class="italic text-main-ia"> {"Next Hop: "} </td> <td> {props.route.next_hop.fmt(n).to_string()} </td> </tr>
             {
                 if let Some(lp) = props.route.local_pref {
-                    html!{<tr> <td class="italic text-gray-400"> {"Local Pref: "} </td> <td> {lp} </td> </tr>}
+                    html!{<tr> <td class="italic text-main-ia"> {"Local Pref: "} </td> <td> {lp} </td> </tr>}
                 } else { html!{} }
             }
             {
                 if let Some(med) = props.route.med {
-                    html!{<tr> <td class="italic text-gray-400"> {"MED: "} </td> <td> {med} </td> </tr>}
+                    html!{<tr> <td class="italic text-main-ia"> {"MED: "} </td> <td> {med} </td> </tr>}
                 } else { html!{} }
             }
             {
                 if !props.route.community.is_empty() {
-                    html!{<tr> <td class="italic text-gray-400"> {"Communities: "} </td> <td> {join(props.route.community.iter(), ", ")} </td> </tr>}
+                    html!{<tr> <td class="italic text-main-ia"> {"Communities: "} </td> <td> {join(props.route.community.iter(), ", ")} </td> </tr>}
                 } else { html!{} }
             }
         </table>
@@ -312,15 +312,15 @@ pub fn rib_table(props: &RibTableProps) -> Html {
     html! {
         <table class="table-auto border-separate border-spacing-x-3">
             <tr>
-              <td class="italic text-gray-400"></td>
-              <td class="italic text-gray-400"> {"peer"} </td>
-              <td class="italic text-gray-400"> {"nh"} </td>
-              <td class="italic text-gray-400"> {"path"} </td>
-              <td class="italic text-gray-400"> {"weight"} </td>
-              <td class="italic text-gray-400"> {"LP."} </td>
-              <td class="italic text-gray-400"> {"MED"} </td>
-              <td class="italic text-gray-400"> {"cost"} </td>
-              <td class="italic text-gray-400"> {"comm."} </td>
+              <td class="italic text-main-ia"></td>
+              <td class="italic text-main-ia"> {"peer"} </td>
+              <td class="italic text-main-ia"> {"nh"} </td>
+              <td class="italic text-main-ia"> {"path"} </td>
+              <td class="italic text-main-ia"> {"weight"} </td>
+              <td class="italic text-main-ia"> {"LP."} </td>
+              <td class="italic text-main-ia"> {"MED"} </td>
+              <td class="italic text-main-ia"> {"cost"} </td>
+              <td class="italic text-main-ia"> {"comm."} </td>
             </tr>
 
             {

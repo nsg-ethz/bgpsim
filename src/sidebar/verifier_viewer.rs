@@ -53,7 +53,7 @@ impl Component for VerifierViewer {
         if spec.is_empty() {
             return html! {
                 <div class="h-full w-full flex flex-col justify-center items-center">
-                    <p class="text-gray-300 italic"> { "No specifications configured!" } </p>
+                    <p class="text-main-ia italic"> { "No specifications configured!" } </p>
                 </div>
             };
         }

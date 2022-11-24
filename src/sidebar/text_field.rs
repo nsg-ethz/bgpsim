@@ -65,7 +65,7 @@ impl Component for TextField {
                 classes! {"text-gray-700", "border-red-300", "focus:border-red-600", "focus:text-gray-700"}
             }
             (false, _) => {
-                classes! {"text-gray-500", "border-gray-300", "focus:border-blue-600", "focus:text-gray-700"}
+                classes! {"text-main-ia", "border-gray-300", "focus:border-blue-600", "focus:text-gray-700"}
             }
         };
         let class = classes! {

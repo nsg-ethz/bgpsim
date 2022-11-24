@@ -90,7 +90,7 @@ impl Component for Link {
     fn view(&self, _ctx: &Context<Self>) -> Html {
         let layer = self.state.layer();
         let class = if matches!(layer, Layer::Bgp | Layer::RouteProp) {
-            classes!("stroke-current", "stroke-1", "text-gray-300")
+            classes!("stroke-current", "stroke-1", "text-main-ia")
         } else if matches!(layer, Layer::Igp) && self.in_ospf {
             if self.area.is_backbone() {
                 classes!("stroke-current", "stroke-2", "text-gray-700")

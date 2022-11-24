@@ -88,7 +88,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
         let dropdown_container_class = "relative pointer-events-none peer-checked:pointer-events-auto opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out";
 
         if ctx.props().options.is_empty() {
-            return html! { <p class="w-full mt-0.5 text-gray-400 text-center"> {"Empty!"} </p> };
+            return html! { <p class="w-full mt-0.5 text-main-ia text-center"> {"Empty!"} </p> };
         }
 
         html! {
@@ -105,7 +105,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
                         }).collect::<Html>()
                     }
                     </div>
-                    <div class="text-gray-500 w-8 ml-0.5 py-1 pl-2 pr-1 border-l flex items-center border-gray-300">
+                    <div class="text-main-ia w-8 ml-0.5 py-1 pl-2 pr-1 border-l flex items-center border-gray-300">
                     if !disabled {
                         <button class="" {onclick} {disabled}> <yew_lucide::ChevronDown class="w-4 h-4" /> </button>
                     }

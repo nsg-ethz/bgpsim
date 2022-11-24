@@ -231,7 +231,7 @@ pub struct PrefixTableProps {
 pub fn prefix_table(props: &PrefixTableProps) -> Html {
     html! {
         <table class="table-auto border-separate border-spacing-x-3">
-            <tr> <td class="italic text-gray-400"> {"Prefix: "} </td> <td> {props.prefix} </td> </tr>
+            <tr> <td class="italic text-main-ia"> {"Prefix: "} </td> <td> {props.prefix} </td> </tr>
         </table>
     }
 }

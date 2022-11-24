@@ -88,7 +88,7 @@ impl Component for Sidebar {
         let content = match self.state.selected() {
             Selected::None => html! {
                 <div class="h-full w-full flex flex-col justify-center items-center">
-                    <p class="text-gray-300 italic"> { "nothing selected!" } </p>
+                    <p class="text-main-ia italic"> { "nothing selected!" } </p>
                 </div>
             },
             Selected::Router(r) if self.net.net().get_device(r).is_internal() => {

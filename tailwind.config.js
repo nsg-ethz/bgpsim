@@ -41,7 +41,7 @@ module.exports = {
 
                 'main': {
                     DEFAULT: 'rgb(var(--color-main) / <alpha-value>)',
-                    dark: 'rgb(var(--color-main) / <alpha-value>)',
+                    ia: 'rgb(var(--color-main) / <alpha-value>)',
                 },
 
                 'red': {

@@ -194,10 +194,10 @@ impl Component for LinkWeightCfg {
             html! {
                 <Element text={element_text}>
                     <div class="flex flex-col flex-1 space-y-2">
-                        <Element text={"cost"} small={true} class={classes!("text-gray-300")}>
+                        <Element text={"cost"} small={true} class={classes!("text-main-ia")}>
                             <TextField text={cost_text} on_change={on_cost_change} on_set={on_cost_set} correct={self.cost_correct}/>
                         </Element>
-                        <Element text={"area"} small={true} class={classes!("text-gray-300")}>
+                        <Element text={"area"} small={true} class={classes!("text-main-ia")}>
                             <TextField text={area_text} on_change={on_area_change} on_set={on_area_set} correct={self.area_correct}/>
                         </Element>
                     </div>

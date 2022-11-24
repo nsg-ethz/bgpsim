@@ -65,8 +65,8 @@ impl SvgColor {
             SvgColor::GreenDark => classes! {"text-green-800", "hover:text-green-700"},
             SvgColor::RedDark => classes! {"text-red-800", "hover:text-red-700"},
             SvgColor::YellowDark => classes! {"text-yellow-800", "hover:text-yellow-700"},
-            SvgColor::Light => classes! {"text-gray-300", "hover:text-gray-500"},
-            SvgColor::Dark => classes! {"text-gray-800", "hover:text-gray-500"},
+            SvgColor::Light => classes! {"text-main-ia", "hover:text-main-ia"},
+            SvgColor::Dark => classes! {"text-gray-800", "hover:text-main-ia"},
         }
     }
 
@@ -82,8 +82,8 @@ impl SvgColor {
             SvgColor::GreenDark => classes! {"text-green-800", "peer-hover:text-green-700"},
             SvgColor::RedDark => classes! {"text-red-800", "peer-hover:text-red-700"},
             SvgColor::YellowDark => classes! {"text-yellow-800", "peer-hover:text-yellow-700"},
-            SvgColor::Light => classes! {"text-gray-300", "peer-hover:text-gray-500"},
-            SvgColor::Dark => classes! {"text-gray-800", "peer-hover:text-gray-500"},
+            SvgColor::Light => classes! {"text-main-ia", "peer-hover:text-main-ia"},
+            SvgColor::Dark => classes! {"text-gray-800", "peer-hover:text-main-ia"},
         }
     }
 
