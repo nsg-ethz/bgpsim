@@ -1304,3 +1304,13 @@ pub enum StaticRoute {
     /// Drop all traffic for the given destination
     Drop,
 }
+
+impl StaticRoute {
+    /// Get the target router (or None in case of `Self::Drop`)
+    pub fn router(&self) -> Option<RouterId> {
+        match self {
+            StaticRoute::Direct(r) | StaticRoute::Indirect(r) => Some(*r),
+            StaticRoute::Drop => None,
+        }
+    }
+}
