@@ -7,6 +7,7 @@
     --color-base1: 255 255 255;
     --color-base2: var(--color-gray-50);
     --color-base3: var(--color-gray-100);
+    --color-base4: var(--color-gray-200);
 
     --color-main: var(--color-gray-900);
     --color-main-ia: var(--color-gray-400);
@@ -35,6 +36,7 @@
     --color-base1: var(--color-gray-900);
     --color-base2: var(--color-gray-800);
     --color-base3: var(--color-gray-700);
+    --color-base4: var(--color-gray-600);
 
     --color-main: 255 255 255;
     --color-inactive: var(--color-gray-400);

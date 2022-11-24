@@ -32,12 +32,17 @@ module.exports = {
             colors: {
                 current: 'currentColor',
 
-                'base1': 'rgb(var(--color-base1) / <alpha-value>)',
-                'base2': 'rgb(var(--color-base2) / <alpha-value>)',
-                'base3': 'rgb(var(--color-base3) / <alpha-value>)',
+                'base': {
+                    1: 'rgb(var(--color-base1) / <alpha-value>)',
+                    2: 'rgb(var(--color-base2) / <alpha-value>)',
+                    3: 'rgb(var(--color-base3) / <alpha-value>)',
+                    4: 'rgb(var(--color-base4) / <alpha-value>)',
+                },
 
-                'main': 'rgb(var(--color-main) / <alpha-value>)',
-                'inactive': 'rgb(var(--color-main) / <alpha-value>)',
+                'main': {
+                    DEFAULT: 'rgb(var(--color-main) / <alpha-value>)',
+                    dark: 'rgb(var(--color-main) / <alpha-value>)',
+                },
 
                 'red': {
                     DEFAULT: 'rgb(var(--color-red) / <alpha-value>)',
