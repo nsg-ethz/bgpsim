@@ -105,7 +105,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
 
     let entry_class = "flex space-x-4 px-4 py-2";
     let box_class =
-        "flex flex-col rounded-md my-2 py-2 bg-base-2 shadow-md border-base-4 border divide-y space-y text-sm";
+        "flex flex-col rounded-md my-2 py-2 bg-base-2 shadow-md border-base-4 border divide-y space-y divide-base-4 text-sm";
 
     if let Some(cmd) = cmd {
         let pre = cmd.precondition.fmt(&net.net());
