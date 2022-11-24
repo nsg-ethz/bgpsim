@@ -58,7 +58,7 @@ pub fn divider_button(props: &DividerButtonProps) -> Html {
     html! {
         <div class="w-full flex py-3 items-center">
             <div class={line_class}></div>
-            <button class="rounded-full bg-white drop-shadow-md hover:drop-shadow-lg p-2" onclick={props.on_click.clone()}>
+            <button class="rounded-full bg-base-1 drop-shadow-md hover:drop-shadow-lg p-2" onclick={props.on_click.clone()}>
                 { for props.children.iter() }
             </button>
             <div class={line_class}></div>

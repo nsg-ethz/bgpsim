@@ -85,7 +85,7 @@ impl Component for Router {
         let color = if self.selected {
             "text-blue-300 hover:text-blue-400 stroke-blue-500 hover:stroke-blue-600 drop-shadow-lg"
         } else {
-            "text-white hover:text-gray-200 stroke-gray-700 drop-shadow-md"
+            "text-base-1 hover:text-gray-200 stroke-gray-700 drop-shadow-md"
         };
         let onclick = ctx.link().callback(|_| Msg::OnClick);
         let onmouseenter = ctx.link().callback(Msg::OnMouseEnter);

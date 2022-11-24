@@ -175,7 +175,7 @@ impl Component for Tooltip {
         let style = format!("top: {}px; left: {}px;", pos.y, pos.x);
 
         html! {
-            <div class="z-10 absolute rounded-md drop-shadow bg-white p-2 text-gray-700 flex flex-col space-y-2 pointer-events-none" {style} ref={self.node_ref.clone()}>
+            <div class="z-10 absolute rounded-md drop-shadow bg-base-1 p-2 text-gray-700 flex flex-col space-y-2 pointer-events-none" {style} ref={self.node_ref.clone()}>
                 {content}
             </div>
         }

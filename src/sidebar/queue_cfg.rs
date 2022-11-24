@@ -178,7 +178,7 @@ fn event_cfg(props: &EventProps) -> Html {
     let i = props.i;
     let onmouseenter = props.on_mouse_enter.reform(move |_| (src, dst, i));
     let onmouseleave = props.on_mouse_leave.reform(move |_| ());
-    let div_class = "p-4 rounded-md shadow-md border border-gray-300 bg-white hover:bg-gray-50 hover:shadow-lg w-full flex flex-col";
+    let div_class = "p-4 rounded-md shadow-md border border-gray-300 bg-base-1 hover:bg-base-2 hover:shadow-lg w-full flex flex-col";
     let div_class = match (props.translate, props.checked) {
         (t, false) if t > 0 => classes!(
             "transition",

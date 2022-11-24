@@ -41,9 +41,9 @@ use crate::net::Net;
 fn app() -> Html {
     let header_ref = use_node_ref();
     html! {
-        <div class="flex w-screen h-screen max-h-screen max-w-screen bg-gray-50 overflow-scroll text-main">
+        <div class="flex w-screen h-screen max-h-screen max-w-screen bg-base-2 overflow-scroll text-main">
             <Tooltip />
-            <div class="relative flex-1 h-full p-0 bg-gray-50">
+            <div class="relative flex-1 h-full p-0 bg-base-2">
               <Header node_ref={header_ref.clone()} />
               <Canvas header_ref={header_ref.clone()} />
             </div>

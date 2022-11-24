@@ -70,9 +70,9 @@ impl Component for MainMenu {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let button_class = "absolute rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue-500 text-white hover:bg-blue-600 focus:bg-blue-600 active:bg-blue-700 transition duration-150 ease-in-out";
+        let button_class = "absolute rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue-500 text-base-1 hover:bg-blue-600 focus:bg-blue-600 active:bg-blue-700 transition duration-150 ease-in-out";
         let bg_class = "absolute z-20 h-screen w-screen bg-gray-900 bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-300 ease-in-out";
-        let sidebar_class = "absolute z-20 h-screen -left-96 w-96 bg-white shadow-xl peer-checked:opacity-100 pointer-events-none peer-checked:pointer-events-auto peer-checked:translate-x-full transition duration-300 ease-in-out";
+        let sidebar_class = "absolute z-20 h-screen -left-96 w-96 bg-base-1 shadow-xl peer-checked:opacity-100 pointer-events-none peer-checked:pointer-events-auto peer-checked:translate-x-full transition duration-300 ease-in-out";
 
         let show = ctx.link().callback(|_| Msg::OpenMenu);
         let hide = ctx.link().callback(|_| Msg::CloseMenu);
@@ -131,7 +131,7 @@ impl Component for MainMenu {
                             {"Copy Network URL"}
                         </button>
                         if self.url_network.is_some() {
-                            <div class="m-2 px-4 rounded-md bg-gray-50 border border-gray-300 drop-shadow break-all select-all text-xs h-32 overflow-y-scroll">
+                            <div class="m-2 px-4 rounded-md bg-base-2 border border-gray-300 drop-shadow break-all select-all text-xs h-32 overflow-y-scroll">
                                 {self.url_network.as_ref().unwrap()}
                             </div>
                         }

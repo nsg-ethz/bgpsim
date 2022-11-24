@@ -61,7 +61,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
         let onclick = ctx.link().callback(Msg::ToggleMenu);
         let onclick_close = ctx.link().callback(|_| Msg::HideMenu);
         let disabled = ctx.props().options.iter().filter(|(_, _, b)| !*b).count() == 0;
-        let mut button_class = classes! {"w-full", "p-0.5", "flex", "border", "border-gray-300", "bg-white", "rounded"};
+        let mut button_class = classes! {"w-full", "p-0.5", "flex", "border", "border-gray-300", "bg-base-1", "rounded"};
         if !disabled {
             button_class = classes! {button_class, "hover:shadow", "rounded", "transition", "duration-150", "ease-in-out"};
         }
@@ -84,7 +84,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
         };
 
         let dropdown_class =
-            "absolute w-full shadow-lg border rounded py-1 bg-white right-0 max-h-48 overflow-auto";
+            "absolute w-full shadow-lg border rounded py-1 bg-base-1 right-0 max-h-48 overflow-auto";
         let dropdown_container_class = "relative pointer-events-none peer-checked:pointer-events-auto opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out";
 
         if ctx.props().options.is_empty() {

@@ -60,7 +60,7 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
         let onclick_close = ctx.link().callback(|_| Msg::HideMenu);
         let disabled = ctx.props().options.len() <= 1;
 
-        let base_class = "w-full py-0.5 px-2 flex items-center border border-gray-300 text-gray-700 bg-white rounded";
+        let base_class = "w-full py-0.5 px-2 flex items-center border border-gray-300 text-gray-700 bg-base-1 rounded";
         let mut button_class = if let Some(c) = ctx.props().button_class.clone() {
             classes!(base_class, c)
         } else {
@@ -81,7 +81,7 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
             String::new()
         };
         let dropdown_class =
-            "absolute w-full shadow-lg border rounded py-1 bg-white right-0 max-h-48 overflow-auto";
+            "absolute w-full shadow-lg border rounded py-1 bg-base-1 right-0 max-h-48 overflow-auto";
         let dropdown_container_class = "relative pointer-events-none peer-checked:pointer-events-auto opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out";
         html! {
             <>

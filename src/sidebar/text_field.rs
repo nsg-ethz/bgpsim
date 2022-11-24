@@ -69,7 +69,7 @@ impl Component for TextField {
             }
         };
         let class = classes! {
-            "flex-1", "w-16", "px-3", "text-base", "font-normal", "bg-white", "bg-clip-padding", "border", "border-solid", "rounded", "transition", "ease-in-out", "m-0", "focus:outline-none",
+            "flex-1", "w-16", "px-3", "text-base", "font-normal", "bg-base-1", "bg-clip-padding", "border", "border-solid", "rounded", "transition", "ease-in-out", "m-0", "focus:outline-none",
             colors,
             ctx.props().class.clone().unwrap_or_default()
         };
@@ -85,7 +85,7 @@ impl Component for TextField {
         let button_class = if enabled {
             classes! {"ml-2", "px-2", "flex-none", "text-gray-700", "rounded", "shadow-md", "hover:shadow-lg", "transition", "ease-in-out", "border", "border-gray-300", "focus:border-blue-600", "focus:outline-none"}
         } else {
-            classes! {"ml-2", "px-2", "flex-none", "rounded", "bg-gray-50", "transition", "ease-in-out", "border", "border-gray-200", "focus:outline-none", "text-gray-200"}
+            classes! {"ml-2", "px-2", "flex-none", "rounded", "bg-base-2", "transition", "ease-in-out", "border", "border-gray-200", "focus:outline-none", "text-gray-200"}
         };
 
         let button_text = ctx

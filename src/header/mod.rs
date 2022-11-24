@@ -72,8 +72,8 @@ pub fn header(props: &Properties) -> Html {
 
 #[function_component(LayerSelection)]
 fn layer_selection() -> Html {
-    let button_class = "flex flex-1 w-40 rounded-full z-10 p-2 px-4 drop-shadow bg-white text-gray-700 hover:text-gray-900 transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
-    let content_class = "absolute mt-2 z-10 w-40 flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-white peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
+    let button_class = "flex flex-1 w-40 rounded-full z-10 p-2 px-4 drop-shadow bg-base-1 text-gray-700 hover:text-gray-900 transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
+    let content_class = "absolute mt-2 z-10 w-40 flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-base-1 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
     let bg_class = "absolute z-10 -top-4 -left-20 h-screen w-screen bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-150 ease-in-out";
 
     let shown = use_state(|| false);
@@ -113,8 +113,8 @@ fn layer_selection() -> Html {
 
 #[function_component(AddRouter)]
 fn add_router() -> Html {
-    let button_class = "rounded-full z-10 p-2 drop-shadow bg-white text-gray-700 hover:text-gray-900 transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
-    let content_class = "absolute mt-2 z-10 w-40 flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-white peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
+    let button_class = "rounded-full z-10 p-2 drop-shadow bg-base-1 text-gray-700 hover:text-gray-900 transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
+    let content_class = "absolute mt-2 z-10 w-40 flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-base-1 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
     let bg_class = "absolute z-10 -top-4 -left-20 h-screen w-screen bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-150 ease-in-out";
 
     let shown = use_state(|| false);
@@ -216,7 +216,7 @@ impl Component for PrefixSelection {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let button_class = "z-10 p-2 px-4 flex justify-between items-center rounded-full drop-shadow bg-white text-gray-700 opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-auto";
+        let button_class = "z-10 p-2 px-4 flex justify-between items-center rounded-full drop-shadow bg-base-1 text-gray-700 opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-auto";
         let text_input_class = "w-10 ml-2 px-2 border-b border-gray-300 focus:border-gray-700 peer-checked:border-red-700 focus:outline-none focus:text-main transition duration-150 ease-in-out";
 
         let text_update = ctx.link().callback(|_| Msg::OnChange);
