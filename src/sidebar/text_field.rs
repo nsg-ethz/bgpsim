@@ -65,7 +65,7 @@ impl Component for TextField {
                 classes! {"text-gray-700", "border-red-300", "focus:border-red-600", "focus:text-gray-700"}
             }
             (false, _) => {
-                classes! {"text-main-ia", "border-gray-300", "focus:border-blue-600", "focus:text-gray-700"}
+                classes! {"text-main-ia", "border-base-5", "focus:border-blue-600", "focus:text-gray-700"}
             }
         };
         let class = classes! {
@@ -83,7 +83,7 @@ impl Component for TextField {
         let onclick = ctx.link().callback(|_| Msg::Set);
         let enabled = changed && ctx.props().correct;
         let button_class = if enabled {
-            classes! {"ml-2", "px-2", "flex-none", "text-gray-700", "rounded", "shadow-md", "hover:shadow-lg", "transition", "ease-in-out", "border", "border-gray-300", "focus:border-blue-600", "focus:outline-none"}
+            classes! {"ml-2", "px-2", "flex-none", "text-gray-700", "rounded", "shadow-md", "hover:shadow-lg", "transition", "ease-in-out", "border", "border-base-5", "focus:border-blue-600", "focus:outline-none"}
         } else {
             classes! {"ml-2", "px-2", "flex-none", "rounded", "bg-base-2", "transition", "ease-in-out", "border", "border-base-4", "focus:outline-none", "text-base-4"}
         };

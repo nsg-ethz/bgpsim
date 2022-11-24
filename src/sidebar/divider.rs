@@ -27,15 +27,15 @@ pub fn divider(props: &DividerProps) -> Html {
     if let Some(text) = props.text.as_ref() {
         html! {
             <div class="w-full flex py-3 items-center">
-                <div class="flex-grow border-t border-gray-300"></div>
+                <div class="flex-grow border-t border-base-5"></div>
                 <span class="flex-shrink mx-4 text-main-ia">{text}</span>
-                <div class="flex-grow border-t border-gray-300"></div>
+                <div class="flex-grow border-t border-base-5"></div>
             </div>
         }
     } else {
         html! {
             <div class="w-full flex py-3 items-center">
-                <div class="flex-grow border-t border-gray-300"></div>
+                <div class="flex-grow border-t border-base-5"></div>
             </div>
         }
     }
@@ -53,7 +53,7 @@ pub fn divider_button(props: &DividerButtonProps) -> Html {
     let line_class = if props.hidden.unwrap_or(false) {
         "flex-grow"
     } else {
-        "flex-grow border-t border-gray-300"
+        "flex-grow border-t border-base-5"
     };
     html! {
         <div class="w-full flex py-3 items-center">
@@ -90,9 +90,9 @@ pub fn expandable_divider(props: &ExpandableDividerProps) -> Html {
     html! {
         <div class="w-full space-y-2">
             <div class="w-full flex py-3 items-center">
-                <div class="flex-grow border-t border-gray-300"></div>
+                <div class="flex-grow border-t border-base-5"></div>
                 <button class="flex-shrink mx-4 text-main-ia hover:text-gray-700 transition duration-150 ease-in-out" {onclick}>{text}</button>
-                <div class="flex-grow border-t border-gray-300"></div>
+                <div class="flex-grow border-t border-base-5"></div>
             </div>
         {
             if *shown {

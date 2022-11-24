@@ -61,7 +61,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
         let onclick = ctx.link().callback(Msg::ToggleMenu);
         let onclick_close = ctx.link().callback(|_| Msg::HideMenu);
         let disabled = ctx.props().options.iter().filter(|(_, _, b)| !*b).count() == 0;
-        let mut button_class = classes! {"w-full", "p-0.5", "flex", "border", "border-gray-300", "bg-base-1", "rounded"};
+        let mut button_class = classes! {"w-full", "p-0.5", "flex", "border", "border-base-5", "bg-base-1", "rounded"};
         if !disabled {
             button_class = classes! {button_class, "hover:shadow", "rounded", "transition", "duration-150", "ease-in-out"};
         }
@@ -105,7 +105,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
                         }).collect::<Html>()
                     }
                     </div>
-                    <div class="text-main-ia w-8 ml-0.5 py-1 pl-2 pr-1 border-l flex items-center border-gray-300">
+                    <div class="text-main-ia w-8 ml-0.5 py-1 pl-2 pr-1 border-l flex items-center border-base-5">
                     if !disabled {
                         <button class="" {onclick} {disabled}> <yew_lucide::ChevronDown class="w-4 h-4" /> </button>
                     }

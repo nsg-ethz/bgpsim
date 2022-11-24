@@ -131,7 +131,7 @@ impl Component for MainMenu {
                             {"Copy Network URL"}
                         </button>
                         if self.url_network.is_some() {
-                            <div class="m-2 px-4 rounded-md bg-base-2 border border-gray-300 drop-shadow break-all select-all text-xs h-32 overflow-y-scroll">
+                            <div class="m-2 px-4 rounded-md bg-base-2 border border-base-5 drop-shadow break-all select-all text-xs h-32 overflow-y-scroll">
                                 {self.url_network.as_ref().unwrap()}
                             </div>
                         }

@@ -65,7 +65,7 @@ impl Component for Toggle {
             SvgColor::GreenLight | SvgColor::GreenDark => "bg-green-600 hover:bg-green-700",
             SvgColor::RedLight | SvgColor::RedDark => "bg-red-700 hover:bg-red-800",
             SvgColor::YellowLight | SvgColor::YellowDark => "bg-yellow-600 hover:bg-yellow-700",
-            SvgColor::Light | SvgColor::Dark => "bg-base-4 hover:bg-gray-300",
+            SvgColor::Light | SvgColor::Dark => "bg-base-4 hover:bg-base-5",
         };
         let class = classes!(
             "w-11",

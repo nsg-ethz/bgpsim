@@ -99,7 +99,7 @@ impl SvgColor {
             SvgColor::GreenDark => "arrow-tip-green-800",
             SvgColor::RedDark => "arrow-tip-red-800",
             SvgColor::YellowDark => "arrow-tip-yellow-800",
-            SvgColor::Light => "arrow-tip-gray-300",
+            SvgColor::Light => "arrow-tip-base-5",
             SvgColor::Dark => "arrow-tip-gray-800",
         }
     }
