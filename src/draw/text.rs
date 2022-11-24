@@ -81,7 +81,8 @@ where
             .bg_class
             .clone()
             .unwrap_or_else(|| classes!("fill-gray-50", "stroke-0"));
-        let text_class = ctx.props().text_class.clone().unwrap_or_default();
+        let mut text_class = ctx.props().text_class.clone().unwrap_or_default();
+        text_class.push("stroke-black");
         html! {
             <>
                 <rect x={p_box.x()} y={p_box.y()} width={box_w} height={box_h} class={bg_class} {rx} />

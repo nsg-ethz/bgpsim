@@ -4,6 +4,7 @@ module.exports = {
         "./index.html",
         "./src/**/*.html",
         "./src/**/*.css",
+        "./index.css"
     ],
     theme: {
         extend: {
@@ -27,8 +28,48 @@ module.exports = {
             },
             blur: {
                 xs: '1px',
+            },
+            colors: {
+                current: 'currentColor',
+
+                'base1': 'rgb(var(--color-base1) / <alpha-value>)',
+                'base2': 'rgb(var(--color-base2) / <alpha-value>)',
+                'base3': 'rgb(var(--color-base3) / <alpha-value>)',
+
+                'main': 'rgb(var(--color-main) / <alpha-value>)',
+                'inactive': 'rgb(var(--color-main) / <alpha-value>)',
+
+                'red': {
+                    DEFAULT: 'rgb(var(--color-red) / <alpha-value>)',
+                    dark: 'rgb(var(--color-red-dark) / <alpha-value>)',
+                },
+
+                'orange': {
+                    DEFAULT: 'rgb(var(--color-orange) / <alpha-value>)',
+                    dark: 'rgb(var(--color-orange-dark) / <alpha-value>)',
+                },
+
+                'yellow': {
+                    DEFAULT: 'rgb(var(--color-yellow) / <alpha-value>)',
+                    dark: 'rgb(var(--color-yellow-dark) / <alpha-value>)',
+                },
+
+                'blue': {
+                    DEFAULT: 'rgb(var(--color-blue) / <alpha-value>)',
+                    dark: 'rgb(var(--color-blue-dark) / <alpha-value>)',
+                },
+
+                'green': {
+                    DEFAULT: 'rgb(var(--color-green) / <alpha-value>)',
+                    dark: 'rgb(var(--color-green-dark) / <alpha-value>)',
+                },
+
+                'purple': {
+                    DEFAULT: 'rgb(var(--color-purple) / <alpha-value>)',
+                    dark: 'rgb(var(--color-purple-dark) / <alpha-value>)',
+                },
             }
-        }      
+        },
     },         
     variants: {},
     plugins: [],
