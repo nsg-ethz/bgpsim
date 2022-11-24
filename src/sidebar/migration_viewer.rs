@@ -25,6 +25,7 @@ use yewdux::prelude::*;
 use crate::{
     net::{MigrationState, Net},
     sidebar::{Divider, ExpandableSection},
+    state::{Hover, State},
 };
 
 #[function_component(MigrationViewer)]
@@ -111,9 +112,17 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
         "flex flex-col rounded-md my-2 py-2 bg-base-2 shadow-md border-base-4 border divide-y space-y divide-base-4 text-sm";
 
     if let Some(cmd) = cmd {
+        let state_dispatch = Dispatch::<State>::new();
+
         let pre = cmd.precondition.fmt(&net.net());
         let text = cmd.command.fmt(&net.net());
         let post = cmd.postcondition.fmt(&net.net());
+
+        let routers = cmd.command.routers();
+        let onmouseenter = state_dispatch
+            .reduce_mut_callback(move |s| s.set_hover(Hover::AtomicCommand(routers.clone())));
+        let onmouseleave = state_dispatch.reduce_mut_callback(|s| s.clear_hover());
+
         let (class, sym1, sym2, sym3, onclick) = match net
             .migration_state()
             .get(major)
@@ -159,7 +168,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
         };
         let class = classes!(box_class, class);
         html! {
-            <div {class} {onclick}>
+            <div {class} {onclick} {onmouseleave} {onmouseenter}>
                 <div class={entry_class}> {sym1} <p class="flex-1"> { pre } </p></div>
                 <div class={entry_class}> {sym2} <p class="flex-1"> { text } </p></div>
                 <div class={entry_class}> {sym3} <p class="flex-1"> { post } </p></div>

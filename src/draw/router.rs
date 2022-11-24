@@ -46,6 +46,7 @@ pub struct Router {
     dim: Rc<Dim>,
     net: Rc<Net>,
     selected: bool,
+    glow: bool,
     p: Point,
     move_p: Point,
     dragging: Option<Closure<dyn Fn(MouseEvent)>>,
@@ -71,6 +72,7 @@ impl Component for Router {
             dim: Default::default(),
             net: Default::default(),
             selected: false,
+            glow: false,
             p: Default::default(),
             move_p: Default::default(),
             dragging: None,
@@ -83,7 +85,9 @@ impl Component for Router {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let r = format!("{}", ROUTER_RADIUS);
         let color = if self.selected {
-            "text-blue hover:text-blue-dark stroke-blue hover:stroke-blue-dark drop-shadow-lg"
+            "text-blue stroke-blue hover:stroke-main drop-shadow-lg"
+        } else if self.glow {
+            "stroke-main text-base-4 drop-shadow-md"
         } else {
             "text-base-1 hover:text-base-4 stroke-main drop-shadow-md"
         };
@@ -92,6 +96,19 @@ impl Component for Router {
         let onmouseleave = ctx.link().callback(|_| Msg::OnMouseLeave);
         let onmousedown = ctx.link().callback(Msg::OnMouseDown);
         let onmouseup = ctx.link().callback(|_| Msg::OnMouseUp);
+
+        let blur_class = if self.glow {
+            "fill-current text-blue"
+        } else {
+            "opacity-0"
+        };
+        let blur_r = format!("{}", ROUTER_RADIUS * 1.3);
+        let blur = html! {
+            <circle
+                class={classes!(blur_class, "stroke-0", "blur-lg", "pointer-events-none", "transition", "duration-150", "ease-in-out")}
+                style="cursor"
+                cx={self.p.x()} cy={self.p.y()} r={blur_r} />
+        };
 
         if self
             .net
@@ -106,6 +123,7 @@ impl Component for Router {
             );
             html! {
                 <>
+                    { blur }
                     <path d={path}
                         class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
                         style="cursor"
@@ -116,6 +134,7 @@ impl Component for Router {
         } else {
             html! {
                 <>
+                    { blur }
                     <circle
                         class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
                         style="cursor"
@@ -131,9 +150,16 @@ impl Component for Router {
             Msg::StateDim(s) => self.dim = s,
             Msg::StateNet(n) => self.net = n,
             Msg::State(s) => {
+                let router_id = ctx.props().router_id;
                 let new_selected = s.selected() == Selected::Router(ctx.props().router_id);
-                return if new_selected != self.selected {
+                let new_glow = match s.hover() {
+                    Hover::Router(r) | Hover::Policy(r, _) if r == router_id => true,
+                    Hover::AtomicCommand(routers) if routers.contains(&router_id) => true,
+                    _ => false,
+                };
+                return if (new_selected, new_glow) != (self.selected, self.glow) {
                     self.selected = new_selected;
+                    self.glow = new_glow;
                     true
                 } else {
                     false

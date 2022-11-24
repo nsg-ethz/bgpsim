@@ -140,6 +140,7 @@ pub enum Hover {
     RouteProp(RouterId, RouterId, BgpRoute),
     Message(RouterId, RouterId, usize, bool),
     Policy(RouterId, usize),
+    AtomicCommand(Vec<RouterId>),
     Help(Html),
 }
 

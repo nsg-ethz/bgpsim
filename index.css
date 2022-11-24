@@ -21,9 +21,9 @@
     --color-orange-dark: var(--color-orange-800);
     --color-orange-darker: var(--color-orange-900);
 
-    --color-yellow: var(--color-yellow-600);
-    --color-yellow-dark: var(--color-yellow-800);
-    --color-yellow-darker: var(--color-yellow-900);
+    --color-yellow: var(--color-yellow-500);
+    --color-yellow-dark: var(--color-yellow-700);
+    --color-yellow-darker: var(--color-yellow-800);
 
     --color-blue: var(--color-blue-600);
     --color-blue-dark: var(--color-blue-800);
