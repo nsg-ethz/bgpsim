@@ -123,7 +123,7 @@ pub struct ConvergenceRecording {
 }
 
 impl ConvergenceRecording {
-    /// Create a Recofrding from a trace and an initial forwarding state
+    /// Create a Recording from a trace and an initial forwarding state
     pub fn new(
         initial_fw_state: ForwardingState,
         trace: HashMap<Prefix, ConvergenceTrace>,
