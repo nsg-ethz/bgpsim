@@ -583,7 +583,16 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for ConvergenceTrace {
     fn fmt(&'a self, net: &'n Network<Q>) -> Self::Formatter {
         self.iter()
             .enumerate()
-            .map(|(i, deltas)| format!("step {}: {}", i, deltas.fmt(net)))
+            .map(|(i, (deltas, time))| {
+                format!(
+                    "step {}{}: {}",
+                    i,
+                    time.as_ref()
+                        .map(|t| format!("at time {}", t))
+                        .unwrap_or_default(),
+                    deltas.fmt(net)
+                )
+            })
             .join("\n")
     }
 }

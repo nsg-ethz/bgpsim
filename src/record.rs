@@ -52,6 +52,7 @@ pub trait RecordNetwork<Q> {
         &mut self,
         initial_fw_state: ForwardingState,
         initial_trace: HashMap<Prefix, ConvergenceTrace>,
+        initial_time: Option<f64>,
     ) -> Result<ConvergenceRecording, NetworkError>;
 }
 
@@ -71,6 +72,8 @@ where
         // get the forwarding state before
         let fw_state_before = self.get_forwarding_state();
 
+        let initial_time = self.queue().get_time();
+
         // execute the function
         f(self)?;
 
@@ -80,11 +83,11 @@ where
 
         let trace = diff
             .into_iter()
-            .map(|(prefix, delta)| (prefix, vec![delta]))
+            .map(|(prefix, delta)| (prefix, vec![(delta, initial_time.map(|_| 0.0).into())]))
             .collect::<HashMap<Prefix, ConvergenceTrace>>();
 
         // now, generate the recording using the intrinsic function
-        let record = self.record_prepared(fw_state_before, trace)?;
+        let record = self.record_prepared(fw_state_before, trace, initial_time)?;
 
         // reset the queue skip property
         self.skip_queue = original_skip_value;
@@ -96,15 +99,17 @@ where
         &mut self,
         initial_fw_state: ForwardingState,
         mut trace: HashMap<Prefix, ConvergenceTrace>,
+        initial_time: Option<f64>,
     ) -> Result<ConvergenceRecording, NetworkError> {
+        let t = initial_time.unwrap_or_default();
         while let Some((step, event)) = self.simulate_step()? {
             if step.changed() {
                 if let Some(prefix) = step.prefix {
-                    trace.entry(prefix).or_default().push(vec![(
-                        event.router(),
-                        step.old,
-                        step.new,
-                    )]);
+                    let time = self.queue().get_time().map(|x| x - t);
+                    trace
+                        .entry(prefix)
+                        .or_default()
+                        .push((vec![(event.router(), step.old, step.new)], time.into()));
                 }
             }
         }
@@ -155,7 +160,10 @@ impl ConvergenceRecording {
     /// final state for the specifiied prefix, then this function will return `None`. Otherwise, it
     /// will return a slice containing all deltas that were applied during this function call, and
     /// a mutable reference to the new `ForwardingState`.
-    pub fn step(&mut self, prefix: Prefix) -> Option<(&[FwDelta], &mut ForwardingState)> {
+    pub fn step(
+        &mut self,
+        prefix: Prefix,
+    ) -> Option<(&[FwDelta], Option<f64>, &mut ForwardingState)> {
         let pointer = self.pointers.get_mut(&prefix)?;
         let trace = self.trace.get(&prefix)?;
         if *pointer >= trace.len() {
@@ -163,7 +171,7 @@ impl ConvergenceRecording {
             return None;
         }
         // apply the delta at the current position
-        let deltas = trace.get(*pointer)?;
+        let (deltas, time) = trace.get(*pointer)?;
         for (router, _, new_nh) in deltas {
             self.state.update(*router, prefix, new_nh.clone());
         }
@@ -172,14 +180,17 @@ impl ConvergenceRecording {
         *pointer += 1;
 
         // return the applied deltas
-        Some((deltas, &mut self.state))
+        Some((deltas, time.into_inner(), &mut self.state))
     }
 
     /// Undo a single step for an individual prefix. If the forwarding state is already in the
     /// initial state for the specifiied prefix, then this function will return `None`. Otherwise, it
     /// will return a slice containing all deltas that applied *in reverse direction* during this
     /// function call, and a mutable reference to the new `ForwardingState`.
-    pub fn back(&mut self, prefix: Prefix) -> Option<(&[FwDelta], &mut ForwardingState)> {
+    pub fn back(
+        &mut self,
+        prefix: Prefix,
+    ) -> Option<(&[FwDelta], Option<f64>, &mut ForwardingState)> {
         let pointer = self.pointers.get_mut(&prefix)?;
         let trace = self.trace.get(&prefix)?;
         if *pointer == 0 {
@@ -189,13 +200,13 @@ impl ConvergenceRecording {
         // decrement the pointer
         *pointer -= 1;
         // apply the delta at the current position
-        let deltas = trace.get(*pointer)?;
+        let (deltas, time) = trace.get(*pointer)?;
         for (router, old_nh, _) in deltas {
             self.state.update(*router, prefix, old_nh.clone());
         }
 
         // return the applied deltas
-        Some((deltas, &mut self.state))
+        Some((deltas, time.into_inner(), &mut self.state))
     }
 
     /// Get the position of the recording for the given prefix.
@@ -218,7 +229,7 @@ impl ConvergenceRecording {
     }
 
     /// Reverts to and releases the initial `ForwardingState` held by `self`, while consuming
-    /// `self`.
+    /// `self`. This function will also drop any timing information.
     pub fn into_initial_fw_state(self) -> ForwardingState {
         let mut state = self.state;
         for (prefix, mut ptr) in self.pointers.into_iter() {
@@ -230,7 +241,7 @@ impl ConvergenceRecording {
 
             while ptr > 0 {
                 ptr -= 1;
-                let deltas = trace.get(ptr).unwrap();
+                let (deltas, _) = trace.get(ptr).unwrap();
                 for (router, old_nh, _) in deltas {
                     state.update(*router, prefix, old_nh.clone());
                 }
@@ -243,7 +254,72 @@ impl ConvergenceRecording {
 /// This structure captures the essence of a trace, that is, the entire evolution of the forwarding
 /// state during the convergence process. It does not capture the initial or the final state, but it
 /// should be efficient to compare entries.
-pub type ConvergenceTrace = Vec<Vec<FwDelta>>;
+///
+/// This structure also stores the time when the forwarding delta occurs. The time is
+/// zero-normalized, which means that the time zero always represents the time when the convergence
+/// trace recording has started. The time is warpped in an `AlwaysEq` such that comparisons will
+/// ignore the time.
+pub type ConvergenceTrace = Vec<(Vec<FwDelta>, AlwaysEq<Option<f64>>)>;
+
+/// Structure that wraps the inner type and always returns `true` or `Ordering::Equal` when compared.
+#[derive(Debug, Clone, Copy)]
+#[repr(transparent)]
+pub struct AlwaysEq<T>(T);
+
+impl<T> std::hash::Hash for AlwaysEq<T> {
+    fn hash<H: std::hash::Hasher>(&self, _state: &mut H) {}
+}
+
+impl<T> Ord for AlwaysEq<T> {
+    fn cmp(&self, _other: &Self) -> std::cmp::Ordering {
+        std::cmp::Ordering::Equal
+    }
+}
+
+impl<T> PartialOrd for AlwaysEq<T> {
+    fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
+        Some(std::cmp::Ordering::Equal)
+    }
+}
+
+impl<T> Eq for AlwaysEq<T> {}
+
+impl<T> PartialEq for AlwaysEq<T> {
+    fn eq(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+impl<T> From<T> for AlwaysEq<T> {
+    fn from(value: T) -> Self {
+        AlwaysEq(value)
+    }
+}
+
+impl<T> From<AlwaysEq<Option<T>>> for Option<T> {
+    fn from(value: AlwaysEq<Option<T>>) -> Self {
+        value.0
+    }
+}
+
+impl<T> AsRef<T> for AlwaysEq<T> {
+    fn as_ref(&self) -> &T {
+        &self.0
+    }
+}
+
+impl<T: std::fmt::Display> std::fmt::Display for AlwaysEq<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter) -> std::fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
+impl<T> AlwaysEq<T> {
+    /// Consume `self` and return the inner `T`.
+    pub fn into_inner(self) -> T {
+        self.0
+    }
+}
 
 /// Forwarding state delta.
 pub type FwDelta = (RouterId, Vec<RouterId>, Vec<RouterId>);
