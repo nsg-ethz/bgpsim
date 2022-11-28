@@ -964,6 +964,7 @@ pub struct RouterBgpNeighbor {
     route_map_out: Option<String>,
     no_route_map_out: bool,
     send_community: Option<bool>,
+    soft_reconfiguration: Option<bool>,
 }
 
 impl RouterBgpNeighbor {
@@ -983,6 +984,7 @@ impl RouterBgpNeighbor {
             route_map_out: Default::default(),
             no_route_map_out: Default::default(),
             send_community: Default::default(),
+            soft_reconfiguration: Default::default(),
         }
     }
 
@@ -1526,6 +1528,80 @@ impl RouterBgpNeighbor {
         self
     }
 
+    /// Enable soft-reconfiguraiton for inbound routes.
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use std::net::Ipv4Addr;
+    /// # use netsim::types::AsId;
+    /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
+    /// assert_eq!(
+    ///     RouterBgpNeighbor::new(neighbor_addr)
+    ///         .soft_reconfiguration_inbound()
+    ///         .build(Target::CiscoNexus7000),
+    /// #   "  ".to_owned() +
+    ///     "\
+    ///   neighbor 20.0.0.1
+    ///     address-family ipv4 unicast
+    ///       soft-reconfiguration inbound
+    ///     exit
+    ///   exit
+    /// "
+    /// );
+    /// assert_eq!(
+    ///     RouterBgpNeighbor::new(neighbor_addr)
+    ///         .soft_reconfiguration_inbound()
+    ///         .build(Target::Frr),
+    /// #   "  ".to_owned() +
+    ///     "\
+    ///   address-family ipv4 unicast
+    ///     neighbor 20.0.0.1 soft-reconfiguration inbound
+    ///   exit
+    /// "
+    /// );
+    /// ```
+    pub fn soft_reconfiguration_inbound(&mut self) -> &mut Self {
+        self.soft_reconfiguration = Some(true);
+        self
+    }
+
+    /// Do not send communities to BGP neighbors
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use std::net::Ipv4Addr;
+    /// # use netsim::types::AsId;
+    /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
+    /// assert_eq!(
+    ///     RouterBgpNeighbor::new(neighbor_addr)
+    ///         .no_soft_reconfiguration_inbound()
+    ///         .build(Target::CiscoNexus7000),
+    /// #   "  ".to_owned() +
+    ///     "\
+    ///   neighbor 20.0.0.1
+    ///     address-family ipv4 unicast
+    ///       no soft-reconfiguration inbound
+    ///     exit
+    ///   exit
+    /// "
+    /// );
+    /// assert_eq!(
+    ///     RouterBgpNeighbor::new(neighbor_addr)
+    ///         .no_soft_reconfiguration_inbound()
+    ///         .build(Target::Frr),
+    /// #   "  ".to_owned() +
+    ///     "\
+    ///   address-family ipv4 unicast
+    ///     no neighbor 20.0.0.1 soft-reconfiguration inbound
+    ///   exit
+    /// "
+    /// );
+    /// ```
+    pub fn no_soft_reconfiguration_inbound(&mut self) -> &mut Self {
+        self.soft_reconfiguration = Some(false);
+        self
+    }
+
     /// Generate the configuration lines
     pub fn build(&self, target: Target) -> String {
         let (mut cfg, pre, tab, finish) = match target {
@@ -1608,6 +1684,16 @@ impl RouterBgpNeighbor {
         match self.send_community.as_ref() {
             Some(true) => af.push_str(&format!("\n    {}{}send-community", tab, pre)),
             Some(false) => af.push_str(&format!("\n    {}no {}send-community", tab, pre)),
+            _ => {}
+        }
+
+        // soft-reconfiguration inbound
+        match self.soft_reconfiguration.as_ref() {
+            Some(true) => af.push_str(&format!("\n    {}{}soft-reconfiguration inbound", tab, pre)),
+            Some(false) => af.push_str(&format!(
+                "\n    {}no {}soft-reconfiguration inbound",
+                tab, pre
+            )),
             _ => {}
         }
 

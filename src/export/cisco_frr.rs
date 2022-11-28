@@ -372,6 +372,7 @@ impl CiscoFrrCfgGen {
         bgp_neighbor.route_map_in(format!("{}-in", rm_name));
         bgp_neighbor.route_map_out(format!("{}-out", rm_name));
         bgp_neighbor.next_hop_self();
+        bgp_neighbor.soft_reconfiguration_inbound();
         match ty {
             BgpSessionType::IBgpPeer => {}
             BgpSessionType::IBgpClient => {
