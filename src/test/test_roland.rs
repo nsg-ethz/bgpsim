@@ -27,7 +27,7 @@ use crate::{
         extend_to_k_external_routers, k_highest_degree_nodes, uniform_link_weight,
         unique_preferences, NetworkBuilder,
     },
-    event::{ModelParams, SimpleTimingModel},
+    event::{EventQueue, ModelParams, SimpleTimingModel},
     interactive::InteractiveNetwork,
     network::Network,
     policies::{FwPolicy, Policy},
@@ -86,7 +86,7 @@ fn roland_pacificwave() {
             let _ = p.check(state);
         });
 
-        while let Some((_, state)) = recording.step(prefix) {
+        while let Some((_, _, state)) = recording.step(prefix) {
             policies.iter().for_each(|p| {
                 let _ = p.check(state);
             });
@@ -145,12 +145,14 @@ fn roland_pacificwave_manual() {
     let trace: ConvergenceTrace = diff
         .into_iter()
         .filter(|(p, _)| *p == prefix)
-        .map(|(_, delta)| vec![delta])
+        .map(|(_, delta)| vec![(delta, Some(0.0).into())])
         .next()
         .unwrap();
 
     let mut fw_state = net.get_forwarding_state();
     let fw_state_ref = net.get_forwarding_state();
+
+    let t0 = net.queue().get_time().unwrap_or_default();
 
     // record the event 1_000 times
     for i in 0..1_000 {
@@ -163,7 +165,10 @@ fn roland_pacificwave_manual() {
         // simulate the event
         while let Some((step, event)) = t.simulate_step().unwrap() {
             if step.changed() {
-                trace.push(vec![(event.router(), step.old, step.new)]);
+                trace.push((
+                    vec![(event.router(), step.old, step.new)],
+                    net.queue().get_time().map(|x| x - t0).into(),
+                ));
             }
         }
 
@@ -175,7 +180,7 @@ fn roland_pacificwave_manual() {
             let _ = p.check(state);
         });
 
-        while let Some((_, state)) = recording.step(prefix) {
+        while let Some((_, _, state)) = recording.step(prefix) {
             policies.iter().for_each(|p| {
                 let _ = p.check(state);
             });
@@ -234,7 +239,7 @@ fn roland_arpanet() {
             let _ = p.check(state);
         });
 
-        while let Some((_, state)) = recording.step(prefix) {
+        while let Some((_, _, state)) = recording.step(prefix) {
             policies.iter().for_each(|p| {
                 let _ = p.check(state);
             });
@@ -291,11 +296,13 @@ fn roland_arpanet_manual() {
     let fw_state_after = t.get_forwarding_state();
     let diff = fw_state_before.diff(&fw_state_after);
 
+    let t0 = t.queue().get_time().unwrap_or_default();
+
     // construct the trace
     let trace: ConvergenceTrace = diff
         .into_iter()
         .filter(|(p, _)| *p == prefix)
-        .map(|(_, delta)| vec![delta])
+        .map(|(_, delta)| vec![(delta, Some(0.0).into())])
         .next()
         .unwrap();
 
@@ -313,7 +320,10 @@ fn roland_arpanet_manual() {
         // simulate the event
         while let Some((step, event)) = t.simulate_step().unwrap() {
             if step.changed() {
-                trace.push(vec![(event.router(), step.old, step.new)]);
+                trace.push((
+                    vec![(event.router(), step.old, step.new)],
+                    t.queue().get_time().map(|x| x - t0).into(),
+                ));
             }
         }
 
@@ -376,6 +386,8 @@ fn roland_arpanet_complete() -> Result<(), Box<dyn std::error::Error>> {
     let mut t = net.clone();
     t.manual_simulation();
 
+    let t0 = t.queue().get_time().unwrap_or_default();
+
     // get the forwarding state before
     let fw_state_before = t.get_forwarding_state();
 
@@ -389,14 +401,17 @@ fn roland_arpanet_complete() -> Result<(), Box<dyn std::error::Error>> {
     let trace: ConvergenceTrace = diff
         .into_iter()
         .filter(|(p, _)| *p == prefix)
-        .map(|(_, delta)| vec![delta])
+        .map(|(_, delta)| vec![(delta, Some(0.0).into())])
         .next()
         .unwrap();
 
     let sample_func = |(mut t, mut trace): (Network<SimpleTimingModel>, ConvergenceTrace)| {
         while let Some((step, event)) = t.simulate_step().unwrap() {
             if step.changed() {
-                trace.push(vec![(event.router(), step.old, step.new)]);
+                trace.push((
+                    vec![(event.router(), step.old, step.new)],
+                    t.queue().get_time().map(|x| x - t0).into(),
+                ));
             }
         }
 
