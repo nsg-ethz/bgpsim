@@ -60,8 +60,8 @@ pub struct RouteMap {
     pub conds: Vec<RouteMapMatch>,
     /// Set actions of the RouteMap
     pub set: Vec<RouteMapSet>,
-    /// wether to continue or to break after this route-map.
-    pub cont: RouteMapFlow,
+    /// Whether to continue or to break after this route-map.
+    pub flow: RouteMapFlow,
 }
 
 impl RouteMap {
@@ -71,14 +71,14 @@ impl RouteMap {
         state: RouteMapState,
         conds: Vec<RouteMapMatch>,
         set: Vec<RouteMapSet>,
-        cont: RouteMapFlow,
+        flow: RouteMapFlow,
     ) -> Self {
         Self {
             order,
             state,
             conds,
             set,
-            cont,
+            flow,
         }
     }
 
@@ -94,7 +94,7 @@ impl RouteMap {
                 } else {
                     // route is allowed. apply the set condition
                     self.set.iter().for_each(|s| s.apply(&mut route));
-                    (self.cont, Some(route))
+                    (self.flow, Some(route))
                 }
             }
             false => (RouteMapFlow::Continue, Some(route)), // route does not match

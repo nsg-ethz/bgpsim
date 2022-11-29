@@ -550,7 +550,7 @@ impl CiscoFrrCfgGen {
         }
 
         if rm.state().is_allow() {
-            if let Some(next_ord) = match rm.cont {
+            if let Some(next_ord) = match rm.flow {
                 RouteMapFlow::Exit => None,
                 RouteMapFlow::Continue => next_ord,
                 RouteMapFlow::ContinueAt(x) => Some(x),
