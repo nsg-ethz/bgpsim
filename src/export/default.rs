@@ -64,7 +64,7 @@ pub struct DefaultAddressor<'a, Q> {
     interfaces: HashMap<RouterId, HashMap<RouterId, (usize, Ipv4Addr)>>,
     /// Number of networks to associate with each prefix. If this is set to more than 1, then each
     /// prefix represents an equivalence class of multiple prefixes.
-    peq_size: usize,
+    pec_size: usize,
 }
 
 impl<'a, Q> DefaultAddressor<'a, Q> {
@@ -92,7 +92,7 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
         link_prefix_len: u8,
         external_prefix_len: u8,
         prefix_len: u8,
-        peq_size: usize,
+        pec_size: usize,
     ) -> Result<Self, ExportError> {
         let mut internal_halves = internal_ip_range.subnets(internal_ip_range.prefix_len() + 1)?;
         let internal_router_addr_range = ip_err(internal_halves.next())?;
@@ -116,7 +116,7 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
             prefix_addrs: HashMap::new(),
             link_addrs: HashMap::new(),
             interfaces: HashMap::new(),
-            peq_size,
+            pec_size,
         })
     }
 }
@@ -194,8 +194,8 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
         Ok(match self.prefix_addrs.entry(prefix) {
             Entry::Occupied(e) => e.get().clone(),
             Entry::Vacant(e) => {
-                let addrs: Vec<_> = (&mut self.prefix_addr_iter).take(self.peq_size).collect();
-                if addrs.len() < self.peq_size {
+                let addrs: Vec<_> = (&mut self.prefix_addr_iter).take(self.pec_size).collect();
+                if addrs.len() < self.pec_size {
                     return Err(ExportError::NotEnoughAddresses);
                 } else {
                     e.insert(addrs).clone()
@@ -527,7 +527,7 @@ mod test {
     }
 
     #[test]
-    fn ip_addressor_peq() {
+    fn ip_addressor_pec() {
         let mut net: Network<BasicEventQueue> =
             NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
         net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())

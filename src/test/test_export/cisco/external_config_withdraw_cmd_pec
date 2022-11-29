@@ -1,0 +1,12 @@
+no interface Loopback4
+no interface Loopback5
+no interface Loopback6
+router bgp 4
+  address-family ipv4 unicast
+    no network 128.3.0.0/16
+    no network 128.4.0.0/16
+    no network 128.5.0.0/16
+  exit
+exit
+no ip prefix-list prefix-list-1
+no route-map neighbor-out permit 1

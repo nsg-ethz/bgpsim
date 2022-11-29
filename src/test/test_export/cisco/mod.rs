@@ -50,6 +50,14 @@ fn generate_internal_config_route_maps() {
 }
 
 #[test]
+fn generate_internal_config_route_maps_pec() {
+    assert_str_eq!(
+        super::generate_internal_config_route_maps(Target, 3),
+        include_str!("internal_config_route_maps_pec")
+    );
+}
+
+#[test]
 fn generate_internal_config_route_maps_edit() {
     let net = super::net_for_route_maps();
     let mut ip = super::addressor(&net, 1);
@@ -219,8 +227,23 @@ fn generate_external_config() {
 }
 
 #[test]
+fn generate_external_config_pec() {
+    assert_str_eq!(
+        super::generate_external_config(Target, 3),
+        include_str!("external_config_pec")
+    );
+}
+
+#[test]
 fn generate_external_config_withdraw() {
     let (cfg, cmd) = super::generate_external_config_withdraw(Target, 1);
     assert_str_eq!(cfg, include_str!("external_config_withdraw"));
     assert_str_eq!(cmd, include_str!("external_config_withdraw_cmd"))
+}
+
+#[test]
+fn generate_external_config_withdraw_pec() {
+    let (cfg, cmd) = super::generate_external_config_withdraw(Target, 3);
+    assert_str_eq!(cfg, include_str!("external_config_withdraw_pec"));
+    assert_str_eq!(cmd, include_str!("external_config_withdraw_cmd_pec"))
 }
