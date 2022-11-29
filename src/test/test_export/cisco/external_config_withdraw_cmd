@@ -5,4 +5,4 @@ router bgp 4
   exit
 exit
 no ip prefix-list prefix-list-1
-no route-map neighbor-out permit 1
+no route-map neighbor-out permit 2

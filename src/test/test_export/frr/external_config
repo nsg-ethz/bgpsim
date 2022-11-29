@@ -44,7 +44,7 @@ router bgp 4
   exit-address-family
 exit
 ip prefix-list prefix-list-0 seq 1 permit 128.0.0.0/16
-route-map neighbor-out permit 0
+route-map neighbor-out permit 1
   match ip address prefix-list prefix-list-0
   set metric 0
   set as-path prepend 4 4 2 1

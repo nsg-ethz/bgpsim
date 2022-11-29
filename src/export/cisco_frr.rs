@@ -1006,7 +1006,7 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
         config.push_str(&bgp_config.build(self.target));
 
         // write the route-map
-        let mut route_map = RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.0 as u16, true);
+        let mut route_map = RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.0 as u16 + 1, true);
         route_map.match_prefix_list(prefix_list);
         route_map.prepend_as_path(route.as_path.iter().skip(1));
         route_map.set_med(route.med.unwrap_or(0));
@@ -1057,7 +1057,7 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
 
         // remote the route-map
         config.push_str(
-            &RouteMapItem::new(EXTERNAL_RM_OUT, prefix.0 as u16, true)
+            &RouteMapItem::new(EXTERNAL_RM_OUT, prefix.0 as u16 + 1, true)
                 .match_prefix_list(PrefixList::new(format!("prefix-list-{}", prefix.0)))
                 .no(self.target),
         );
