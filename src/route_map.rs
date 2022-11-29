@@ -27,7 +27,7 @@ use crate::{
 use ordered_float::NotNan;
 #[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::{collections::HashSet, fmt};
+use std::{cmp::Ordering, collections::HashSet, fmt};
 
 /// # Main RouteMap structure
 /// A route map can match on a BGP route, to change some value of the route, or to bock it. Use the
@@ -44,6 +44,7 @@ use std::{collections::HashSet, fmt};
 ///     .match_prefix(prefix)
 ///     .set_community(1)
 ///     .reset_local_pref()
+///     .continue_next()
 ///     .build();
 /// ```
 #[derive(Debug, Clone, PartialEq)]
@@ -59,6 +60,8 @@ pub struct RouteMap {
     pub conds: Vec<RouteMapMatch>,
     /// Set actions of the RouteMap
     pub set: Vec<RouteMapSet>,
+    /// wether to continue or to break after this route-map.
+    pub cont: RouteMapFlow,
 }
 
 impl RouteMap {
@@ -68,31 +71,33 @@ impl RouteMap {
         state: RouteMapState,
         conds: Vec<RouteMapMatch>,
         set: Vec<RouteMapSet>,
+        cont: RouteMapFlow,
     ) -> Self {
         Self {
             order,
             state,
             conds,
             set,
+            cont,
         }
     }
 
     /// Apply the route map on a route (`BgpRibEntry`). The funciton returns either None, if the
     /// route matched and the state of the `RouteMap` is set to `Deny`, or `Some(BgpRibEntry)`, with
     /// the values modified as described, if the route matches.
-    pub fn apply(&self, mut route: BgpRibEntry) -> (bool, Option<BgpRibEntry>) {
+    pub fn apply(&self, mut route: BgpRibEntry) -> (RouteMapFlow, Option<BgpRibEntry>) {
         match self.conds.iter().all(|c| c.matches(&route)) {
             true => {
                 if self.state.is_deny() {
                     // route is denied
-                    (true, None)
+                    (RouteMapFlow::Exit, None)
                 } else {
                     // route is allowed. apply the set condition
                     self.set.iter().for_each(|s| s.apply(&mut route));
-                    (true, Some(route))
+                    (self.cont, Some(route))
                 }
             }
-            false => (false, Some(route)), // route does not match
+            false => (RouteMapFlow::Continue, Some(route)), // route does not match
         }
     }
 
@@ -122,11 +127,50 @@ impl RouteMap {
     }
 }
 
+/// Trait that exposes a function to apply a sorted-list of route-maps on a route to transform it.
+pub trait RouteMapList {
+    /// Apply the route to the sequence of route-maps. This sequence **must be sorted** by the
+    /// route-map order.
+    fn apply(self, route: BgpRibEntry) -> Option<BgpRibEntry>;
+}
+
+impl<'a, I> RouteMapList for I
+where
+    I: IntoIterator<Item = &'a RouteMap>,
+{
+    fn apply(self, mut entry: BgpRibEntry) -> Option<BgpRibEntry> {
+        let mut wait_for = None;
+        for map in self {
+            if let Some(x) = wait_for {
+                match map.order.cmp(&x) {
+                    Ordering::Less => continue,
+                    Ordering::Equal => {}
+                    Ordering::Greater => return Some(entry),
+                }
+            }
+            match map.apply(entry) {
+                (cont, Some(e)) => {
+                    entry = e;
+                    match cont {
+                        RouteMapFlow::Exit => return Some(entry),
+                        RouteMapFlow::Continue => wait_for = None,
+                        RouteMapFlow::ContinueAt(x) => wait_for = Some(x),
+                    }
+                }
+                (_, None) => return None,
+            }
+        }
+        Some(entry)
+    }
+}
+
 /// # Route Map Builder
 ///
-/// Convenience type to build a route map. You are required to at least call `order` and `state`
-/// once on the builder, before you can call `build`. If you don't call `add_match` (or any function
-/// adding a `match` statement) on the builder, it will match on any route.
+/// Convenience type to build a route map. You are required to at least call [`Self::order`] and
+/// [`Self::state`] once on the builder, before you can call [`Self::build`]. If you don't call
+/// [`Self::cond`] (or any function adding a `match` statement) on the builder, it will match on
+/// any route.
+///
 /// ```
 /// # use netsim::route_map::*;
 /// # use netsim::types::{RouterId, Prefix};
@@ -140,6 +184,9 @@ impl RouteMap {
 ///     .reset_local_pref()
 ///     .build();
 /// ```
+///
+/// Use the functions [`Self::exit`], [`Self::continue_next`], or [`Self::continue_at`] to describe
+/// the contorl flow of the route map.
 #[derive(Debug, Default)]
 pub struct RouteMapBuilder {
     order: Option<i16>,
@@ -147,6 +194,7 @@ pub struct RouteMapBuilder {
     conds: Vec<RouteMapMatch>,
     set: Vec<RouteMapSet>,
     prefix_conds: HashSet<Prefix>,
+    flow: RouteMapFlow,
 }
 
 impl RouteMapBuilder {
@@ -305,12 +353,55 @@ impl RouteMapBuilder {
         self
     }
 
+    /// On a match of this route map, do not apply any subsequent route-maps but exit. This is the
+    /// default behavior for `deny` route maps (it will have no effect on `deny` route maps). For
+    /// `allow` route maps, it will have the following effect:
+    ///
+    /// - If the route-map matches the route, the route is transformed according to the set actions
+    ///   of the route map. Then, this route is returned, and no later route maps (with a higher
+    ///   order) are applied.
+    /// - If the route-map does not matchy the route, then continue with the next route map (having
+    ///   a higher order).
+    pub fn exit(&mut self) -> &mut Self {
+        self.flow = RouteMapFlow::Exit;
+        self
+    }
+
+    /// On a match of this route map, continue with the next route map. This will have no effect on
+    /// `deny` route maps. For `allow` route maps, it will have the following effect:
+    ///
+    /// - If the route-map matches the route, the route is transformed according to the set actions
+    ///   of the route map. Then, we continue to apply the next route map in the sequence (the one
+    ///   with a higher order).
+    /// - If the route-map does not matchy the route, then continue with the next route map (having
+    ///   a higher order).
+    pub fn continue_next(&mut self) -> &mut Self {
+        self.flow = RouteMapFlow::Continue;
+        self
+    }
+
+    /// On a match of this route map, continue with the route map that has a specific order. This
+    /// will have no effect on `deny` route maps. For `allow` route maps, it will have the following
+    /// effect:
+    ///
+    /// - If the route-map matches the route, the route is transformed according to the set actions
+    ///   of the route map. Then, we continue to apply the route map with the given order. This
+    ///   order cannot be lower than the configured order of this route-map. If there does not exist
+    ///   any route map that has the given order, then no subsequent route map is applied.
+    /// - If the route-map does not matchy the route, then continue with the next route map (having
+    ///   a higher order).
+    pub fn continue_at(&mut self, order: i16) -> &mut Self {
+        self.flow = RouteMapFlow::ContinueAt(order);
+        self
+    }
+
     /// Build the route-map.
     ///
     /// # Panics
     /// The function panics in the following cases:
     /// - The order is not set (`order` was not called),
     /// - The state is not set (neither `state`, `allow` nor `deny` were called),
+    /// - If the order is larger than the order of the next route map (set using `continue_at`).
     pub fn build(&self) -> RouteMap {
         let order = match self.order {
             Some(o) => o,
@@ -320,6 +411,12 @@ impl RouteMapBuilder {
             Some(s) => s,
             None => panic!("State was not set for a Route-Map!"),
         };
+        if let RouteMapFlow::ContinueAt(continue_at) = self.flow {
+            assert!(
+                continue_at > order,
+                "The order of the next route map must be larger than the order!"
+            );
+        }
         let mut conds = self.conds.clone();
 
         // add the prefix list if necessary
@@ -332,7 +429,7 @@ impl RouteMapBuilder {
         } else {
             self.set.clone()
         };
-        RouteMap::new(order, state, conds, set)
+        RouteMap::new(order, state, conds, set, self.flow)
     }
 }
 
@@ -515,6 +612,37 @@ impl fmt::Display for RouteMapDirection {
         match self {
             RouteMapDirection::Incoming => write!(f, "in"),
             RouteMapDirection::Outgoing => write!(f, "out"),
+        }
+    }
+}
+
+/// Description of the control-flow of route maps. This changes the way a sequence of route maps is
+/// applied to a route. It changes what happens when a `allow` route map matches the given
+/// route.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+pub enum RouteMapFlow {
+    /// If a route matches this route-map, apply the set actions stop.
+    Exit,
+    /// If a route matches this route-map, apply the set actions and continue to the next entry in the list.
+    Continue,
+    /// If a route matches this route-map, apply the set actions and continue to the route-map with
+    /// the given index. If the index does not exist, then stop applying route-maps.
+    ContinueAt(i16),
+}
+
+impl Default for RouteMapFlow {
+    fn default() -> Self {
+        Self::Continue
+    }
+}
+
+impl fmt::Display for RouteMapFlow {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        match self {
+            RouteMapFlow::Exit => write!(f, "break"),
+            RouteMapFlow::Continue => write!(f, "continue"),
+            RouteMapFlow::ContinueAt(c) => write!(f, "continue at {}", c),
         }
     }
 }

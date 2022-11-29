@@ -194,7 +194,7 @@ no ip prefix-list neighbor-R0_ext_4-in-32788-pl
 no ip community-list standard neighbor-R0_ext_4-in-32788-cl
 no route-map neighbor-R0_ext_4-in permit 32788
 route-map neighbor-R0_ext_4-in permit 32781
-  continue 65535
+  continue 32798
 exit
 "
     );

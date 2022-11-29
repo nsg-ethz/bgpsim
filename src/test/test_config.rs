@@ -179,6 +179,7 @@ fn config_unique() {
             RouteMapState::Allow,
             vec![],
             vec![RouteMapSet::LocalPref(Some(200))],
+            RouteMapFlow::Continue,
         ),
     })
     .unwrap();
@@ -191,6 +192,7 @@ fn config_unique() {
             RouteMapState::Allow,
             vec![],
             vec![RouteMapSet::LocalPref(Some(200))],
+            RouteMapFlow::Continue,
         ),
     })
     .unwrap();
@@ -203,6 +205,7 @@ fn config_unique() {
             RouteMapState::Allow,
             vec![],
             vec![RouteMapSet::LocalPref(Some(200))],
+            RouteMapFlow::Continue,
         ),
     })
     .unwrap();
@@ -215,6 +218,7 @@ fn config_unique() {
             RouteMapState::Allow,
             vec![],
             vec![RouteMapSet::LocalPref(Some(100))],
+            RouteMapFlow::Continue,
         ),
     })
     .unwrap_err();
@@ -410,6 +414,7 @@ fn config_add_remove() {
                 RouteMapState::Allow,
                 vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
+                RouteMapFlow::Continue,
             ),
         })
         .unwrap();
@@ -422,6 +427,7 @@ fn config_add_remove() {
                 RouteMapState::Allow,
                 vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
+                RouteMapFlow::Continue,
             ),
         }))
         .unwrap();
@@ -436,6 +442,7 @@ fn config_add_remove() {
                 RouteMapState::Allow,
                 vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
+                RouteMapFlow::Continue,
             ),
         })
         .unwrap();
@@ -448,6 +455,7 @@ fn config_add_remove() {
                 RouteMapState::Allow,
                 vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
+                RouteMapFlow::Continue,
             ),
         }))
         .unwrap();
@@ -462,6 +470,7 @@ fn config_add_remove() {
                 RouteMapState::Allow,
                 vec![],
                 vec![RouteMapSet::LocalPref(Some(200))],
+                RouteMapFlow::Continue,
             ),
         })
         .unwrap();
@@ -474,6 +483,7 @@ fn config_add_remove() {
                 RouteMapState::Allow,
                 vec![],
                 vec![RouteMapSet::LocalPref(Some(100))],
+                RouteMapFlow::Continue,
             ),
         }))
         .unwrap_err();

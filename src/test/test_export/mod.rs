@@ -102,6 +102,7 @@ pub(self) fn net_for_route_maps() -> Network<BasicEventQueue> {
             .match_community(10)
             .match_prefix(0.into())
             .set_weight(10)
+            .continue_at(30)
             .build(),
     )
     .unwrap();
@@ -114,8 +115,36 @@ pub(self) fn net_for_route_maps() -> Network<BasicEventQueue> {
             .allow()
             .order(20)
             .match_community(20)
-            .match_prefix(1.into())
-            .set_weight(200)
+            .set_weight(20)
+            .exit()
+            .build(),
+    )
+    .unwrap();
+
+    net.set_bgp_route_map(
+        0.into(),
+        4.into(),
+        RouteMapDirection::Incoming,
+        RouteMapBuilder::new()
+            .allow()
+            .order(30)
+            .match_community(30)
+            .set_weight(30)
+            .continue_next()
+            .build(),
+    )
+    .unwrap();
+
+    net.set_bgp_route_map(
+        0.into(),
+        4.into(),
+        RouteMapDirection::Incoming,
+        RouteMapBuilder::new()
+            .allow()
+            .order(40)
+            .match_community(40)
+            .set_weight(40)
+            .continue_next()
             .build(),
     )
     .unwrap();

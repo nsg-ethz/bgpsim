@@ -25,7 +25,9 @@ use crate::{
     config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
     network::Network,
     prelude::BgpSessionType,
-    route_map::{RouteMap, RouteMapDirection::*, RouteMapSet as Set, RouteMapState::*},
+    route_map::{
+        RouteMap, RouteMapDirection::*, RouteMapFlow::*, RouteMapSet as Set, RouteMapState::*,
+    },
     router::StaticRoute::*,
     types::{AsId, LinkWeight, NetworkError, Prefix, RouterId},
 };
@@ -695,8 +697,13 @@ fn test_route_maps() {
 
     // now, deny all routes from E1
     let mut net = original_net.clone();
-    net.set_bgp_route_map(*R1, *E1, Incoming, RouteMap::new(10, Deny, vec![], vec![]))
-        .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *E1,
+        Incoming,
+        RouteMap::new(10, Deny, vec![], vec![], Continue),
+    )
+    .unwrap();
 
     // we expect that all take R4
     test_route!(net, *R1, p, [*R1, *R3, *R2, *R4, *E4]);
@@ -706,12 +713,27 @@ fn test_route_maps() {
 
     // now, don't forward the route from E1 at R1, but keep it locally
     let mut net = original_net.clone();
-    net.set_bgp_route_map(*R1, *R2, Outgoing, RouteMap::new(20, Deny, vec![], vec![]))
-        .unwrap();
-    net.set_bgp_route_map(*R1, *R3, Outgoing, RouteMap::new(20, Deny, vec![], vec![]))
-        .unwrap();
-    net.set_bgp_route_map(*R1, *R4, Outgoing, RouteMap::new(20, Deny, vec![], vec![]))
-        .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *R2,
+        Outgoing,
+        RouteMap::new(20, Deny, vec![], vec![], Continue),
+    )
+    .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *R3,
+        Outgoing,
+        RouteMap::new(20, Deny, vec![], vec![], Continue),
+    )
+    .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *R4,
+        Outgoing,
+        RouteMap::new(20, Deny, vec![], vec![], Continue),
+    )
+    .unwrap();
 
     // we expect that all take R4
     test_route!(net, *R1, p, [*R1, *E1]);
@@ -725,7 +747,7 @@ fn test_route_maps() {
         *R1,
         *E1,
         Incoming,
-        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
 
@@ -741,21 +763,21 @@ fn test_route_maps() {
         *R1,
         *R2,
         Outgoing,
-        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
     net.set_bgp_route_map(
         *R1,
         *R3,
         Outgoing,
-        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
     net.set_bgp_route_map(
         *R1,
         *R4,
         Outgoing,
-        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
 
@@ -771,7 +793,7 @@ fn test_route_maps() {
         *R1,
         *R2,
         Outgoing,
-        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(200))]),
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(200))], Exit),
     )
     .unwrap();
 
@@ -788,21 +810,21 @@ fn test_route_maps() {
         *R1,
         *R2,
         Outgoing,
-        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
     net.set_bgp_route_map(
         *R1,
         *R3,
         Outgoing,
-        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
     net.set_bgp_route_map(
         *R1,
         *R4,
         Outgoing,
-        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
 
@@ -836,14 +858,24 @@ fn test_route_maps_undo() {
     let net_hist_3 = net.clone();
 
     // now, deny all routes from E1
-    net.set_bgp_route_map(*R1, *E1, Incoming, RouteMap::new(10, Deny, vec![], vec![]))
-        .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *E1,
+        Incoming,
+        RouteMap::new(10, Deny, vec![], vec![], Continue),
+    )
+    .unwrap();
     net.undo_action().unwrap();
     assert_eq!(net, net_hist_3);
 
     // now, don't forward the route from E1 at R1, but keep it locally
-    net.set_bgp_route_map(*R1, *E1, Outgoing, RouteMap::new(10, Deny, vec![], vec![]))
-        .unwrap();
+    net.set_bgp_route_map(
+        *R1,
+        *E1,
+        Outgoing,
+        RouteMap::new(10, Deny, vec![], vec![], Continue),
+    )
+    .unwrap();
     net.undo_action().unwrap();
     assert_eq!(net, net_hist_3);
 
@@ -852,7 +884,7 @@ fn test_route_maps_undo() {
         *R1,
         *E1,
         Incoming,
-        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
     net.undo_action().unwrap();
@@ -863,7 +895,7 @@ fn test_route_maps_undo() {
         *R1,
         *E1,
         Outgoing,
-        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
     net.undo_action().unwrap();
@@ -874,7 +906,7 @@ fn test_route_maps_undo() {
         *R1,
         *R2,
         Outgoing,
-        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(200))]),
+        RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(200))], Continue),
     )
     .unwrap();
     let net_hist_4 = net.clone();
@@ -885,7 +917,7 @@ fn test_route_maps_undo() {
         *R1,
         *E1,
         Outgoing,
-        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))]),
+        RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
     )
     .unwrap();
     net.undo_action().unwrap();

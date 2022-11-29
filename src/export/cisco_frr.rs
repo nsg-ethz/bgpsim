@@ -36,8 +36,8 @@ use crate::{
     ospf::OspfArea,
     prelude::BgpSessionType,
     route_map::{
-        RouteMap, RouteMapDirection as RmDir, RouteMapMatch, RouteMapMatchAsPath, RouteMapSet,
-        RouteMapState,
+        RouteMap, RouteMapDirection as RmDir, RouteMapFlow, RouteMapMatch, RouteMapMatchAsPath,
+        RouteMapSet, RouteMapState,
     },
     router::{Router, StaticRoute},
     types::{AsId, Prefix, RouterId},
@@ -550,7 +550,11 @@ impl CiscoFrrCfgGen {
         }
 
         if rm.state().is_allow() {
-            if let Some(next_ord) = next_ord {
+            if let Some(next_ord) = match rm.cont {
+                RouteMapFlow::Exit => None,
+                RouteMapFlow::Continue => next_ord,
+                RouteMapFlow::ContinueAt(x) => Some(x),
+            } {
                 route_map_item.continues(order(next_ord));
             }
         }

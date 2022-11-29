@@ -28,6 +28,7 @@ use crate::{
     route_map::{
         RouteMap,
         RouteMapDirection::{self, Incoming, Outgoing},
+        RouteMapList,
     },
     types::{
         collections::{CowMap, CowMapIter},
@@ -1102,18 +1103,9 @@ impl Router {
     ) -> Result<Option<BgpRibEntry>, DeviceError> {
         // apply bgp_route_map_in
         let neighbor = entry.from_id;
-        let mut maps = self.get_bgp_route_maps(neighbor, Incoming).iter();
-        let mut entry = loop {
-            match maps.next() {
-                Some(map) => {
-                    entry = match map.apply(entry) {
-                        (_, Some(e)) => e,
-                        (true, None) => return Ok(None),
-                        (false, None) => unreachable!(),
-                    }
-                }
-                None => break entry,
-            }
+        entry = match self.get_bgp_route_maps(neighbor, Incoming).apply(entry) {
+            Some(e) => e,
+            None => return Ok(None),
         };
 
         // compute the igp cost
@@ -1182,19 +1174,9 @@ impl Router {
         entry.to_id = Some(target_peer);
 
         // apply bgp_route_map_out
-        let mut maps = self.get_bgp_route_maps(target_peer, Outgoing).iter();
-        let mut entry = loop {
-            match maps.next() {
-                Some(map) => {
-                    entry = match map.apply(entry) {
-                        (true, Some(e)) => break e,
-                        (true, None) => return Ok(None),
-                        (false, Some(e)) => e,
-                        (false, None) => unreachable!(),
-                    }
-                }
-                None => break entry,
-            }
+        entry = match self.get_bgp_route_maps(target_peer, Outgoing).apply(entry) {
+            Some(e) => e,
+            None => return Ok(None),
         };
 
         // get the peer type

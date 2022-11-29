@@ -1092,6 +1092,7 @@ fn carousel_gadget() {
             RouteMapState::Allow,
             vec![],
             vec![RouteMapSet::LocalPref(Some(50))],
+            RouteMapFlow::Continue,
         ),
     )
     .unwrap();
@@ -1104,6 +1105,7 @@ fn carousel_gadget() {
             RouteMapState::Allow,
             vec![],
             vec![RouteMapSet::LocalPref(Some(50))],
+            RouteMapFlow::Continue,
         ),
     )
     .unwrap();
