@@ -18,7 +18,7 @@
 use std::{collections::HashSet, rc::Rc};
 
 use netsim::{
-    route_map::{RouteMap, RouteMapMatch, RouteMapSet, RouteMapState},
+    route_map::{RouteMap, RouteMapFlow, RouteMapMatch, RouteMapSet, RouteMapState},
     types::RouterId,
 };
 use yew::prelude::*;
@@ -36,6 +36,7 @@ pub enum Msg {
     OrderChange(String),
     OrderSet(String),
     StateChange(bool),
+    FlowChange(bool),
     UpdateMatch((usize, Option<RouteMapMatch>)),
     UpdateSet((usize, Option<RouteMapSet>)),
 }
@@ -74,6 +75,12 @@ impl Component for RouteMapCfg {
         };
         let on_state_change = ctx.link().callback(Msg::StateChange);
 
+        let (flow_text, flow_checked) = match ctx.props().map.flow {
+            RouteMapFlow::Exit => ("Exit", false),
+            _ => ("Continue", true),
+        };
+        let on_flow_change = ctx.link().callback(Msg::FlowChange);
+
         let add_match = {
             let n = ctx.props().map.conds.len();
             ctx.link()
@@ -98,10 +105,19 @@ impl Component for RouteMapCfg {
                         <TextField text={order_text} on_change={on_order_change} on_set={on_order_set} correct={self.order_input_correct}/>
                     </Element>
                     <Element text={"State"} small={true}>
-                        <Toggle text={state_text} checked={state_checked} on_click={on_state_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} />
+                        <div class="w-full flex flex-row space-x-4">
+                            <div class="basis-1/3">
+                                <Toggle text={state_text} checked={state_checked} on_click={on_state_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} />
+                            </div>
+                            <div class="basis-2/3">
+                                if state_checked {
+                                    <Toggle text={flow_text} checked={flow_checked} on_click={on_flow_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} />
+                                }
+                            </div>
+                        </div>
                     </Element>
                     <Element text={"Match"} small={true}>
-                        <button class="px-2 text-main rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue focus:outline-none" onclick={add_match}>
+                        <button class="px-2 text-main rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue focus:outline-none bg-base-2" onclick={add_match}>
                             <span class="flex items-center"> <yew_lucide::Plus class="w-3 h-3 mr-2 text-center" /> {"new match"} </span>
                         </button>
                     </Element>
@@ -114,7 +130,7 @@ impl Component for RouteMapCfg {
                             }}).collect::<Html>()
                     }
                     <Element text={"Set"} small={true}>
-                        <button class="px-2 text-main rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue focus:outline-none" onclick={add_set}>
+                        <button class="px-2 text-main rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue focus:outline-none bg-base-2" onclick={add_set}>
                             <span class="flex items-center"> <yew_lucide::Plus class="w-3 h-3 mr-2 text-center" /> {"new set"} </span>
                         </button>
                     </Element>
@@ -160,6 +176,16 @@ impl Component for RouteMapCfg {
                     RouteMapState::Allow
                 } else {
                     RouteMapState::Deny
+                };
+                ctx.props().on_update.emit((ctx.props().order, map));
+                false
+            }
+            Msg::FlowChange(val) => {
+                let mut map = ctx.props().map.clone();
+                map.flow = if val {
+                    RouteMapFlow::Continue
+                } else {
+                    RouteMapFlow::Exit
                 };
                 ctx.props().on_update.emit((ctx.props().order, map));
                 false

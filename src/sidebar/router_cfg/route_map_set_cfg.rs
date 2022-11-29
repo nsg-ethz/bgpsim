@@ -98,11 +98,12 @@ impl Component for RouteMapSetCfg {
 
         html! {
             <div class="w-full flex">
-                <div class="w-72"><Select<RouteMapSet> text={kind_text} options={set_kind_options(ctx.props().router)} {on_select} button_class={Classes::from("text-sm")} /></div>
+                <div class="basis-1/5 flex-none"></div>
+                <div class="w-40 flex-none"><Select<RouteMapSet> text={kind_text} options={set_kind_options(ctx.props().router)} {on_select} button_class={Classes::from("text-sm")} /></div>
                 <div class="w-full ml-2">
                     { value_html }
                 </div>
-                <button class="ml-2 hover hover:text-red-dark focus:outline-none transition duration-150 ease-in-out" onclick={on_delete}> <yew_lucide::X class="w-3 h-3 text-center" /> </button>
+                <button class="ml-2 hover hover:text-red focus:outline-none transition duration-150 ease-in-out" onclick={on_delete}> <yew_lucide::X class="w-5 h-5 text-center" /> </button>
             </div>
         }
     }

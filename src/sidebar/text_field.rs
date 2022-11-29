@@ -83,9 +83,9 @@ impl Component for TextField {
         let onclick = ctx.link().callback(|_| Msg::Set);
         let enabled = changed && ctx.props().correct;
         let button_class = if enabled {
-            classes! {"ml-2", "px-2", "flex-none", "text-main", "rounded", "shadow-md", "hover:shadow-lg", "transition", "ease-in-out", "border", "border-base-5", "focus:border-blue", "focus:outline-none"}
+            classes! {"ml-2", "px-2", "flex-none", "text-main", "rounded", "shadow-md", "hover:shadow-lg", "transition", "ease-in-out", "border", "border-base-5", "focus:border-blue", "focus:outline-none", "bg-base-2"}
         } else {
-            classes! {"ml-2", "px-2", "flex-none", "rounded", "bg-base-2", "transition", "ease-in-out", "border", "border-base-4", "focus:outline-none", "text-base-4"}
+            classes! {"ml-2", "px-2", "flex-none", "rounded", "bg-base-1", "transition", "ease-in-out", "border", "focus:outline-none", "text-base-4", "border-base-2"}
         };
 
         let button_text = ctx
