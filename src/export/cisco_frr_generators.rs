@@ -42,8 +42,7 @@ pub enum Target {
 #[derive(Debug)]
 pub struct Interface {
     iface_name: String,
-    ip_address: Option<Ipv4Net>,
-    no_ip_address: bool,
+    ip_address: Vec<(Ipv4Net, bool)>,
     cost: Option<u16>,
     no_cost: bool,
     area: Option<OspfArea>,
@@ -62,8 +61,7 @@ impl Interface {
     pub fn new(name: impl Into<String>) -> Self {
         Self {
             iface_name: name.into(),
-            ip_address: None,
-            no_ip_address: false,
+            ip_address: Vec::new(),
             cost: None,
             no_cost: false,
             area: None,
@@ -105,8 +103,55 @@ impl Interface {
     /// "
     /// );
     /// ```
+    ///
+    /// You can also set multiple IP addresses per interface
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// use ipnet::Ipv4Net;
+    ///
+    /// let ip1: Ipv4Net = "10.1.0.1/16".parse().unwrap();
+    /// let ip2: Ipv4Net = "10.2.0.1/16".parse().unwrap();
+    /// let ip3: Ipv4Net = "10.3.0.1/16".parse().unwrap();
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1")
+    ///         .ip_address(ip1)
+    ///         .ip_address(ip2)
+    ///         .ip_address(ip3)
+    ///         .build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   ip address 10.1.0.1/16
+    ///   ip address 10.2.0.1/16
+    ///   ip address 10.3.0.1/16
+    /// exit
+    /// "
+    /// );
+    /// ```
+    ///
+    /// To change an IP address, first unset the old one, and then set the new one:
+    ///
+    /// ```
+    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// use ipnet::Ipv4Net;
+    ///
+    /// let old: Ipv4Net = "10.1.0.1/16".parse().unwrap();
+    /// let new: Ipv4Net = "10.2.0.1/16".parse().unwrap();
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1")
+    ///         .no_ip_address(old)
+    ///         .ip_address(new)
+    ///         .build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   no ip address 10.1.0.1/16
+    ///   ip address 10.2.0.1/16
+    /// exit
+    /// "
+    /// );
+    /// ```
     pub fn ip_address(&mut self, addr: Ipv4Net) -> &mut Self {
-        self.ip_address = addr.into();
+        self.ip_address.push((addr, true));
         self
     }
 
@@ -114,17 +159,20 @@ impl Interface {
     ///
     /// ```
     /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// use ipnet::Ipv4Net;
+    ///
+    /// let ip_addr: Ipv4Net = "10.0.0.1/8".parse().unwrap();
     /// assert_eq!(
-    ///     Interface::new("Ethernet4/1").no_ip_address().build(Target::CiscoNexus7000),
+    ///     Interface::new("Ethernet4/1").no_ip_address(ip_addr).build(Target::CiscoNexus7000),
     ///     "\
     /// interface Ethernet4/1
-    ///   no ip address
+    ///   no ip address 10.0.0.1/8
     /// exit
     /// "
     /// );
     /// ```
-    pub fn no_ip_address(&mut self) -> &mut Self {
-        self.no_ip_address = true;
+    pub fn no_ip_address(&mut self, addr: Ipv4Net) -> &mut Self {
+        self.ip_address.push((addr, false));
         self
     }
 
@@ -415,11 +463,15 @@ impl Interface {
 exit
 ",
             iface = self.iface_name,
-            addr = match (self.ip_address, self.no_ip_address) {
-                (Some(addr), false) => format!("\n  ip address {}", addr),
-                (_, true) => String::from("\n  no ip address"),
-                (None, false) => String::new(),
-            },
+            addr = self
+                .ip_address
+                .iter()
+                .map(|(addr, state)| format!(
+                    "\n  {}ip address {}",
+                    if *state { "" } else { "no " },
+                    addr
+                ))
+                .collect::<String>(),
             cost = match (self.cost, self.no_cost) {
                 (Some(cost), false) => format!("\n  ip ospf cost {}", cost),
                 (_, true) => String::from("\n  no ip ospf cost"),

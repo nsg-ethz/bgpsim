@@ -28,7 +28,7 @@ use crate::{
 #[test]
 fn generate_internal_config_full_mesh() {
     assert_str_eq!(
-        super::generate_internal_config_full_mesh(Target),
+        super::generate_internal_config_full_mesh(Target, 1),
         include_str!("internal_config_full_mesh")
     );
 }
@@ -36,7 +36,7 @@ fn generate_internal_config_full_mesh() {
 #[test]
 fn generate_internal_config_route_reflector() {
     assert_str_eq!(
-        super::generate_internal_config_route_reflector(Target),
+        super::generate_internal_config_route_reflector(Target, 1),
         include_str!("internal_config_route_reflection")
     );
 }
@@ -44,7 +44,7 @@ fn generate_internal_config_route_reflector() {
 #[test]
 fn generate_internal_config_route_maps() {
     assert_str_eq!(
-        super::generate_internal_config_route_maps(Target),
+        super::generate_internal_config_route_maps(Target, 1),
         include_str!("internal_config_route_maps")
     );
 }
@@ -52,7 +52,7 @@ fn generate_internal_config_route_maps() {
 #[test]
 fn generate_internal_config_route_maps_edit() {
     let net = super::net_for_route_maps();
-    let mut ip = super::addressor(&net);
+    let mut ip = super::addressor(&net, 1);
     let mut cfg_gen =
         CiscoFrrCfgGen::new(&net, 0.into(), Target, super::iface_names(Target)).unwrap();
 
@@ -213,14 +213,14 @@ no route-map neighbor-R0_ext_4-in permit 32781
 #[test]
 fn generate_external_config() {
     assert_str_eq!(
-        super::generate_external_config(Target),
+        super::generate_external_config(Target, 1),
         include_str!("external_config")
     );
 }
 
 #[test]
 fn generate_external_config_withdraw() {
-    let (cfg, cmd) = super::generate_external_config_withdraw(Target);
+    let (cfg, cmd) = super::generate_external_config_withdraw(Target, 1);
     assert_str_eq!(cfg, include_str!("external_config_withdraw"));
     assert_str_eq!(cmd, include_str!("external_config_withdraw_cmd"))
 }

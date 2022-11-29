@@ -37,7 +37,6 @@ ip route 20.0.0.0/24 Null0
 !
 interface lo
   ip address 128.0.0.1/16
-  no shutdown
 exit
 router bgp 4
   address-family ipv4 unicast
@@ -45,7 +44,7 @@ router bgp 4
   exit-address-family
 exit
 ip prefix-list prefix-list-0 seq 1 permit 128.0.0.0/16
-route-map neighbor-out permit 1
+route-map neighbor-out permit 0
   match ip address prefix-list prefix-list-0
   set metric 0
   set as-path prepend 4 4 2 1
@@ -53,7 +52,6 @@ exit
 !
 interface lo
   ip address 128.1.0.1/16
-  no shutdown
 exit
 router bgp 4
   address-family ipv4 unicast
@@ -61,7 +59,7 @@ router bgp 4
   exit-address-family
 exit
 ip prefix-list prefix-list-1 seq 1 permit 128.1.0.0/16
-route-map neighbor-out permit 2
+route-map neighbor-out permit 1
   match ip address prefix-list prefix-list-1
   set metric 0
   set as-path prepend 5 5 6

@@ -47,7 +47,7 @@ fn config_1n() {
     let num_neighbors = 1;
     let net = get_test_net(num_neighbors);
     let ext: RouterId = (num_neighbors as u32).into();
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, 1);
 
     let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
@@ -60,7 +60,7 @@ fn config_2n() {
     let num_neighbors = 2;
     let net = get_test_net(num_neighbors);
     let ext: RouterId = (num_neighbors as u32).into();
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, 1);
 
     let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
@@ -75,7 +75,7 @@ fn script_1n_1p() {
     let ext: RouterId = (num_neighbors as u32).into();
     net.advertise_external_route(ext, 0, [100], None, None)
         .unwrap();
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, 1);
 
     let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
@@ -93,7 +93,7 @@ fn script_1n_2p() {
         .unwrap();
     net.advertise_external_route(ext, 1, [100, 40, 10], None, None)
         .unwrap();
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, 1);
 
     let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
@@ -113,7 +113,7 @@ fn script_1n_2p_withdraw() {
     net.advertise_external_route(ext, 1, [100, 40, 10], None, None)
         .unwrap();
 
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, 1);
 
     let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
@@ -135,7 +135,7 @@ fn script_2n_2p_withdraw() {
         .unwrap();
     net.advertise_external_route(ext, 1, [100, 40, 10], None, None)
         .unwrap();
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, 1);
 
     let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();

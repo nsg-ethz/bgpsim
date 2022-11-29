@@ -200,6 +200,7 @@ pub struct ExaBgpCfgGen {
     current_time: Duration,
 }
 
+use ipnet::Ipv4Net;
 use itertools::Itertools;
 use maplit::btreemap;
 
@@ -272,18 +273,25 @@ impl ExaBgpCfgGen {
         for (time, routes) in times_routes {
             let ads = routes
                 .into_iter()
+                .flat_map(|(p, r)| {
+                    addressor
+                        .prefix(p)
+                        .ok()
+                        .into_iter()
+                        .flatten()
+                        .map(move |x| (x, r))
+                })
                 .map(|(p, r)| {
                     Ok(if let Some(r) = r {
                         format!(
                             "sys.stdout.write(\"{} {}\\n\")",
                             neighbors,
-                            route_text(r, addressor)?
+                            route_text(r, p)?
                         )
                     } else {
                         format!(
                             "sys.stdout.write(\"{} withdraw route {}\\n\")",
-                            neighbors,
-                            addressor.prefix(p)?
+                            neighbors, p,
                         )
                     })
                 })
@@ -357,10 +365,10 @@ neighbor {} {{
 }
 
 /// Get the text to announce a route.
-fn route_text<A: Addressor>(route: &BgpRoute, addressor: &mut A) -> Result<String, ExportError> {
+fn route_text(route: &BgpRoute, address: Ipv4Net) -> Result<String, ExportError> {
     Ok(format!(
         "announce route {} next-hop self as-path [{}]{}{}",
-        addressor.prefix(route.prefix)?,
+        address,
         route.as_path.iter().map(|x| x.0).join(", "),
         if let Some(med) = route.med {
             format!(" metric {}", med)

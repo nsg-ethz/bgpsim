@@ -22,7 +22,7 @@ use crate::export::cisco_frr_generators::Target::Frr as Target;
 #[test]
 fn generate_internal_config_full_mesh() {
     assert_str_eq!(
-        super::generate_internal_config_full_mesh(Target),
+        super::generate_internal_config_full_mesh(Target, 1),
         include_str!("internal_config_full_mesh")
     );
 }
@@ -30,7 +30,7 @@ fn generate_internal_config_full_mesh() {
 #[test]
 fn generate_internal_config_route_reflector() {
     assert_str_eq!(
-        super::generate_internal_config_route_reflector(Target),
+        super::generate_internal_config_route_reflector(Target, 1),
         include_str!("internal_config_route_reflection")
     );
 }
@@ -38,7 +38,7 @@ fn generate_internal_config_route_reflector() {
 #[test]
 fn generate_internal_config_route_maps() {
     assert_str_eq!(
-        super::generate_internal_config_route_maps(Target),
+        super::generate_internal_config_route_maps(Target, 1),
         include_str!("internal_config_route_maps")
     );
 }
@@ -46,14 +46,14 @@ fn generate_internal_config_route_maps() {
 #[test]
 fn generate_external_config() {
     assert_str_eq!(
-        super::generate_external_config(Target),
+        super::generate_external_config(Target, 1),
         include_str!("external_config")
     );
 }
 
 #[test]
 fn generate_external_config_withdraw() {
-    let (cfg, cmd) = super::generate_external_config_withdraw(Target);
+    let (cfg, cmd) = super::generate_external_config_withdraw(Target, 1);
     assert_str_eq!(cfg, include_str!("external_config_withdraw"));
     assert_str_eq!(cmd, include_str!("external_config_withdraw_cmd"))
 }

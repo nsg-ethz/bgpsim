@@ -57,11 +57,14 @@ pub struct DefaultAddressor<'a, Q> {
     /// Already assigned prefixes to routers
     router_addrs: HashMap<RouterId, (Ipv4Net, Ipv4Addr)>,
     /// Already assigned prefix addresses
-    prefix_addrs: HashMap<Prefix, Ipv4Net>,
+    prefix_addrs: HashMap<Prefix, Vec<Ipv4Net>>,
     /// Already assigned prefix addresses for links
     link_addrs: HashMap<LinkId, Ipv4Net>,
     /// Assigned interfaces of routers
     interfaces: HashMap<RouterId, HashMap<RouterId, (usize, Ipv4Addr)>>,
+    /// Number of networks to associate with each prefix. If this is set to more than 1, then each
+    /// prefix represents an equivalence class of multiple prefixes.
+    peq_size: usize,
 }
 
 impl<'a, Q> DefaultAddressor<'a, Q> {
@@ -89,6 +92,7 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
         link_prefix_len: u8,
         external_prefix_len: u8,
         prefix_len: u8,
+        peq_size: usize,
     ) -> Result<Self, ExportError> {
         let mut internal_halves = internal_ip_range.subnets(internal_ip_range.prefix_len() + 1)?;
         let internal_router_addr_range = ip_err(internal_halves.next())?;
@@ -112,6 +116,7 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
             prefix_addrs: HashMap::new(),
             link_addrs: HashMap::new(),
             interfaces: HashMap::new(),
+            peq_size,
         })
     }
 }
@@ -185,10 +190,17 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
         })
     }
 
-    fn prefix(&mut self, prefix: Prefix) -> Result<Ipv4Net, ExportError> {
+    fn prefix(&mut self, prefix: Prefix) -> Result<Vec<Ipv4Net>, ExportError> {
         Ok(match self.prefix_addrs.entry(prefix) {
-            Entry::Occupied(e) => *e.get(),
-            Entry::Vacant(e) => *e.insert(ip_err(self.prefix_addr_iter.next())?),
+            Entry::Occupied(e) => e.get().clone(),
+            Entry::Vacant(e) => {
+                let addrs: Vec<_> = (&mut self.prefix_addr_iter).take(self.peq_size).collect();
+                if addrs.len() < self.peq_size {
+                    return Err(ExportError::NotEnoughAddresses);
+                } else {
+                    e.insert(addrs).clone()
+                }
+            }
         })
     }
 
@@ -337,7 +349,7 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
         let address = address.into();
         self.prefix_addrs
             .iter()
-            .find(|(_, n)| n.contains(&address))
+            .find(|(_, ns)| ns.iter().any(|n| n.contains(&address)))
             .map(|(x, _)| *x)
             .ok_or(ExportError::AddressNotFound(address))
     }
@@ -395,6 +407,12 @@ mod test {
     macro_rules! cmp_net {
         ($acq:expr, $exp:expr) => {
             pretty_assertions::assert_eq!($acq.unwrap(), $exp.parse::<Ipv4Net>().unwrap())
+        };
+    }
+
+    macro_rules! cmp_nets {
+        ($acq:expr, $($exp:expr),+) => {
+            pretty_assertions::assert_eq!($acq.unwrap(), vec![$($exp.parse::<Ipv4Net>().unwrap()),*])
         };
     }
 
@@ -462,6 +480,7 @@ mod test {
             30,
             24,
             16,
+            1,
         )
         .unwrap();
 
@@ -501,9 +520,86 @@ mod test {
         }
 
         for _ in 0..=1 {
-            cmp_net!(ip.prefix(0.into()), "128.0.0.0/16");
-            cmp_net!(ip.prefix(2.into()), "128.1.0.0/16");
-            cmp_net!(ip.prefix(1.into()), "128.2.0.0/16");
+            cmp_nets!(ip.prefix(0.into()), "128.0.0.0/16");
+            cmp_nets!(ip.prefix(2.into()), "128.1.0.0/16");
+            cmp_nets!(ip.prefix(1.into()), "128.2.0.0/16");
+        }
+    }
+
+    #[test]
+    fn ip_addressor_peq() {
+        let mut net: Network<BasicEventQueue> =
+            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+        net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+            .unwrap();
+
+        let mut ip = DefaultAddressor::new(
+            &net,
+            "10.0.0.0/8".parse().unwrap(),
+            "20.0.0.0/8".parse().unwrap(),
+            "128.0.0.0/1".parse().unwrap(),
+            24,
+            30,
+            24,
+            16,
+            3,
+        )
+        .unwrap();
+
+        for _ in 0..=1 {
+            cmp_addr!(ip.router_address(0.into()), "10.0.0.1");
+            cmp_addr!(ip.router_address(1.into()), "10.0.1.1");
+            cmp_addr!(ip.router_address(2.into()), "10.0.2.1");
+            cmp_addr!(ip.router_address(3.into()), "10.0.3.1");
+            cmp_addr!(ip.router_address(4.into()), "20.0.0.1");
+            cmp_addr!(ip.router_address(5.into()), "20.0.1.1");
+            cmp_net!(ip.router_network(0.into()), "10.0.0.0/24");
+            cmp_net!(ip.router_network(1.into()), "10.0.1.0/24");
+            cmp_net!(ip.router_network(2.into()), "10.0.2.0/24");
+            cmp_net!(ip.router_network(3.into()), "10.0.3.0/24");
+            cmp_net!(ip.router_network(4.into()), "20.0.0.0/24");
+            cmp_net!(ip.router_network(5.into()), "20.0.1.0/24");
+        }
+
+        for _ in 0..=1 {
+            cmp_addr!(ip.iface_address(0.into(), 1.into()), "10.128.0.1");
+            cmp_addr!(ip.iface_address(1.into(), 0.into()), "10.128.0.2");
+            cmp_addr!(ip.iface_address(0.into(), 3.into()), "10.128.0.5");
+            cmp_addr!(ip.iface_address(3.into(), 1.into()), "10.128.0.9");
+            cmp_addr!(ip.iface_address(0.into(), 4.into()), "10.192.0.1");
+            cmp_addr!(ip.iface_address(4.into(), 0.into()), "10.192.0.2");
+            cmp_addr!(ip.iface_address(1.into(), 5.into()), "10.192.0.5");
+            cmp_addr!(ip.iface_address(5.into(), 1.into()), "10.192.0.6");
+            cmp_net!(ip.iface_network(0.into(), 1.into()), "10.128.0.0/30");
+            cmp_net!(ip.iface_network(1.into(), 0.into()), "10.128.0.0/30");
+            cmp_net!(ip.iface_network(0.into(), 3.into()), "10.128.0.4/30");
+            cmp_net!(ip.iface_network(3.into(), 1.into()), "10.128.0.8/30");
+            cmp_net!(ip.iface_network(2.into(), 1.into()), "10.128.0.12/30");
+            cmp_net!(ip.iface_network(0.into(), 4.into()), "10.192.0.0/30");
+            cmp_net!(ip.iface_network(4.into(), 0.into()), "10.192.0.0/30");
+            cmp_net!(ip.iface_network(1.into(), 5.into()), "10.192.0.4/30");
+            cmp_net!(ip.iface_network(5.into(), 1.into()), "10.192.0.4/30");
+        }
+
+        for _ in 0..=1 {
+            cmp_nets!(
+                ip.prefix(0.into()),
+                "128.0.0.0/16",
+                "128.1.0.0/16",
+                "128.2.0.0/16"
+            );
+            cmp_nets!(
+                ip.prefix(2.into()),
+                "128.3.0.0/16",
+                "128.4.0.0/16",
+                "128.5.0.0/16"
+            );
+            cmp_nets!(
+                ip.prefix(1.into()),
+                "128.6.0.0/16",
+                "128.7.0.0/16",
+                "128.8.0.0/16"
+            );
         }
     }
 
@@ -523,6 +619,7 @@ mod test {
             30,
             24,
             16,
+            1,
         )
         .unwrap();
 
@@ -541,9 +638,9 @@ mod test {
         cmp_addr!(ip.iface_address(0.into(), 4.into()), "10.192.0.1");
         cmp_addr!(ip.iface_address(5.into(), 1.into()), "10.192.0.5");
 
-        cmp_net!(ip.prefix(0.into()), "128.0.0.0/16");
-        cmp_net!(ip.prefix(1.into()), "128.1.0.0/16");
-        cmp_net!(ip.prefix(2.into()), "128.2.0.0/16");
+        cmp_nets!(ip.prefix(0.into()), "128.0.0.0/16");
+        cmp_nets!(ip.prefix(1.into()), "128.1.0.0/16");
+        cmp_nets!(ip.prefix(2.into()), "128.2.0.0/16");
 
         finds_prefix!(ip, "128.0.0.0/16", 0);
         finds_prefix!(ip, "128.1.0.0/16", 1);

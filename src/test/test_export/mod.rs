@@ -38,7 +38,7 @@ pub(self) fn iface_names(target: Target) -> Vec<String> {
     }
 }
 
-pub(self) fn addressor<Q>(net: &Network<Q>) -> DefaultAddressor<Q> {
+pub(self) fn addressor<Q>(net: &Network<Q>, peq: usize) -> DefaultAddressor<Q> {
     DefaultAddressor::new(
         net,
         "10.0.0.0/8".parse().unwrap(),
@@ -48,11 +48,12 @@ pub(self) fn addressor<Q>(net: &Network<Q>) -> DefaultAddressor<Q> {
         30,
         24,
         16,
+        peq,
     )
     .unwrap()
 }
 
-pub(self) fn generate_internal_config_full_mesh(target: Target) -> String {
+pub(self) fn generate_internal_config_full_mesh(target: Target, peq: usize) -> String {
     let mut net: Network<BasicEventQueue> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
@@ -61,13 +62,13 @@ pub(self) fn generate_internal_config_full_mesh(target: Target) -> String {
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
 
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, peq);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
-pub(self) fn generate_internal_config_route_reflector(target: Target) -> String {
+pub(self) fn generate_internal_config_route_reflector(target: Target, peq: usize) -> String {
     let mut net: Network<BasicEventQueue> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
@@ -77,7 +78,7 @@ pub(self) fn generate_internal_config_route_reflector(target: Target) -> String 
         .unwrap();
     net.build_ebgp_sessions().unwrap();
 
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, peq);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
@@ -164,14 +165,14 @@ pub(self) fn net_for_route_maps() -> Network<BasicEventQueue> {
     net
 }
 
-pub(self) fn generate_internal_config_route_maps(target: Target) -> String {
+pub(self) fn generate_internal_config_route_maps(target: Target, peq: usize) -> String {
     let net = net_for_route_maps();
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, peq);
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
-pub(self) fn generate_external_config(target: Target) -> String {
+pub(self) fn generate_external_config(target: Target, peq: usize) -> String {
     let mut net: Network<BasicEventQueue> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
@@ -182,13 +183,13 @@ pub(self) fn generate_external_config(target: Target) -> String {
     net.advertise_external_route(4.into(), Prefix::from(0), [4, 4, 4, 2, 1], None, None)
         .unwrap();
 
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, peq);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 4.into(), target, iface_names(target)).unwrap();
     ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
-pub(self) fn generate_external_config_withdraw(target: Target) -> (String, String) {
+pub(self) fn generate_external_config_withdraw(target: Target, peq: usize) -> (String, String) {
     let mut net: Network<BasicEventQueue> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
@@ -201,7 +202,7 @@ pub(self) fn generate_external_config_withdraw(target: Target) -> (String, Strin
     net.advertise_external_route(4.into(), Prefix::from(1), [4, 5, 5, 6], None, None)
         .unwrap();
 
-    let mut ip = addressor(&net);
+    let mut ip = addressor(&net, peq);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 4.into(), target, iface_names(target)).unwrap();
     let c = ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap();

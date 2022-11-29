@@ -41,7 +41,6 @@ ip route 20.0.0.0/24 null 0
 !
 interface Loopback1
   ip address 128.0.0.1/16
-  no shutdown
 exit
 router bgp 4
   address-family ipv4 unicast
@@ -49,7 +48,7 @@ router bgp 4
   exit
 exit
 ip prefix-list prefix-list-0 seq 1 permit 128.0.0.0/16
-route-map neighbor-out permit 1
+route-map neighbor-out permit 0
   match ip address prefix-list prefix-list-0
   set metric 0
   set as-path prepend 4 4 2 1

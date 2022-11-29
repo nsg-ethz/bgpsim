@@ -65,7 +65,7 @@ pub struct CiscoFrrCfgGen {
     as_id: AsId,
     /// Used to remember which loopback addresses were already used, and for which prefix. Only used
     /// for external routers.
-    loopback_prefixes: BiMap<u8, Prefix>,
+    loopback_prefixes: BiMap<u8, Ipv4Net>,
     /// local OSPF Area, which is the lowest as id used in any of its adjacent interfaces
     local_area: Option<OspfArea>,
     /// Used to set mac addresses
@@ -74,6 +74,8 @@ pub struct CiscoFrrCfgGen {
     ospf_params: (Option<u16>, Option<u16>),
     /// List of route map indices,
     route_maps: HashMap<(RouterId, RmDir), Vec<(i16, RouteMapState)>>,
+    /// list of routes (external) that are advertised
+    advertised_external_routes: HashSet<Prefix>,
 }
 
 impl CiscoFrrCfgGen {
@@ -123,6 +125,7 @@ impl CiscoFrrCfgGen {
             mac_addresses: Default::default(),
             ospf_params: (Some(1), Some(5)),
             route_maps,
+            advertised_external_routes: Default::default(),
         })
     }
 
@@ -253,11 +256,9 @@ impl CiscoFrrCfgGen {
         let mut config = String::from("!\n! Static Routes\n!\n");
 
         for (p, sr) in router.get_static_routes() {
-            config.push_str(
-                &self
-                    .static_route(net, addressor, *p, *sr)?
-                    .build(self.target),
-            )
+            for sr in self.static_route(net, addressor, *p, *sr)? {
+                config.push_str(&sr.build(self.target));
+            }
         }
 
         Ok(config)
@@ -270,18 +271,25 @@ impl CiscoFrrCfgGen {
         addressor: &mut A,
         prefix: Prefix,
         sr: StaticRoute,
-    ) -> Result<StaticRouteGen, ExportError> {
-        let mut static_route = StaticRouteGen::new(addressor.prefix(prefix)?);
-        let _ = match sr {
-            StaticRoute::Direct(r) => {
-                static_route.via_interface(self.iface(self.router, r, addressor)?)
-            }
-            StaticRoute::Indirect(r) => {
-                static_route.via_address(self.router_id_to_ip(r, net, addressor)?)
-            }
-            StaticRoute::Drop => static_route.blackhole(),
-        };
-        Ok(static_route)
+    ) -> Result<Vec<StaticRouteGen>, ExportError> {
+        addressor
+            .prefix(prefix)?
+            .to_vec()
+            .into_iter()
+            .map(|p| {
+                let mut static_route = StaticRouteGen::new(p);
+                match sr {
+                    StaticRoute::Direct(r) => {
+                        static_route.via_interface(self.iface(self.router, r, addressor)?)
+                    }
+                    StaticRoute::Indirect(r) => {
+                        static_route.via_address(self.router_id_to_ip(r, net, addressor)?)
+                    }
+                    StaticRoute::Drop => static_route.blackhole(),
+                };
+                Ok(static_route)
+            })
+            .collect()
     }
 
     /// Create the ospf configuration
@@ -491,7 +499,9 @@ impl CiscoFrrCfgGen {
         if let Some(prefixes) = rm_match_prefix_list(rm) {
             let mut pl = PrefixList::new(format!("{}-{}-pl", name, ord));
             for p in prefixes {
-                pl.prefix(addressor.prefix(p)?);
+                for p in addressor.prefix(p)? {
+                    pl.prefix(p);
+                }
             }
             route_map_item.match_prefix_list(pl);
         }
@@ -597,6 +607,28 @@ impl CiscoFrrCfgGen {
         } else {
             addressor.iface_address(r, self.router)
         }
+    }
+
+    /// Gewt the interface name of a loopback address. If it does not exist yet, then it will be
+    /// added.
+    fn get_loopback_iface(&mut self, addr: Ipv4Net) -> Result<String, ExportError> {
+        let idx = if let Some(idx) = self.loopback_prefixes.get_by_right(&addr) {
+            *idx
+        } else {
+            let idx = (1..255u8)
+                .find(|x| -> bool { !self.loopback_prefixes.contains_left(x) })
+                .ok_or(ExportError::NotEnoughLoopbacks(self.router))?;
+            self.loopback_prefixes.insert(idx, addr);
+            idx
+        };
+        Ok(loopback_iface(self.target, idx))
+    }
+
+    /// Get the interface name of a loopback address and remove it from the remembered list.
+    fn remove_loopback_iface(&mut self, addr: Ipv4Net) -> Option<String> {
+        self.loopback_prefixes
+            .remove_by_right(&addr)
+            .map(|(idx, _)| loopback_iface(self.target, idx))
     }
 }
 
@@ -728,7 +760,9 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                 }
                 ConfigExpr::StaticRoute { prefix, target, .. } => Ok(self
                     .static_route(net, addressor, prefix, target)?
-                    .build(self.target)),
+                    .into_iter()
+                    .map(|sr| sr.build(self.target))
+                    .collect()),
                 ConfigExpr::LoadBalancing { .. } => {
                     Ok(RouterOspf::new().maximum_paths(16).build(self.target))
                 }
@@ -784,7 +818,9 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                 }
                 ConfigExpr::StaticRoute { prefix, target, .. } => Ok(self
                     .static_route(net, addressor, prefix, target)?
-                    .no(self.target)),
+                    .into_iter()
+                    .map(|sr| sr.no(self.target))
+                    .collect()),
                 ConfigExpr::LoadBalancing { .. } => {
                     Ok(RouterOspf::new().maximum_paths(1).build(self.target))
                 }
@@ -847,9 +883,13 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
                         Ok(format!(
                             "{}{}",
                             self.static_route(net, addressor, prefix, old_sr)?
-                                .no(self.target),
+                                .into_iter()
+                                .map(|sr| sr.no(self.target))
+                                .collect::<String>(),
                             self.static_route(net, addressor, prefix, target)?
-                                .build(self.target)
+                                .into_iter()
+                                .map(|sr| sr.build(self.target))
+                                .collect::<String>(),
                         ))
                     } else {
                         unreachable!("Config Modifier must update the same kind of expression")
@@ -928,35 +968,46 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
         route: &BgpRoute,
     ) -> Result<String, ExportError> {
         // check if the prefix is already present. If so, first withdraw the route
-        if self.loopback_prefixes.contains_right(&route.prefix) {
+        if self.advertised_external_routes.contains(&route.prefix) {
             self.withdraw_route(net, addressor, route.prefix)?;
         }
-
-        // get the first loopback that is not used
-        let loopback = (1u8..=255u8)
-            .find(|x| !self.loopback_prefixes.contains_left(x))
-            .ok_or(ExportError::NotEnoughLoopbacks(self.router))?;
-
-        let loopback_iface = loopback_iface(self.target, loopback);
-        let prefix_net = addressor.prefix(route.prefix)?;
-        let ip = addressor.prefix_address(route.prefix)?;
+        self.advertised_external_routes.insert(route.prefix);
 
         let mut config = String::new();
-        config.push_str(
-            &Interface::new(loopback_iface)
-                .ip_address(ip)
-                .no_shutdown()
-                .build(self.target),
-        );
-        config.push_str(
-            &RouterBgp::new(self.as_id)
-                .network(prefix_net)
-                .build(self.target),
-        );
-        let mut route_map = RouteMapItem::new(EXTERNAL_RM_OUT, loopback as u16, true);
-        route_map.match_prefix_list(
-            PrefixList::new(format!("prefix-list-{}", route.prefix.0)).prefix(prefix_net),
-        );
+
+        let mut prefix_list = PrefixList::new(format!("prefix-list-{}", route.prefix.0));
+        let mut bgp_config = RouterBgp::new(self.as_id);
+
+        // add all loopback ip addresses. This is special if we can store multiple IP addresses on
+        // the same loopback interface
+        if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
+            let mut iface = Interface::new(loopback_iface(self.target, 0));
+            for ip in addressor.prefix_address(route.prefix)? {
+                iface.ip_address(ip);
+            }
+            config.push_str(&iface.build(self.target))
+        } else {
+            for ip in addressor.prefix_address(route.prefix)? {
+                config.push_str(
+                    &Interface::new(self.get_loopback_iface(ip)?)
+                        .ip_address(ip)
+                        .build(self.target),
+                );
+            }
+        }
+
+        // add all networks to the bgp config and prefix list
+        for prefix_net in addressor.prefix(route.prefix)? {
+            bgp_config.network(prefix_net);
+            prefix_list.prefix(prefix_net);
+        }
+
+        // write the bgp config
+        config.push_str(&bgp_config.build(self.target));
+
+        // write the route-map
+        let mut route_map = RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.0 as u16, true);
+        route_map.match_prefix_list(prefix_list);
         route_map.prepend_as_path(route.as_path.iter().skip(1));
         route_map.set_med(route.med.unwrap_or(0));
         for c in route.community.iter() {
@@ -964,7 +1015,6 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
         }
         config.push_str(&route_map.build(self.target));
 
-        self.loopback_prefixes.insert(loopback, route.prefix);
         Ok(config)
     }
 
@@ -974,36 +1024,40 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
         addressor: &mut A,
         prefix: Prefix,
     ) -> Result<String, ExportError> {
-        let loopback = self
-            .loopback_prefixes
-            .remove_by_right(&prefix)
-            .ok_or(ExportError::WithdrawUnadvertisedRoute)?;
-        let prefix_net = addressor.prefix(prefix)?;
+        self.advertised_external_routes.remove(&prefix);
 
         let mut config = String::new();
-        // remove the loopback address, which is special for FRR and others who have only a single
-        // loopback interface
-        let lo = loopback_iface(self.target, loopback.0);
-        config.push_str(&if loopback_iface(self.target, 0) == lo {
-            format!(
-                "interface {}\n  no ip address {}\nexit\n",
-                lo,
-                addressor.prefix_address(prefix)?
-            )
-        } else {
-            Interface::new(lo).no()
-        });
 
-        // no longer advertise the prefix
-        config.push_str(
-            &RouterBgp::new(self.as_id)
-                .no_network(prefix_net)
-                .build(self.target),
-        );
+        // add all loopback ip addresses. This is special if we can store multiple IP addresses on
+        // the same loopback interface
+        if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
+            let mut iface = Interface::new(loopback_iface(self.target, 0));
+            for ip in addressor.prefix_address(prefix)? {
+                iface.no_ip_address(ip);
+            }
+            config.push_str(&iface.build(self.target))
+        } else {
+            for ip in addressor.prefix_address(prefix)? {
+                config.push_str(
+                    &Interface::new(
+                        self.remove_loopback_iface(ip)
+                            .ok_or(ExportError::WithdrawUnadvertisedRoute)?,
+                    )
+                    .no(),
+                );
+            }
+        }
+
+        // remove all advertisements in BGP
+        let mut bgp_config = RouterBgp::new(self.as_id);
+        for net in addressor.prefix(prefix)? {
+            bgp_config.no_network(net);
+        }
+        config.push_str(&bgp_config.build(self.target));
 
         // remote the route-map
         config.push_str(
-            &RouteMapItem::new(EXTERNAL_RM_OUT, loopback.0 as u16, true)
+            &RouteMapItem::new(EXTERNAL_RM_OUT, prefix.0 as u16, true)
                 .match_prefix_list(PrefixList::new(format!("prefix-list-{}", prefix.0)))
                 .no(self.target),
         );

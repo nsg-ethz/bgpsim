@@ -125,7 +125,8 @@ pub trait ExternalCfgGen<Q, A> {
     ) -> Result<String, ExportError>;
 }
 
-/// A trait for generating IP address ranges and AS numbers.
+/// A trait for generating IP address ranges and AS numbers. For this addressor, a single [`Prefix`]
+/// represents an equivalence class, and is thus associated with multiple addresses.
 pub trait Addressor {
     /// Get the internal network
     fn internal_network(&mut self) -> Ipv4Net;
@@ -149,16 +150,21 @@ pub trait Addressor {
     /// Get both the network and the IP address of a router.
     fn router(&mut self, router: RouterId) -> Result<(Ipv4Net, Ipv4Addr), ExportError>;
 
-    /// Get the IP prefix of an external prefix
-    fn prefix(&mut self, prefix: Prefix) -> Result<Ipv4Net, ExportError>;
+    /// Get the set of networks that are associated with that prefix
+    fn prefix(&mut self, prefix: Prefix) -> Result<Vec<Ipv4Net>, ExportError>;
 
-    /// Get the first host IP in the prefix range, including the prefix length.
-    fn prefix_address(&mut self, prefix: Prefix) -> Result<Ipv4Net, ExportError> {
-        let net = self.prefix(prefix)?;
-        Ok(Ipv4Net::new(
-            net.hosts().next().ok_or(ExportError::NotEnoughAddresses)?,
-            net.prefix_len(),
-        )?)
+    /// For each network associated with that prefix, get the first host IP in the prefix range,
+    /// including the prefix length.
+    fn prefix_address(&mut self, prefix: Prefix) -> Result<Vec<Ipv4Net>, ExportError> {
+        self.prefix(prefix)?
+            .iter()
+            .map(|n| {
+                Ok(Ipv4Net::new(
+                    n.hosts().next().ok_or(ExportError::NotEnoughAddresses)?,
+                    n.prefix_len(),
+                )?)
+            })
+            .collect()
     }
 
     /// Get the interface address of a specific link in the network
