@@ -19,8 +19,8 @@ use crate::{
     builder::{constant_link_weight, NetworkBuilder},
     event::BasicEventQueue,
     export::{
-        cisco_frr_generators::Target, CiscoFrrCfgGen, DefaultAddressor, ExternalCfgGen,
-        InternalCfgGen,
+        cisco_frr_generators::Target, CiscoFrrCfgGen, DefaultAddressor, DefaultAddressorBuilder,
+        ExternalCfgGen, InternalCfgGen,
     },
     network::Network,
     route_map::{RouteMapBuilder, RouteMapDirection},
@@ -39,17 +39,15 @@ pub(self) fn iface_names(target: Target) -> Vec<String> {
 }
 
 pub(self) fn addressor<Q>(net: &Network<Q>, pec: usize) -> DefaultAddressor<Q> {
-    DefaultAddressor::new(
-        net,
-        "10.0.0.0/8".parse().unwrap(),
-        "20.0.0.0/8".parse().unwrap(),
-        "128.0.0.0/1".parse().unwrap(),
-        24,
-        30,
-        24,
-        16,
-        pec,
-    )
+    DefaultAddressorBuilder {
+        internal_ip_range: "10.0.0.0/8".parse().unwrap(),
+        external_ip_range: "20.0.0.0/8".parse().unwrap(),
+        prefix_ip_range: "128.0.0.0/1".parse().unwrap(),
+        prefix_len: 16,
+        pec_size: pec,
+        ..Default::default()
+    }
+    .build(net)
     .unwrap()
 }
 

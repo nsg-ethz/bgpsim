@@ -38,7 +38,7 @@ mod default;
 mod exabgp;
 
 pub use cisco_frr::CiscoFrrCfgGen;
-pub use default::DefaultAddressor;
+pub use default::{DefaultAddressor, DefaultAddressorBuilder};
 pub use exabgp::ExaBgpCfgGen;
 
 /// The internal AS Number

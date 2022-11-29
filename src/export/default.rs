@@ -30,6 +30,154 @@ use crate::{
     types::{AsId, Prefix, RouterId},
 };
 
+/// Builder for the default addressor. The following are the default arguments:
+///
+/// - `internal_ip_range`: "1.0.0.0/8"
+/// - `external_ip_range`: "2.0.0.0/8"
+/// - `prefix_ip_range`: "3.0.0.0/8"
+/// - `local_prefix_len`: 24,
+/// - `link_prefix_len`: 30,
+/// - `external_prefix_len`: 24,
+/// - `prefix_len`: 24,
+/// - `pec_size`: 1,
+#[derive(Debug, Clone)]
+pub struct DefaultAddressorBuilder {
+    /// The IP Address range for the internal network. The default value is `1.0.0.0/8`. This space
+    /// is split as follows:
+    ///
+    /// - The first half is used for all internal routers and their associated network (with prefix
+    ///   length `local_prefix_len`. If `internal_ip_range` is set to `1.0.0.0/8`, then the internal
+    ///   routers will be assigned a network within `1.0.0.0/9`.
+    /// - The third quarter is used for all internal link networks (with prefix length
+    ///   `link_prefix_len`). If `internal_ip_range` is set to `1.0.0.0/8`, then internal links will
+    ///   be assigned a network within `1.128.0.0/10`.
+    /// - The fourth quarter is used for all external link networks (with prefix length
+    ///   `link_prefix_len`). If `internal_ip_range` is set to `1.0.0.0/8`, then internal links will
+    ///   be assigned a network within `1.192.0.0/10`.
+    pub internal_ip_range: Ipv4Net,
+    /// The IP Address range for the external routers (used as loopback address). The default value
+    /// is `2.0.0.0/8`.
+    pub external_ip_range: Ipv4Net,
+    /// The IP Address range for the prefixes that are advertised from external networks. The
+    /// default value is `3.0.0.0/8`.
+    pub prefix_ip_range: Ipv4Net,
+    /// Prefix length of internal networks (used as loopback networks). The default value is
+    /// `24`. The first internal router will get the network `1.0.0.0/24`, the second will get
+    /// `1.0.1.0/24`, and so on.
+    pub local_prefix_len: u8,
+    /// The prefix length of all link networks. The default value is `30`. The first internal link
+    /// will be assigned the network `1.128.0.0/30`, with one router getting `1.128.0.1` and the
+    /// other `1.128.0.2`.
+    pub link_prefix_len: u8,
+    /// The prefix length for external networks (the loopback network of external routers). The
+    /// default value is 24.
+    pub external_prefix_len: u8,
+    /// The prefix length of announced routes. The default value is 24.
+    pub prefix_len: u8,
+    /// This enables prefixes to be treated as equivalence classes. Each Prefix Equivalence Class
+    /// (PEC) will be associated with `pec_size` different network addresses. The default value is
+    /// 1 (which essentially disables PECs).
+    pub pec_size: usize,
+}
+
+impl Default for DefaultAddressorBuilder {
+    fn default() -> Self {
+        Self {
+            internal_ip_range: "1.0.0.0/8".parse().unwrap(),
+            external_ip_range: "2.0.0.0/8".parse().unwrap(),
+            prefix_ip_range: "3.0.0.0/8".parse().unwrap(),
+            local_prefix_len: 24,
+            link_prefix_len: 30,
+            external_prefix_len: 24,
+            prefix_len: 24,
+            pec_size: 1,
+        }
+    }
+}
+
+impl DefaultAddressorBuilder {
+    /// Create a new addressor builder
+    pub fn new() -> Self {
+        Default::default()
+    }
+
+    /// The IP Address range for the internal network. The default value is `1.0.0.0/8`. This space
+    /// is split as follows:
+    ///
+    /// - The first half is used for all internal routers and their associated network (with prefix
+    ///   length `local_prefix_len`. If `internal_ip_range` is set to `1.0.0.0/8`, then the internal
+    ///   routers will be assigned a network within `1.0.0.0/9`.
+    /// - The third quarter is used for all internal link networks (with prefix length
+    ///   `link_prefix_len`). If `internal_ip_range` is set to `1.0.0.0/8`, then internal links will
+    ///   be assigned a network within `1.128.0.0/10`.
+    /// - The fourth quarter is used for all external link networks (with prefix length
+    ///   `link_prefix_len`). If `internal_ip_range` is set to `1.0.0.0/8`, then internal links will
+    ///   be assigned a network within `1.192.0.0/10`.
+    pub fn internal_ip_range(&mut self, x: Ipv4Net) -> &mut Self {
+        self.internal_ip_range = x;
+        self
+    }
+
+    /// The IP Address range for the external routers (used as loopback address). The default value
+    /// is `2.0.0.0/8`.
+    pub fn external_ip_range(&mut self, x: Ipv4Net) -> &mut Self {
+        self.external_ip_range = x;
+        self
+    }
+
+    /// The IP Address range for the prefixes that are advertised from external networks. The
+    /// default value is `3.0.0.0/8`.
+    pub fn prefix_ip_range(&mut self, x: Ipv4Net) -> &mut Self {
+        self.prefix_ip_range = x;
+        self
+    }
+
+    /// Prefix length of internal networks (used as loopback networks). The default value is
+    /// `24`. The first internal router will get the network `1.0.0.0/24`, the second will get
+    /// `1.0.1.0/24`, and so on.
+    pub fn local_prefix_len(&mut self, x: u8) -> &mut Self {
+        self.local_prefix_len = x;
+        self
+    }
+
+    /// The prefix length of all link networks. The default value is `30`. The first internal link
+    /// will be assigned the network `1.128.0.0/30`, with one router getting `1.128.0.1` and the
+    /// other `1.128.0.2`.
+    pub fn link_prefix_len(&mut self, x: u8) -> &mut Self {
+        self.link_prefix_len = x;
+        self
+    }
+
+    /// The prefix length for external networks (the loopback network of external routers). The
+    /// default value is 24.
+    pub fn external_prefix_len(&mut self, x: u8) -> &mut Self {
+        self.external_prefix_len = x;
+        self
+    }
+
+    /// The prefix length of announced routes. The default value is 24.
+    pub fn prefix_len(&mut self, x: u8) -> &mut Self {
+        self.prefix_len = x;
+        self
+    }
+
+    /// This enables prefixes to be treated as equivalence classes. Each Prefix Equivalence Class
+    /// (PEC) will be associated with `pec_size` different network addresses. The default value is
+    /// 1 (which essentially disables PECs).
+    pub fn pec_size(&mut self, x: usize) -> &mut Self {
+        self.pec_size = x;
+        self
+    }
+
+    /// Generate the default addressor from the given parameters.
+    pub fn build<'a, Q>(
+        &self,
+        net: &'a Network<Q>,
+    ) -> Result<DefaultAddressor<'a, Q>, ExportError> {
+        DefaultAddressor::new(net, self)
+    }
+}
+
 /// The default IP addressor uses.
 #[derive(Debug)]
 pub struct DefaultAddressor<'a, Q> {
@@ -68,55 +216,34 @@ pub struct DefaultAddressor<'a, Q> {
 }
 
 impl<'a, Q> DefaultAddressor<'a, Q> {
-    /// Create a new Default IP Addressor. The attributes have the following meaning:
-    ///
-    /// - `internal_ip_range`: This is the IP range available for the entire internal network. This
-    ///   range is split into two equal-sized parts. The first half is used to assign IP addresses
-    ///   and networks to every internal router (using a prefix length of `local_prefix_len`). The
-    ///   second part is used for all links, and is again split into two equal parts. The first part
-    ///   assigns IP addresses to internal links, and the second part to external links. Both of
-    ///   these links will have a network with prefix length `link_prefix_len`.
-    /// - `external_ip_range`: This IP range will be used for all external (neighboring)
-    ///   networks. Every external AS will get a network assigned (with prefix length
-    ///   `external_prefix_len`). Further, every router within an AS is assigned an ip range with
-    ///   prefix length `local_prefix_len`.
-    /// - `prefix_ip_range`: This is the IP range used to assign concrete IP networks to the
-    ///   announced [`Prefix`]es, with the prefix length of `prefix_len`.
+    /// Create a new Default IP Addressor. Use the [`DefaultAddressorBuilder`] to generate the parameters.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(
-        net: &'a Network<Q>,
-        internal_ip_range: Ipv4Net,
-        external_ip_range: Ipv4Net,
-        prefix_ip_range: Ipv4Net,
-        local_prefix_len: u8,
-        link_prefix_len: u8,
-        external_prefix_len: u8,
-        prefix_len: u8,
-        pec_size: usize,
-    ) -> Result<Self, ExportError> {
-        let mut internal_halves = internal_ip_range.subnets(internal_ip_range.prefix_len() + 1)?;
+    pub fn new(net: &'a Network<Q>, args: &DefaultAddressorBuilder) -> Result<Self, ExportError> {
+        let mut internal_halves = args
+            .internal_ip_range
+            .subnets(args.internal_ip_range.prefix_len() + 1)?;
         let internal_router_addr_range = ip_err(internal_halves.next())?;
         let mut third_and_forth_quarter =
-            ip_err(internal_halves.next())?.subnets(internal_ip_range.prefix_len() + 2)?;
+            ip_err(internal_halves.next())?.subnets(args.internal_ip_range.prefix_len() + 2)?;
         let internal_link_addr_range = ip_err(third_and_forth_quarter.next())?;
         let external_link_addr_range = ip_err(third_and_forth_quarter.next())?;
         Ok(Self {
             net,
-            internal_ip_range,
-            external_ip_range,
-            prefix_ip_range,
-            internal_router_addr_iter: internal_router_addr_range.subnets(local_prefix_len)?,
-            internal_link_addr_iter: internal_link_addr_range.subnets(link_prefix_len)?,
-            external_link_addr_iter: external_link_addr_range.subnets(link_prefix_len)?,
-            external_as_addr_iter: external_ip_range.subnets(external_prefix_len)?,
+            internal_ip_range: args.internal_ip_range,
+            external_ip_range: args.external_ip_range,
+            prefix_ip_range: args.prefix_ip_range,
+            internal_router_addr_iter: internal_router_addr_range.subnets(args.local_prefix_len)?,
+            internal_link_addr_iter: internal_link_addr_range.subnets(args.link_prefix_len)?,
+            external_link_addr_iter: external_link_addr_range.subnets(args.link_prefix_len)?,
+            external_as_addr_iter: args.external_ip_range.subnets(args.external_prefix_len)?,
             external_router_addr_iters: HashMap::new(),
-            external_router_prefix_len: local_prefix_len,
-            prefix_addr_iter: prefix_ip_range.subnets(prefix_len)?,
+            external_router_prefix_len: args.local_prefix_len,
+            prefix_addr_iter: args.prefix_ip_range.subnets(args.prefix_len)?,
             router_addrs: HashMap::new(),
             prefix_addrs: HashMap::new(),
             link_addrs: HashMap::new(),
             interfaces: HashMap::new(),
-            pec_size,
+            pec_size: args.pec_size,
         })
     }
 }
@@ -392,7 +519,7 @@ mod test {
     use crate::{
         builder::NetworkBuilder,
         event::BasicEventQueue,
-        export::{Addressor, DefaultAddressor},
+        export::{Addressor, DefaultAddressorBuilder},
         network::Network,
     };
 
@@ -471,17 +598,15 @@ mod test {
         net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
             .unwrap();
 
-        let mut ip = DefaultAddressor::new(
-            &net,
-            "10.0.0.0/8".parse().unwrap(),
-            "20.0.0.0/8".parse().unwrap(),
-            "128.0.0.0/1".parse().unwrap(),
-            24,
-            30,
-            24,
-            16,
-            1,
-        )
+        let mut ip = DefaultAddressorBuilder {
+            internal_ip_range: "10.0.0.0/8".parse().unwrap(),
+            external_ip_range: "20.0.0.0/8".parse().unwrap(),
+            prefix_ip_range: "128.0.0.0/1".parse().unwrap(),
+            prefix_len: 16,
+            pec_size: 1,
+            ..Default::default()
+        }
+        .build(&net)
         .unwrap();
 
         for _ in 0..=1 {
@@ -533,17 +658,15 @@ mod test {
         net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
             .unwrap();
 
-        let mut ip = DefaultAddressor::new(
-            &net,
-            "10.0.0.0/8".parse().unwrap(),
-            "20.0.0.0/8".parse().unwrap(),
-            "128.0.0.0/1".parse().unwrap(),
-            24,
-            30,
-            24,
-            16,
-            3,
-        )
+        let mut ip = DefaultAddressorBuilder {
+            internal_ip_range: "10.0.0.0/8".parse().unwrap(),
+            external_ip_range: "20.0.0.0/8".parse().unwrap(),
+            prefix_ip_range: "128.0.0.0/1".parse().unwrap(),
+            prefix_len: 16,
+            pec_size: 3,
+            ..Default::default()
+        }
+        .build(&net)
         .unwrap();
 
         for _ in 0..=1 {
@@ -610,17 +733,15 @@ mod test {
         net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
             .unwrap();
 
-        let mut ip = DefaultAddressor::new(
-            &net,
-            "10.0.0.0/8".parse().unwrap(),
-            "20.0.0.0/8".parse().unwrap(),
-            "128.0.0.0/1".parse().unwrap(),
-            24,
-            30,
-            24,
-            16,
-            1,
-        )
+        let mut ip = DefaultAddressorBuilder {
+            internal_ip_range: "10.0.0.0/8".parse().unwrap(),
+            external_ip_range: "20.0.0.0/8".parse().unwrap(),
+            prefix_ip_range: "128.0.0.0/1".parse().unwrap(),
+            prefix_len: 16,
+            pec_size: 1,
+            ..Default::default()
+        }
+        .build(&net)
         .unwrap();
 
         cmp_addr!(ip.router_address(0.into()), "10.0.0.1");
