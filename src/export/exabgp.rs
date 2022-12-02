@@ -99,7 +99,7 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// ```
 /// use std::time::Duration;
 /// use bgpsim::prelude::*;
-/// use bgpsim::export::{DefaultAddressor, ExternalCfgGen, ExaBgpCfgGen};
+/// use bgpsim::export::{DefaultAddressorBuilder, ExternalCfgGen, ExaBgpCfgGen};
 /// # use pretty_assertions::assert_eq;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // create the network and get the external router
@@ -121,17 +121,7 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// net.advertise_external_route(router, Prefix::from(1), [100, 200, 300], None, None)?;
 ///
 /// // create the addressor
-/// let mut addressor = DefaultAddressor::new(
-///     &net,
-///     // ...
-/// #   "10.0.0.0/8".parse().unwrap(),
-/// #   "20.0.0.0/8".parse().unwrap(),
-/// #   "100.0.0.0/8".parse().unwrap(),
-/// #   24,
-/// #   30,
-/// #   24,
-/// #   16,
-/// )?;
+/// let mut addressor = DefaultAddressorBuilder::default().build(&net)?;
 ///
 /// // create the config generator
 /// let mut cfg = ExaBgpCfgGen::new(&net, router)?;
@@ -140,9 +130,9 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// assert_eq!(
 ///     cfg.generate_config(&net, &mut addressor)?,
 ///     "\
-/// neighbor 10.192.0.1 {
-///     router-id 20.0.0.1;
-///     local-address 10.192.0.2;
+/// neighbor 1.192.0.1 {
+///     router-id 2.0.0.1;
+///     local-address 1.192.0.2;
 ///     local-as 100;
 ///     peer-as 65535;
 ///     group-updates false;
@@ -174,14 +164,14 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 ///
 /// time.sleep(5)
 ///
-/// sys.stdout.write(\"neighbor 10.192.0.1 announce route 100.0.0.0/16 next-hop self as-path [100]\\n\")
-/// sys.stdout.write(\"neighbor 10.192.0.1 announce route 100.1.0.0/16 next-hop self as-path [100, 200, 300]\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 3.0.0.0/24 next-hop self as-path [100]\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 3.0.1.0/24 next-hop self as-path [100, 200, 300]\\n\")
 /// sys.stdout.flush()
 /// time.sleep(10)
-/// sys.stdout.write(\"neighbor 10.192.0.1 withdraw route 100.0.0.0/16\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 withdraw route 3.0.0.0/24\\n\")
 /// sys.stdout.flush()
 /// time.sleep(10)
-/// sys.stdout.write(\"neighbor 10.192.0.1 announce route 100.1.0.0/16 next-hop self as-path [100, 300]\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 3.0.1.0/24 next-hop self as-path [100, 300]\\n\")
 /// sys.stdout.flush()
 ///
 /// while True:
