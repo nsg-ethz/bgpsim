@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 
 use std::rc::Rc;
 
-use netsim::types::{Prefix, RouterId};
+use bgpsim::types::{Prefix, RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 

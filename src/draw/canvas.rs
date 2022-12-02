@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -20,12 +20,12 @@ use std::rc::Rc;
 
 use gloo_utils::window;
 use itertools::Itertools;
-use netsim::bgp::BgpRoute;
-use netsim::event::Event;
-use netsim::interactive::InteractiveNetwork;
-use netsim::policies::Policy;
-use netsim::prelude::BgpSessionType;
-use netsim::types::{Prefix, RouterId};
+use bgpsim::bgp::BgpRoute;
+use bgpsim::event::Event;
+use bgpsim::interactive::InteractiveNetwork;
+use bgpsim::policies::Policy;
+use bgpsim::prelude::BgpSessionType;
+use bgpsim::types::{Prefix, RouterId};
 use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlDivElement, HtmlElement};

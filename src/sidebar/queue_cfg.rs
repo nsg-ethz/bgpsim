@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 use std::{ops::Deref, rc::Rc};
 
 use gloo_timers::callback::Timeout;
-use netsim::{
+use bgpsim::{
     bgp::BgpEvent,
     event::{Event, EventQueue},
     formatter::NetworkFormatter,

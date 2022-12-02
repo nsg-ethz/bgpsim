@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -25,7 +25,7 @@ use getrandom::getrandom;
 #[cfg(feature = "atomic_bgp")]
 use itertools::Itertools;
 use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
-use netsim::{
+use bgpsim::{
     bgp::{BgpRoute, BgpSessionType},
     event::{Event, EventQueue},
     network::Network,
@@ -356,12 +356,12 @@ impl Net {
 
     /// export the current file and download it.
     pub fn export(&self) {
-        self.trigger_download(net_to_string(self, false), "netsim.json");
+        self.trigger_download(net_to_string(self, false), "bgpsim.json");
     }
 
     /// export to latex
     pub fn export_latex(&self) {
-        self.trigger_download(latex_export::generate_latex(self), "netsim.tex");
+        self.trigger_download(latex_export::generate_latex(self), "bgpsim.tex");
     }
 
     /// download a textfile
@@ -453,7 +453,7 @@ impl Net {
         let encoded_data = base64::encode_config(compressed_data, base64_config());
         let url = window()
             .and_then(|w| w.location().href().ok())
-            .unwrap_or_else(|| String::from("netsim.ethz.ch/"));
+            .unwrap_or_else(|| String::from("bgpsim.ethz.ch/"));
         format!("{}i/{}", url, encoded_data)
     }
 }

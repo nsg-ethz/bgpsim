@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 
 use std::rc::Rc;
 
-use netsim::interactive::InteractiveNetwork;
+use bgpsim::interactive::InteractiveNetwork;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::{Blob, FileReader, HtmlElement, HtmlInputElement};
 use yew::prelude::*;
@@ -116,7 +116,7 @@ impl Component for MainMenu {
                         <div class="cursor-pointer m-2" onclick={on_dark_mode_toggle}>{ dark_mode_symbol }</div>
                     </div>
                     <div class="flex-1 flex flex-col items-center justify-center pt-2 pb-10">
-                        <p class="text-2xl font-bold text-main"> {"Netsim"} </p>
+                        <p class="text-2xl font-bold text-main"> {"BGP-Sim"} </p>
                         <p class="text"> {"By "} <a class={link_class} href="https://tibors.ch" {target}>{"Tibor Schneider"}</a> {" @ "} <a class={link_class} href="https://nsg.ee.ethz.ch" {target}>{"NSG"}</a> </p>
                     </div>
                     <div class="p-2 flex flex-col space-y-2">

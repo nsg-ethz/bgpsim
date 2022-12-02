@@ -1,6 +1,6 @@
 [package]
-name = "netsim-web"
-version = "0.8.0"
+name = "bgpsim-web"
+version = "0.10.0"
 edition = "2021"
 
 [features]
@@ -9,7 +9,7 @@ atomic_bgp = ["dep:atomic-command"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-netsim = { path = "../netsim", features = ["serde"] }
+bgpsim = { path = "../bgpsim", features = ["serde"] }
 atomic-command = { path = "../atomic-bgp/atomic-command", features = ["serde"], optional = true }
 yew = { version = "0.19" }
 yew-router = { version = "0.16" }

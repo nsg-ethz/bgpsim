@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -17,7 +17,7 @@
 
 use std::rc::Rc;
 
-use netsim::{bgp::BgpEvent as NetsimBgpEvent, event::Event, types::RouterId};
+use bgpsim::{bgp::BgpEvent as BgpsimBgpEvent, event::Event, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -107,7 +107,7 @@ struct BgpEventProps {
     p: Point,
     src: RouterId,
     dst: RouterId,
-    event: NetsimBgpEvent,
+    event: BgpsimBgpEvent,
     i: usize,
 }
 
@@ -122,7 +122,7 @@ fn bgp_event(props: &BgpEventProps) -> Html {
 
     let hovered = state.hover() == Hover::Message(src, dst, props.i, true)
         || state.hover() == Hover::Message(src, dst, props.i, false);
-    let is_update = matches!(props.event, NetsimBgpEvent::Update(_));
+    let is_update = matches!(props.event, BgpsimBgpEvent::Update(_));
 
     let class = if hovered {
         "stroke-blue fill-base-2 pointer-events-none"
