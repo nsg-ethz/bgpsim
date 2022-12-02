@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -34,8 +34,8 @@ use std::{cmp::Ordering, collections::HashSet, fmt};
 /// [`RouteMapBuilder`] type to conveniently build a route map:
 ///
 /// ```
-/// # use netsim::route_map::*;
-/// # use netsim::types::{RouterId, Prefix};
+/// # use bgpsim::route_map::*;
+/// # use bgpsim::types::{RouterId, Prefix};
 /// # let neighbor: RouterId = 0.into();
 /// # let prefix: Prefix = Prefix::from(0);
 /// let map = RouteMapBuilder::new()
@@ -172,8 +172,8 @@ where
 /// any route.
 ///
 /// ```
-/// # use netsim::route_map::*;
-/// # use netsim::types::{RouterId, Prefix};
+/// # use bgpsim::route_map::*;
+/// # use bgpsim::types::{RouterId, Prefix};
 /// # let neighbor: RouterId = 0.into();
 /// # let prefix: Prefix = Prefix::from(0);
 /// let map = RouteMapBuilder::new()

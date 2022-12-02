@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -44,8 +44,8 @@ use crate::network::UndoAction;
 /// quickly setup a basic configuration:
 ///
 /// ```
-/// use netsim::prelude::*;
-/// use netsim::builder::*;
+/// use bgpsim::prelude::*;
+/// use bgpsim::builder::*;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Create a complete graph with 10 nodes.
 /// let mut net = Network::build_complete_graph(BasicEventQueue::new(), 10);
@@ -87,10 +87,10 @@ pub trait NetworkBuilder<Q> {
     /// ```
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
-    /// use netsim::prelude::*;
-    /// # use netsim::topology_zoo::TopologyZoo;
-    /// # use netsim::event::BasicEventQueue as Queue;
-    /// use netsim::builder::{NetworkBuilder, k_highest_degree_nodes};
+    /// use bgpsim::prelude::*;
+    /// # use bgpsim::topology_zoo::TopologyZoo;
+    /// # use bgpsim::event::BasicEventQueue as Queue;
+    /// use bgpsim::builder::{NetworkBuilder, k_highest_degree_nodes};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     ///
@@ -124,10 +124,10 @@ pub trait NetworkBuilder<Q> {
     /// ```
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
-    /// use netsim::prelude::*;
-    /// # use netsim::topology_zoo::TopologyZoo;
-    /// # use netsim::event::BasicEventQueue as Queue;
-    /// use netsim::builder::{NetworkBuilder, constant_link_weight};
+    /// use bgpsim::prelude::*;
+    /// # use bgpsim::topology_zoo::TopologyZoo;
+    /// # use bgpsim::event::BasicEventQueue as Queue;
+    /// use bgpsim::builder::{NetworkBuilder, constant_link_weight};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     ///
@@ -167,10 +167,10 @@ pub trait NetworkBuilder<Q> {
     /// ```
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
-    /// use netsim::prelude::*;
-    /// # use netsim::topology_zoo::TopologyZoo;
-    /// # use netsim::event::BasicEventQueue as Queue;
-    /// use netsim::builder::{NetworkBuilder, unique_preferences};
+    /// use bgpsim::prelude::*;
+    /// # use bgpsim::topology_zoo::TopologyZoo;
+    /// # use bgpsim::event::BasicEventQueue as Queue;
+    /// use bgpsim::builder::{NetworkBuilder, unique_preferences};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     /// # let prefix = Prefix::from(0);
@@ -214,10 +214,10 @@ pub trait NetworkBuilder<Q> {
     /// ```
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
-    /// use netsim::prelude::*;
-    /// # use netsim::topology_zoo::TopologyZoo;
-    /// # use netsim::event::BasicEventQueue as Queue;
-    /// use netsim::builder::{NetworkBuilder, extend_to_k_external_routers};
+    /// use bgpsim::prelude::*;
+    /// # use bgpsim::topology_zoo::TopologyZoo;
+    /// # use bgpsim::event::BasicEventQueue as Queue;
+    /// use bgpsim::builder::{NetworkBuilder, extend_to_k_external_routers};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
     ///

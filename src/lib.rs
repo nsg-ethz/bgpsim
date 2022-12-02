@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -18,7 +18,7 @@
 #![deny(missing_docs, missing_debug_implementations)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
 
-//! # NetSim
+//! # BgpSim
 //!
 //! This is a library for simulating specific network topologies and configuration.
 //!
@@ -82,7 +82,7 @@
 //! same prefix `Prefix::from(0)`, and all links have the same weight `1.0`.
 //!
 //! ```
-//! use netsim::prelude::*;
+//! use bgpsim::prelude::*;
 //!
 //! fn main() -> Result<(), NetworkError> {
 //!

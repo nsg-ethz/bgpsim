@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -268,10 +268,10 @@ where
 /// ```
 /// # #[cfg(feature = "topology_zoo")]
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// # use netsim::prelude::*;
-/// # use netsim::topology_zoo::TopologyZoo;
-/// # use netsim::event::BasicEventQueue;
-/// # use netsim::builder::*;
+/// # use bgpsim::prelude::*;
+/// # use bgpsim::topology_zoo::TopologyZoo;
+/// # use bgpsim::event::BasicEventQueue;
+/// # use bgpsim::builder::*;
 /// # let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());
 /// # let prefix = Prefix::from(0);
 /// # net.build_external_routers(extend_to_k_external_routers, 3)?;
@@ -280,7 +280,7 @@ where
 /// # net.build_link_weights(constant_link_weight, 20.0)?;
 /// # let ads = net.build_advertisements(prefix, unique_preferences, 3)?;
 /// # let ext = ads[0][0];
-/// use netsim::interactive::InteractiveNetwork;
+/// use bgpsim::interactive::InteractiveNetwork;
 ///
 /// // let mut net = ...
 /// let original_net = net.clone();

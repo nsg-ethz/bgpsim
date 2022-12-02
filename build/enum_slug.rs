@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -49,10 +49,10 @@ use serde::{Deserialize, Serialize};
 ///
 /// ```
 /// # use std::error::Error;
-/// use netsim::prelude::*;
-/// use netsim::topology_zoo::TopologyZoo;
-/// use netsim::event::BasicEventQueue;
-/// use netsim::builder::*;
+/// use bgpsim::prelude::*;
+/// use bgpsim::topology_zoo::TopologyZoo;
+/// use bgpsim::event::BasicEventQueue;
+/// use bgpsim::builder::*;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
 /// let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());

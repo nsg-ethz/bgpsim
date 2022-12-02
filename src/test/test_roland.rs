@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -15,7 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-//! Testcase for forwarding state that appeared while Roland Schmid was using netsim.
+//! Testcase for forwarding state that appeared while Roland Schmid was using bgpsim.
 
 use std::{
     collections::{HashMap, HashSet},

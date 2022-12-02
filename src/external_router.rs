@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -41,7 +41,7 @@ use std::collections::HashSet;
 /// - `neighbors`: it is to be expected that there are only very few neighbors to an external
 ///   router (usually 1). Hence, searching through the vector will be faster than using a `HashSet`.
 ///   Also, cloning the External router is faster this way.
-/// - `active_routes`: The main usecase of netsim is to be used in snowcap. There, we never
+/// - `active_routes`: The main usecase of bgpsim is to be used in snowcap. There, we never
 ///   advertise new routes or withdraw them during the main iteration. Thus, this operation can be
 ///   a bit more expensive. However, it is to be expected that neighbors are added and removed more
 ///   often. In this case, we need to iterate over the `active_routes`, which is faster than using a

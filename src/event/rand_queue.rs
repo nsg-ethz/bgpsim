@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -181,9 +181,9 @@ impl PartialEq for SimpleTimingModel {
 ///
 /// ```
 /// # #[cfg(all(feature = "rand_queue", feature = "topology_zoo"))]
-/// use netsim::event::{GeoTimingModel, ModelParams};
+/// use bgpsim::event::{GeoTimingModel, ModelParams};
 /// # #[cfg(all(feature = "rand_queue", feature = "topology_zoo"))]
-/// use netsim::topology_zoo::TopologyZoo;
+/// use bgpsim::topology_zoo::TopologyZoo;
 /// # #[cfg(all(feature = "rand_queue", feature = "topology_zoo"))]
 /// let _queue = GeoTimingModel::new(
 ///     ModelParams::new(0.1, 0.1, 2.0, 5.0, 0.01),
@@ -204,10 +204,10 @@ impl PartialEq for SimpleTimingModel {
 /// ```
 /// # #[cfg(feature = "topology_zoo")]
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-/// use netsim::prelude::*;
-/// use netsim::topology_zoo::TopologyZoo;
-/// use netsim::event::{BasicEventQueue, GeoTimingModel, ModelParams};
-/// use netsim::builder::*;
+/// use bgpsim::prelude::*;
+/// use bgpsim::topology_zoo::TopologyZoo;
+/// use bgpsim::event::{BasicEventQueue, GeoTimingModel, ModelParams};
+/// use bgpsim::builder::*;
 ///
 /// // create the network with the basic event queue
 /// let mut net = TopologyZoo::EliBackbone.build(BasicEventQueue::new());

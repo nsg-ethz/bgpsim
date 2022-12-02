@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -173,7 +173,7 @@ impl<Q> Network<Q> {
     /// this function will do nothing!
     ///
     /// ```rust
-    /// # use netsim::prelude::*;
+    /// # use bgpsim::prelude::*;
     /// # fn main() -> Result<(), NetworkError> {
     /// let mut net = Network::default();
     /// let r1 = net.add_router("r1");

@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -25,11 +25,11 @@ use criterion::{criterion_group, criterion_main, Criterion};
 
 mod common;
 use common::*;
-use netsim::event::GeoTimingModel;
-use netsim::forwarding_state::ForwardingState;
-use netsim::policies::FwPolicy;
-use netsim::prelude::*;
-use netsim::record::ConvergenceTrace;
+use bgpsim::event::GeoTimingModel;
+use bgpsim::forwarding_state::ForwardingState;
+use bgpsim::policies::FwPolicy;
+use bgpsim::prelude::*;
+use bgpsim::record::ConvergenceTrace;
 
 pub fn benchmark_generation(c: &mut Criterion) {
     c.bench_function("retract", |b| {

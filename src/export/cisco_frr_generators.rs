@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -80,7 +80,7 @@ impl Interface {
     /// as follows:
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::Interface;
+    /// # use bgpsim::export::cisco_frr_generators::Interface;
     /// assert_eq!(Interface::new("Ethernet4/1").no(), "no interface Ethernet4/1\n");
     /// ```
     pub fn no(&self) -> String {
@@ -90,7 +90,7 @@ impl Interface {
     /// Set the IP address of the interface.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let ip_addr: Ipv4Net = "10.0.0.1/8".parse().unwrap();
@@ -107,7 +107,7 @@ impl Interface {
     /// You can also set multiple IP addresses per interface
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let ip1: Ipv4Net = "10.1.0.1/16".parse().unwrap();
@@ -132,7 +132,7 @@ impl Interface {
     /// To change an IP address, first unset the old one, and then set the new one:
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let old: Ipv4Net = "10.1.0.1/16".parse().unwrap();
@@ -158,7 +158,7 @@ impl Interface {
     /// Unset the IP address of the interface
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let ip_addr: Ipv4Net = "10.0.0.1/8".parse().unwrap();
@@ -180,7 +180,7 @@ impl Interface {
     /// this function will remove ospf configuration and shutdown the interface.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").cost(200f64).build(Target::CiscoNexus7000),
     ///     "\
@@ -192,7 +192,7 @@ impl Interface {
     /// ```
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").cost(1_000_000f64).build(Target::CiscoNexus7000),
     ///     "\
@@ -218,7 +218,7 @@ impl Interface {
     /// Unset the OSPF cost.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").no_cost().build(Target::CiscoNexus7000),
     ///     "\
@@ -236,7 +236,7 @@ impl Interface {
     /// Set the OSPF area.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").area(2).build(Target::CiscoNexus7000),
     ///     "\
@@ -254,7 +254,7 @@ impl Interface {
     /// Unset the OSPF area.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").no_area().build(Target::CiscoNexus7000),
     ///     "\
@@ -274,7 +274,7 @@ impl Interface {
     /// network. The default value is 40 seconds.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").dead_interval(10).build(Target::CiscoNexus7000),
     ///     "\
@@ -294,7 +294,7 @@ impl Interface {
     /// network. This will reset this number back to 40.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").no_dead_interval().build(Target::CiscoNexus7000),
     ///     "\
@@ -314,7 +314,7 @@ impl Interface {
     /// all routers attached to a common network. This will reset this number back to 10.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").hello_interval(10).build(Target::CiscoNexus7000),
     ///     "\
@@ -334,7 +334,7 @@ impl Interface {
     /// all routers attached to a common network. This will reset this number back to 10.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").no_hello_interval().build(Target::CiscoNexus7000),
     ///     "\
@@ -353,7 +353,7 @@ impl Interface {
     /// `Target::FRR`.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1")
     ///         .mac_address([0xde, 0xad, 0xbe, 0xef, 0x00, 0x00])
@@ -374,7 +374,7 @@ impl Interface {
     /// Target::FRR`.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").no_mac_address().build(Target::CiscoNexus7000),
     ///     "\
@@ -392,7 +392,7 @@ impl Interface {
     /// Disable the interface by setting the `shutdown` command.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").shutdown().build(Target::CiscoNexus7000),
     ///     "\
@@ -410,7 +410,7 @@ impl Interface {
     /// Enable the interface by setting the `no shutdown` command.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1").no_shutdown().build(Target::CiscoNexus7000),
     ///     "\
@@ -429,7 +429,7 @@ impl Interface {
     /// new-line character at the end of the command.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{Interface, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let ip_addr: Ipv4Net = "10.0.0.1/8".parse().unwrap();
@@ -532,7 +532,7 @@ impl RouterOspf {
     /// Disable the OSPF router instance
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterOspf, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterOspf, Target};
     /// assert_eq!(
     ///     RouterOspf::new().no(Target::CiscoNexus7000),
     ///     "no router ospf 10\n"
@@ -548,7 +548,7 @@ impl RouterOspf {
     /// Set the router-id for the OSPF router instance.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterOspf, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterOspf, Target};
     /// # use std::net::Ipv4Addr;
     /// let id = Ipv4Addr::new(10, 0, 0, 1);
     /// assert_eq!(
@@ -568,7 +568,7 @@ impl RouterOspf {
     /// Unset the router-id for the OSPF router instance.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterOspf, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterOspf, Target};
     /// assert_eq!(
     ///     RouterOspf::new().no_router_id().build(Target::CiscoNexus7000),
     ///     "\
@@ -587,7 +587,7 @@ impl RouterOspf {
     /// maximum is 32. On FRR, the maximum is 64.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterOspf, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterOspf, Target};
     /// assert_eq!(
     ///     RouterOspf::new().maximum_paths(4).build(Target::CiscoNexus7000),
     ///     "\
@@ -605,7 +605,7 @@ impl RouterOspf {
     /// Unset the number of maximum paths. On cisco, this will default to 8.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterOspf, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterOspf, Target};
     /// assert_eq!(
     ///     RouterOspf::new().no_maximum_paths().build(Target::CiscoNexus7000),
     ///     "\
@@ -624,7 +624,7 @@ impl RouterOspf {
     /// new-line character at the end of the command.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterOspf, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterOspf, Target};
     /// # use std::net::Ipv4Addr;
     /// let id = Ipv4Addr::new(10, 0, 0, 1);
     /// assert_eq!(
@@ -667,9 +667,9 @@ exit
 ///
 ///
 /// ```
-/// # use netsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
+/// # use bgpsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
 /// # use std::net::Ipv4Addr;
-/// # use netsim::types::AsId;
+/// # use bgpsim::types::AsId;
 /// use ipnet::Ipv4Net;
 ///
 /// let router_id: Ipv4Addr = "10.0.0.1".parse().unwrap();
@@ -731,7 +731,7 @@ impl RouterBgp {
     /// Disable the BGP router instance
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgp, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, Target};
     /// assert_eq!(
     ///     RouterBgp::new(10).no(),
     ///     "no router bgp 10\n"
@@ -744,7 +744,7 @@ impl RouterBgp {
     /// Set the router-id for the BGP router instance.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgp, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, Target};
     /// # use std::net::Ipv4Addr;
     /// let id = Ipv4Addr::new(10, 0, 0, 1);
     /// assert_eq!(
@@ -764,7 +764,7 @@ impl RouterBgp {
     /// Unset the router-id for the BGP router instance.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgp, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, Target};
     /// assert_eq!(
     ///     RouterBgp::new(10).no_router_id().build(Target::CiscoNexus7000),
     ///     "\
@@ -782,7 +782,7 @@ impl RouterBgp {
     /// Advertise the specific address over BGP.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgp, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let n1: Ipv4Net = "10.0.0.0/8".parse().unwrap();
@@ -807,7 +807,7 @@ impl RouterBgp {
     /// Stop advertising the specific address over BGP.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgp, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let n1: Ipv4Net = "10.0.0.0/8".parse().unwrap();
@@ -832,9 +832,9 @@ impl RouterBgp {
     /// Configure a BGP Neighbor using [`RouterBgpNeighbor`]
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgp::new(10)
@@ -857,9 +857,9 @@ impl RouterBgp {
     /// Remove a neighbor.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgp::new(10)
@@ -881,9 +881,9 @@ impl RouterBgp {
     /// `Target::Frr`, which are created from advertising networks, and from the neighbors.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// use ipnet::Ipv4Net;
     ///
     /// let router_id: Ipv4Addr = "10.0.0.1".parse().unwrap();
@@ -1043,7 +1043,7 @@ impl RouterBgpNeighbor {
     /// Remove the neighbor from the configuration.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::RouterBgpNeighbor;
+    /// # use bgpsim::export::cisco_frr_generators::RouterBgpNeighbor;
     /// # use std::net::Ipv4Addr;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(RouterBgpNeighbor::new(neighbor_addr).no(), "  no neighbor 20.0.0.1\n");
@@ -1055,9 +1055,9 @@ impl RouterBgpNeighbor {
     /// Set the remote-as. For `Target::Frr`.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1084,9 +1084,9 @@ impl RouterBgpNeighbor {
     /// Set the default weight.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1121,9 +1121,9 @@ impl RouterBgpNeighbor {
     /// Unset the default weight.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1159,9 +1159,9 @@ impl RouterBgpNeighbor {
     /// with the neighbor.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1190,9 +1190,9 @@ impl RouterBgpNeighbor {
     /// with the neighbor.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1210,9 +1210,9 @@ impl RouterBgpNeighbor {
     /// sent to that neighbor.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1248,9 +1248,9 @@ impl RouterBgpNeighbor {
     /// sent to that neighbor.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1285,9 +1285,9 @@ impl RouterBgpNeighbor {
     /// Mark the neighbor as a route-reflector client.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1322,9 +1322,9 @@ impl RouterBgpNeighbor {
     /// Mark the neighbor as a non-route-reflector-client (i.e., regular peer)
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1359,9 +1359,9 @@ impl RouterBgpNeighbor {
     /// Set the name of the incoming route-map.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1396,9 +1396,9 @@ impl RouterBgpNeighbor {
     /// Unset the name of the incoming route-map.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1434,9 +1434,9 @@ impl RouterBgpNeighbor {
     /// Set the name of the outgoing route-map.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1471,9 +1471,9 @@ impl RouterBgpNeighbor {
     /// Unset the name of the outgoing route-map.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1509,9 +1509,9 @@ impl RouterBgpNeighbor {
     /// Send BGP communities to the neighbor.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1546,9 +1546,9 @@ impl RouterBgpNeighbor {
     /// Do not send communities to BGP neighbors
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1583,9 +1583,9 @@ impl RouterBgpNeighbor {
     /// Enable soft-reconfiguraiton for inbound routes.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1620,9 +1620,9 @@ impl RouterBgpNeighbor {
     /// Do not send communities to BGP neighbors
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use netsim::types::AsId;
+    /// # use bgpsim::types::AsId;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1791,7 +1791,7 @@ impl StaticRoute {
     /// Remove any static route for that destination.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{StaticRoute, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{StaticRoute, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let dest: Ipv4Net = "1.0.0.0/8".parse().unwrap();
@@ -1808,7 +1808,7 @@ impl StaticRoute {
     /// table for that IP address).
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{StaticRoute, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{StaticRoute, Target};
     /// # use std::net::Ipv4Addr;
     /// use ipnet::Ipv4Net;
     ///
@@ -1828,7 +1828,7 @@ impl StaticRoute {
     /// table for that IP address).
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{StaticRoute, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{StaticRoute, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let dest: Ipv4Net = "1.0.0.0/8".parse().unwrap();
@@ -1845,7 +1845,7 @@ impl StaticRoute {
     /// Black-hole all incoming traffic for that destination.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{StaticRoute, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{StaticRoute, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let dest: Ipv4Net = "1.0.0.0/8".parse().unwrap();
@@ -1867,7 +1867,7 @@ impl StaticRoute {
     /// while 255 has the lowest preference.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{StaticRoute, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{StaticRoute, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let dest: Ipv4Net = "1.0.0.0/8".parse().unwrap();
@@ -1904,7 +1904,7 @@ impl StaticRoute {
 ///
 ///
 /// ```
-/// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, PrefixList, Target};
+/// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, PrefixList, Target};
 /// let nh: ipnet::Ipv4Net = "10.0.1.1/32".parse().unwrap();
 /// assert_eq!(
 ///     RouteMapItem::new("test", 10, true)
@@ -1971,7 +1971,7 @@ impl RouteMapItem {
     /// Create a prefix-list and match on that prefix-list
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let net: Ipv4Net = "10.0.0.0/8".parse().unwrap();
@@ -1992,7 +1992,7 @@ impl RouteMapItem {
     /// with the old prefix-list, and then call `match_prefix_list` with the new one:
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let net: Ipv4Net = "20.0.0.0/8".parse().unwrap();
@@ -2019,7 +2019,7 @@ impl RouteMapItem {
     /// Remove the match on a prefix-list, and delete that prefix-list
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_match_prefix_list(PrefixList::new("test-pl"))
@@ -2040,7 +2040,7 @@ impl RouteMapItem {
     /// Create a community list and match on that list.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .match_community_list(CommunityList::new("test-cl").community(10, 10))
@@ -2058,7 +2058,7 @@ impl RouteMapItem {
     /// with the old community-list first, followed by `match_community_list` with the new one:
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_match_community_list(CommunityList::new("test-cl-old"))
@@ -2083,7 +2083,7 @@ impl RouteMapItem {
     /// remove the match on a community-list and remove that list.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_match_community_list(CommunityList::new("test-cl"))
@@ -2108,7 +2108,7 @@ impl RouteMapItem {
     /// Create a as_path list and match on that list.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, AsPathList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, AsPathList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .match_as_path_list(AsPathList::new("test-asl").contains_as(10))
@@ -2126,7 +2126,7 @@ impl RouteMapItem {
     /// the old access-list, followed by `match_as_path_list` with the new one:
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, AsPathList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, AsPathList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_match_as_path_list(AsPathList::new("test-asl-old"))
@@ -2150,7 +2150,7 @@ impl RouteMapItem {
     /// remove the match on a as_path-list and remove that list.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, AsPathList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, AsPathList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_match_as_path_list(AsPathList::new("test-asl"))
@@ -2171,7 +2171,7 @@ impl RouteMapItem {
     /// Create a prefix-list and match the next-hop on that prefix-list
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let net: Ipv4Net = "10.0.0.0/8".parse().unwrap();
@@ -2192,7 +2192,7 @@ impl RouteMapItem {
     /// the old prefix-list, followed by `match_next_hop` with the new one:
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
     /// use ipnet::Ipv4Net;
     ///
     /// let net: Ipv4Net = "20.0.0.0/8".parse().unwrap();
@@ -2219,7 +2219,7 @@ impl RouteMapItem {
     /// Remove the match on a next-hop using a prefix-list, and remove that prefix-list
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_match_next_hop(PrefixList::new("test-nh-pl"))
@@ -2240,7 +2240,7 @@ impl RouteMapItem {
     /// Set the next-hop field to a specific value.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// # use std::net::Ipv4Addr;
     /// let nh: Ipv4Addr = "10.0.0.1".parse().unwrap();
     /// assert_eq!(
@@ -2260,7 +2260,7 @@ impl RouteMapItem {
     /// Remove the set of next-hop.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).no_set_next_hop().build(Target::Frr),
     ///     "\
@@ -2278,7 +2278,7 @@ impl RouteMapItem {
     /// Set the local weight of the route
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).set_weight(200).build(Target::Frr),
     ///     "\
@@ -2296,7 +2296,7 @@ impl RouteMapItem {
     /// Remove the set of local weight.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).no_set_weight().build(Target::Frr),
     ///     "\
@@ -2314,7 +2314,7 @@ impl RouteMapItem {
     /// Set the local-preference of the route
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).set_local_pref(200).build(Target::Frr),
     ///     "\
@@ -2332,7 +2332,7 @@ impl RouteMapItem {
     /// Remove the set of local-preference.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).no_set_local_pref().build(Target::Frr),
     ///     "\
@@ -2350,7 +2350,7 @@ impl RouteMapItem {
     /// Set the metric (MED) of the route
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).set_med(200).build(Target::Frr),
     ///     "\
@@ -2368,7 +2368,7 @@ impl RouteMapItem {
     /// Remove the set of metric (MED).
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).no_set_med().build(Target::Frr),
     ///     "\
@@ -2386,7 +2386,7 @@ impl RouteMapItem {
     /// Set a specific community tag
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).set_community(10, 10).build(Target::Frr),
     ///     "\
@@ -2400,7 +2400,7 @@ impl RouteMapItem {
     /// For Cisco devices, this will also add the `additive` tag:
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).set_community(10, 10).build(Target::CiscoNexus7000),
     ///     "\
@@ -2419,7 +2419,7 @@ impl RouteMapItem {
     /// Remove the set of a specific community tag
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).no_set_community(10, 10).build(Target::Frr),
     ///     "\
@@ -2433,7 +2433,7 @@ impl RouteMapItem {
     /// For Cisco devices, this will remove the community using the `additive` tag.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_set_community(10, 10)
@@ -2454,7 +2454,7 @@ impl RouteMapItem {
     /// Remove any communities matching the community list.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .delete_community_list(CommunityList::new("test-cl-del").community(10, 10))
@@ -2475,7 +2475,7 @@ impl RouteMapItem {
     /// Negate the removal of any communities matching the community list.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_remove_community_list(CommunityList::new("test-cl-del"))
@@ -2499,7 +2499,7 @@ impl RouteMapItem {
     /// Prepend a specific as-path to the routes.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .prepend_as_path([1, 2, 3])
@@ -2522,7 +2522,7 @@ impl RouteMapItem {
     /// Stop prepending a specific as-path to the routes.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_prepend_as_path()
@@ -2543,7 +2543,7 @@ impl RouteMapItem {
     /// route-map item.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).continues(20).build(Target::Frr),
     ///     "\
@@ -2562,7 +2562,7 @@ impl RouteMapItem {
     /// route-map item.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true).no_continues().build(Target::Frr),
     ///     "\
@@ -2581,7 +2581,7 @@ impl RouteMapItem {
     /// access-lists that belong to that route-map item.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, PrefixList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, PrefixList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .match_prefix_list(PrefixList::new("test-pl"))
@@ -2624,7 +2624,7 @@ impl RouteMapItem {
     /// that belong to that route-map.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, PrefixList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, PrefixList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .match_community_list(CommunityList::new("test-cl").community(10, 10))
@@ -2775,7 +2775,7 @@ impl PrefixList {
     /// Remove the prefix list.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::PrefixList;
+    /// # use bgpsim::export::cisco_frr_generators::PrefixList;
     /// assert_eq!(
     ///     PrefixList::new("test").no(),
     ///     "no ip prefix-list test\n"
@@ -2788,7 +2788,7 @@ impl PrefixList {
     /// Permit the given network. Calling permit multiple times, the resulting prefix list will
     /// permit one of the given prefixes.
     /// ```
-    /// # use netsim::export::cisco_frr_generators::PrefixList;
+    /// # use bgpsim::export::cisco_frr_generators::PrefixList;
     /// use ipnet::Ipv4Net;
     ///
     /// let n1 = "10.0.0.0/8".parse().unwrap();
@@ -2839,7 +2839,7 @@ impl CommunityList {
     /// Remove the prefix list.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{CommunityList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{CommunityList, Target};
     /// assert_eq!(
     ///     CommunityList::new("test").no(Target::Frr),
     ///     "no bgp community-list standard test\n"
@@ -2856,7 +2856,7 @@ impl CommunityList {
     /// Permit the given network. Calling permit multiple times, the resulting prefix list will
     /// permit one of the given prefixes.
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{CommunityList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{CommunityList, Target};
     /// assert_eq!(
     ///     CommunityList::new("test").community(10, 10).community(10, 20).build(Target::Frr),
     ///     "bgp community-list standard test permit 10:10 10:20\n"
@@ -2908,7 +2908,7 @@ impl AsPathList {
     /// Remove the prefix list.
     ///
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{AsPathList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{AsPathList, Target};
     /// assert_eq!(
     ///     AsPathList::new("test").no(Target::Frr),
     ///     "no bgp as-path access-list test\n"
@@ -2924,7 +2924,7 @@ impl AsPathList {
 
     /// Create a regular expression that makes sure that a specific AS is present.
     /// ```
-    /// # use netsim::export::cisco_frr_generators::{AsPathList, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{AsPathList, Target};
     /// assert_eq!(
     ///     AsPathList::new("test").contains_as(10).build(Target::Frr),
     ///     "bgp as-path access-list test permit _10_\n"

@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -32,7 +32,7 @@ pub fn main() {
 */
 
 use common::roland::*;
-use netsim::interactive::InteractiveNetwork;
+use bgpsim::interactive::InteractiveNetwork;
 
 #[cfg(all(feature = "topology_zoo", feature = "rand_queue", feature = "rand"))]
 pub fn main() {

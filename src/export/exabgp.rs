@@ -1,4 +1,4 @@
-// NetSim: BGP Network Simulator written in Rust
+// BgpSim: BGP Network Simulator written in Rust
 // Copyright (C) 2022 Tibor Schneider
 //
 // This program is free software; you can redistribute it and/or modify
@@ -98,14 +98,14 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 ///
 /// ```
 /// use std::time::Duration;
-/// use netsim::prelude::*;
-/// use netsim::export::{DefaultAddressor, ExternalCfgGen, ExaBgpCfgGen};
+/// use bgpsim::prelude::*;
+/// use bgpsim::export::{DefaultAddressor, ExternalCfgGen, ExaBgpCfgGen};
 /// # use pretty_assertions::assert_eq;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // create the network and get the external router
 /// let mut net = {
 ///     // ...
-/// #   use netsim::builder::NetworkBuilder;
+/// #   use bgpsim::builder::NetworkBuilder;
 /// #   let mut net = Network::build_complete_graph(BasicEventQueue::new(), 1);
 /// #   let router = net.add_external_router("external_router", AsId(100));
 /// #   net.get_routers().into_iter().for_each(|r| net.add_link(r, router));
