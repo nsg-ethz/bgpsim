@@ -639,7 +639,7 @@ impl Router {
                 old_map
             }
             Outgoing => {
-                let maps = match self.bgp_route_maps_in.get_mut(&neighbor) {
+                let maps = match self.bgp_route_maps_out.get_mut(&neighbor) {
                     Some(x) => x,
                     None => return Ok((None, vec![])),
                 };

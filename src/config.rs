@@ -683,6 +683,7 @@ where
         if self.can_apply_modifier(modifier) {
             self.apply_modifier_unchecked(modifier)
         } else {
+            log::warn!("Cannot apply mod.: {}", modifier.fmt(self));
             Err(NetworkError::ConfigError(ConfigError::ConfigModifierError(
                 Box::new(modifier.clone()),
             )))
