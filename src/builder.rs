@@ -409,7 +409,7 @@ where
     {
         let prefs = preferences(self, a);
         #[cfg(feature = "multi_prefix")]
-        let last_as = AsId(prefix.0 + 100);
+        let last_as = AsId(prefix.get() + 100);
         #[cfg(not(feature = "multi_prefix"))]
         let last_as = AsId(100);
 

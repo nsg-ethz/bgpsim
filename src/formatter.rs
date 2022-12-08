@@ -330,7 +330,7 @@ impl<'a, 'n, Q> NetworkFormatter<'a, 'n, Q> for RouteMapMatch {
             RouteMapMatch::Prefix(_pl) => {
                 #[cfg(feature = "multi_prefix")]
                 {
-                    format!("Prefix in {{{}}}", _pl.iter().map(|x| x.0).join(", "))
+                    format!("Prefix in {{{}}}", _pl.iter().map(|x| x.get()).join(", "))
                 }
                 #[cfg(not(feature = "multi_prefix"))]
                 {

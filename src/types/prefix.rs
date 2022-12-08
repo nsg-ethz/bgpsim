@@ -42,7 +42,14 @@ mod _prefix {
     /// IP Prefix (simple representation)
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub struct Prefix(pub u32);
+    pub struct Prefix(u32);
+
+    impl Prefix {
+        /// Get the actual value of the prefix, as a u32.
+        pub(crate) fn get(&self) -> u32 {
+            self.0
+        }
+    }
 
     impl std::fmt::Display for Prefix {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -565,6 +572,13 @@ mod _prefix {
     #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy, Default)]
     #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
     pub struct Prefix;
+
+    impl Prefix {
+        /// Get the actual value of the prefix, as a u32.
+        pub(crate) fn get(&self) -> u32 {
+            0
+        }
+    }
 
     impl std::fmt::Display for Prefix {
         fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {

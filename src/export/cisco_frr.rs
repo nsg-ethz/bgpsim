@@ -975,7 +975,7 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
 
         let mut config = String::new();
 
-        let mut prefix_list = PrefixList::new(format!("prefix-list-{}", route.prefix.0));
+        let mut prefix_list = PrefixList::new(format!("prefix-list-{}", route.prefix.get()));
         let mut bgp_config = RouterBgp::new(self.as_id);
 
         // add all loopback ip addresses. This is special if we can store multiple IP addresses on
@@ -1006,7 +1006,7 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
         config.push_str(&bgp_config.build(self.target));
 
         // write the route-map
-        let mut route_map = RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.0 as u16 + 1, true);
+        let mut route_map = RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.get() as u16 + 1, true);
         route_map.match_prefix_list(prefix_list);
         route_map.prepend_as_path(route.as_path.iter().skip(1));
         route_map.set_med(route.med.unwrap_or(0));
@@ -1057,8 +1057,8 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
 
         // remote the route-map
         config.push_str(
-            &RouteMapItem::new(EXTERNAL_RM_OUT, prefix.0 as u16 + 1, true)
-                .match_prefix_list(PrefixList::new(format!("prefix-list-{}", prefix.0)))
+            &RouteMapItem::new(EXTERNAL_RM_OUT, prefix.get() as u16 + 1, true)
+                .match_prefix_list(PrefixList::new(format!("prefix-list-{}", prefix.get())))
                 .no(self.target),
         );
 
