@@ -32,10 +32,7 @@ use crate::{
     },
     types::{
         collections::{CowMap, CowMapIter},
-        prefix::{
-            CowMapPrefix, CowSetPrefix, HashMapPrefix, HashMapPrefixKV, InnerHashMapPrefix,
-            InnerHashMapPrefixKV,
-        },
+        prefix::{CowMapPrefix, CowSetPrefix, HashMapPrefix, HashMapPrefixKV},
         AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate,
     },
 };
@@ -146,7 +143,7 @@ impl Router {
         let f = &mut result;
         let selected_entry = self.get_selected_bgp_route(prefix);
         for entry in self.get_known_bgp_routes(prefix).unwrap_or_default() {
-            let selected = selected_entry.as_ref() == Some(&entry);
+            let selected = selected_entry == Some(&entry);
             writeln!(f, "{} {}", if selected { "*" } else { " " }, entry.fmt(net)).unwrap();
         }
         result
@@ -419,11 +416,6 @@ impl Router {
             }
         }
         Ok(entries)
-    }
-
-    /// Returns the selected bgp route for the prefix, or returns None
-    pub fn get_selected_bgp_route(&self, prefix: Prefix) -> Option<BgpRibEntry> {
-        self.bgp_rib.get(&prefix).cloned()
     }
 
     /// Check if load balancing is enabled
@@ -706,19 +698,28 @@ impl Router {
         self.static_routes.iter()
     }
 
+    /// Get an iterator over all Routes in the BGP table.
+    pub fn get_bgp_rib(&self) -> impl Iterator<Item = (&Prefix, &BgpRibEntry)> {
+        self.bgp_rib.iter()
+    }
+
     /// Get a reference to the RIB table
-    pub fn get_bgp_rib(&self) -> &InnerHashMapPrefix<BgpRibEntry> {
-        self.bgp_rib.inner()
+    pub fn get_selected_bgp_route(&self, prefix: Prefix) -> Option<&BgpRibEntry> {
+        self.bgp_rib.get(&prefix)
     }
 
-    /// Get a reference to the RIB-IN table
-    pub fn get_bgp_rib_in(&self) -> &InnerHashMapPrefix<HashMap<RouterId, BgpRibEntry>> {
-        self.bgp_rib_in.inner()
+    /// Get an iterator over the incoming RIB table
+    pub fn get_bgp_rib_in(
+        &self,
+    ) -> impl Iterator<Item = (&Prefix, &HashMap<RouterId, BgpRibEntry>)> {
+        self.bgp_rib_in.iter()
     }
 
-    /// Get a reference to the RIB-OUT table
-    pub fn get_bgp_rib_out(&self) -> &InnerHashMapPrefixKV<RouterId, BgpRibEntry> {
-        self.bgp_rib_out.inner()
+    /// Get an iterator over the outgoing RIB table.
+    pub fn get_bgp_rib_out(&self) -> impl Iterator<Item = (&RouterId, &Prefix, &BgpRibEntry)> {
+        self.bgp_rib_out
+            .iter()
+            .map(|((neighbor, prefix), route)| (neighbor, prefix, route))
     }
 
     /// Get the processed BGP RIB table for a specific prefix. This function will apply all incoming

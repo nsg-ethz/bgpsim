@@ -27,7 +27,7 @@ use crate::{
     event::Event,
     types::{
         collections::{CowSet, InnerCowSet},
-        prefix::{CowMapPrefix, InnerCowMapPrefix},
+        prefix::CowMapPrefix,
         AsId, DeviceError, Prefix, RouterId, StepUpdate,
     },
 };
@@ -298,9 +298,14 @@ impl ExternalRouter {
         self.active_routes.contains_key(&prefix)
     }
 
-    /// Returns a reference to all advertised routes of this router
-    pub fn get_advertised_routes(&self) -> &InnerCowMapPrefix<BgpRoute> {
-        self.active_routes.inner()
+    /// Returns the BGP route that the router currently advertises for a given prefix.
+    pub fn get_advertised_route(&self, prefix: Prefix) -> Option<&BgpRoute> {
+        self.active_routes.get(&prefix)
+    }
+
+    /// Returns an iterator over all advertised BGP routes.
+    pub fn get_advertised_routes(&self) -> impl Iterator<Item = (&Prefix, &BgpRoute)> {
+        self.active_routes.iter()
     }
 
     /// Returns a reference to the hashset containing all BGP sessions.
