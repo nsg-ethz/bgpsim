@@ -63,11 +63,6 @@
 //!   this crate. Enabling this significantly impact build times.
 //! - `topology_zoo`: This adds the module `topology_zoo` including a `*.graphml` parser, and a
 //!   prepared list of all Topologies in topology zoo.
-//! - `cow`: This feature uses a Copy-On-Write datastructure for many structures in the
-//!   [`network::Network`]. This makes cloning the network much faster (~10x) while making operations
-//!   on that network slower. There is a big trade-off. However, the operation is safe. In case you
-//!   know precisely what will change, and what you need to clone, consider using the function
-//!   [`interactive::InteractiveNetwork::partial_clone`].
 //! - `multi_prefix` (*enabled by default*): Disabling this feature causes the network to run in a
 //!   single-preifx mode, where each `Prefix` is treated identically. For instance, a
 //!   `HashSet<Prefix, T>` will be transformed into a `Option<T>`. This significantly improves
