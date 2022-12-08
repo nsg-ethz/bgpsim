@@ -77,7 +77,11 @@ where
             .into_iter()
             .filter_map(|r| Some((r, self.get_device(r).external()?)))
             .flat_map(|(id, r)| {
-                r.get_advertised_routes().values().map(move |route| {
+                #[cfg(feature = "multi_prefix")]
+                let routes = || r.get_advertised_routes().values();
+                #[cfg(not(feature = "multi_prefix"))]
+                let routes = || r.get_advertised_routes().into_iter();
+                routes().map(move |route| {
                     (
                         id,
                         route.prefix,
