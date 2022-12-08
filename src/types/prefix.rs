@@ -29,14 +29,11 @@ mod _prefix {
     #[cfg(feature = "serde")]
     use serde_with::{DeserializeAs, SerializeAs};
 
-    use crate::types::collections::{
-        CowMap, CowMapIntoIter, CowMapIter, CowMapIterMut, CowMapKeys, CowMapValues, CowSet,
-        CowSetIntoIter, CowSetIter,
-    };
     use std::collections::hash_map::{
         HashMap, IntoIter as HashMapIntoIter, Iter as HashMapIter, IterMut as HashMapIterMut,
         Keys as HashMapKeys, Values as HashMapValues,
     };
+    use std::collections::hash_set::{HashSet, IntoIter as HashSetIntoIter, Iter as HashSetIter};
     use std::hash::Hash;
 
     /// IP Prefix (simple representation)
@@ -99,195 +96,6 @@ mod _prefix {
     {
         fn from(x: &T) -> Self {
             (*x).into()
-        }
-    }
-
-    /// Wrapper around `CowSet<Prefix>`
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct CowSetPrefix(CowSet<Prefix>);
-
-    impl Default for CowSetPrefix {
-        fn default() -> Self {
-            Self(CowSet::new())
-        }
-    }
-
-    impl CowSetPrefix {
-        #[inline]
-        pub fn new() -> Self {
-            Self(CowSet::new())
-        }
-
-        #[inline]
-        pub fn is_empty(&self) -> bool {
-            self.0.is_empty()
-        }
-
-        #[inline]
-        pub fn len(&self) -> usize {
-            self.0.len()
-        }
-
-        #[inline]
-        pub fn iter(&self) -> impl Iterator<Item = &Prefix> {
-            self.0.iter()
-        }
-
-        #[inline]
-        pub fn clear(&mut self) {
-            self.0.clear()
-        }
-
-        #[inline]
-        pub fn contains(&self, elem: &Prefix) -> bool {
-            self.0.contains(elem)
-        }
-
-        #[inline]
-        pub fn insert(&mut self, elem: Prefix) -> bool {
-            self.0.insert(elem)
-        }
-
-        #[inline]
-        pub fn remove(&mut self, elem: &Prefix) -> bool {
-            self.0.remove(elem)
-        }
-
-        #[inline]
-        pub fn union<'a>(&'a self, other: &'a Self) -> Self {
-            Self(self.0.union(&other.0))
-        }
-    }
-
-    impl<'a> IntoIterator for &'a CowSetPrefix {
-        type Item = &'a Prefix;
-
-        type IntoIter = CowSetIter<'a, Prefix>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.iter()
-        }
-    }
-
-    impl IntoIterator for CowSetPrefix {
-        type Item = Prefix;
-
-        type IntoIter = CowSetIntoIter<Prefix>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.into_iter()
-        }
-    }
-
-    /// Wrapper around `CowMap<Prefix, T>`
-    #[derive(Debug, Clone, PartialEq, Eq)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct CowMapPrefix<T: Clone>(CowMap<Prefix, T>);
-    pub(crate) type InnerCowMapPrefix<T> = CowMap<Prefix, T>;
-
-    impl<T: Clone> Default for CowMapPrefix<T> {
-        fn default() -> Self {
-            Self(CowMap::new())
-        }
-    }
-
-    impl<T: Clone> CowMapPrefix<T> {
-        #[inline]
-        pub fn new() -> Self {
-            Self(CowMap::new())
-        }
-
-        #[inline]
-        pub fn inner(&self) -> &CowMap<Prefix, T> {
-            &self.0
-        }
-
-        #[inline]
-        pub fn is_empty(&self) -> bool {
-            self.0.is_empty()
-        }
-
-        #[inline]
-        pub fn len(&self) -> usize {
-            self.0.len()
-        }
-
-        #[inline]
-        pub fn contains_key(&self, key: &Prefix) -> bool {
-            self.0.contains_key(key)
-        }
-
-        #[inline]
-        pub fn iter(&self) -> CowMapIter<'_, Prefix, T> {
-            self.0.iter()
-        }
-
-        #[inline]
-        pub fn keys(&self) -> CowMapKeys<'_, Prefix, T> {
-            self.0.keys()
-        }
-
-        #[inline]
-        pub fn values(&self) -> CowMapValues<'_, Prefix, T> {
-            self.0.values()
-        }
-
-        #[inline]
-        pub fn get(&self, key: &Prefix) -> Option<&T> {
-            self.0.get(key)
-        }
-
-        #[inline]
-        pub fn get_mut(&mut self, key: &Prefix) -> Option<&mut T> {
-            self.0.get_mut(key)
-        }
-
-        #[inline]
-        pub fn insert(&mut self, key: Prefix, value: T) -> Option<T> {
-            self.0.insert(key, value)
-        }
-
-        #[inline]
-        pub fn remove(&mut self, key: &Prefix) -> Option<T> {
-            self.0.remove(key)
-        }
-    }
-
-    impl<T: Clone + Default> CowMapPrefix<T> {
-        #[inline]
-        pub fn get_mut_or_default(&mut self, key: Prefix) -> &mut T {
-            self.0.entry(key).or_default()
-        }
-    }
-
-    impl<'a, T: Clone> IntoIterator for &'a CowMapPrefix<T> {
-        type Item = (&'a Prefix, &'a T);
-
-        type IntoIter = CowMapIter<'a, Prefix, T>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.iter()
-        }
-    }
-
-    impl<'a, T: Clone> IntoIterator for &'a mut CowMapPrefix<T> {
-        type Item = (&'a Prefix, &'a mut T);
-
-        type IntoIter = CowMapIterMut<'a, Prefix, T>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.iter_mut()
-        }
-    }
-
-    impl<T: Clone> IntoIterator for CowMapPrefix<T> {
-        type Item = (Prefix, T);
-
-        type IntoIter = CowMapIntoIter<Prefix, T>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.into_iter()
         }
     }
 
@@ -553,6 +361,78 @@ mod _prefix {
             Vec::<(KAs, VAs)>::serialize_as(&source.0, serializer)
         }
     }
+
+    /// Wrapper around `bool`, storing wether the prefix is already present or not.
+    #[derive(Debug, Clone, Default, PartialEq, Eq)]
+    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+    pub(crate) struct HashSetPrefix(HashSet<Prefix>);
+
+    impl HashSetPrefix {
+        #[inline]
+        pub fn new() -> Self {
+            Self(HashSet::new())
+        }
+
+        #[inline]
+        pub fn is_empty(&self) -> bool {
+            self.0.is_empty()
+        }
+
+        #[inline]
+        pub fn len(&self) -> usize {
+            self.0.len()
+        }
+
+        #[inline]
+        pub fn iter(&self) -> HashSetIter<'_, Prefix> {
+            self.0.iter()
+        }
+
+        #[inline]
+        pub fn clear(&mut self) {
+            self.0.clear()
+        }
+
+        #[inline]
+        pub fn contains(&self, prefix: &Prefix) -> bool {
+            self.0.contains(prefix)
+        }
+
+        #[inline]
+        pub fn insert(&mut self, prefix: Prefix) -> bool {
+            self.0.insert(prefix)
+        }
+
+        #[inline]
+        pub fn remove(&mut self, prefix: &Prefix) -> bool {
+            self.0.remove(prefix)
+        }
+
+        #[inline]
+        pub fn union<'a>(&'a self, other: &'a Self) -> Self {
+            Self(HashSet::from_iter(self.0.union(&other.0).copied()))
+        }
+    }
+
+    impl IntoIterator for HashSetPrefix {
+        type Item = Prefix;
+
+        type IntoIter = HashSetIntoIter<Prefix>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.0.into_iter()
+        }
+    }
+
+    impl<'a> IntoIterator for &'a HashSetPrefix {
+        type Item = &'a Prefix;
+
+        type IntoIter = HashSetIter<'a, Prefix>;
+
+        fn into_iter(self) -> Self::IntoIter {
+            self.0.iter()
+        }
+    }
 }
 
 #[cfg(not(feature = "multi_prefix"))]
@@ -630,9 +510,6 @@ mod _prefix {
             Self
         }
     }
-
-    /// Wrapper around `bool`, storing wether the prefix is already present or not.
-    pub(crate) type CowSetPrefix = HashSetPrefix;
 
     /// Wrapper around `bool`, storing wether the prefix is already present or not.
     #[derive(Debug, Clone, Default, PartialEq, Eq)]
@@ -723,10 +600,6 @@ mod _prefix {
             repeat(Prefix).take(self.len())
         }
     }
-
-    /// Wrapper around `Option<T>`
-    pub(crate) type CowMapPrefix<T> = HashMapPrefix<T>;
-    pub(crate) type InnerCowMapPrefix<T> = InnerHashMapPrefix<T>;
 
     /// Wrapper around `Option<T>`
     #[derive(Debug, Clone, PartialEq, Eq, Default)]

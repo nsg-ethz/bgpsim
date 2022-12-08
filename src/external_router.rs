@@ -20,16 +20,10 @@
 //! The external router representa a router located in a different AS, not controlled by the network
 //! operators.
 
-#[cfg(feature = "undo")]
-use crate::types::collections::CowVec;
 use crate::{
     bgp::{BgpEvent, BgpRoute},
     event::Event,
-    types::{
-        collections::{CowSet, InnerCowSet},
-        prefix::CowMapPrefix,
-        AsId, DeviceError, Prefix, RouterId, StepUpdate,
-    },
+    types::{prefix::HashMapPrefix, AsId, DeviceError, Prefix, RouterId, StepUpdate},
 };
 
 #[cfg(feature = "serde")]
@@ -52,10 +46,10 @@ pub struct ExternalRouter {
     name: String,
     router_id: RouterId,
     as_id: AsId,
-    pub(crate) neighbors: CowSet<RouterId>,
-    pub(crate) active_routes: CowMapPrefix<BgpRoute>,
+    pub(crate) neighbors: HashSet<RouterId>,
+    pub(crate) active_routes: HashMapPrefix<BgpRoute>,
     #[cfg(feature = "undo")]
-    pub(crate) undo_stack: CowVec<Vec<UndoAction>>,
+    pub(crate) undo_stack: Vec<Vec<UndoAction>>,
 }
 
 impl PartialEq for ExternalRouter {
@@ -90,10 +84,10 @@ impl ExternalRouter {
             name,
             router_id,
             as_id,
-            neighbors: CowSet::new(),
-            active_routes: CowMapPrefix::new(),
+            neighbors: HashSet::new(),
+            active_routes: HashMapPrefix::new(),
             #[cfg(feature = "undo")]
-            undo_stack: CowVec::new(),
+            undo_stack: Vec::new(),
         }
     }
 
@@ -309,8 +303,8 @@ impl ExternalRouter {
     }
 
     /// Returns a reference to the hashset containing all BGP sessions.
-    pub fn get_bgp_sessions(&self) -> &InnerCowSet<RouterId> {
-        self.neighbors.inner()
+    pub fn get_bgp_sessions(&self) -> &HashSet<RouterId> {
+        &self.neighbors
     }
 
     /// Checks if both routers advertise the same routes.

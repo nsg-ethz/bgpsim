@@ -17,8 +17,6 @@
 
 //! Module defining an internal router with BGP functionality.
 
-#[cfg(feature = "undo")]
-use crate::types::collections::CowVec;
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
     event::Event,
@@ -31,8 +29,7 @@ use crate::{
         RouteMapList,
     },
     types::{
-        collections::{CowMap, CowMapIter},
-        prefix::{CowMapPrefix, CowSetPrefix, HashMapPrefix, HashMapPrefixKV},
+        prefix::{HashMapPrefix, HashMapPrefixKV, HashSetPrefix},
         AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate,
     },
 };
@@ -57,13 +54,13 @@ pub struct Router {
     /// AS Id of the router
     as_id: AsId,
     /// Neighbors of that node. This updates with any IGP update
-    pub(crate) neighbors: CowMap<RouterId, LinkWeight>,
+    pub(crate) neighbors: HashMap<RouterId, LinkWeight>,
     /// forwarding table for IGP messages
     pub igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Static Routes for Prefixes
-    pub(crate) static_routes: CowMapPrefix<StaticRoute>,
+    pub(crate) static_routes: HashMapPrefix<StaticRoute>,
     /// hashmap of all bgp sessions
-    pub(crate) bgp_sessions: CowMap<RouterId, BgpSessionType>,
+    pub(crate) bgp_sessions: HashMap<RouterId, BgpSessionType>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
     /// to another hashmap, which maps the received router id to the entry. This way, we can store
     /// one entry for every prefix and every session.
@@ -76,11 +73,11 @@ pub struct Router {
     #[cfg_attr(all(feature = "serde"), serde(with = "As::<Vec<(Same, Same)>>"))]
     pub(crate) bgp_rib_out: HashMapPrefixKV<RouterId, BgpRibEntry>,
     /// Set of known bgp prefixes
-    pub(crate) bgp_known_prefixes: CowSetPrefix,
+    pub(crate) bgp_known_prefixes: HashSetPrefix,
     /// BGP Route-Maps for Input
-    pub(crate) bgp_route_maps_in: CowMap<RouterId, Vec<RouteMap>>,
+    pub(crate) bgp_route_maps_in: HashMap<RouterId, Vec<RouteMap>>,
     /// BGP Route-Maps for Output
-    pub(crate) bgp_route_maps_out: CowMap<RouterId, Vec<RouteMap>>,
+    pub(crate) bgp_route_maps_out: HashMap<RouterId, Vec<RouteMap>>,
     /// Flag to tell if load balancing is enabled. If load balancing is enabled, then the router
     /// will load balance packets towards a destination if multiple paths exist with equal
     /// cost. load balancing will only work within OSPF. BGP Additional Paths is not yet
@@ -89,7 +86,7 @@ pub struct Router {
     /// Stack to undo action from every event. Each processed event will push a new vector onto the
     /// stack, containing all actions to perform in order to undo the event.
     #[cfg(feature = "undo")]
-    pub(crate) undo_stack: CowVec<Vec<UndoAction>>,
+    pub(crate) undo_stack: Vec<Vec<UndoAction>>,
 }
 
 impl Clone for Router {
@@ -122,18 +119,18 @@ impl Router {
             router_id,
             as_id,
             igp_table: HashMap::new(),
-            neighbors: CowMap::new(),
-            static_routes: CowMapPrefix::new(),
-            bgp_sessions: CowMap::new(),
+            neighbors: HashMap::new(),
+            static_routes: HashMapPrefix::new(),
+            bgp_sessions: HashMap::new(),
             bgp_rib_in: HashMapPrefix::new(),
             bgp_rib: HashMapPrefix::new(),
             bgp_rib_out: HashMapPrefixKV::new(),
-            bgp_known_prefixes: CowSetPrefix::new(),
-            bgp_route_maps_in: CowMap::new(),
-            bgp_route_maps_out: CowMap::new(),
+            bgp_known_prefixes: HashSetPrefix::new(),
+            bgp_route_maps_in: HashMap::new(),
+            bgp_route_maps_out: HashMap::new(),
             do_load_balancing: false,
             #[cfg(feature = "undo")]
-            undo_stack: CowVec::new(),
+            undo_stack: Vec::new(),
         }
     }
 
@@ -524,7 +521,7 @@ impl Router {
     }
 
     /// Returns an interator over all BGP sessions
-    pub fn get_bgp_sessions(&self) -> CowMapIter<'_, RouterId, BgpSessionType> {
+    pub fn get_bgp_sessions(&self) -> impl Iterator<Item = (&RouterId, &BgpSessionType)> {
         self.bgp_sessions.iter()
     }
 
@@ -762,7 +759,7 @@ impl Router {
         swap(&mut self.igp_table, &mut swap_table);
 
         // create the new neighbors hashmap
-        let mut neighbors: CowMap<RouterId, LinkWeight> = graph
+        let mut neighbors: HashMap<RouterId, LinkWeight> = graph
             .edges(self.router_id)
             .map(|r| (r.target(), *r.weight()))
             .filter(|(_, w)| w.is_finite())
@@ -1268,7 +1265,7 @@ pub(crate) enum UndoAction {
     BgpSession(RouterId, Option<BgpSessionType>),
     IgpForwardingTable(
         HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
-        CowMap<RouterId, LinkWeight>,
+        HashMap<RouterId, LinkWeight>,
     ),
     DelKnownPrefix(Prefix),
     StaticRoute(Prefix, Option<StaticRoute>),

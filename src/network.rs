@@ -20,8 +20,6 @@
 //! This module represents the network topology, applies the configuration, and simulates the
 //! network.
 
-#[cfg(feature = "undo")]
-use crate::types::collections::CowVec;
 use crate::{
     bgp::{BgpSessionType, BgpState, BgpStateRef},
     config::NetworkConfig,
@@ -33,7 +31,7 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        prefix::CowSetPrefix, AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut,
+        prefix::HashSetPrefix, AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut,
         NetworkError, Prefix, RouterId,
     },
 };
@@ -73,13 +71,13 @@ pub struct Network<Q = BasicEventQueue> {
     pub(crate) ospf: Ospf,
     pub(crate) routers: HashMap<RouterId, Router>,
     pub(crate) external_routers: HashMap<RouterId, ExternalRouter>,
-    pub(crate) known_prefixes: CowSetPrefix,
+    pub(crate) known_prefixes: HashSetPrefix,
     pub(crate) stop_after: Option<usize>,
     pub(crate) queue: Q,
     pub(crate) skip_queue: bool,
     pub(crate) verbose: bool,
     #[cfg(feature = "undo")]
-    pub(crate) undo_stack: CowVec<Vec<Vec<UndoAction>>>,
+    pub(crate) undo_stack: Vec<Vec<Vec<UndoAction>>>,
 }
 
 impl<Q: Clone> Clone for Network<Q> {
@@ -116,14 +114,14 @@ impl<Q> Network<Q> {
             net: IgpNetwork::new(),
             ospf: Ospf::new(),
             routers: HashMap::new(),
-            known_prefixes: CowSetPrefix::new(),
+            known_prefixes: HashSetPrefix::new(),
             external_routers: HashMap::new(),
             stop_after: Some(DEFAULT_STOP_AFTER),
             queue,
             skip_queue: false,
             verbose: false,
             #[cfg(feature = "undo")]
-            undo_stack: CowVec::new(),
+            undo_stack: Vec::new(),
         }
     }
 
