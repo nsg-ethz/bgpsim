@@ -1436,6 +1436,7 @@ impl<'de, P: Prefix> Deserialize<'de> for Router<P> {
             bgp_route_maps_in: router.bgp_route_maps_in.into_iter().collect(),
             bgp_route_maps_out: router.bgp_route_maps_out.into_iter().collect(),
             do_load_balancing: router.do_load_balancing,
+            #[cfg(feature = "undo")]
             undo_stack: router.undo_stack.into_iter().collect(),
         })
     }

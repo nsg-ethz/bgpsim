@@ -17,10 +17,13 @@
 
 use crate::{
     network::Network,
-    types::{NetworkError, RouterId},
+    types::{NetworkError, Prefix, RouterId},
 };
 
-fn path_result_str<Q>(paths: Result<Vec<Vec<RouterId>>, NetworkError>, net: &Network<Q>) -> String {
+fn path_result_str<P: Prefix, Q>(
+    paths: Result<Vec<Vec<RouterId>>, NetworkError>,
+    net: &Network<P, Q>,
+) -> String {
     match paths {
         Ok(paths) => format!(
             "({})",
@@ -43,14 +46,17 @@ fn path_result_str<Q>(paths: Result<Vec<Vec<RouterId>>, NetworkError>, net: &Net
     }
 }
 
-fn paths_names<'n, Q>(
+fn paths_names<'n, P: Prefix, Q>(
     paths: &[Vec<RouterId>],
-    net: &'n Network<Q>,
+    net: &'n Network<P, Q>,
 ) -> Result<Vec<Vec<&'n str>>, NetworkError> {
     paths.iter().map(|p| path_names(p, net)).collect()
 }
 
-fn path_names<'n, Q>(path: &[RouterId], net: &'n Network<Q>) -> Result<Vec<&'n str>, NetworkError> {
+fn path_names<'n, P: Prefix, Q>(
+    path: &[RouterId],
+    net: &'n Network<P, Q>,
+) -> Result<Vec<&'n str>, NetworkError> {
     path.iter().map(|r| net.get_router_name(*r)).collect()
 }
 
@@ -101,14 +107,13 @@ mod test_network;
 mod test_network_comlete_undo;
 mod test_network_complete;
 mod test_network_config;
-#[cfg(feature = "multi_prefix")]
 mod test_ospf;
 mod test_record;
 #[cfg(all(feature = "topology_zoo", feature = "rand", feature = "rand_queue"))]
 mod test_roland;
 mod test_route_map;
 mod test_router;
-#[cfg(all(feature = "topology_zoo", feature = "rand", feature = "serde"))]
+#[cfg(all(feature = "topology_zoo", feature = "rand"))]
 mod test_save_restore;
 #[cfg(feature = "topology_zoo")]
 mod test_topology_zoo;

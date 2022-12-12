@@ -103,7 +103,7 @@ impl<P: Prefix, Q: Clone> Clone for Network<P, Q> {
     }
 }
 
-impl Default for Network<SimplePrefix, BasicEventQueue<SimplePrefix>> {
+impl<P: Prefix> Default for Network<P, BasicEventQueue<P>> {
     fn default() -> Self {
         Self::new(BasicEventQueue::new())
     }

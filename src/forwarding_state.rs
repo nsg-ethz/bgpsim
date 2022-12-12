@@ -375,6 +375,7 @@ impl ForwardingState<SimplePrefix> {
     }
 }
 
+/*
 #[cfg(not(tarpaulin_include))]
 #[cfg(test)]
 mod test {
@@ -802,3 +803,4 @@ mod test {
         assert_reach(&s, r1, p, vec![r1, r2, r3, r4]);
     }
 }
+*/

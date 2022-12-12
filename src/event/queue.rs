@@ -72,9 +72,15 @@ pub trait EventQueue<P: Prefix> {
 }
 
 /// Basic event queue
-#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
 pub struct BasicEventQueue<P: Prefix>(pub(crate) VecDeque<Event<P, ()>>);
+
+impl<P: Prefix> Default for BasicEventQueue<P> {
+    fn default() -> Self {
+        Self(Default::default())
+    }
+}
 
 impl<P: Prefix> BasicEventQueue<P> {
     /// Create a new empty event queue

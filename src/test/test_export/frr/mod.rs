@@ -18,11 +18,39 @@
 use pretty_assertions::assert_str_eq;
 
 use crate::export::cisco_frr_generators::Target::Frr as Target;
+use crate::types::{Prefix, SimplePrefix, SinglePrefix};
+
+#[generic_tests::define]
+mod t {
+    use super::*;
+
+    #[test]
+    fn generate_internal_config_route_maps<P: Prefix>() {
+        assert_str_eq!(
+            super::super::generate_internal_config_route_maps::<P>(Target),
+            include_str!("internal_config_route_maps")
+        );
+    }
+
+    #[test]
+    fn generate_external_config<P: Prefix>() {
+        assert_str_eq!(
+            super::super::generate_external_config::<P>(Target),
+            include_str!("external_config")
+        );
+    }
+
+    #[instantiate_tests(<SinglePrefix>)]
+    mod single {}
+
+    #[instantiate_tests(<SimplePrefix>)]
+    mod simple {}
+}
 
 #[test]
 fn generate_internal_config_full_mesh() {
     assert_str_eq!(
-        super::generate_internal_config_full_mesh(Target, 1),
+        super::generate_internal_config_full_mesh(Target),
         include_str!("internal_config_full_mesh")
     );
 }
@@ -30,53 +58,7 @@ fn generate_internal_config_full_mesh() {
 #[test]
 fn generate_internal_config_route_reflector() {
     assert_str_eq!(
-        super::generate_internal_config_route_reflector(Target, 1),
+        super::generate_internal_config_route_reflector(Target),
         include_str!("internal_config_route_reflection")
     );
-}
-
-#[test]
-fn generate_internal_config_route_maps() {
-    assert_str_eq!(
-        super::generate_internal_config_route_maps(Target, 1),
-        include_str!("internal_config_route_maps")
-    );
-}
-
-#[test]
-fn generate_internal_config_route_maps_pec() {
-    assert_str_eq!(
-        super::generate_internal_config_route_maps(Target, 3),
-        include_str!("internal_config_route_maps_pec")
-    );
-}
-
-#[test]
-fn generate_external_config() {
-    assert_str_eq!(
-        super::generate_external_config(Target, 1),
-        include_str!("external_config")
-    );
-}
-
-#[test]
-fn generate_external_config_pec() {
-    assert_str_eq!(
-        super::generate_external_config(Target, 3),
-        include_str!("external_config_pec")
-    );
-}
-
-#[test]
-fn generate_external_config_withdraw() {
-    let (cfg, cmd) = super::generate_external_config_withdraw(Target, 1);
-    assert_str_eq!(cfg, include_str!("external_config_withdraw"));
-    assert_str_eq!(cmd, include_str!("external_config_withdraw_cmd"))
-}
-
-#[test]
-fn generate_external_config_withdraw_pec() {
-    let (cfg, cmd) = super::generate_external_config_withdraw(Target, 3);
-    assert_str_eq!(cfg, include_str!("external_config_withdraw_pec"));
-    assert_str_eq!(cmd, include_str!("external_config_withdraw_cmd_pec"))
 }
