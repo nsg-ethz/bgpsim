@@ -48,10 +48,34 @@ static DEFAULT_STOP_AFTER: usize = 1_000_000;
 /// The struct contains all information about the underlying physical network (Links), a manages
 /// all (both internal and external) routers, and handles all events between them.
 ///
-/// If you wish to interact with the network by using configuration, then import the trait
-/// `NetworkConfig`.
+/// ```rust
+/// use bgpsim::prelude::*;
 ///
-/// *Undo Functionality*: The undo stack is a 3-dim vector (`Vec<Vec<Vec<UndoAction>>>`). Each action
+/// fn main() -> Result<(), NetworkError> {
+///     // create an empty network.
+///     let mut net: Network<SimplePrefix, _> = Network::default();
+///
+///     // add two internal routers and connect them.
+///     let r1 = net.add_router("r1");
+///     let r2 = net.add_router("r2");
+///     net.add_link(r1, r2);
+///     net.set_link_weight(r1, r2, 5.0)?;
+///     net.set_link_weight(r2, r1, 4.0)?;
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// ## Type arguments
+///
+/// The [`Network`] accepts two type attributes:
+/// - `P`: The kind of [`Prefix`] used in the network. This attribute allows compiler optimizations
+///   if no longest-prefix matching is necessary, or if only a single prefix is simulated.
+/// - `Q`: The kind of [`EventQueue`] used in the network. The queue determines the order in which
+///   events are processed.
+///
+/// ## Undo Functionality (feature `undo`)
+/// The undo stack is a 3-dim vector (`Vec<Vec<Vec<UndoAction>>>`). Each action
 /// (like advertising a new route) will add a new top-level element to the first vector. The second
 /// vector represents each event (and which things need to be applied to undo an event). This is
 /// usually just a single event (i.e., undo the last event on a device). However, some actions
@@ -175,7 +199,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// ```rust
     /// # use bgpsim::prelude::*;
     /// # fn main() -> Result<(), NetworkError> {
-    /// let mut net = Network::default();
+    /// let mut net: Network<SimplePrefix, _> = Network::default();
     /// let r1 = net.add_router("r1");
     /// let r2 = net.add_router("r2");
     /// net.add_link(r1, r2);

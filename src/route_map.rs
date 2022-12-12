@@ -34,13 +34,12 @@ use std::{cmp::Ordering, fmt};
 ///
 /// ```
 /// # use bgpsim::route_map::*;
-/// # use bgpsim::types::{RouterId, Prefix};
+/// # use bgpsim::types::{RouterId, SimplePrefix};
 /// # let neighbor: RouterId = 0.into();
-/// # let prefix: Prefix = Prefix::from(0);
 /// let map = RouteMapBuilder::new()
 ///     .order(10)
 ///     .allow()
-///     .match_prefix(prefix)
+///     .match_prefix(SimplePrefix::from(0))
 ///     .set_community(1)
 ///     .reset_local_pref()
 ///     .continue_next()
@@ -173,13 +172,12 @@ where
 ///
 /// ```
 /// # use bgpsim::route_map::*;
-/// # use bgpsim::types::{RouterId, Prefix};
+/// # use bgpsim::types::{RouterId, SimplePrefix};
 /// # let neighbor: RouterId = 0.into();
-/// # let prefix: Prefix = Prefix::from(0);
 /// let map = RouteMapBuilder::new()
 ///     .order(10)
 ///     .allow()
-///     .match_prefix(prefix)
+///     .match_prefix(SimplePrefix::from(0))
 ///     .set_community(1)
 ///     .reset_local_pref()
 ///     .build();

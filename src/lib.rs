@@ -78,6 +78,7 @@
 //!
 //! ```
 //! use bgpsim::prelude::*;
+//! type Prefix = SimplePrefix; // swap out with SinglePrefix if you only need a single prefix.
 //!
 //! fn main() -> Result<(), NetworkError> {
 //!

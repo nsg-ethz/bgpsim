@@ -23,4 +23,4 @@ pub use crate::formatter::NetworkFormatter;
 pub use crate::interactive::InteractiveNetwork;
 pub use crate::network::Network;
 pub use crate::record::RecordNetwork;
-pub use crate::types::{AsId, NetworkError, Prefix, RouterId};
+pub use crate::types::{AsId, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix};

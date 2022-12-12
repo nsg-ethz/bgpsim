@@ -33,7 +33,7 @@
 //! ```rust
 //! use bgpsim::bgp::BgpSessionType::*;
 //! use bgpsim::config::{Config, ConfigExpr::BgpSession, ConfigModifier};
-//! use bgpsim::types::ConfigError;
+//! use bgpsim::types::{ConfigError, SimplePrefix};
 //!
 //! fn main() -> Result<(), ConfigError> {
 //!     // routers
@@ -43,8 +43,8 @@
 //!     let r3 = 3.into();
 //!     let r4 = 4.into();
 //!
-//!     let mut c1 = Config::new();
-//!     let mut c2 = Config::new();
+//!     let mut c1 = Config::<SimplePrefix>::new();
+//!     let mut c2 = Config::<SimplePrefix>::new();
 //!
 //!     // add the same bgp expression
 //!     c1.add(BgpSession { source: r0, target: r1, session_type: IBgpPeer })?;
