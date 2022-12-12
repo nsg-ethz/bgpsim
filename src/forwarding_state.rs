@@ -325,12 +325,12 @@ impl ForwardingState<SinglePrefix> {
             let self_state = self
                 .state
                 .get(router)
-                .and_then(|x| x.0.as_ref().map(|x| x.as_slice()))
+                .and_then(|x| x.0.as_deref())
                 .unwrap_or_default();
-            let other_state = self
+            let other_state = other
                 .state
                 .get(router)
-                .and_then(|x| x.0.as_ref().map(|x| x.as_slice()))
+                .and_then(|x| x.0.as_deref())
                 .unwrap_or_default();
             if self_state != other_state {
                 result.push((*router, self_state.to_owned(), other_state.to_owned()))

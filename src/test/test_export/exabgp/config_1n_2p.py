@@ -6,8 +6,8 @@ import time
 
 time.sleep(5)
 
-sys.stdout.write("neighbor 10.192.0.1 announce route 128.0.0.0/16 next-hop self as-path [100, 60]\n")
-sys.stdout.write("neighbor 10.192.0.1 announce route 128.1.0.0/16 next-hop self as-path [100, 40, 10]\n")
+sys.stdout.write("neighbor 10.192.0.1 announce route 100.0.0.0/24 next-hop self as-path [100, 60]\n")
+sys.stdout.write("neighbor 10.192.0.1 announce route 100.0.1.0/24 next-hop self as-path [100, 40, 10]\n")
 sys.stdout.flush()
 
 while True:

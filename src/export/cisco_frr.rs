@@ -982,7 +982,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
         } else {
             config.push_str(
                 &Interface::new(self.get_loopback_iface(addressor.prefix_address(route.prefix)?)?)
-                    .ip_address(addressor.prefix(route.prefix)?)
+                    .ip_address(addressor.prefix_address(route.prefix)?)
                     .build(self.target),
             );
         }

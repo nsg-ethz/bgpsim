@@ -36,14 +36,14 @@ ip route 20.0.0.0/24 Null0
 ! Create external advertisements
 !
 interface lo
-  ip address 128.0.0.1/16
+  ip address 100.0.0.1/24
 exit
 router bgp 4
   address-family ipv4 unicast
-    network 128.0.0.0/16
+    network 100.0.0.0/24
   exit-address-family
 exit
-ip prefix-list prefix-list-0 seq 1 permit 128.0.0.0/16
+ip prefix-list prefix-list-0 seq 1 permit 100.0.0.0/24
 route-map neighbor-out permit 1
   match ip address prefix-list prefix-list-0
   set metric 0
