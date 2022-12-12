@@ -31,7 +31,7 @@ use std::{cmp::Ordering, collections::BTreeSet, hash::Hash};
 /// - ORIGIN: assumed to be always set to IGP
 /// - ATOMIC_AGGREGATE: not used
 /// - AGGREGATOR: not used
-#[derive(Debug, Clone, Eq, Ord, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
 pub struct BgpRoute<P: Prefix> {
     /// IP PREFIX (represented as a simple number)
@@ -115,6 +115,12 @@ impl<P: Prefix> PartialEq for BgpRoute<P> {
             && s.community == o.community
             && s.originator_id == o.originator_id
             && s.cluster_list == o.cluster_list
+    }
+}
+
+impl<P: Prefix> Ord for BgpRoute<P> {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.partial_cmp(other).unwrap()
     }
 }
 

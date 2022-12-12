@@ -95,7 +95,7 @@ where
         Self::P: 'a;
 
     /// Iterate over references of all elements in the set.
-    fn iter<'a>(&'a self) -> Self::Iter<'a>;
+    fn iter(&self) -> Self::Iter<'_>;
 
     /// Get the union of two prefix sets.
     fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a>;
@@ -175,7 +175,7 @@ where
         T: 'a;
 
     /// Iterate over references of all elements in the map.
-    fn iter<'a>(&'a self) -> Self::Iter<'a>;
+    fn iter(&self) -> Self::Iter<'_>;
 
     /// An iterator visiting all keys in arbitrary order. The iterator element type is
     /// `&'a Self::P`.
@@ -307,7 +307,7 @@ impl<'de> Deserialize<'de> for SinglePrefix {
         let s = String::deserialize(deserializer)?;
         Ipv4Net::from_str(&s)
             .map_err(|s| D::Error::custom(format!("Expected IP Network, found {}", s)))
-            .map(|net| Self::from(net))
+            .map(Self::from)
     }
 }
 
@@ -358,7 +358,8 @@ impl PrefixSet for SinglePrefixSet {
 
     type Union<'a> = Take<Repeat<&'a SinglePrefix>>;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
+        #[allow(clippy::into_iter_on_ref)]
         self.into_iter()
     }
 
@@ -466,7 +467,8 @@ where
     where
         T: 'a;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
+        #[allow(clippy::into_iter_on_ref)]
         self.into_iter()
     }
 
@@ -502,7 +504,7 @@ where
         self.0.as_mut()
     }
 
-    fn get_mut_or_default(&mut self, k: Self::P) -> &mut T
+    fn get_mut_or_default(&mut self, _: Self::P) -> &mut T
     where
         T: Default,
     {
@@ -551,7 +553,7 @@ impl<'de> Deserialize<'de> for SimplePrefix {
         let s = String::deserialize(deserializer)?;
         Ipv4Net::from_str(&s)
             .map_err(|s| D::Error::custom(format!("Expected IP Network, found {}", s)))
-            .map(|net| Self::from(net))
+            .map(Self::from)
     }
 }
 
@@ -633,7 +635,8 @@ impl PrefixSet for HashSet<SimplePrefix> {
 
     type Union<'a> = std::collections::hash_set::Union<'a, SimplePrefix, RandomState>;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
+        #[allow(clippy::into_iter_on_ref)]
         self.into_iter()
     }
 
@@ -699,7 +702,8 @@ where
     where
         T: 'a;
 
-    fn iter<'a>(&'a self) -> Self::Iter<'a> {
+    fn iter(&self) -> Self::Iter<'_> {
+        #[allow(clippy::into_iter_on_ref)]
         self.into_iter()
     }
 

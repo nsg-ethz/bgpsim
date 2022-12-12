@@ -30,7 +30,7 @@ pub use rand_queue::{GeoTimingModel, ModelParams, SimpleTimingModel};
 
 use crate::{
     bgp::BgpEvent,
-    types::{Prefix, RouterId},
+    types::{Prefix, RouterId, StepUpdate},
 };
 
 /// Event to handle
@@ -72,3 +72,7 @@ impl<P: Prefix, T> Event<P, T> {
         }
     }
 }
+
+/// The outcome of a handled event. This will include a update in the forwarding state (0:
+/// [`StepUpdate`]), and a set of new events that must be enqueued (1: [`Event`]).
+pub(crate) type EventOutcome<P, T> = (StepUpdate<P>, Vec<Event<P, T>>);

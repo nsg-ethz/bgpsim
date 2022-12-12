@@ -26,7 +26,7 @@ use std::{
 use crate::{
     bgp::BgpRoute,
     network::Network,
-    types::{AsId, Prefix, PrefixMap, PrefixSet, RouterId},
+    types::{AsId, Prefix, PrefixMap, RouterId},
 };
 
 use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
@@ -252,8 +252,7 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
 
         let mut result = Vec::new();
 
-        let mut times_routes: BTreeMap<Duration, Vec<(P, Option<&BgpRoute<P>>)>> =
-            Default::default();
+        let mut times_routes: BTreeMap<_, Vec<_>> = Default::default();
         for (p, routes) in self.routes.iter() {
             for (time, route) in routes.iter() {
                 times_routes

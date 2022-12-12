@@ -318,7 +318,7 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapMatch<P> {
                 }
                 #[cfg(not(feature = "multi_prefix"))]
                 {
-                    format!("Prefix in {{}}")
+                    String::from("Prefix in {{}}")
                 }
             }
             RouteMapMatch::AsPath(c) => format!("{}", c),
@@ -775,7 +775,7 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for DeviceError {
 impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigError {
     type Formatter = &'static str;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, _net: &'n Network<P, Q>) -> Self::Formatter {
         match self {
             ConfigError::ConfigExprOverload => {
                 "Adding this config expression would overwrite an old expression!"

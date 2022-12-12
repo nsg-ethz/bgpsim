@@ -26,11 +26,8 @@ use crate::{
 };
 use itertools::Itertools;
 use lazy_static::lazy_static;
-use log::*;
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
-use std::vec::IntoIter;
-use thiserror::Error;
 
 lazy_static! {
     static ref EMPTY_SET: HashSet<RouterId> = HashSet::new();
@@ -133,7 +130,7 @@ impl<P: Prefix> ForwardingState<P> {
         let mut visited = HashSet::new();
         visited.insert(source);
         let mut path = vec![source];
-        Ok(self.get_route_recursive(prefix, source, &mut visited, &mut path)?)
+        self.get_route_recursive(prefix, source, &mut visited, &mut path)
     }
 
     /// Recursive function to build the paths recursively.

@@ -17,10 +17,11 @@
 
 //! Module containing all type definitions
 
+use crate::event::EventOutcome;
 use crate::formatter::NetworkFormatter;
 use crate::{
-    bgp::BgpSessionType, config::ConfigModifier, event::Event, external_router::ExternalRouter,
-    network::Network, router::Router,
+    bgp::BgpSessionType, event::Event, external_router::ExternalRouter, network::Network,
+    router::Router,
 };
 use itertools::Itertools;
 use petgraph::graph::Graph;
@@ -446,7 +447,7 @@ impl<'a, P: Prefix> NetworkDeviceMut<'a, P> {
     pub(crate) fn handle_event<T: Default>(
         &mut self,
         event: Event<P, T>,
-    ) -> Result<(StepUpdate<P>, Vec<Event<P, T>>), NetworkError> {
+    ) -> Result<EventOutcome<P, T>, NetworkError> {
         match self {
             NetworkDeviceMut::InternalRouter(r) => Ok(r.handle_event(event)?),
             NetworkDeviceMut::ExternalRouter(r) => Ok(r.handle_event(event)?),

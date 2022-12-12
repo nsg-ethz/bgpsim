@@ -19,7 +19,7 @@
 
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
-    event::Event,
+    event::{Event, EventOutcome},
     formatter::NetworkFormatter,
     network::Network,
     ospf::OspfState,
@@ -38,7 +38,6 @@ use log::*;
 use ordered_float::NotNan;
 use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
-use serde_with::{serde_as, As, Same};
 use std::{collections::HashMap, fmt::Write, mem::swap};
 
 /// Bgp Router
@@ -202,7 +201,7 @@ impl<P: Prefix> Router<P> {
     pub(crate) fn handle_event<T: Default>(
         &mut self,
         event: Event<P, T>,
-    ) -> Result<(StepUpdate<P>, Vec<Event<P, T>>), DeviceError> {
+    ) -> Result<EventOutcome<P, T>, DeviceError> {
         // first, push a new entry onto the stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -495,7 +494,7 @@ impl<P: Prefix> Router<P> {
         &mut self,
         target: RouterId,
         session_type: Option<BgpSessionType>,
-    ) -> Result<(Option<BgpSessionType>, Vec<Event<P, T>>), DeviceError> {
+    ) -> UpdateOutcome<BgpSessionType, P, T> {
         // prepare the undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -569,7 +568,7 @@ impl<P: Prefix> Router<P> {
         neighbor: RouterId,
         direction: RouteMapDirection,
         mut route_map: RouteMap<P>,
-    ) -> Result<(Option<RouteMap<P>>, Vec<Event<P, T>>), DeviceError> {
+    ) -> UpdateOutcome<RouteMap<P>, P, T> {
         // prepare the undo action
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -633,7 +632,7 @@ impl<P: Prefix> Router<P> {
         neighbor: RouterId,
         direction: RouteMapDirection,
         order: i16,
-    ) -> Result<(Option<RouteMap<P>>, Vec<Event<P, T>>), DeviceError> {
+    ) -> UpdateOutcome<RouteMap<P>, P, T> {
         // prepare the undo action
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -850,7 +849,7 @@ impl<P: Prefix> Router<P> {
         }
         let prefix_union = self.bgp_known_prefixes.union(&other.bgp_known_prefixes);
         for prefix in prefix_union {
-            match (self.bgp_rib_in.get(&prefix), other.bgp_rib_in.get(&prefix)) {
+            match (self.bgp_rib_in.get(prefix), other.bgp_rib_in.get(prefix)) {
                 (Some(x), None) if !x.is_empty() => return false,
                 (None, Some(x)) if !x.is_empty() => return false,
                 (Some(a), Some(b)) if a != b => return false,
@@ -1280,8 +1279,8 @@ impl<P: Prefix> PartialEq for Router<P> {
         let prefix_union = self.bgp_known_prefixes.union(&other.bgp_known_prefixes);
         for prefix in prefix_union {
             assert_eq!(
-                self.bgp_rib_in.get(&prefix).unwrap_or(&HashMap::new()),
-                other.bgp_rib_in.get(&prefix).unwrap_or(&HashMap::new())
+                self.bgp_rib_in.get(prefix).unwrap_or(&HashMap::new()),
+                other.bgp_rib_in.get(prefix).unwrap_or(&HashMap::new())
             );
         }
 
@@ -1441,3 +1440,7 @@ impl<'de, P: Prefix> Deserialize<'de> for Router<P> {
         })
     }
 }
+
+/// The outcome of a modification to the router. This is a result of a tuple value, where the first
+/// entry is the old value (`Old`), and the second is a set of events that must be enqueued.
+pub(crate) type UpdateOutcome<Old, P, T> = Result<(Option<Old>, Vec<Event<P, T>>), DeviceError>;

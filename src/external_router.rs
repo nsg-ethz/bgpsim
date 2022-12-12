@@ -22,8 +22,8 @@
 
 use crate::{
     bgp::{BgpEvent, BgpRoute},
-    event::Event,
-    types::{AsId, DeviceError, Prefix, PrefixMap, PrefixSet, RouterId, StepUpdate},
+    event::{Event, EventOutcome},
+    types::{AsId, DeviceError, Prefix, PrefixMap, RouterId, StepUpdate},
 };
 
 use serde::{Deserialize, Serialize};
@@ -97,7 +97,7 @@ impl<P: Prefix> ExternalRouter<P> {
     pub(crate) fn handle_event<T>(
         &mut self,
         event: Event<P, T>,
-    ) -> Result<(StepUpdate<P>, Vec<Event<P, T>>), DeviceError> {
+    ) -> Result<EventOutcome<P, T>, DeviceError> {
         // push a new empty event to the stack.
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());

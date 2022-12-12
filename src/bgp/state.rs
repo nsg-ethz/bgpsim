@@ -60,7 +60,7 @@ impl<P: Prefix> BgpState<P> {
     /// Get the prefix of the BGP state.
     #[inline]
     pub fn prefix(&self) -> P {
-        self.prefix.clone()
+        self.prefix
     }
 
     /// Get the selected route of a specific node, as well as the router from where it was learned.
@@ -159,7 +159,7 @@ impl<'n, P: Prefix> BgpStateRef<'n, P> {
     /// Get the prefix of the BGP state.
     #[inline]
     pub fn prefix(&self) -> P {
-        self.prefix.clone()
+        self.prefix
     }
 
     /// Get the selected route of a specific node, as well as the router from where it was learned.
