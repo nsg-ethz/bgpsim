@@ -29,24 +29,21 @@ use crate::{
         RouteMapList,
     },
     types::{
-        prefix::{HashMapPrefix, HashMapPrefixKV, HashSetPrefix},
-        AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, RouterId, StepUpdate,
+        AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, PrefixMap, PrefixSet, RouterId,
+        StepUpdate,
     },
 };
 use itertools::Itertools;
 use log::*;
 use ordered_float::NotNan;
 use petgraph::visit::EdgeRef;
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde")]
-use serde_with::{As, Same};
+use serde_with::{serde_as, As, Same};
 use std::{collections::HashMap, fmt::Write, mem::swap};
 
 /// Bgp Router
 #[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Router {
+pub struct Router<P: Prefix> {
     /// Name of the router
     name: String,
     /// ID of the router
@@ -58,26 +55,25 @@ pub struct Router {
     /// forwarding table for IGP messages
     pub igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Static Routes for Prefixes
-    pub(crate) static_routes: HashMapPrefix<StaticRoute>,
+    pub(crate) static_routes: P::Map<StaticRoute>,
     /// hashmap of all bgp sessions
     pub(crate) bgp_sessions: HashMap<RouterId, BgpSessionType>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
     /// to another hashmap, which maps the received router id to the entry. This way, we can store
     /// one entry for every prefix and every session.
-    pub(crate) bgp_rib_in: HashMapPrefix<HashMap<RouterId, BgpRibEntry>>,
+    pub(crate) bgp_rib_in: P::Map<HashMap<RouterId, BgpRibEntry<P>>>,
     /// Table containing all selected best routes. It is represented as a hashmap, mapping the
     /// prefixes to the table entry
-    pub(crate) bgp_rib: HashMapPrefix<BgpRibEntry>,
+    pub(crate) bgp_rib: P::Map<BgpRibEntry<P>>,
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
-    #[cfg_attr(all(feature = "serde"), serde(with = "As::<Vec<(Same, Same)>>"))]
-    pub(crate) bgp_rib_out: HashMapPrefixKV<RouterId, BgpRibEntry>,
+    pub(crate) bgp_rib_out: P::Map<HashMap<RouterId, BgpRibEntry<P>>>,
     /// Set of known bgp prefixes
-    pub(crate) bgp_known_prefixes: HashSetPrefix,
+    pub(crate) bgp_known_prefixes: P::Set,
     /// BGP Route-Maps for Input
-    pub(crate) bgp_route_maps_in: HashMap<RouterId, Vec<RouteMap>>,
+    pub(crate) bgp_route_maps_in: HashMap<RouterId, Vec<RouteMap<P>>>,
     /// BGP Route-Maps for Output
-    pub(crate) bgp_route_maps_out: HashMap<RouterId, Vec<RouteMap>>,
+    pub(crate) bgp_route_maps_out: HashMap<RouterId, Vec<RouteMap<P>>>,
     /// Flag to tell if load balancing is enabled. If load balancing is enabled, then the router
     /// will load balance packets towards a destination if multiple paths exist with equal
     /// cost. load balancing will only work within OSPF. BGP Additional Paths is not yet
@@ -86,10 +82,10 @@ pub struct Router {
     /// Stack to undo action from every event. Each processed event will push a new vector onto the
     /// stack, containing all actions to perform in order to undo the event.
     #[cfg(feature = "undo")]
-    pub(crate) undo_stack: Vec<Vec<UndoAction>>,
+    pub(crate) undo_stack: Vec<Vec<UndoAction<P>>>,
 }
 
-impl Clone for Router {
+impl<P: Prefix> Clone for Router<P> {
     fn clone(&self) -> Self {
         Router {
             name: self.name.clone(),
@@ -112,20 +108,20 @@ impl Clone for Router {
     }
 }
 
-impl Router {
-    pub(crate) fn new(name: String, router_id: RouterId, as_id: AsId) -> Router {
+impl<P: Prefix> Router<P> {
+    pub(crate) fn new(name: String, router_id: RouterId, as_id: AsId) -> Router<P> {
         Router {
             name,
             router_id,
             as_id,
             igp_table: HashMap::new(),
             neighbors: HashMap::new(),
-            static_routes: HashMapPrefix::new(),
+            static_routes: Default::default(),
             bgp_sessions: HashMap::new(),
-            bgp_rib_in: HashMapPrefix::new(),
-            bgp_rib: HashMapPrefix::new(),
-            bgp_rib_out: HashMapPrefixKV::new(),
-            bgp_known_prefixes: HashSetPrefix::new(),
+            bgp_rib_in: Default::default(),
+            bgp_rib: Default::default(),
+            bgp_rib_out: Default::default(),
+            bgp_known_prefixes: Default::default(),
             bgp_route_maps_in: HashMap::new(),
             bgp_route_maps_out: HashMap::new(),
             do_load_balancing: false,
@@ -135,7 +131,7 @@ impl Router {
     }
 
     /// Get a struct to display the BGP table for a specific prefix
-    pub fn fmt_bgp_table<Q>(&self, net: &'_ Network<Q>, prefix: Prefix) -> String {
+    pub fn fmt_bgp_table<Q>(&self, net: &'_ Network<P, Q>, prefix: P) -> String {
         let mut result = String::new();
         let f = &mut result;
         let selected_entry = self.get_selected_bgp_route(prefix);
@@ -147,7 +143,7 @@ impl Router {
     }
 
     /// Get a struct to display the IGP table.
-    pub fn fmt_igp_table<Q>(&self, net: &'_ Network<Q>) -> String {
+    pub fn fmt_igp_table<Q>(&self, net: &'_ Network<P, Q>) -> String {
         let mut result = String::new();
         let f = &mut result;
         for r in net.get_routers() {
@@ -203,10 +199,10 @@ impl Router {
     /// boolean to check if there was an update or not.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn handle_event<P: Default>(
+    pub(crate) fn handle_event<T: Default>(
         &mut self,
-        event: Event<P>,
-    ) -> Result<(StepUpdate, Vec<Event<P>>), DeviceError> {
+        event: Event<P, T>,
+    ) -> Result<(StepUpdate<P>, Vec<Event<P, T>>), DeviceError> {
         // first, push a new entry onto the stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -297,10 +293,14 @@ impl Router {
                         self.bgp_rib.remove(&prefix);
                     }
                     UndoAction::BgpRibOut(prefix, peer, Some(entry)) => {
-                        self.bgp_rib_out.insert((peer, prefix), entry);
+                        self.bgp_rib_out
+                            .get_mut_or_default(prefix)
+                            .insert(peer, entry);
                     }
                     UndoAction::BgpRibOut(prefix, peer, None) => {
-                        self.bgp_rib_out.remove(&(peer, prefix));
+                        self.bgp_rib_out
+                            .get_mut(&prefix)
+                            .and_then(|x| x.remove(&peer));
                     }
                     UndoAction::BgpRouteMap(neighbor, Incoming, order, map) => {
                         let maps = self.bgp_route_maps_in.entry(neighbor).or_default();
@@ -365,11 +365,33 @@ impl Router {
         }
     }
 
-    /// Get the IGP next hop for a prefix
-    pub fn get_next_hop(&self, prefix: Prefix) -> Vec<RouterId> {
+    /// Get the forwarding table of the router. The forwarding table is a mapping from each prefix
+    /// to a next-hop.
+    ///
+    /// TODO: Make this function work with longest prefix map!
+    pub fn get_fib(&self) -> P::Map<Vec<RouterId>> {
+        let prefixes: Vec<_> = self
+            .static_routes
+            .keys()
+            .chain(self.bgp_rib.keys())
+            .unique()
+            .copied()
+            .collect();
+        let mut result = P::Map::default();
+        for prefix in prefixes {
+            let nhs = self.get_next_hop(prefix);
+            if !nhs.is_empty() {
+                result.insert(prefix, nhs);
+            }
+        }
+        result
+    }
+
+    /// Get the IGP next hop for a prefix. Prefixes are matched using longest prefix match.
+    pub fn get_next_hop(&self, prefix: P) -> Vec<RouterId> {
         // first, check the static routes
         let next_hops: Vec<RouterId> =
-            if let Some(target) = self.static_routes.get(&prefix).copied() {
+            if let Some(target) = self.static_routes.get_lp(&prefix).copied() {
                 // make sure that we can reach the
                 match target {
                     StaticRoute::Direct(target) => self
@@ -387,7 +409,7 @@ impl Router {
                 }
             } else {
                 // then, check the bgp table
-                match self.bgp_rib.get(&prefix) {
+                match self.bgp_rib.get_lp(&prefix) {
                     Some(entry) => self.igp_table[&entry.route.next_hop].0.clone(),
                     None => vec![],
                 }
@@ -403,8 +425,8 @@ impl Router {
     }
 
     /// Return a list of all known bgp routes for a given origin
-    pub fn get_known_bgp_routes(&self, prefix: Prefix) -> Result<Vec<BgpRibEntry>, DeviceError> {
-        let mut entries: Vec<BgpRibEntry> = Vec::new();
+    pub fn get_known_bgp_routes(&self, prefix: P) -> Result<Vec<BgpRibEntry<P>>, DeviceError> {
+        let mut entries: Vec<BgpRibEntry<P>> = Vec::new();
         if let Some(table) = self.bgp_rib_in.get(&prefix) {
             for e in table.values() {
                 if let Some(new_entry) = self.process_bgp_rib_in_route(e.clone())? {
@@ -445,7 +467,7 @@ impl Router {
     #[allow(clippy::let_and_return)]
     pub(crate) fn set_static_route(
         &mut self,
-        prefix: Prefix,
+        prefix: P,
         route: Option<StaticRoute>,
     ) -> Option<StaticRoute> {
         let old_route = if let Some(route) = route {
@@ -469,11 +491,11 @@ impl Router {
     /// triggered by this action.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn set_bgp_session<P: Default>(
+    pub(crate) fn set_bgp_session<T: Default>(
         &mut self,
         target: RouterId,
         session_type: Option<BgpSessionType>,
-    ) -> Result<(Option<BgpSessionType>, Vec<Event<P>>), DeviceError> {
+    ) -> Result<(Option<BgpSessionType>, Vec<Event<P, T>>), DeviceError> {
         // prepare the undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -495,7 +517,11 @@ impl Router {
                         .unwrap()
                         .push(UndoAction::BgpRibIn(*prefix, target, Some(_rib)))
                 }
-                if let Some(_rib) = self.bgp_rib_out.remove(&(target, *prefix)) {
+                if let Some(_rib) = self
+                    .bgp_rib_out
+                    .get_mut(prefix)
+                    .and_then(|x| x.remove(&target))
+                {
                     // add the undo action
                     #[cfg(feature = "undo")]
                     self.undo_stack
@@ -538,12 +564,12 @@ impl Router {
     /// To remove a route map, use [`Router::remove_bgp_route_map`].
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn set_bgp_route_map<P: Default>(
+    pub(crate) fn set_bgp_route_map<T: Default>(
         &mut self,
         neighbor: RouterId,
         direction: RouteMapDirection,
-        mut route_map: RouteMap,
-    ) -> Result<(Option<RouteMap>, Vec<Event<P>>), DeviceError> {
+        mut route_map: RouteMap<P>,
+    ) -> Result<(Option<RouteMap<P>>, Vec<Event<P, T>>), DeviceError> {
         // prepare the undo action
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -602,12 +628,12 @@ impl Router {
     /// To add or update a route map, use [`Router::set_bgp_route_map`].
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn remove_bgp_route_map<P: Default>(
+    pub(crate) fn remove_bgp_route_map<T: Default>(
         &mut self,
         neighbor: RouterId,
         direction: RouteMapDirection,
         order: i16,
-    ) -> Result<(Option<RouteMap>, Vec<Event<P>>), DeviceError> {
+    ) -> Result<(Option<RouteMap<P>>, Vec<Event<P, T>>), DeviceError> {
         // prepare the undo action
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -665,7 +691,7 @@ impl Router {
         neighbor: RouterId,
         direction: RouteMapDirection,
         order: i16,
-    ) -> Option<&RouteMap> {
+    ) -> Option<&RouteMap<P>> {
         let maps = match direction {
             Incoming => self.bgp_route_maps_in.get(&neighbor)?,
             Outgoing => self.bgp_route_maps_out.get(&neighbor)?,
@@ -680,7 +706,7 @@ impl Router {
         &self,
         neighbor: RouterId,
         direction: RouteMapDirection,
-    ) -> &[RouteMap] {
+    ) -> &[RouteMap<P>] {
         match direction {
             Incoming => &self.bgp_route_maps_in,
             Outgoing => &self.bgp_route_maps_out,
@@ -691,44 +717,43 @@ impl Router {
     }
 
     /// Get an iterator over all outgoing route-maps
-    pub fn get_static_routes(&self) -> impl Iterator<Item = (&Prefix, &StaticRoute)> {
+    pub fn get_static_routes(&self) -> impl Iterator<Item = (&P, &StaticRoute)> {
         self.static_routes.iter()
     }
 
     /// Get an iterator over all Routes in the BGP table.
-    pub fn get_bgp_rib(&self) -> impl Iterator<Item = (&Prefix, &BgpRibEntry)> {
+    pub fn get_bgp_rib(&self) -> impl Iterator<Item = (&P, &BgpRibEntry<P>)> {
         self.bgp_rib.iter()
     }
 
     /// Get a reference to the RIB table
-    pub fn get_selected_bgp_route(&self, prefix: Prefix) -> Option<&BgpRibEntry> {
+    pub fn get_selected_bgp_route(&self, prefix: P) -> Option<&BgpRibEntry<P>> {
         self.bgp_rib.get(&prefix)
     }
 
     /// Get an iterator over the incoming RIB table
-    pub fn get_bgp_rib_in(
-        &self,
-    ) -> impl Iterator<Item = (&Prefix, &HashMap<RouterId, BgpRibEntry>)> {
+    pub fn get_bgp_rib_in(&self) -> impl Iterator<Item = (&P, &HashMap<RouterId, BgpRibEntry<P>>)> {
         self.bgp_rib_in.iter()
     }
 
     /// Get an iterator over the outgoing RIB table.
-    pub fn get_bgp_rib_out(&self) -> impl Iterator<Item = (&RouterId, &Prefix, &BgpRibEntry)> {
-        self.bgp_rib_out
-            .iter()
-            .map(|((neighbor, prefix), route)| (neighbor, prefix, route))
+    pub fn get_bgp_rib_out(&self) -> impl Iterator<Item = (&RouterId, &P, &BgpRibEntry<P>)> {
+        self.bgp_rib_out.iter().flat_map(|(prefix, rib)| {
+            rib.iter()
+                .map(move |(neighbor, route)| (neighbor, prefix, route))
+        })
     }
 
     /// Get the processed BGP RIB table for a specific prefix. This function will apply all incoming
     /// route-maps to all entries in `RIB_IN`, and return the current table from which the router
     /// has selected a route. Along with the routes, this function will also return a boolean wether
     /// this route was actually selected. The vector is sorted by the neighboring ID.
-    pub fn get_processed_bgp_rib(&self, prefix: Prefix) -> Vec<(BgpRibEntry, bool)> {
+    pub fn get_processed_bgp_rib(&self, prefix: P) -> Vec<(BgpRibEntry<P>, bool)> {
         let best_route = self.bgp_rib.get(&prefix);
         self.bgp_rib_in
             .get(&prefix)
-            .into_iter()
-            .flatten()
+            .iter()
+            .flat_map(|x| x.iter())
             .filter_map(|(_, rib)| {
                 let proc = self.process_bgp_rib_in_route(rib.clone()).ok().flatten();
                 if proc.as_ref() == best_route {
@@ -745,11 +770,11 @@ impl Router {
     /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn write_igp_forwarding_table<P: Default>(
+    pub(crate) fn write_igp_forwarding_table<T: Default>(
         &mut self,
         graph: &IgpNetwork,
         ospf: &OspfState,
-    ) -> Result<Vec<Event<P>>, DeviceError> {
+    ) -> Result<Vec<Event<P, T>>, DeviceError> {
         // prepare the undo action
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -799,13 +824,13 @@ impl Router {
     /// always perform route dissemionation, no matter if the route has changed.
     ///
     /// *Undo Functionality*: this function will push some actions to the last undo event.
-    fn update_bgp_tables<P: Default>(
+    fn update_bgp_tables<T: Default>(
         &mut self,
         force_dissemination: bool,
-    ) -> Result<Vec<Event<P>>, DeviceError> {
+    ) -> Result<Vec<Event<P, T>>, DeviceError> {
         let mut events = Vec::new();
         // run the decision process
-        for prefix in self.bgp_known_prefixes.clone() {
+        for prefix in self.bgp_known_prefixes.iter().copied().collect::<Vec<_>>() {
             let changed = self.run_bgp_decision_process_for_prefix(prefix)?;
             // if the decision process selected a new route, also run the dissemination process.
             if changed || force_dissemination {
@@ -848,7 +873,7 @@ impl Router {
     /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn run_bgp_decision_process_for_new_route(
         &mut self,
-        prefix: Prefix,
+        prefix: P,
         neighbor: RouterId,
     ) -> Result<bool, DeviceError> {
         // search the best route and compare
@@ -897,15 +922,16 @@ impl Router {
     /// (and the dissemination process should be executed).
     ///
     /// *Undo Functionality*: this function will push some actions to the last undo event.
-    fn run_bgp_decision_process_for_prefix(&mut self, prefix: Prefix) -> Result<bool, DeviceError> {
+    fn run_bgp_decision_process_for_prefix(&mut self, prefix: P) -> Result<bool, DeviceError> {
         // search the best route and compare
         let old_entry = self.bgp_rib.get(&prefix);
 
         // find the new best route
         let new_entry = self.bgp_rib_in.get(&prefix).and_then(|rib| {
-            rib.values()
-                .filter_map(|e| self.process_bgp_rib_in_route(e.clone()).ok().flatten())
-                .max()
+            Iterator::max(
+                rib.values()
+                    .filter_map(|e| self.process_bgp_rib_in_route(e.clone()).ok().flatten()),
+            )
         });
 
         // check if the entry will get changed
@@ -933,17 +959,18 @@ impl Router {
     /// only run bgp route dissemination (phase 3) and return the events triggered by the dissemination
     ///
     /// *Undo Functionality*: this function will push some actions to the last undo event.
-    fn run_bgp_route_dissemination_for_prefix<P: Default>(
+    fn run_bgp_route_dissemination_for_prefix<T: Default>(
         &mut self,
-        prefix: Prefix,
-    ) -> Result<Vec<Event<P>>, DeviceError> {
+        prefix: P,
+    ) -> Result<Vec<Event<P, T>>, DeviceError> {
         let mut events = Vec::new();
 
         let rib_best = self.bgp_rib.get(&prefix);
 
         for (peer, peer_type) in self.bgp_sessions.iter() {
             // get the current route
-            let current_route: Option<&BgpRibEntry> = self.bgp_rib_out.get(&(*peer, prefix));
+            let current_route: Option<&BgpRibEntry<P>> =
+                self.bgp_rib_out.get(&prefix).and_then(|x| x.get(peer));
             // before applying route maps, we check if neither the old, nor the new routes should be
             // advertised
             let will_advertise = rib_best
@@ -959,7 +986,10 @@ impl Router {
             // be edited
             let event = if !will_advertise && current_route.is_some() {
                 // send a withdraw of the old route.
-                let _old = self.bgp_rib_out.remove(&(*peer, prefix));
+                let _old = self
+                    .bgp_rib_out
+                    .get_mut(&prefix)
+                    .and_then(|x| x.remove(peer));
                 // add the undo action
                 #[cfg(feature = "undo")]
                 self.undo_stack
@@ -970,7 +1000,7 @@ impl Router {
             } else {
                 // here, we know that will_advertise is true!
                 // apply the route for the specific peer
-                let best_route: Option<BgpRibEntry> = match rib_best {
+                let best_route: Option<BgpRibEntry<P>> = match rib_best {
                     Some(e) => self.process_bgp_rib_out_route(e.clone(), *peer)?,
                     None => None,
                 };
@@ -982,7 +1012,10 @@ impl Router {
                     (Some(best_r), _) => {
                         // Route information was changed
                         // update the route
-                        let _old = self.bgp_rib_out.insert((*peer, prefix), best_r.clone());
+                        let _old = self
+                            .bgp_rib_out
+                            .get_mut_or_default(prefix)
+                            .insert(*peer, best_r.clone());
                         // add the undo action
                         #[cfg(feature = "undo")]
                         self.undo_stack
@@ -993,7 +1026,10 @@ impl Router {
                     }
                     (None, Some(_)) => {
                         // Current route must be WITHDRAWN, since we do no longer know any route
-                        let _old = self.bgp_rib_out.remove(&(*peer, prefix));
+                        let _old = self
+                            .bgp_rib_out
+                            .get_mut(&prefix)
+                            .and_then(|x| x.remove(peer));
                         // add the undo action
                         #[cfg(feature = "undo")]
                         self.undo_stack
@@ -1010,7 +1046,7 @@ impl Router {
             };
             // add the event to the queue
             if let Some(event) = event {
-                events.push(Event::Bgp(P::default(), self.router_id, *peer, event));
+                events.push(Event::Bgp(T::default(), self.router_id, *peer, event));
             }
         }
 
@@ -1029,9 +1065,9 @@ impl Router {
     /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn insert_bgp_route(
         &mut self,
-        route: BgpRoute,
+        route: BgpRoute<P>,
         from: RouterId,
-    ) -> Result<(Prefix, bool), DeviceError> {
+    ) -> Result<(P, bool), DeviceError> {
         let from_type = *self
             .bgp_sessions
             .get(&from)
@@ -1078,7 +1114,7 @@ impl Router {
     /// inserted.
     ///
     /// *Undo Functionality*: this function will push some actions to the last undo event.
-    fn remove_bgp_route(&mut self, prefix: Prefix, from: RouterId) -> Prefix {
+    fn remove_bgp_route(&mut self, prefix: P, from: RouterId) -> P {
         // Remove the entry from the table
         let _old_entry = self.bgp_rib_in.get_mut_or_default(prefix).remove(&from);
 
@@ -1097,8 +1133,8 @@ impl Router {
     /// process incoming routes from bgp_rib_in
     fn process_bgp_rib_in_route(
         &self,
-        mut entry: BgpRibEntry,
-    ) -> Result<Option<BgpRibEntry>, DeviceError> {
+        mut entry: BgpRibEntry<P>,
+    ) -> Result<Option<BgpRibEntry<P>>, DeviceError> {
         // apply bgp_route_map_in
         let neighbor = entry.from_id;
         entry = match self.get_bgp_route_maps(neighbor, Incoming).apply(entry) {
@@ -1144,9 +1180,9 @@ impl Router {
     #[inline(always)]
     fn process_bgp_rib_out_route(
         &self,
-        mut entry: BgpRibEntry,
+        mut entry: BgpRibEntry<P>,
         target_peer: RouterId,
-    ) -> Result<Option<BgpRibEntry>, DeviceError> {
+    ) -> Result<Option<BgpRibEntry<P>>, DeviceError> {
         let target_session_type = *self
             .bgp_sessions
             .get(&target_peer)
@@ -1221,7 +1257,7 @@ fn should_export_route(
     )
 }
 
-impl PartialEq for Router {
+impl<P: Prefix> PartialEq for Router<P> {
     #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {
         if !(self.name == other.name
@@ -1255,27 +1291,26 @@ impl PartialEq for Router {
 
 #[cfg(feature = "undo")]
 #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub(crate) enum UndoAction {
-    BgpRibIn(Prefix, RouterId, Option<BgpRibEntry>),
-    BgpRib(Prefix, Option<BgpRibEntry>),
-    BgpRibOut(Prefix, RouterId, Option<BgpRibEntry>),
-    BgpRouteMap(RouterId, RouteMapDirection, i16, Option<RouteMap>),
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub(crate) enum UndoAction<P: Prefix> {
+    BgpRibIn(P, RouterId, Option<BgpRibEntry<P>>),
+    BgpRib(P, Option<BgpRibEntry<P>>),
+    BgpRibOut(P, RouterId, Option<BgpRibEntry<P>>),
+    BgpRouteMap(RouterId, RouteMapDirection, i16, Option<RouteMap<P>>),
     BgpSession(RouterId, Option<BgpSessionType>),
     IgpForwardingTable(
         HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
         HashMap<RouterId, LinkWeight>,
     ),
-    DelKnownPrefix(Prefix),
-    StaticRoute(Prefix, Option<StaticRoute>),
+    DelKnownPrefix(P),
+    StaticRoute(P, Option<StaticRoute>),
     SetLoadBalancing(bool),
 }
 
 /// Static route description that can either point to the direct link to the target, or to use the
 /// IGP for getting the path to the target.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy, Serialize, Deserialize)]
 pub enum StaticRoute {
     /// Use the direct edge. If the edge no longer exists, then a black-hole will be created.
     Direct(RouterId),
@@ -1292,5 +1327,116 @@ impl StaticRoute {
             StaticRoute::Direct(r) | StaticRoute::Indirect(r) => Some(*r),
             StaticRoute::Drop => None,
         }
+    }
+}
+
+impl<P: Prefix> Serialize for Router<P> {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        #[derive(Serialize)]
+        #[serde(bound(serialize = "P: for<'a> Deserialize<'a>"))]
+        struct SeRouter<P: Prefix> {
+            name: String,
+            router_id: RouterId,
+            as_id: AsId,
+            neighbors: Vec<(RouterId, LinkWeight)>,
+            igp_table: Vec<(RouterId, (Vec<RouterId>, LinkWeight))>,
+            static_routes: P::Map<StaticRoute>,
+            bgp_sessions: Vec<(RouterId, BgpSessionType)>,
+            bgp_rib_in: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
+            bgp_rib: P::Map<BgpRibEntry<P>>,
+            bgp_rib_out: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
+            bgp_known_prefixes: P::Set,
+            bgp_route_maps_in: Vec<(RouterId, Vec<RouteMap<P>>)>,
+            bgp_route_maps_out: Vec<(RouterId, Vec<RouteMap<P>>)>,
+            do_load_balancing: bool,
+            #[cfg(feature = "undo")]
+            undo_stack: Vec<Vec<UndoAction<P>>>,
+        }
+        SeRouter {
+            name: self.name.clone(),
+            router_id: self.router_id,
+            as_id: self.as_id,
+            neighbors: self.neighbors.clone().into_iter().collect(),
+            igp_table: self.igp_table.clone().into_iter().collect(),
+            static_routes: self.static_routes.clone(),
+            bgp_sessions: self.bgp_sessions.clone().into_iter().collect(),
+            bgp_rib_in: self
+                .bgp_rib_in
+                .clone()
+                .into_iter()
+                .map(|(p, x)| (p, x.into_iter().collect()))
+                .collect(),
+            bgp_rib: self.bgp_rib.clone(),
+            bgp_rib_out: self
+                .bgp_rib_out
+                .clone()
+                .into_iter()
+                .map(|(p, x)| (p, x.into_iter().collect()))
+                .collect(),
+            bgp_known_prefixes: self.bgp_known_prefixes.clone(),
+            bgp_route_maps_in: self.bgp_route_maps_in.clone().into_iter().collect(),
+            bgp_route_maps_out: self.bgp_route_maps_out.clone().into_iter().collect(),
+            do_load_balancing: self.do_load_balancing,
+            #[cfg(feature = "undo")]
+            undo_stack: self.undo_stack.clone(),
+        }
+        .serialize(serializer)
+    }
+}
+
+impl<'de, P: Prefix> Deserialize<'de> for Router<P> {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        #[derive(Deserialize)]
+        #[serde(bound(deserialize = "P: for<'a> Deserialize<'a>"))]
+        struct DeRouter<P: Prefix> {
+            name: String,
+            router_id: RouterId,
+            as_id: AsId,
+            neighbors: Vec<(RouterId, LinkWeight)>,
+            igp_table: Vec<(RouterId, (Vec<RouterId>, LinkWeight))>,
+            static_routes: P::Map<StaticRoute>,
+            bgp_sessions: Vec<(RouterId, BgpSessionType)>,
+            bgp_rib_in: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
+            bgp_rib: P::Map<BgpRibEntry<P>>,
+            bgp_rib_out: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
+            bgp_known_prefixes: P::Set,
+            bgp_route_maps_in: Vec<(RouterId, Vec<RouteMap<P>>)>,
+            bgp_route_maps_out: Vec<(RouterId, Vec<RouteMap<P>>)>,
+            do_load_balancing: bool,
+            #[cfg(feature = "undo")]
+            undo_stack: Vec<Vec<UndoAction<P>>>,
+        }
+        let router = DeRouter::<P>::deserialize(deserializer)?;
+        Ok(Self {
+            name: router.name,
+            router_id: router.router_id,
+            as_id: router.as_id,
+            neighbors: router.neighbors.into_iter().collect(),
+            igp_table: router.igp_table.into_iter().collect(),
+            static_routes: router.static_routes,
+            bgp_sessions: router.bgp_sessions.into_iter().collect(),
+            bgp_rib_in: router
+                .bgp_rib_in
+                .into_iter()
+                .map(|(p, x)| (p, x.into_iter().collect()))
+                .collect(),
+            bgp_rib: router.bgp_rib,
+            bgp_rib_out: router
+                .bgp_rib_out
+                .into_iter()
+                .map(|(p, x)| (p, x.into_iter().collect()))
+                .collect(),
+            bgp_known_prefixes: router.bgp_known_prefixes,
+            bgp_route_maps_in: router.bgp_route_maps_in.into_iter().collect(),
+            bgp_route_maps_out: router.bgp_route_maps_out.into_iter().collect(),
+            do_load_balancing: router.do_load_balancing,
+            undo_stack: router.undo_stack.into_iter().collect(),
+        })
     }
 }

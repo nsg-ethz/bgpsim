@@ -23,10 +23,9 @@
 use crate::{
     bgp::{BgpEvent, BgpRoute},
     event::Event,
-    types::{prefix::HashMapPrefix, AsId, DeviceError, Prefix, RouterId, StepUpdate},
+    types::{AsId, DeviceError, Prefix, PrefixMap, PrefixSet, RouterId, StepUpdate},
 };
 
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
 
@@ -40,30 +39,30 @@ use std::collections::HashSet;
 ///   a bit more expensive. However, it is to be expected that neighbors are added and removed more
 ///   often. In this case, we need to iterate over the `active_routes`, which is faster than using a
 ///   `HashMap`. Also, cloning the External Router is faster when we have a vector.
-#[derive(Debug, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ExternalRouter {
+#[derive(Debug, Eq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub struct ExternalRouter<P: Prefix> {
     name: String,
     router_id: RouterId,
     as_id: AsId,
     pub(crate) neighbors: HashSet<RouterId>,
-    pub(crate) active_routes: HashMapPrefix<BgpRoute>,
+    pub(crate) active_routes: P::Map<BgpRoute<P>>,
     #[cfg(feature = "undo")]
-    pub(crate) undo_stack: Vec<Vec<UndoAction>>,
+    pub(crate) undo_stack: Vec<Vec<UndoAction<P>>>,
 }
 
-impl PartialEq for ExternalRouter {
+impl<P: Prefix> PartialEq for ExternalRouter<P> {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
             && self.router_id == other.router_id
             && self.as_id == other.as_id
             && self.neighbors == other.neighbors
-            && self.active_routes == other.active_routes
+            && self.active_routes.eq(&other.active_routes)
         // && self.undo_stack == other.undo_stack
     }
 }
 
-impl Clone for ExternalRouter {
+impl<P: Prefix> Clone for ExternalRouter<P> {
     fn clone(&self) -> Self {
         Self {
             name: self.name.clone(),
@@ -77,7 +76,7 @@ impl Clone for ExternalRouter {
     }
 }
 
-impl ExternalRouter {
+impl<P: Prefix> ExternalRouter<P> {
     /// Create a new NetworkDevice instance
     pub(crate) fn new(name: String, router_id: RouterId, as_id: AsId) -> Self {
         Self {
@@ -85,7 +84,7 @@ impl ExternalRouter {
             router_id,
             as_id,
             neighbors: HashSet::new(),
-            active_routes: HashMapPrefix::new(),
+            active_routes: Default::default(),
             #[cfg(feature = "undo")]
             undo_stack: Vec::new(),
         }
@@ -95,10 +94,10 @@ impl ExternalRouter {
     /// tell that the forwarding state has not changed.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn handle_event<P>(
+    pub(crate) fn handle_event<T>(
         &mut self,
-        event: Event<P>,
-    ) -> Result<(StepUpdate, Vec<Event<P>>), DeviceError> {
+        event: Event<P, T>,
+    ) -> Result<(StepUpdate<P>, Vec<Event<P, T>>), DeviceError> {
         // push a new empty event to the stack.
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -150,7 +149,7 @@ impl ExternalRouter {
     }
 
     /// Return a set of routes which are advertised
-    pub fn advertised_prefixes(&self) -> impl Iterator<Item = &Prefix> {
+    pub fn advertised_prefixes(&self) -> impl Iterator<Item = &P> {
         self.active_routes.keys()
     }
 
@@ -158,13 +157,13 @@ impl ExternalRouter {
     /// update message with the route.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn advertise_prefix<P: Default, I: IntoIterator<Item = u32>>(
+    pub(crate) fn advertise_prefix<T: Default, I: IntoIterator<Item = u32>>(
         &mut self,
-        prefix: Prefix,
+        prefix: P,
         as_path: Vec<AsId>,
         med: Option<u32>,
         community: I,
-    ) -> (BgpRoute, Vec<Event<P>>) {
+    ) -> (BgpRoute<P>, Vec<Event<P, T>>) {
         // prepare undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -184,7 +183,7 @@ impl ExternalRouter {
             let events = self
                 .neighbors
                 .iter()
-                .map(|n| Event::Bgp(P::default(), self.router_id, *n, bgp_event.clone()))
+                .map(|n| Event::Bgp(T::default(), self.router_id, *n, bgp_event.clone()))
                 .collect();
 
             // update the undo stack
@@ -201,7 +200,7 @@ impl ExternalRouter {
     /// Send a BGP WITHDRAW to all neighbors for the given prefix
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn widthdraw_prefix<P: Default>(&mut self, prefix: Prefix) -> Vec<Event<P>> {
+    pub(crate) fn widthdraw_prefix<T: Default>(&mut self, prefix: P) -> Vec<Event<P, T>> {
         // prepare undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -217,7 +216,7 @@ impl ExternalRouter {
             // only send the withdraw if the route actually did exist
             self.neighbors
                 .iter()
-                .map(|n| Event::Bgp(P::default(), self.router_id, *n, BgpEvent::Withdraw(prefix)))
+                .map(|n| Event::Bgp(T::default(), self.router_id, *n, BgpEvent::Withdraw(prefix)))
                 .collect() // create the events to withdraw the route
         } else {
             // nothing to do, no route was advertised
@@ -228,10 +227,10 @@ impl ExternalRouter {
     /// Add an ebgp session with an internal router. Generate all events.
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn establish_ebgp_session<P: Default>(
+    pub(crate) fn establish_ebgp_session<T: Default>(
         &mut self,
         router: RouterId,
-    ) -> Result<Vec<Event<P>>, DeviceError> {
+    ) -> Result<Vec<Event<P, T>>, DeviceError> {
         // prepare undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -250,7 +249,7 @@ impl ExternalRouter {
                 .iter()
                 .map(|(_, r)| {
                     Event::Bgp(
-                        P::default(),
+                        T::default(),
                         self.router_id,
                         router,
                         BgpEvent::Update(r.clone()),
@@ -288,17 +287,17 @@ impl ExternalRouter {
     }
 
     /// Checks if the router advertises the given prefix
-    pub fn has_active_route(&self, prefix: Prefix) -> bool {
+    pub fn has_active_route(&self, prefix: P) -> bool {
         self.active_routes.contains_key(&prefix)
     }
 
     /// Returns the BGP route that the router currently advertises for a given prefix.
-    pub fn get_advertised_route(&self, prefix: Prefix) -> Option<&BgpRoute> {
+    pub fn get_advertised_route(&self, prefix: P) -> Option<&BgpRoute<P>> {
         self.active_routes.get(&prefix)
     }
 
     /// Returns an iterator over all advertised BGP routes.
-    pub fn get_advertised_routes(&self) -> impl Iterator<Item = (&Prefix, &BgpRoute)> {
+    pub fn get_advertised_routes(&self) -> impl Iterator<Item = (&P, &BgpRoute<P>)> {
         self.active_routes.iter()
     }
 
@@ -327,10 +326,10 @@ impl ExternalRouter {
 
 #[cfg(feature = "undo")]
 #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub(crate) enum UndoAction {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub(crate) enum UndoAction<P: Prefix> {
     AddBgpSession(RouterId),
     DelBgpSession(RouterId),
-    AdvertiseRoute(Prefix, Option<BgpRoute>),
+    AdvertiseRoute(P, Option<BgpRoute<P>>),
 }

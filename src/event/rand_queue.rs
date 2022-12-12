@@ -19,7 +19,7 @@
 
 use crate::{
     router::Router,
-    types::{IgpNetwork, RouterId},
+    types::{IgpNetwork, Prefix, RouterId},
 };
 
 use geoutils::Location;
@@ -28,7 +28,6 @@ use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
 use rand::prelude::*;
 use rand_distr::{Beta, Distribution};
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Reverse,
@@ -42,18 +41,18 @@ use super::{Event, EventQueue};
 ///
 /// The processing delay depends on a single beta distribution (see [`ModelParams`]) with parameters
 /// that can be tuned for each pair of routers.
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
-pub struct SimpleTimingModel {
-    q: PriorityQueue<Event<NotNan<f64>>, Reverse<NotNan<f64>>>,
+pub struct SimpleTimingModel<P: Prefix> {
+    q: PriorityQueue<Event<P, NotNan<f64>>, Reverse<NotNan<f64>>>,
     messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
     model: HashMap<(RouterId, RouterId), ModelParams>,
     default_params: ModelParams,
     current_time: NotNan<f64>,
 }
 
-impl SimpleTimingModel {
+impl<P: Prefix> SimpleTimingModel<P> {
     /// Create a new, empty model queue with given default parameters
     pub fn new(default_params: ModelParams) -> Self {
         Self {
@@ -71,13 +70,13 @@ impl SimpleTimingModel {
     }
 }
 
-impl EventQueue for SimpleTimingModel {
+impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
     type Priority = NotNan<f64>;
 
     fn push(
         &mut self,
-        mut event: Event<Self::Priority>,
-        _routers: &HashMap<RouterId, Router>,
+        mut event: Event<P, Self::Priority>,
+        _routers: &HashMap<RouterId, Router<P>>,
         _net: &IgpNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -106,7 +105,7 @@ impl EventQueue for SimpleTimingModel {
         self.q.push(event, Reverse(next_time));
     }
 
-    fn pop(&mut self) -> Option<Event<Self::Priority>> {
+    fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
         let (event, _) = self.q.pop()?;
         self.current_time = *event.priority();
         match event {
@@ -119,7 +118,7 @@ impl EventQueue for SimpleTimingModel {
         Some(event)
     }
 
-    fn peek(&self) -> Option<&Event<Self::Priority>> {
+    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
         self.q.peek().map(|(e, _)| e)
     }
 
@@ -141,7 +140,7 @@ impl EventQueue for SimpleTimingModel {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, Router>, _: &IgpNetwork) {}
+    fn update_params(&mut self, _: &HashMap<RouterId, Router<P>>, _: &IgpNetwork) {}
 
     unsafe fn clone_events(&self, conquered: Self) -> Self {
         SimpleTimingModel {
@@ -153,7 +152,7 @@ impl EventQueue for SimpleTimingModel {
     }
 }
 
-impl PartialEq for SimpleTimingModel {
+impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
     fn eq(&self, other: &Self) -> bool {
         self.q.iter().collect::<Vec<_>>() == other.q.iter().collect::<Vec<_>>()
     }
@@ -235,11 +234,11 @@ impl PartialEq for SimpleTimingModel {
 /// # #[cfg(not(feature = "topology_zoo"))]
 /// # fn main() {}
 /// ```
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
-pub struct GeoTimingModel {
-    q: PriorityQueue<Event<NotNan<f64>>, Reverse<NotNan<f64>>>,
+pub struct GeoTimingModel<P: Prefix> {
+    q: PriorityQueue<Event<P, NotNan<f64>>, Reverse<NotNan<f64>>>,
     messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
     processing_params: HashMap<RouterId, ModelParams>,
     default_processing_params: ModelParams,
@@ -253,7 +252,7 @@ const GEO_TIMING_MODEL_DEFAULT_DELAY: f64 = 0.0001;
 const GEO_TIMING_MODEL_MAX_DELAY: f64 = 10.0;
 const GEO_TIMING_MODEL_F_LIGHT_SPEED: f64 = 1.0 / 299792458.0;
 
-impl GeoTimingModel {
+impl<P: Prefix> GeoTimingModel<P> {
     /// Create a new, empty model queue with given default parameters
     pub fn new(
         default_processing_params: ModelParams,
@@ -309,7 +308,7 @@ impl GeoTimingModel {
         router: RouterId,
         target: RouterId,
         loop_protection: &mut HashSet<RouterId>,
-        routers: &HashMap<RouterId, Router>,
+        routers: &HashMap<RouterId, Router<P>>,
         path_cache: &mut HashMap<(RouterId, RouterId), Option<Vec<RouterId>>>,
     ) {
         if router == target {
@@ -400,19 +399,19 @@ impl GeoTimingModel {
     }
 }
 
-impl PartialEq for GeoTimingModel {
+impl<P: Prefix> PartialEq for GeoTimingModel<P> {
     fn eq(&self, other: &Self) -> bool {
         self.q.iter().collect::<Vec<_>>() == other.q.iter().collect::<Vec<_>>()
     }
 }
 
-impl EventQueue for GeoTimingModel {
+impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
     type Priority = NotNan<f64>;
 
     fn push(
         &mut self,
-        mut event: Event<Self::Priority>,
-        _: &HashMap<RouterId, Router>,
+        mut event: Event<P, Self::Priority>,
+        _: &HashMap<RouterId, Router<P>>,
         _: &IgpNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -447,7 +446,7 @@ impl EventQueue for GeoTimingModel {
         self.q.push(event, Reverse(next_time));
     }
 
-    fn pop(&mut self) -> Option<Event<Self::Priority>> {
+    fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
         let (event, _) = self.q.pop()?;
         self.current_time = *event.priority();
         match event {
@@ -460,7 +459,7 @@ impl EventQueue for GeoTimingModel {
         Some(event)
     }
 
-    fn peek(&self) -> Option<&Event<Self::Priority>> {
+    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
         self.q.peek().map(|(e, _)| e)
     }
 
@@ -482,7 +481,7 @@ impl EventQueue for GeoTimingModel {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params(&mut self, routers: &HashMap<RouterId, Router>, _: &IgpNetwork) {
+    fn update_params(&mut self, routers: &HashMap<RouterId, Router<P>>, _: &IgpNetwork) {
         self.paths.clear();
         // update all paths
         for src in routers.keys() {
@@ -511,8 +510,7 @@ impl EventQueue for GeoTimingModel {
 /// Model parameters of the Beta distribution. A value is sampled as follows:
 ///
 /// t = offset + scale * Beta[alpha, beta]
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
 pub struct ModelParams {
     /// Offset factor
@@ -527,7 +525,7 @@ pub struct ModelParams {
     /// next event.
     pub collision: NotNan<f64>,
     /// Distribution
-    #[cfg_attr(feature = "serde", serde(skip))]
+    #[serde(skip)]
     dist: Option<Beta<f64>>,
 }
 

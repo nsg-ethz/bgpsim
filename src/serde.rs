@@ -33,11 +33,12 @@ use crate::{
 const JSON_FIELD_NAME_NETWORK: &str = "net";
 const JSON_FIELD_NAME_CONFIG: &str = "config_nodes_routes";
 
-type ExportRoutes = (RouterId, Prefix, Vec<AsId>, Option<u32>, BTreeSet<u32>);
+type ExportRoutes<P> = (RouterId, P, Vec<AsId>, Option<u32>, BTreeSet<u32>);
 
-impl<Q> Network<Q>
+impl<P, Q> Network<P, Q>
 where
-    Q: EventQueue + Serialize,
+    P: Prefix,
+    Q: EventQueue<P> + Serialize,
     Q::Priority: Default + FmtPriority + Clone,
 {
     /// Create a json string from the network. This string will contain both the actual network
@@ -72,7 +73,7 @@ where
                 NetworkDevice::None(_) => unreachable!(),
             })
             .collect();
-        let routes: Vec<ExportRoutes> = self
+        let routes: Vec<ExportRoutes<P>> = self
             .get_external_routers()
             .into_iter()
             .filter_map(|r| Some((r, self.get_device(r).external()?)))
@@ -92,9 +93,10 @@ where
     }
 }
 
-impl<Q> Network<Q>
+impl<P, Q> Network<P, Q>
 where
-    Q: EventQueue,
+    P: Prefix,
+    Q: EventQueue<P>,
     for<'a> Q: Deserialize<'a>,
     Q::Priority: Default + FmtPriority + Clone,
 {
@@ -133,9 +135,10 @@ where
     }
 }
 
-impl<Q> Network<Q>
+impl<P, Q> Network<P, Q>
 where
-    Q: EventQueue,
+    P: Prefix,
+    Q: EventQueue<P>,
     Q::Priority: Default + FmtPriority + Clone,
 {
     /// Deserialize the json structure containing configuration, nodes and routes.
@@ -148,9 +151,9 @@ where
     where
         F: FnOnce() -> Q,
     {
-        let config: Vec<ConfigExpr> = serde_json::from_value(config)?;
+        let config: Vec<ConfigExpr<P>> = serde_json::from_value(config)?;
         let nodes: Vec<(RouterId, String, Option<AsId>)> = serde_json::from_value(nodes)?;
-        let routes: Vec<ExportRoutes> = serde_json::from_value(routes)?;
+        let routes: Vec<ExportRoutes<P>> = serde_json::from_value(routes)?;
         let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();
         let links: HashSet<(RouterId, RouterId)> = config
             .iter()

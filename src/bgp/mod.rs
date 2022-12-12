@@ -23,20 +23,19 @@ pub use state::*;
 use crate::types::{AsId, LinkWeight, Prefix, RouterId};
 
 use ordered_float::NotNan;
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::BTreeSet};
+use std::{cmp::Ordering, collections::BTreeSet, hash::Hash};
 
 /// Bgp Route
 /// The following attributes are omitted
 /// - ORIGIN: assumed to be always set to IGP
 /// - ATOMIC_AGGREGATE: not used
 /// - AGGREGATOR: not used
-#[derive(Debug, Clone, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct BgpRoute {
+#[derive(Debug, Clone, Eq, Ord, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub struct BgpRoute<P: Prefix> {
     /// IP PREFIX (represented as a simple number)
-    pub prefix: Prefix,
+    pub prefix: P,
     /// AS-PATH, where the origin of the route is last, and the ID of a new AS is prepended.
     pub as_path: Vec<AsId>,
     /// NEXT-HOP for reaching the source of the route.
@@ -53,17 +52,11 @@ pub struct BgpRoute {
     pub cluster_list: Vec<RouterId>,
 }
 
-impl Ord for BgpRoute {
-    fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl BgpRoute {
+impl<P: Prefix> BgpRoute<P> {
     /// Create a new BGP route from all attributes that are transitive.
     pub fn new<A, C>(
         next_hop: RouterId,
-        prefix: impl Into<Prefix>,
+        prefix: impl Into<P>,
         as_path: A,
         med: Option<u32>,
         community: C,
@@ -92,7 +85,9 @@ impl BgpRoute {
         self.local_pref = Some(self.local_pref.unwrap_or(100));
         self.med = Some(self.med.unwrap_or(0));
     }
+}
 
+impl<P: Prefix> BgpRoute<P> {
     /// returns a clone of self, with the default values applied for any non-mandatory field.
     pub fn clone_default(&self) -> Self {
         Self {
@@ -108,7 +103,7 @@ impl BgpRoute {
     }
 }
 
-impl PartialEq for BgpRoute {
+impl<P: Prefix> PartialEq for BgpRoute<P> {
     fn eq(&self, other: &Self) -> bool {
         let s = self.clone_default();
         let o = other.clone_default();
@@ -123,7 +118,7 @@ impl PartialEq for BgpRoute {
     }
 }
 
-impl PartialOrd for BgpRoute {
+impl<P: Prefix> PartialOrd for BgpRoute<P> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let s = self.clone_default();
         let o = other.clone_default();
@@ -161,7 +156,7 @@ impl PartialOrd for BgpRoute {
     }
 }
 
-impl std::hash::Hash for BgpRoute {
+impl<P: Prefix> Hash for BgpRoute<P> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         let s = self.clone_default();
         s.prefix.hash(state);
@@ -174,8 +169,7 @@ impl std::hash::Hash for BgpRoute {
 }
 
 /// Type of a BGP session
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum BgpSessionType {
     /// iBGP session with a peer (or from a client with a Route Reflector)
     IBgpPeer,
@@ -230,18 +224,18 @@ impl BgpSessionType {
 }
 
 /// BGP Events
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum BgpEvent {
+#[derive(Debug, Clone, Hash, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub enum BgpEvent<P: Prefix> {
     /// Withdraw a previously advertised route
-    Withdraw(Prefix),
+    Withdraw(P),
     /// Update a route, or add a new one.
-    Update(BgpRoute),
+    Update(BgpRoute<P>),
 }
 
-impl BgpEvent {
+impl<P: Prefix> BgpEvent<P> {
     /// Returns the prefix for which this event is responsible
-    pub fn prefix(&self) -> Prefix {
+    pub fn prefix(&self) -> P {
         match self {
             Self::Withdraw(p) => *p,
             Self::Update(r) => r.prefix,
@@ -250,11 +244,11 @@ impl BgpEvent {
 }
 
 /// BGP RIB Table entry
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct BgpRibEntry {
+#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> Deserialize<'a>"))]
+pub struct BgpRibEntry<P: Prefix> {
     /// the actual bgp route
-    pub route: BgpRoute,
+    pub route: BgpRoute<P>,
     /// the type of session, from which the route was learned
     pub from_type: BgpSessionType,
     /// the client from which the route was learned
@@ -267,15 +261,13 @@ pub struct BgpRibEntry {
     pub weight: u32,
 }
 
-impl Ord for BgpRibEntry {
+impl<P: Prefix> Ord for BgpRibEntry<P> {
     fn cmp(&self, other: &Self) -> Ordering {
         self.partial_cmp(other).unwrap()
     }
 }
 
-impl Eq for BgpRibEntry {}
-
-impl PartialEq for BgpRibEntry {
+impl<P: Prefix> PartialEq for BgpRibEntry<P> {
     fn eq(&self, other: &Self) -> bool {
         self.route == other.route
             && self.from_id == other.from_id
@@ -284,7 +276,7 @@ impl PartialEq for BgpRibEntry {
     }
 }
 
-impl PartialOrd for BgpRibEntry {
+impl<P: Prefix> PartialOrd for BgpRibEntry<P> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let s = self.route.clone_default();
         let o = other.route.clone_default();
@@ -355,8 +347,8 @@ impl PartialOrd for BgpRibEntry {
     }
 }
 
-impl PartialEq<Option<&BgpRibEntry>> for BgpRibEntry {
-    fn eq(&self, other: &Option<&BgpRibEntry>) -> bool {
+impl<P: Prefix> PartialEq<Option<&BgpRibEntry<P>>> for BgpRibEntry<P> {
+    fn eq(&self, other: &Option<&BgpRibEntry<P>>) -> bool {
         match other {
             None => false,
             Some(o) => self.eq(*o),
@@ -364,8 +356,8 @@ impl PartialEq<Option<&BgpRibEntry>> for BgpRibEntry {
     }
 }
 
-impl PartialOrd<Option<&BgpRibEntry>> for BgpRibEntry {
-    fn partial_cmp(&self, other: &Option<&BgpRibEntry>) -> Option<Ordering> {
+impl<P: Prefix> PartialOrd<Option<&BgpRibEntry<P>>> for BgpRibEntry<P> {
+    fn partial_cmp(&self, other: &Option<&BgpRibEntry<P>>) -> Option<Ordering> {
         match other {
             None => Some(Ordering::Greater),
             Some(o) => self.partial_cmp(*o),

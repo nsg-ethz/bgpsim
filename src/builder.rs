@@ -46,6 +46,8 @@ use crate::network::UndoAction;
 /// ```
 /// use bgpsim::prelude::*;
 /// use bgpsim::builder::*;
+/// use bgpsim::prelude::SimplePrefix as Prefix;
+///
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Create a complete graph with 10 nodes.
 /// let mut net = Network::build_complete_graph(BasicEventQueue::new(), 10);
@@ -65,7 +67,7 @@ use crate::network::UndoAction;
 /// # Ok(())
 /// # }
 /// ```
-pub trait NetworkBuilder<Q> {
+pub trait NetworkBuilder<P, Q> {
     /// Setup an iBGP full-mesh. This function will create a BGP peering session between every pair
     /// of internal router, removing old sessions in the process.
     fn build_ibgp_full_mesh(&mut self) -> Result<(), NetworkError>;
@@ -88,6 +90,8 @@ pub trait NetworkBuilder<Q> {
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
     /// use bgpsim::prelude::*;
+    /// use bgpsim::prelude::SimplePrefix as Prefix;
+    ///
     /// # use bgpsim::topology_zoo::TopologyZoo;
     /// # use bgpsim::event::BasicEventQueue as Queue;
     /// use bgpsim::builder::{NetworkBuilder, k_highest_degree_nodes};
@@ -107,7 +111,7 @@ pub trait NetworkBuilder<Q> {
         a: A,
     ) -> Result<HashSet<RouterId>, NetworkError>
     where
-        F: FnOnce(&Network<Q>, A) -> R,
+        F: FnOnce(&Network<P, Q>, A) -> R,
         R: IntoIterator<Item = RouterId>;
 
     /// Establish all eBGP sessions between internal and external routerse that are connected by an
@@ -125,6 +129,8 @@ pub trait NetworkBuilder<Q> {
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
     /// use bgpsim::prelude::*;
+    /// use bgpsim::prelude::SimplePrefix as Prefix;
+    ///
     /// # use bgpsim::topology_zoo::TopologyZoo;
     /// # use bgpsim::event::BasicEventQueue as Queue;
     /// use bgpsim::builder::{NetworkBuilder, constant_link_weight};
@@ -141,7 +147,7 @@ pub trait NetworkBuilder<Q> {
     fn build_link_weights<F, A>(&mut self, link_weight: F, a: A) -> Result<(), NetworkError>
     where
         A: Clone,
-        F: FnMut(RouterId, RouterId, &Network<Q>, A) -> LinkWeight;
+        F: FnMut(RouterId, RouterId, &Network<P, Q>, A) -> LinkWeight;
 
     /// Advertise routes with a given preference. The function `preferences` will return the
     /// description (preference list) of which routers should advertise the route with which
@@ -168,6 +174,8 @@ pub trait NetworkBuilder<Q> {
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
     /// use bgpsim::prelude::*;
+    /// use bgpsim::prelude::SimplePrefix as Prefix;
+    ///
     /// # use bgpsim::topology_zoo::TopologyZoo;
     /// # use bgpsim::event::BasicEventQueue as Queue;
     /// use bgpsim::builder::{NetworkBuilder, unique_preferences};
@@ -192,12 +200,12 @@ pub trait NetworkBuilder<Q> {
     /// ```
     fn build_advertisements<F, A>(
         &mut self,
-        prefix: Prefix,
+        prefix: P,
         preferences: F,
         a: A,
     ) -> Result<Vec<Vec<RouterId>>, NetworkError>
     where
-        F: FnOnce(&Network<Q>, A) -> Vec<Vec<RouterId>>;
+        F: FnOnce(&Network<P, Q>, A) -> Vec<Vec<RouterId>>;
 
     /// Add external routers as described by the provided function `connected_to`. The function
     /// should return an iterator over `RouterId`s to where the newly added external routers should
@@ -215,6 +223,8 @@ pub trait NetworkBuilder<Q> {
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
     /// use bgpsim::prelude::*;
+    /// use bgpsim::prelude::SimplePrefix as Prefix;
+    ///
     /// # use bgpsim::topology_zoo::TopologyZoo;
     /// # use bgpsim::event::BasicEventQueue as Queue;
     /// use bgpsim::builder::{NetworkBuilder, extend_to_k_external_routers};
@@ -235,7 +245,7 @@ pub trait NetworkBuilder<Q> {
         a: A,
     ) -> Result<Vec<RouterId>, NetworkError>
     where
-        F: FnOnce(&Network<Q>, A) -> R,
+        F: FnOnce(&Network<P, Q>, A) -> R,
         R: IntoIterator<Item = RouterId>;
 
     /// Generate a complete graph with `n` nodes. Each router will be called `"R{x}"`, where `x`
@@ -288,9 +298,10 @@ pub trait NetworkBuilder<Q> {
     fn build_connected_graph(&mut self);
 }
 
-impl<Q> NetworkBuilder<Q> for Network<Q>
+impl<P, Q> NetworkBuilder<P, Q> for Network<P, Q>
 where
-    Q: EventQueue,
+    P: Prefix,
+    Q: EventQueue<P>,
     Q::Priority: Default + FmtPriority + Clone,
 {
     fn build_ibgp_full_mesh(&mut self) -> Result<(), NetworkError> {
@@ -314,7 +325,7 @@ where
         a: A,
     ) -> Result<HashSet<RouterId>, NetworkError>
     where
-        F: FnOnce(&Network<Q>, A) -> R,
+        F: FnOnce(&Network<P, Q>, A) -> R,
         R: IntoIterator<Item = RouterId>,
     {
         let route_reflectors: HashSet<RouterId> = route_reflectors(self, a).into_iter().collect();
@@ -365,7 +376,7 @@ where
     fn build_link_weights<F, A>(&mut self, mut link_weight: F, a: A) -> Result<(), NetworkError>
     where
         A: Clone,
-        F: FnMut(RouterId, RouterId, &Network<Q>, A) -> LinkWeight,
+        F: FnMut(RouterId, RouterId, &Network<P, Q>, A) -> LinkWeight,
     {
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;
@@ -400,12 +411,12 @@ where
 
     fn build_advertisements<F, A>(
         &mut self,
-        prefix: Prefix,
+        prefix: P,
         preferences: F,
         a: A,
     ) -> Result<Vec<Vec<RouterId>>, NetworkError>
     where
-        F: FnOnce(&Network<Q>, A) -> Vec<Vec<RouterId>>,
+        F: FnOnce(&Network<P, Q>, A) -> Vec<Vec<RouterId>>,
     {
         let prefs = preferences(self, a);
         #[cfg(feature = "multi_prefix")]
@@ -435,7 +446,7 @@ where
         a: A,
     ) -> Result<Vec<RouterId>, NetworkError>
     where
-        F: FnOnce(&Network<Q>, A) -> R,
+        F: FnOnce(&Network<P, Q>, A) -> R,
         R: IntoIterator<Item = RouterId>,
     {
         let old_skip_queue = self.skip_queue;
@@ -458,7 +469,7 @@ where
         Ok(new_routers)
     }
 
-    fn build_complete_graph(queue: Q, n: usize) -> Network<Q> {
+    fn build_complete_graph(queue: Q, n: usize) -> Network<P, Q> {
         let mut net = Network::new(queue);
         // create all routers
         (0..n).for_each(|i| {
@@ -474,7 +485,7 @@ where
     }
 
     #[cfg(feature = "rand")]
-    fn build_gnp(queue: Q, n: usize, p: f64) -> Network<Q> {
+    fn build_gnp(queue: Q, n: usize, p: f64) -> Network<P, Q> {
         // check if we should build a complete graph,
         if p >= 1.0 {
             return Self::build_complete_graph(queue, n);
@@ -498,7 +509,7 @@ where
     }
 
     #[cfg(feature = "rand")]
-    fn build_gnm(queue: Q, n: usize, mut m: usize) -> Network<Q> {
+    fn build_gnm(queue: Q, n: usize, mut m: usize) -> Network<P, Q> {
         // check if we should create a complete graph.
         let max_edges = n * (n - 1) / 2;
         if max_edges <= m {
@@ -531,7 +542,7 @@ where
     }
 
     #[cfg(feature = "rand")]
-    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize) -> Network<Q> {
+    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize) -> Network<P, Q> {
         let mut rng = thread_rng();
         let mut net = Network::new(queue);
         // create all routers
@@ -559,7 +570,7 @@ where
     }
 
     #[cfg(feature = "rand")]
-    fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Network<Q> {
+    fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Network<P, Q> {
         let mut rng = thread_rng();
         let mut net = Network::new(queue);
         // create all routers
@@ -649,7 +660,10 @@ where
 /// [`NetworkBuilder::build_ibgp_route_reflection`] or [`NetworkBuilder::build_external_routers`].
 #[cfg(feature = "rand")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-pub fn k_random_nodes<Q>(net: &Network<Q>, k: usize) -> impl Iterator<Item = RouterId> {
+pub fn k_random_nodes<P: Prefix, Q>(
+    net: &Network<P, Q>,
+    k: usize,
+) -> impl Iterator<Item = RouterId> {
     let mut rng = thread_rng();
     let mut internal_nodes = net.get_routers();
     internal_nodes.shuffle(&mut rng);
@@ -660,7 +674,10 @@ pub fn k_random_nodes<Q>(net: &Network<Q>, k: usize) -> impl Iterator<Item = Rou
 /// picked randomly if the feature `rand` is enabled. Otherwise, the function will be
 /// deterministic. This function can be used for [`NetworkBuilder::build_ibgp_route_reflection`] or
 /// [`NetworkBuilder::build_external_routers`].
-pub fn k_highest_degree_nodes<Q>(net: &Network<Q>, k: usize) -> impl Iterator<Item = RouterId> {
+pub fn k_highest_degree_nodes<P: Prefix, Q>(
+    net: &Network<P, Q>,
+    k: usize,
+) -> impl Iterator<Item = RouterId> {
     #[cfg(feature = "rand")]
     let mut rng = thread_rng();
     let mut internal_nodes = net.get_routers();
@@ -674,10 +691,10 @@ pub fn k_highest_degree_nodes<Q>(net: &Network<Q>, k: usize) -> impl Iterator<It
 /// This function will simply return the `weight`, if `src` and `dst` are both internal
 /// routers. Otherwise, it will return `1.0`. This function can be used for the function
 /// [`NetworkBuilder::build_link_weights`].
-pub fn constant_link_weight<Q>(
+pub fn constant_link_weight<P: Prefix, Q>(
     src: RouterId,
     dst: RouterId,
-    net: &Network<Q>,
+    net: &Network<P, Q>,
     weight: LinkWeight,
 ) -> LinkWeight {
     if net.get_device(src).is_internal() && net.get_device(dst).is_internal() {
@@ -692,10 +709,10 @@ pub fn constant_link_weight<Q>(
 /// function [`NetworkBuilder::build_link_weights`].
 #[cfg(feature = "rand")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-pub fn uniform_integer_link_weight<Q>(
+pub fn uniform_integer_link_weight<P: Prefix, Q>(
     src: RouterId,
     dst: RouterId,
-    net: &Network<Q>,
+    net: &Network<P, Q>,
     range: (usize, usize),
 ) -> LinkWeight {
     if net.get_device(src).is_internal() && net.get_device(dst).is_internal() {
@@ -712,10 +729,10 @@ pub fn uniform_integer_link_weight<Q>(
 /// function [`NetworkBuilder::build_link_weights`].
 #[cfg(feature = "rand")]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-pub fn uniform_link_weight<Q>(
+pub fn uniform_link_weight<P: Prefix, Q>(
     src: RouterId,
     dst: RouterId,
-    net: &Network<Q>,
+    net: &Network<P, Q>,
     range: (LinkWeight, LinkWeight),
 ) -> LinkWeight {
     if net.get_device(src).is_internal() && net.get_device(dst).is_internal() {
@@ -734,7 +751,7 @@ pub fn uniform_link_weight<Q>(
 ///
 /// **Warning**: If there exists less than `k` external routers, then this function will return
 /// only as many routes as there are external routers.
-pub fn equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
+pub fn equal_preferences<P: Prefix, Q>(net: &Network<P, Q>, k: usize) -> Vec<Vec<RouterId>> {
     let mut routers = net.get_external_routers();
     #[cfg(feature = "rand")]
     {
@@ -752,7 +769,7 @@ pub fn equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
 ///
 /// **Warning**: If there exists less than `k` external routers, then this function will return
 /// only as many routes as there are external routers.
-pub fn unique_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
+pub fn unique_preferences<P: Prefix, Q>(net: &Network<P, Q>, k: usize) -> Vec<Vec<RouterId>> {
     #[cfg(feature = "rand")]
     {
         let mut routers = net.get_external_routers();
@@ -779,7 +796,10 @@ pub fn unique_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
 ///
 /// **Warning**: If there exists less than `k` external routers, then this function will return
 /// only as many routes as there are external routers.
-pub fn best_others_equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<RouterId>> {
+pub fn best_others_equal_preferences<P: Prefix, Q>(
+    net: &Network<P, Q>,
+    k: usize,
+) -> Vec<Vec<RouterId>> {
     let mut routers = net.get_external_routers();
     #[cfg(feature = "rand")]
     {
@@ -800,7 +820,7 @@ pub fn best_others_equal_preferences<Q>(net: &Network<Q>, k: usize) -> Vec<Vec<R
 /// is enabled, then the internal routers will be random. Otherwise, they will be
 /// deterministic. This function may be used with the function
 /// [`NetworkBuilder::build_external_routers`].
-pub fn extend_to_k_external_routers<Q>(net: &Network<Q>, k: usize) -> Vec<RouterId> {
+pub fn extend_to_k_external_routers<P: Prefix, Q>(net: &Network<P, Q>, k: usize) -> Vec<RouterId> {
     let num_externals = net.get_external_routers().len();
     let x = if num_externals >= k {
         0

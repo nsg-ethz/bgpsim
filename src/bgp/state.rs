@@ -34,23 +34,23 @@ use crate::{
 /// BGP State, which contains information on how all routes of an individual prefix were propagated
 /// through the network. This structure contains references of the BGP routes of the network.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BgpStateRef<'n> {
-    prefix: Prefix,
-    g: BgpStateGraph<&'n BgpRoute>,
+pub struct BgpStateRef<'n, P: Prefix> {
+    prefix: P,
+    g: BgpStateGraph<&'n BgpRoute<P>>,
 }
 
 /// BGP State, which contains information on how all routes of an individual prefix were propagated
 /// through the network. This structure contains owned copies of BGP routes.
 #[derive(Debug, Clone, PartialEq, Eq)]
-pub struct BgpState {
-    prefix: Prefix,
-    g: BgpStateGraph<BgpRoute>,
+pub struct BgpState<P: Prefix> {
+    prefix: P,
+    g: BgpStateGraph<BgpRoute<P>>,
 }
 
-impl BgpState {
+impl<P: Prefix> BgpState<P> {
     /// Create a new `BgpStateRef` from the network for the given prefix.
     #[inline]
-    pub fn from_net<Q>(net: &Network<Q>, prefix: Prefix) -> Self {
+    pub fn from_net<Q>(net: &Network<P, Q>, prefix: P) -> Self {
         Self {
             prefix,
             g: BgpStateGraph::from_net(net, prefix, |e| e.clone()),
@@ -59,13 +59,13 @@ impl BgpState {
 
     /// Get the prefix of the BGP state.
     #[inline]
-    pub fn prefix(&self) -> Prefix {
-        self.prefix
+    pub fn prefix(&self) -> P {
+        self.prefix.clone()
     }
 
     /// Get the selected route of a specific node, as well as the router from where it was learned.
     #[inline]
-    pub fn get(&self, router: RouterId) -> Option<(RouterId, &BgpRoute)> {
+    pub fn get(&self, router: RouterId) -> Option<(RouterId, &BgpRoute<P>)> {
         self.g
             .get(router)
             .and_then(|node| node.node.as_ref())
@@ -74,7 +74,7 @@ impl BgpState {
 
     /// Get the selected route of a specific node
     #[inline]
-    pub fn selected(&self, router: RouterId) -> Option<&BgpRoute> {
+    pub fn selected(&self, router: RouterId) -> Option<&BgpRoute<P>> {
         self.g.get(router).and_then(|node| node.selected())
     }
 
@@ -86,13 +86,13 @@ impl BgpState {
 
     /// Get the bgp route advertised from `src` to `dst`.
     #[inline]
-    pub fn advertised(&self, src: RouterId, dst: RouterId) -> Option<&BgpRoute> {
+    pub fn advertised(&self, src: RouterId, dst: RouterId) -> Option<&BgpRoute<P>> {
         self.g.advertised(src, dst)
     }
 
     /// Iterate over all nodes in the network and their selected BGP route.
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = (RouterId, Option<&BgpRoute>)> {
+    pub fn iter(&self) -> impl Iterator<Item = (RouterId, Option<&BgpRoute<P>>)> {
         self.g
             .iter()
             .map(|(router, node)| (*router, node.selected()))
@@ -100,13 +100,13 @@ impl BgpState {
 
     /// Iterate over all advertisement sent by `router`.
     #[inline]
-    pub fn outgoing(&self, router: RouterId) -> impl Iterator<Item = (RouterId, &BgpRoute)> {
+    pub fn outgoing(&self, router: RouterId) -> impl Iterator<Item = (RouterId, &BgpRoute<P>)> {
         self.g.outgoing(router).map(|(n, r)| (*n, r))
     }
 
     /// Iterate over all advertisements received by `router`.
     #[inline]
-    pub fn incoming(&self, router: RouterId) -> impl Iterator<Item = (RouterId, &BgpRoute)> {
+    pub fn incoming(&self, router: RouterId) -> impl Iterator<Item = (RouterId, &BgpRoute<P>)> {
         self.g.incoming(router)
     }
 
@@ -146,10 +146,10 @@ impl BgpState {
     }
 }
 
-impl<'n> BgpStateRef<'n> {
+impl<'n, P: Prefix> BgpStateRef<'n, P> {
     /// Create a new `BgpStateRef` from the network for the given prefix.
     #[inline]
-    pub fn from_net<Q>(net: &'n Network<Q>, prefix: Prefix) -> Self {
+    pub fn from_net<Q>(net: &'n Network<P, Q>, prefix: P) -> Self {
         Self {
             prefix,
             g: BgpStateGraph::from_net(net, prefix, |e| e),
@@ -158,13 +158,13 @@ impl<'n> BgpStateRef<'n> {
 
     /// Get the prefix of the BGP state.
     #[inline]
-    pub fn prefix(&self) -> Prefix {
-        self.prefix
+    pub fn prefix(&self) -> P {
+        self.prefix.clone()
     }
 
     /// Get the selected route of a specific node, as well as the router from where it was learned.
     #[inline]
-    pub fn get(&self, router: RouterId) -> Option<(RouterId, &'n BgpRoute)> {
+    pub fn get(&self, router: RouterId) -> Option<(RouterId, &'n BgpRoute<P>)> {
         self.g
             .get(router)
             .and_then(|node| node.node.as_ref())
@@ -173,7 +173,7 @@ impl<'n> BgpStateRef<'n> {
 
     /// Get the selected route of a specific node
     #[inline]
-    pub fn selected(&self, router: RouterId) -> Option<&'n BgpRoute> {
+    pub fn selected(&self, router: RouterId) -> Option<&'n BgpRoute<P>> {
         self.g.get(router).and_then(|node| node.selected()).copied()
     }
 
@@ -185,13 +185,13 @@ impl<'n> BgpStateRef<'n> {
 
     /// Get the bgp route advertised from `src` to `dst`.
     #[inline]
-    pub fn advertised(&self, src: RouterId, dst: RouterId) -> Option<&'n BgpRoute> {
+    pub fn advertised(&self, src: RouterId, dst: RouterId) -> Option<&'n BgpRoute<P>> {
         self.g.advertised(src, dst).copied()
     }
 
     /// Iterate over all nodes in the network and their selected BGP route.
     #[inline]
-    pub fn iter(&self) -> impl Iterator<Item = (RouterId, Option<&'n BgpRoute>)> + '_ {
+    pub fn iter(&self) -> impl Iterator<Item = (RouterId, Option<&'n BgpRoute<P>>)> + '_ {
         self.g
             .iter()
             .map(|(router, node)| (*router, node.selected().copied()))
@@ -202,7 +202,7 @@ impl<'n> BgpStateRef<'n> {
     pub fn outgoing(
         &self,
         router: RouterId,
-    ) -> impl Iterator<Item = (RouterId, &'n BgpRoute)> + '_ {
+    ) -> impl Iterator<Item = (RouterId, &'n BgpRoute<P>)> + '_ {
         self.g.outgoing(router).map(|(n, r)| (*n, *r))
     }
 
@@ -211,7 +211,7 @@ impl<'n> BgpStateRef<'n> {
     pub fn incoming(
         &self,
         router: RouterId,
-    ) -> impl Iterator<Item = (RouterId, &'n BgpRoute)> + '_ {
+    ) -> impl Iterator<Item = (RouterId, &'n BgpRoute<P>)> + '_ {
         self.g.incoming(router).map(|(n, r)| (n, *r))
     }
 
@@ -252,8 +252,8 @@ impl<'n> BgpStateRef<'n> {
 }
 
 // function to convert from BgpState to BgpStateRef and viceversa
-impl<'n> From<BgpStateRef<'n>> for BgpState {
-    fn from(val: BgpStateRef<'n>) -> Self {
+impl<'n, P: Prefix> From<BgpStateRef<'n, P>> for BgpState<P> {
+    fn from(val: BgpStateRef<'n, P>) -> Self {
         BgpState {
             prefix: val.prefix,
             g: val
@@ -265,9 +265,9 @@ impl<'n> From<BgpStateRef<'n>> for BgpState {
     }
 }
 
-impl BgpState {
+impl<P: Prefix> BgpState<P> {
     /// Create a [`BgpStateRef`] instance.
-    pub fn as_state_ref(&self) -> BgpStateRef<'_> {
+    pub fn as_state_ref(&self) -> BgpStateRef<'_, P> {
         BgpStateRef {
             prefix: self.prefix,
             g: self.g.iter().map(|(k, v)| (*k, v.as_node_ref())).collect(),
@@ -275,9 +275,9 @@ impl BgpState {
     }
 }
 
-impl<'n> BgpStateRef<'n> {
+impl<'n, P: Prefix> BgpStateRef<'n, P> {
     /// Create a [`BgpStateRef`] instance.
-    pub fn as_owned(&self) -> BgpState {
+    pub fn as_owned(&self) -> BgpState<P> {
         BgpState {
             prefix: self.prefix,
             g: self.g.iter().map(|(r, n)| (*r, n.as_owned())).collect(),
@@ -285,7 +285,7 @@ impl<'n> BgpStateRef<'n> {
     }
 
     /// Create a [`BgpStateRef`] instance by consuming `self`.
-    pub fn into_owned(self) -> BgpState {
+    pub fn into_owned(self) -> BgpState<P> {
         BgpState {
             prefix: self.prefix,
             g: self
@@ -307,9 +307,9 @@ impl<T> FromIterator<(RouterId, BgpStateNode<T>)> for BgpStateGraph<T> {
 }
 
 impl<T> BgpStateGraph<T> {
-    fn from_net<'n, F: Fn(&'n BgpRoute) -> T, Q>(
-        net: &'n Network<Q>,
-        prefix: Prefix,
+    fn from_net<'n, P: Prefix, F: Fn(&'n BgpRoute<P>) -> T, Q>(
+        net: &'n Network<P, Q>,
+        prefix: P,
         f: F,
     ) -> Self {
         let mut g = net

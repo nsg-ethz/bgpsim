@@ -40,7 +40,7 @@ use crate::{
         RouteMapSet, RouteMapState,
     },
     router::{Router, StaticRoute},
-    types::{AsId, Prefix, RouterId},
+    types::{AsId, Prefix, PrefixMap, PrefixSet, RouterId},
 };
 
 use super::{
@@ -58,7 +58,7 @@ const EXTERNAL_RM_OUT: &str = "neighbor-out";
 
 /// Configuration generator for Cisco IOS. This was tested on the nexus 7000 series.
 #[derive(Debug)]
-pub struct CiscoFrrCfgGen {
+pub struct CiscoFrrCfgGen<P: Prefix> {
     target: Target,
     ifaces: Vec<String>,
     router: RouterId,
@@ -75,13 +75,13 @@ pub struct CiscoFrrCfgGen {
     /// List of route map indices,
     route_maps: HashMap<(RouterId, RmDir), Vec<(i16, RouteMapState)>>,
     /// list of routes (external) that are advertised
-    advertised_external_routes: HashSet<Prefix>,
+    advertised_external_routes: P::Set,
 }
 
-impl CiscoFrrCfgGen {
+impl<P: Prefix> CiscoFrrCfgGen<P> {
     /// Create a new config generator for the specified router.
     pub fn new<Q>(
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         router: RouterId,
         target: Target,
         ifaces: Vec<String>,
@@ -176,7 +176,7 @@ impl CiscoFrrCfgGen {
     /// return `Err(ExportError::ModifierDoesNotAffectRouter)`. We use `a` and `b`, instead of only
     /// `target`, such that one can call this function without knowing which of `a` and `b` is
     /// `self.router`.
-    fn iface<A: Addressor>(
+    fn iface<A: Addressor<P>>(
         &self,
         a: RouterId,
         b: RouterId,
@@ -192,9 +192,9 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create all the interface configuration
-    fn iface_config<A: Addressor, Q>(
+    fn iface_config<A: Addressor<P>, Q>(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -247,10 +247,10 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the static route config
-    fn static_route_config<A: Addressor, Q>(
+    fn static_route_config<A: Addressor<P>, Q>(
         &self,
-        net: &Network<Q>,
-        router: &Router,
+        net: &Network<P, Q>,
+        router: &Router<P>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::from("!\n! Static Routes\n!\n");
@@ -265,17 +265,14 @@ impl CiscoFrrCfgGen {
     }
 
     /// Generate a single static route line
-    fn static_route<A: Addressor, Q>(
+    fn static_route<A: Addressor<P>, Q>(
         &self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
-        prefix: Prefix,
+        prefix: P,
         sr: StaticRoute,
     ) -> Result<Vec<StaticRouteGen>, ExportError> {
-        addressor
-            .prefix(prefix)?
-            .to_vec()
-            .into_iter()
+        std::iter::once(addressor.prefix(prefix)?)
             .map(|p| {
                 let mut static_route = StaticRouteGen::new(p);
                 match sr {
@@ -293,9 +290,9 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the ospf configuration
-    fn ospf_config<A: Addressor>(
+    fn ospf_config<A: Addressor<P>>(
         &self,
-        router: &Router,
+        router: &Router<P>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -310,10 +307,10 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the BGP configuration
-    fn bgp_config<A: Addressor, Q>(
+    fn bgp_config<A: Addressor<P>, Q>(
         &self,
-        net: &Network<Q>,
-        router: &Router,
+        net: &Network<P, Q>,
+        router: &Router<P>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -356,9 +353,9 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create the configuration for a BGP neighbor
-    fn bgp_neigbor_config<A: Addressor, Q>(
+    fn bgp_neigbor_config<A: Addressor<P>, Q>(
         &self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
         n: RouterId,
         ty: BgpSessionType,
@@ -392,9 +389,9 @@ impl CiscoFrrCfgGen {
     }
 
     /// Create all route-maps
-    fn route_map_config<A: Addressor, Q>(
+    fn route_map_config<A: Addressor<P>, Q>(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -483,13 +480,13 @@ impl CiscoFrrCfgGen {
         rms.get(pos).map(|(x, _)| *x)
     }
 
-    /// Create a route-map item from a [`RouteMap`]
-    fn route_map_item<A: Addressor, Q>(
+    /// Create a route-map item from a [`RouteMap<P>`]
+    fn route_map_item<A: Addressor<P>, Q>(
         &self,
         name: &str,
-        rm: &RouteMap,
+        rm: &RouteMap<P>,
         next_ord: Option<i16>,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<RouteMapItem, ExportError> {
         let ord = order(rm.order);
@@ -498,10 +495,8 @@ impl CiscoFrrCfgGen {
         // prefix-list
         if let Some(prefixes) = rm_match_prefix_list(rm) {
             let mut pl = PrefixList::new(format!("{}-{}-pl", name, ord));
-            for p in prefixes {
-                for p in addressor.prefix(p)? {
-                    pl.prefix(p);
-                }
+            for p in prefixes.into_iter() {
+                pl.prefix(addressor.prefix(p)?);
             }
             route_map_item.match_prefix_list(pl);
         }
@@ -575,7 +570,7 @@ impl CiscoFrrCfgGen {
     /// Update the continue statement of the route-map that is coming before `order`.
     fn fix_prev_rm_continue<Q>(
         &self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         neighbor: RouterId,
         direction: RmDir,
         ord: i16,
@@ -596,10 +591,10 @@ impl CiscoFrrCfgGen {
     }
 
     /// Transform the router-id into an IP address (when writing route-maps)
-    fn router_id_to_ip<A: Addressor, Q>(
+    fn router_id_to_ip<A: Addressor<P>, Q>(
         &self,
         r: RouterId,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<Ipv4Addr, ExportError> {
         if net.get_device(r).is_internal() && net.get_device(self.router).is_internal() {
@@ -633,7 +628,7 @@ impl CiscoFrrCfgGen {
 }
 
 /// Get the full route-map name, including `in` and `out`
-fn full_rm_name<Q>(net: &Network<Q>, router: RouterId, direction: RmDir) -> String {
+fn full_rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId, direction: RmDir) -> String {
     let dir = match direction {
         RmDir::Incoming => "in",
         RmDir::Outgoing => "out",
@@ -645,7 +640,7 @@ fn full_rm_name<Q>(net: &Network<Q>, router: RouterId, direction: RmDir) -> Stri
     }
 }
 
-fn rm_name<Q>(net: &Network<Q>, router: RouterId) -> String {
+fn rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId) -> String {
     if let Ok(name) = net.get_router_name(router) {
         format!("neighbor-{}", name)
     } else {
@@ -653,10 +648,10 @@ fn rm_name<Q>(net: &Network<Q>, router: RouterId) -> String {
     }
 }
 
-impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
+impl<P: Prefix, A: Addressor<P>, Q> InternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P> {
     fn generate_config(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -680,9 +675,9 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
 
     fn generate_command(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
-        cmd: ConfigModifier,
+        cmd: ConfigModifier<P>,
     ) -> Result<String, ExportError> {
         match cmd {
             ConfigModifier::Insert(c) => match c {
@@ -901,10 +896,10 @@ impl<A: Addressor, Q> InternalCfgGen<Q, A> for CiscoFrrCfgGen {
     }
 }
 
-impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
+impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P> {
     fn generate_config(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -963,9 +958,9 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
 
     fn advertise_route(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
-        route: &BgpRoute,
+        route: &BgpRoute<P>,
     ) -> Result<String, ExportError> {
         // check if the prefix is already present. If so, first withdraw the route
         if self.advertised_external_routes.contains(&route.prefix) {
@@ -975,38 +970,34 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
 
         let mut config = String::new();
 
-        let mut prefix_list = PrefixList::new(format!("prefix-list-{}", route.prefix.get()));
+        let mut prefix_list = PrefixList::new(format!("prefix-list-{}", route.prefix.as_num()));
         let mut bgp_config = RouterBgp::new(self.as_id);
 
         // add all loopback ip addresses. This is special if we can store multiple IP addresses on
         // the same loopback interface
         if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
             let mut iface = Interface::new(loopback_iface(self.target, 0));
-            for ip in addressor.prefix_address(route.prefix)? {
-                iface.ip_address(ip);
-            }
+            iface.ip_address(addressor.prefix_address(route.prefix)?);
             config.push_str(&iface.build(self.target))
         } else {
-            for ip in addressor.prefix_address(route.prefix)? {
-                config.push_str(
-                    &Interface::new(self.get_loopback_iface(ip)?)
-                        .ip_address(ip)
-                        .build(self.target),
-                );
-            }
+            config.push_str(
+                &Interface::new(self.get_loopback_iface(addressor.prefix_address(route.prefix)?)?)
+                    .ip_address(addressor.prefix(route.prefix)?)
+                    .build(self.target),
+            );
         }
 
         // add all networks to the bgp config and prefix list
-        for prefix_net in addressor.prefix(route.prefix)? {
-            bgp_config.network(prefix_net);
-            prefix_list.prefix(prefix_net);
-        }
+        let prefix_net = addressor.prefix(route.prefix)?;
+        bgp_config.network(prefix_net);
+        prefix_list.prefix(prefix_net);
 
         // write the bgp config
         config.push_str(&bgp_config.build(self.target));
 
         // write the route-map
-        let mut route_map = RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.get() as u16 + 1, true);
+        let mut route_map =
+            RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.as_num() as u16 + 1, true);
         route_map.match_prefix_list(prefix_list);
         route_map.prepend_as_path(route.as_path.iter().skip(1));
         route_map.set_med(route.med.unwrap_or(0));
@@ -1020,9 +1011,9 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
 
     fn withdraw_route(
         &mut self,
-        _net: &Network<Q>,
+        _net: &Network<P, Q>,
         addressor: &mut A,
-        prefix: Prefix,
+        prefix: P,
     ) -> Result<String, ExportError> {
         self.advertised_external_routes.remove(&prefix);
 
@@ -1032,33 +1023,27 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
         // the same loopback interface
         if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
             let mut iface = Interface::new(loopback_iface(self.target, 0));
-            for ip in addressor.prefix_address(prefix)? {
-                iface.no_ip_address(ip);
-            }
+            iface.no_ip_address(addressor.prefix_address(prefix)?);
             config.push_str(&iface.build(self.target))
         } else {
-            for ip in addressor.prefix_address(prefix)? {
-                config.push_str(
-                    &Interface::new(
-                        self.remove_loopback_iface(ip)
-                            .ok_or(ExportError::WithdrawUnadvertisedRoute)?,
-                    )
-                    .no(),
-                );
-            }
+            config.push_str(
+                &Interface::new(
+                    self.remove_loopback_iface(addressor.prefix_address(prefix)?)
+                        .ok_or(ExportError::WithdrawUnadvertisedRoute)?,
+                )
+                .no(),
+            );
         }
 
         // remove all advertisements in BGP
         let mut bgp_config = RouterBgp::new(self.as_id);
-        for net in addressor.prefix(prefix)? {
-            bgp_config.no_network(net);
-        }
+        bgp_config.no_network(addressor.prefix(prefix)?);
         config.push_str(&bgp_config.build(self.target));
 
         // remote the route-map
         config.push_str(
-            &RouteMapItem::new(EXTERNAL_RM_OUT, prefix.get() as u16 + 1, true)
-                .match_prefix_list(PrefixList::new(format!("prefix-list-{}", prefix.get())))
+            &RouteMapItem::new(EXTERNAL_RM_OUT, prefix.as_num() as u16 + 1, true)
+                .match_prefix_list(PrefixList::new(format!("prefix-list-{}", prefix.as_num())))
                 .no(self.target),
         );
 
@@ -1067,7 +1052,7 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
 
     fn establish_ebgp_session(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
@@ -1085,7 +1070,7 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for CiscoFrrCfgGen {
 
     fn teardown_ebgp_session(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
@@ -1103,8 +1088,8 @@ fn order(old: i16) -> u16 {
 }
 
 /// Extrat the prefix list that is matched in the route-map
-fn rm_match_prefix_list(rm: &RouteMap) -> Option<HashSet<Prefix>> {
-    let mut prefixes: Option<HashSet<Prefix>> = None;
+fn rm_match_prefix_list<P: Prefix>(rm: &RouteMap<P>) -> Option<P::Set> {
+    let mut prefixes: Option<P::Set> = None;
 
     for cond in rm.conds.iter() {
         if let RouteMapMatch::Prefix(pl) = cond {
@@ -1120,7 +1105,7 @@ fn rm_match_prefix_list(rm: &RouteMap) -> Option<HashSet<Prefix>> {
 }
 
 /// Extract the set of communities that must be present in the route such that it matches
-fn rm_match_community_list(rm: &RouteMap) -> Option<HashSet<u32>> {
+fn rm_match_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<HashSet<u32>> {
     let mut communities = HashSet::new();
 
     for cond in rm.conds.iter() {
@@ -1139,7 +1124,7 @@ fn rm_match_community_list(rm: &RouteMap) -> Option<HashSet<u32>> {
 
 /// TODO this is not implemented yet. It only works if there is a single AS that must be present in
 /// the path. Otherwise, it will simply panic!
-fn rm_match_as_path_list(rm: &RouteMap) -> Option<AsId> {
+fn rm_match_as_path_list<P: Prefix>(rm: &RouteMap<P>) -> Option<AsId> {
     let mut contained_ases = Vec::new();
 
     for cond in rm.conds.iter() {
@@ -1156,7 +1141,7 @@ fn rm_match_as_path_list(rm: &RouteMap) -> Option<AsId> {
 }
 
 /// Extrat the prefix list that is matched in the route-map
-fn rm_match_next_hop(rm: &RouteMap) -> Option<RouterId> {
+fn rm_match_next_hop<P: Prefix>(rm: &RouteMap<P>) -> Option<RouterId> {
     let mut next_hop: Option<RouterId> = None;
 
     for cond in rm.conds.iter() {
@@ -1173,7 +1158,7 @@ fn rm_match_next_hop(rm: &RouteMap) -> Option<RouterId> {
 }
 
 /// Extract the set of communities that must be present in the route such that it matches
-fn rm_delete_community_list(rm: &RouteMap) -> Option<HashSet<u32>> {
+fn rm_delete_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<HashSet<u32>> {
     let mut communities = HashSet::new();
 
     for set in rm.set.iter() {

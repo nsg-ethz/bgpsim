@@ -17,7 +17,8 @@
 
 //! Module for defining events
 
-#[cfg(feature = "serde")]
+use std::hash::Hash;
+
 use serde::{Deserialize, Serialize};
 
 mod queue;
@@ -33,16 +34,19 @@ use crate::{
 };
 
 /// Event to handle
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum Event<P> {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(bound(
+    serialize = "P: Serialize, T: serde::Serialize",
+    deserialize = "P: for<'a> serde::Deserialize<'a>, T: for<'a> serde::Deserialize<'a>"
+))]
+pub enum Event<P: Prefix, T> {
     /// BGP Event from `#1` to `#2`.
-    Bgp(P, RouterId, RouterId, BgpEvent),
+    Bgp(T, RouterId, RouterId, BgpEvent<P>),
 }
 
-impl<P> Event<P> {
+impl<P: Prefix, T> Event<P, T> {
     /// Returns the prefix for which this event talks about.
-    pub fn prefix(&self) -> Option<Prefix> {
+    pub fn prefix(&self) -> Option<P> {
         match self {
             Event::Bgp(_, _, _, BgpEvent::Update(route)) => Some(route.prefix),
             Event::Bgp(_, _, _, BgpEvent::Withdraw(prefix)) => Some(*prefix),
@@ -50,7 +54,7 @@ impl<P> Event<P> {
     }
 
     /// Get a reference to the priority of this event.
-    pub fn priority(&self) -> &P {
+    pub fn priority(&self) -> &T {
         match self {
             Event::Bgp(p, _, _, _) => p,
         }

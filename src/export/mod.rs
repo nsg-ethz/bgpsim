@@ -66,52 +66,52 @@ impl From<(RouterId, RouterId)> for LinkId {
 }
 
 /// A trait for generating configurations for an internal router
-pub trait InternalCfgGen<Q, A> {
+pub trait InternalCfgGen<P: Prefix, Q, A> {
     /// Generate all configuration files for the device.
     fn generate_config(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<String, ExportError>;
 
     /// generate the reconfiguration command(s) for a config modification
     fn generate_command(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
-        cmd: ConfigModifier,
+        cmd: ConfigModifier<P>,
     ) -> Result<String, ExportError>;
 }
 
 /// A trait for generating configurations for an external router
-pub trait ExternalCfgGen<Q, A> {
+pub trait ExternalCfgGen<P: Prefix, Q, A> {
     /// Generate all configuration files for the device.
     fn generate_config(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<String, ExportError>;
 
     /// Generate the commands for advertising a new route
     fn advertise_route(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
-        route: &BgpRoute,
+        route: &BgpRoute<P>,
     ) -> Result<String, ExportError>;
 
     /// Generate the command for withdrawing a route.
     fn withdraw_route(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
-        prefix: Prefix,
+        prefix: P,
     ) -> Result<String, ExportError>;
 
     /// Generate the command for establishing a new BGP session.
     fn establish_ebgp_session(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError>;
@@ -119,7 +119,7 @@ pub trait ExternalCfgGen<Q, A> {
     /// Generate the command for removing an existing BGP session.
     fn teardown_ebgp_session(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError>;
@@ -127,7 +127,7 @@ pub trait ExternalCfgGen<Q, A> {
 
 /// A trait for generating IP address ranges and AS numbers. For this addressor, a single [`Prefix`]
 /// represents an equivalence class, and is thus associated with multiple addresses.
-pub trait Addressor {
+pub trait Addressor<P> {
     /// Get the internal network
     fn internal_network(&mut self) -> Ipv4Net;
 
@@ -151,20 +151,17 @@ pub trait Addressor {
     fn router(&mut self, router: RouterId) -> Result<(Ipv4Net, Ipv4Addr), ExportError>;
 
     /// Get the set of networks that are associated with that prefix
-    fn prefix(&mut self, prefix: Prefix) -> Result<Vec<Ipv4Net>, ExportError>;
+    fn prefix(&mut self, prefix: P) -> Result<Ipv4Net, ExportError>;
 
     /// For each network associated with that prefix, get the first host IP in the prefix range,
     /// including the prefix length.
-    fn prefix_address(&mut self, prefix: Prefix) -> Result<Vec<Ipv4Net>, ExportError> {
-        self.prefix(prefix)?
-            .iter()
-            .map(|n| {
-                Ok(Ipv4Net::new(
-                    n.hosts().next().ok_or(ExportError::NotEnoughAddresses)?,
-                    n.prefix_len(),
-                )?)
-            })
-            .collect()
+    fn prefix_address(&mut self, prefix: P) -> Result<Ipv4Net, ExportError> {
+        let net = self.prefix(prefix)?;
+        Ok(Ipv4Net::new(
+            net.hosts().next().ok_or(ExportError::NotEnoughAddresses)?,
+            net.prefix_len(),
+        )
+        .unwrap())
     }
 
     /// Get the interface address of a specific link in the network
@@ -230,9 +227,6 @@ pub trait Addressor {
         address: impl Into<Ipv4Net>,
     ) -> Result<RouterId, ExportError>;
 
-    /// Find the prefix that contains the given address.
-    fn find_prefix(&self, address: impl Into<Ipv4Net>) -> Result<Prefix, ExportError>;
-
     /// Find the neighbor RouterId that is connected to the `router` with the given `iface_idx`.
     fn find_neighbor(&self, router: RouterId, iface_idx: usize) -> Result<RouterId, ExportError>;
 }
@@ -282,6 +276,9 @@ pub enum ExportError {
     /// The given IP Address could not be found.
     #[error("The two routers {0:?} and {1:?} are not connected via an interface!")]
     RoutersNotConnected(RouterId, RouterId),
+    /// A prefix IP network is within a reserved IP range.
+    #[error("The network {0} or the prefix lies within a reserved IP range.")]
+    PrefixWithinReservedIpRange(Ipv4Net),
 }
 
 /// Return `ExportError::NotEnoughAddresses` if the option is `None`.

@@ -34,12 +34,9 @@ use crate::{
 ///
 /// - `internal_ip_range`: "1.0.0.0/8"
 /// - `external_ip_range`: "2.0.0.0/8"
-/// - `prefix_ip_range`: "3.0.0.0/8"
 /// - `local_prefix_len`: 24,
 /// - `link_prefix_len`: 30,
 /// - `external_prefix_len`: 24,
-/// - `prefix_len`: 24,
-/// - `pec_size`: 1,
 #[derive(Debug, Clone)]
 pub struct DefaultAddressorBuilder {
     /// The IP Address range for the internal network. The default value is `1.0.0.0/8`. This space
@@ -58,9 +55,6 @@ pub struct DefaultAddressorBuilder {
     /// The IP Address range for the external routers (used as loopback address). The default value
     /// is `2.0.0.0/8`.
     pub external_ip_range: Ipv4Net,
-    /// The IP Address range for the prefixes that are advertised from external networks. The
-    /// default value is `3.0.0.0/8`.
-    pub prefix_ip_range: Ipv4Net,
     /// Prefix length of internal networks (used as loopback networks). The default value is
     /// `24`. The first internal router will get the network `1.0.0.0/24`, the second will get
     /// `1.0.1.0/24`, and so on.
@@ -72,12 +66,6 @@ pub struct DefaultAddressorBuilder {
     /// The prefix length for external networks (the loopback network of external routers). The
     /// default value is 24.
     pub external_prefix_len: u8,
-    /// The prefix length of announced routes. The default value is 24.
-    pub prefix_len: u8,
-    /// This enables prefixes to be treated as equivalence classes. Each Prefix Equivalence Class
-    /// (PEC) will be associated with `pec_size` different network addresses. The default value is
-    /// 1 (which essentially disables PECs).
-    pub pec_size: usize,
 }
 
 impl Default for DefaultAddressorBuilder {
@@ -85,12 +73,9 @@ impl Default for DefaultAddressorBuilder {
         Self {
             internal_ip_range: "1.0.0.0/8".parse().unwrap(),
             external_ip_range: "2.0.0.0/8".parse().unwrap(),
-            prefix_ip_range: "3.0.0.0/8".parse().unwrap(),
             local_prefix_len: 24,
             link_prefix_len: 30,
             external_prefix_len: 24,
-            prefix_len: 24,
-            pec_size: 1,
         }
     }
 }
@@ -125,13 +110,6 @@ impl DefaultAddressorBuilder {
         self
     }
 
-    /// The IP Address range for the prefixes that are advertised from external networks. The
-    /// default value is `3.0.0.0/8`.
-    pub fn prefix_ip_range(&mut self, x: Ipv4Net) -> &mut Self {
-        self.prefix_ip_range = x;
-        self
-    }
-
     /// Prefix length of internal networks (used as loopback networks). The default value is
     /// `24`. The first internal router will get the network `1.0.0.0/24`, the second will get
     /// `1.0.1.0/24`, and so on.
@@ -154,40 +132,26 @@ impl DefaultAddressorBuilder {
         self.external_prefix_len = x;
         self
     }
+}
 
-    /// The prefix length of announced routes. The default value is 24.
-    pub fn prefix_len(&mut self, x: u8) -> &mut Self {
-        self.prefix_len = x;
-        self
-    }
-
-    /// This enables prefixes to be treated as equivalence classes. Each Prefix Equivalence Class
-    /// (PEC) will be associated with `pec_size` different network addresses. The default value is
-    /// 1 (which essentially disables PECs).
-    pub fn pec_size(&mut self, x: usize) -> &mut Self {
-        self.pec_size = x;
-        self
-    }
-
+impl DefaultAddressorBuilder {
     /// Generate the default addressor from the given parameters.
-    pub fn build<'a, Q>(
+    pub fn build<'a, P: Prefix, Q>(
         &self,
-        net: &'a Network<Q>,
-    ) -> Result<DefaultAddressor<'a, Q>, ExportError> {
+        net: &'a Network<P, Q>,
+    ) -> Result<DefaultAddressor<'a, P, Q>, ExportError> {
         DefaultAddressor::new(net, self)
     }
 }
 
 /// The default IP addressor uses.
 #[derive(Debug)]
-pub struct DefaultAddressor<'a, Q> {
-    net: &'a Network<Q>,
+pub struct DefaultAddressor<'a, P: Prefix, Q> {
+    net: &'a Network<P, Q>,
     /// The internal netowrk
     internal_ip_range: Ipv4Net,
     /// the ip range for external networks
     external_ip_range: Ipv4Net,
-    /// The ip range for prefix netwokrs
-    prefix_ip_range: Ipv4Net,
     /// Iterator over all networks of internal routers
     internal_router_addr_iter: Ipv4Subnets,
     /// Iterator over all internal link networks
@@ -200,25 +164,21 @@ pub struct DefaultAddressor<'a, Q> {
     external_router_addr_iters: HashMap<AsId, Ipv4Subnets>,
     /// prefix length of external routers
     external_router_prefix_len: u8,
-    /// Iterator over all prefix addresses
-    prefix_addr_iter: Ipv4Subnets,
     /// Already assigned prefixes to routers
     router_addrs: HashMap<RouterId, (Ipv4Net, Ipv4Addr)>,
-    /// Already assigned prefix addresses
-    prefix_addrs: HashMap<Prefix, Vec<Ipv4Net>>,
     /// Already assigned prefix addresses for links
     link_addrs: HashMap<LinkId, Ipv4Net>,
     /// Assigned interfaces of routers
     interfaces: HashMap<RouterId, HashMap<RouterId, (usize, Ipv4Addr)>>,
-    /// Number of networks to associate with each prefix. If this is set to more than 1, then each
-    /// prefix represents an equivalence class of multiple prefixes.
-    pec_size: usize,
 }
 
-impl<'a, Q> DefaultAddressor<'a, Q> {
+impl<'a, P: Prefix, Q> DefaultAddressor<'a, P, Q> {
     /// Create a new Default IP Addressor. Use the [`DefaultAddressorBuilder`] to generate the parameters.
     #[allow(clippy::too_many_arguments)]
-    pub fn new(net: &'a Network<Q>, args: &DefaultAddressorBuilder) -> Result<Self, ExportError> {
+    pub fn new(
+        net: &'a Network<P, Q>,
+        args: &DefaultAddressorBuilder,
+    ) -> Result<Self, ExportError> {
         let mut internal_halves = args
             .internal_ip_range
             .subnets(args.internal_ip_range.prefix_len() + 1)?;
@@ -231,24 +191,20 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
             net,
             internal_ip_range: args.internal_ip_range,
             external_ip_range: args.external_ip_range,
-            prefix_ip_range: args.prefix_ip_range,
             internal_router_addr_iter: internal_router_addr_range.subnets(args.local_prefix_len)?,
             internal_link_addr_iter: internal_link_addr_range.subnets(args.link_prefix_len)?,
             external_link_addr_iter: external_link_addr_range.subnets(args.link_prefix_len)?,
             external_as_addr_iter: args.external_ip_range.subnets(args.external_prefix_len)?,
             external_router_addr_iters: HashMap::new(),
             external_router_prefix_len: args.local_prefix_len,
-            prefix_addr_iter: args.prefix_ip_range.subnets(args.prefix_len)?,
             router_addrs: HashMap::new(),
-            prefix_addrs: HashMap::new(),
             link_addrs: HashMap::new(),
             interfaces: HashMap::new(),
-            pec_size: args.pec_size,
         })
     }
 }
 
-impl<'a, Q> DefaultAddressor<'a, Q> {
+impl<'a, P: Prefix, Q> DefaultAddressor<'a, P, Q> {
     /// Get the subnet reserved for internal routers.
     pub fn subnet_for_internal_routers(&self) -> Ipv4Net {
         // unwrapping here is allowed, we have already done this operation successfully.
@@ -262,11 +218,6 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
     /// Get the subnet reserved for internal routers.
     pub fn subnet_for_external_routers(&self) -> Ipv4Net {
         self.external_ip_range
-    }
-
-    /// Get the subnet reserved for internal routers.
-    pub fn subnet_for_prefix_networks(&self) -> Ipv4Net {
-        self.prefix_ip_range
     }
 
     /// Get the subnet reserved for internal links
@@ -289,7 +240,7 @@ impl<'a, Q> DefaultAddressor<'a, Q> {
     }
 }
 
-impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
+impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
     fn internal_network(&mut self) -> Ipv4Net {
         self.internal_ip_range
     }
@@ -317,18 +268,14 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
         })
     }
 
-    fn prefix(&mut self, prefix: Prefix) -> Result<Vec<Ipv4Net>, ExportError> {
-        Ok(match self.prefix_addrs.entry(prefix) {
-            Entry::Occupied(e) => e.get().clone(),
-            Entry::Vacant(e) => {
-                let addrs: Vec<_> = (&mut self.prefix_addr_iter).take(self.pec_size).collect();
-                if addrs.len() < self.pec_size {
-                    return Err(ExportError::NotEnoughAddresses);
-                } else {
-                    e.insert(addrs).clone()
-                }
-            }
-        })
+    fn prefix(&mut self, prefix: P) -> Result<Ipv4Net, ExportError> {
+        // check if P is part of either the internal or the external network
+        let p: Ipv4Net = prefix.into();
+        if self.internal_ip_range.contains(&p) || self.external_ip_range.contains(&p) {
+            Err(ExportError::PrefixWithinReservedIpRange(p))
+        } else {
+            Ok(p)
+        }
     }
 
     fn iface(
@@ -472,15 +419,6 @@ impl<'a, Q> Addressor for DefaultAddressor<'a, Q> {
             .ok_or(ExportError::AddressNotFound(address))
     }
 
-    fn find_prefix(&self, address: impl Into<Ipv4Net>) -> Result<Prefix, ExportError> {
-        let address = address.into();
-        self.prefix_addrs
-            .iter()
-            .find(|(_, ns)| ns.iter().any(|n| n.contains(&address)))
-            .map(|(x, _)| *x)
-            .ok_or(ExportError::AddressNotFound(address))
-    }
-
     fn find_neighbor(&self, router: RouterId, iface_idx: usize) -> Result<RouterId, ExportError> {
         self.interfaces
             .get(&router)
@@ -537,24 +475,6 @@ mod test {
         };
     }
 
-    macro_rules! cmp_nets {
-        ($acq:expr, $($exp:expr),+) => {
-            pretty_assertions::assert_eq!($acq.unwrap(), vec![$($exp.parse::<Ipv4Net>().unwrap()),*])
-        };
-    }
-
-    macro_rules! finds_prefix {
-        ($ip:expr, $p:expr) => {
-            assert!($ip.find_prefix($p.parse::<Ipv4Net>().unwrap()).is_err())
-        };
-        ($ip:expr, $p:expr, $exp:expr) => {
-            pretty_assertions::assert_eq!(
-                $ip.find_prefix($p.parse::<Ipv4Net>().unwrap()).unwrap(),
-                $exp.into()
-            )
-        };
-    }
-
     macro_rules! finds_address {
         ($ip:expr, $p:expr) => {
             assert!($ip.find_address($p.parse::<Ipv4Net>().unwrap()).is_err())
@@ -601,9 +521,6 @@ mod test {
         let mut ip = DefaultAddressorBuilder {
             internal_ip_range: "10.0.0.0/8".parse().unwrap(),
             external_ip_range: "20.0.0.0/8".parse().unwrap(),
-            prefix_ip_range: "128.0.0.0/1".parse().unwrap(),
-            prefix_len: 16,
-            pec_size: 1,
             ..Default::default()
         }
         .build(&net)
@@ -642,87 +559,6 @@ mod test {
             cmp_net!(ip.iface_network(4.into(), 0.into()), "10.192.0.0/30");
             cmp_net!(ip.iface_network(1.into(), 5.into()), "10.192.0.4/30");
             cmp_net!(ip.iface_network(5.into(), 1.into()), "10.192.0.4/30");
-        }
-
-        for _ in 0..=1 {
-            cmp_nets!(ip.prefix(0.into()), "128.0.0.0/16");
-            cmp_nets!(ip.prefix(2.into()), "128.1.0.0/16");
-            cmp_nets!(ip.prefix(1.into()), "128.2.0.0/16");
-        }
-    }
-
-    #[test]
-    fn ip_addressor_pec() {
-        let mut net: Network<BasicEventQueue> =
-            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
-        net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
-            .unwrap();
-
-        let mut ip = DefaultAddressorBuilder {
-            internal_ip_range: "10.0.0.0/8".parse().unwrap(),
-            external_ip_range: "20.0.0.0/8".parse().unwrap(),
-            prefix_ip_range: "128.0.0.0/1".parse().unwrap(),
-            prefix_len: 16,
-            pec_size: 3,
-            ..Default::default()
-        }
-        .build(&net)
-        .unwrap();
-
-        for _ in 0..=1 {
-            cmp_addr!(ip.router_address(0.into()), "10.0.0.1");
-            cmp_addr!(ip.router_address(1.into()), "10.0.1.1");
-            cmp_addr!(ip.router_address(2.into()), "10.0.2.1");
-            cmp_addr!(ip.router_address(3.into()), "10.0.3.1");
-            cmp_addr!(ip.router_address(4.into()), "20.0.0.1");
-            cmp_addr!(ip.router_address(5.into()), "20.0.1.1");
-            cmp_net!(ip.router_network(0.into()), "10.0.0.0/24");
-            cmp_net!(ip.router_network(1.into()), "10.0.1.0/24");
-            cmp_net!(ip.router_network(2.into()), "10.0.2.0/24");
-            cmp_net!(ip.router_network(3.into()), "10.0.3.0/24");
-            cmp_net!(ip.router_network(4.into()), "20.0.0.0/24");
-            cmp_net!(ip.router_network(5.into()), "20.0.1.0/24");
-        }
-
-        for _ in 0..=1 {
-            cmp_addr!(ip.iface_address(0.into(), 1.into()), "10.128.0.1");
-            cmp_addr!(ip.iface_address(1.into(), 0.into()), "10.128.0.2");
-            cmp_addr!(ip.iface_address(0.into(), 3.into()), "10.128.0.5");
-            cmp_addr!(ip.iface_address(3.into(), 1.into()), "10.128.0.9");
-            cmp_addr!(ip.iface_address(0.into(), 4.into()), "10.192.0.1");
-            cmp_addr!(ip.iface_address(4.into(), 0.into()), "10.192.0.2");
-            cmp_addr!(ip.iface_address(1.into(), 5.into()), "10.192.0.5");
-            cmp_addr!(ip.iface_address(5.into(), 1.into()), "10.192.0.6");
-            cmp_net!(ip.iface_network(0.into(), 1.into()), "10.128.0.0/30");
-            cmp_net!(ip.iface_network(1.into(), 0.into()), "10.128.0.0/30");
-            cmp_net!(ip.iface_network(0.into(), 3.into()), "10.128.0.4/30");
-            cmp_net!(ip.iface_network(3.into(), 1.into()), "10.128.0.8/30");
-            cmp_net!(ip.iface_network(2.into(), 1.into()), "10.128.0.12/30");
-            cmp_net!(ip.iface_network(0.into(), 4.into()), "10.192.0.0/30");
-            cmp_net!(ip.iface_network(4.into(), 0.into()), "10.192.0.0/30");
-            cmp_net!(ip.iface_network(1.into(), 5.into()), "10.192.0.4/30");
-            cmp_net!(ip.iface_network(5.into(), 1.into()), "10.192.0.4/30");
-        }
-
-        for _ in 0..=1 {
-            cmp_nets!(
-                ip.prefix(0.into()),
-                "128.0.0.0/16",
-                "128.1.0.0/16",
-                "128.2.0.0/16"
-            );
-            cmp_nets!(
-                ip.prefix(2.into()),
-                "128.3.0.0/16",
-                "128.4.0.0/16",
-                "128.5.0.0/16"
-            );
-            cmp_nets!(
-                ip.prefix(1.into()),
-                "128.6.0.0/16",
-                "128.7.0.0/16",
-                "128.8.0.0/16"
-            );
         }
     }
 
@@ -736,9 +572,6 @@ mod test {
         let mut ip = DefaultAddressorBuilder {
             internal_ip_range: "10.0.0.0/8".parse().unwrap(),
             external_ip_range: "20.0.0.0/8".parse().unwrap(),
-            prefix_ip_range: "128.0.0.0/1".parse().unwrap(),
-            prefix_len: 16,
-            pec_size: 1,
             ..Default::default()
         }
         .build(&net)
@@ -758,17 +591,6 @@ mod test {
         cmp_addr!(ip.iface_address(1.into(), 3.into()), "10.128.0.17");
         cmp_addr!(ip.iface_address(0.into(), 4.into()), "10.192.0.1");
         cmp_addr!(ip.iface_address(5.into(), 1.into()), "10.192.0.5");
-
-        cmp_nets!(ip.prefix(0.into()), "128.0.0.0/16");
-        cmp_nets!(ip.prefix(1.into()), "128.1.0.0/16");
-        cmp_nets!(ip.prefix(2.into()), "128.2.0.0/16");
-
-        finds_prefix!(ip, "128.0.0.0/16", 0);
-        finds_prefix!(ip, "128.1.0.0/16", 1);
-        finds_prefix!(ip, "128.2.0.0/16", 2);
-        finds_prefix!(ip, "128.0.0.1/32", 0);
-        finds_prefix!(ip, "128.1.2.1/32", 1);
-        finds_prefix!(ip, "128.2.5.9/32", 2);
 
         finds_address!(ip, "10.0.0.1/32", 0);
         finds_address!(ip, "10.0.1.1/32", 1);

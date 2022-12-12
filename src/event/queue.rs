@@ -19,34 +19,33 @@
 
 use crate::{
     router::Router,
-    types::{IgpNetwork, RouterId},
+    types::{IgpNetwork, Prefix, RouterId},
 };
 
 use ordered_float::NotNan;
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, VecDeque};
 
 use super::Event;
 
 /// Interface of an event queue.
-pub trait EventQueue {
+pub trait EventQueue<P: Prefix> {
     /// Type of the priority.
     type Priority;
 
     /// Enqueue a new event.
     fn push(
         &mut self,
-        event: Event<Self::Priority>,
-        routers: &HashMap<RouterId, Router>,
+        event: Event<P, Self::Priority>,
+        routers: &HashMap<RouterId, Router<P>>,
         net: &IgpNetwork,
     );
 
     /// pop the next event
-    fn pop(&mut self) -> Option<Event<Self::Priority>>;
+    fn pop(&mut self) -> Option<Event<P, Self::Priority>>;
 
     /// peek the next event
-    fn peek(&self) -> Option<&Event<Self::Priority>>;
+    fn peek(&self) -> Option<&Event<P, Self::Priority>>;
 
     /// Get the number of enqueued events
     fn len(&self) -> usize;
@@ -60,7 +59,7 @@ pub trait EventQueue {
     /// Update the model parameters. This function will always be called after some externally
     /// triggered event occurs. It will still happen, even if the network was set to manual
     /// simulation.
-    fn update_params(&mut self, routers: &HashMap<RouterId, Router>, net: &IgpNetwork);
+    fn update_params(&mut self, routers: &HashMap<RouterId, Router<P>>, net: &IgpNetwork);
 
     /// Get the current time of the queue.
     fn get_time(&self) -> Option<f64>;
@@ -73,34 +72,34 @@ pub trait EventQueue {
 }
 
 /// Basic event queue
-#[derive(PartialEq, Eq, Clone, Debug, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct BasicEventQueue(pub(crate) VecDeque<Event<()>>);
+#[derive(Clone, Debug, Default, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub struct BasicEventQueue<P: Prefix>(pub(crate) VecDeque<Event<P, ()>>);
 
-impl BasicEventQueue {
+impl<P: Prefix> BasicEventQueue<P> {
     /// Create a new empty event queue
     pub fn new() -> Self {
         Self(VecDeque::new())
     }
 }
 
-impl EventQueue for BasicEventQueue {
+impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
     type Priority = ();
 
     fn push(
         &mut self,
-        event: Event<Self::Priority>,
-        _: &HashMap<RouterId, Router>,
+        event: Event<P, Self::Priority>,
+        _: &HashMap<RouterId, Router<P>>,
         _: &IgpNetwork,
     ) {
         self.0.push_back(event)
     }
 
-    fn pop(&mut self) -> Option<Event<Self::Priority>> {
+    fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
         self.0.pop_front()
     }
 
-    fn peek(&self) -> Option<&Event<Self::Priority>> {
+    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
         self.0.front()
     }
 
@@ -120,7 +119,7 @@ impl EventQueue for BasicEventQueue {
         None
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, Router>, _: &IgpNetwork) {}
+    fn update_params(&mut self, _: &HashMap<RouterId, Router<P>>, _: &IgpNetwork) {}
 
     unsafe fn clone_events(&self, _: Self) -> Self {
         self.clone()

@@ -21,13 +21,12 @@
 
 use crate::{
     bgp::BgpRibEntry,
-    types::{AsId, LinkWeight, Prefix, RouterId},
+    types::{AsId, LinkWeight, Prefix, PrefixSet, RouterId},
 };
 
 use ordered_float::NotNan;
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::HashSet, fmt};
+use std::{cmp::Ordering, fmt};
 
 /// # Main RouteMap structure
 /// A route map can match on a BGP route, to change some value of the route, or to bock it. Use the
@@ -47,9 +46,9 @@ use std::{cmp::Ordering, collections::HashSet, fmt};
 ///     .continue_next()
 ///     .build();
 /// ```
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct RouteMap {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub struct RouteMap<P: Prefix> {
     /// In which order should the route maps be checked. Lower values mean that they are checked
     /// earlier.
     pub order: i16,
@@ -57,19 +56,19 @@ pub struct RouteMap {
     /// it is allowed.
     pub state: RouteMapState,
     /// Match statements of the RouteMap, connected in an and
-    pub conds: Vec<RouteMapMatch>,
+    pub conds: Vec<RouteMapMatch<P>>,
     /// Set actions of the RouteMap
     pub set: Vec<RouteMapSet>,
     /// Whether to continue or to break after this route-map.
     pub flow: RouteMapFlow,
 }
 
-impl RouteMap {
+impl<P: Prefix> RouteMap<P> {
     /// Generate a new route map
     pub fn new(
         order: i16,
         state: RouteMapState,
-        conds: Vec<RouteMapMatch>,
+        conds: Vec<RouteMapMatch<P>>,
         set: Vec<RouteMapSet>,
         flow: RouteMapFlow,
     ) -> Self {
@@ -82,10 +81,10 @@ impl RouteMap {
         }
     }
 
-    /// Apply the route map on a route (`BgpRibEntry`). The funciton returns either None, if the
-    /// route matched and the state of the `RouteMap` is set to `Deny`, or `Some(BgpRibEntry)`, with
+    /// Apply the route map on a route (`BgpRibEntry<P>`). The funciton returns either None, if the
+    /// route matched and the state of the `RouteMap` is set to `Deny`, or `Some(BgpRibEntry<P>)`, with
     /// the values modified as described, if the route matches.
-    pub fn apply(&self, mut route: BgpRibEntry) -> (RouteMapFlow, Option<BgpRibEntry>) {
+    pub fn apply(&self, mut route: BgpRibEntry<P>) -> (RouteMapFlow, Option<BgpRibEntry<P>>) {
         match self.conds.iter().all(|c| c.matches(&route)) {
             true => {
                 if self.state.is_deny() {
@@ -112,7 +111,7 @@ impl RouteMap {
     }
 
     /// Return a reference to the conditions
-    pub fn conds(&self) -> &Vec<RouteMapMatch> {
+    pub fn conds(&self) -> &Vec<RouteMapMatch<P>> {
         &self.conds
     }
 
@@ -122,23 +121,24 @@ impl RouteMap {
     }
 
     /// Returns wether the Route Map matches the given entry
-    pub fn matches(&self, route: &BgpRibEntry) -> bool {
+    pub fn matches(&self, route: &BgpRibEntry<P>) -> bool {
         self.conds.iter().all(|c| c.matches(route))
     }
 }
 
 /// Trait that exposes a function to apply a sorted-list of route-maps on a route to transform it.
-pub trait RouteMapList {
+pub trait RouteMapList<P: Prefix> {
     /// Apply the route to the sequence of route-maps. This sequence **must be sorted** by the
     /// route-map order.
-    fn apply(self, route: BgpRibEntry) -> Option<BgpRibEntry>;
+    fn apply(self, route: BgpRibEntry<P>) -> Option<BgpRibEntry<P>>;
 }
 
-impl<'a, I> RouteMapList for I
+impl<'a, P, I> RouteMapList<P> for I
 where
-    I: IntoIterator<Item = &'a RouteMap>,
+    P: Prefix + 'a,
+    I: IntoIterator<Item = &'a RouteMap<P>>,
 {
-    fn apply(self, mut entry: BgpRibEntry) -> Option<BgpRibEntry> {
+    fn apply(self, mut entry: BgpRibEntry<P>) -> Option<BgpRibEntry<P>> {
         let mut wait_for = None;
         for map in self {
             if let Some(x) = wait_for {
@@ -187,17 +187,30 @@ where
 ///
 /// Use the functions [`Self::exit`], [`Self::continue_next`], or [`Self::continue_at`] to describe
 /// the contorl flow of the route map.
-#[derive(Debug, Default)]
-pub struct RouteMapBuilder {
+#[derive(Debug)]
+pub struct RouteMapBuilder<P: Prefix> {
     order: Option<i16>,
     state: Option<RouteMapState>,
-    conds: Vec<RouteMapMatch>,
+    conds: Vec<RouteMapMatch<P>>,
     set: Vec<RouteMapSet>,
-    prefix_conds: HashSet<Prefix>,
+    prefix_conds: P::Set,
     flow: RouteMapFlow,
 }
 
-impl RouteMapBuilder {
+impl<P: Prefix> Default for RouteMapBuilder<P> {
+    fn default() -> Self {
+        Self {
+            order: None,
+            state: None,
+            conds: Vec::new(),
+            set: Vec::new(),
+            prefix_conds: Default::default(),
+            flow: RouteMapFlow::default(),
+        }
+    }
+}
+
+impl<P: Prefix> RouteMapBuilder<P> {
     /// Create an empty RouteMapBuilder
     pub fn new() -> Self {
         Self::default()
@@ -236,14 +249,14 @@ impl RouteMapBuilder {
     }
 
     /// Add a match condition to the Route-Map.
-    pub fn cond(&mut self, cond: RouteMapMatch) -> &mut Self {
+    pub fn cond(&mut self, cond: RouteMapMatch<P>) -> &mut Self {
         self.conds.push(cond);
         self
     }
 
     /// Add a match condition to the Route-Map, matching on the prefix with exact value. If you call
     /// this funciton multiple times with different prefixes, then any of them will be matched.
-    pub fn match_prefix(&mut self, prefix: Prefix) -> &mut Self {
+    pub fn match_prefix(&mut self, prefix: P) -> &mut Self {
         self.prefix_conds.insert(prefix);
         self
     }
@@ -402,7 +415,7 @@ impl RouteMapBuilder {
     /// - The order is not set (`order` was not called),
     /// - The state is not set (neither `state`, `allow` nor `deny` were called),
     /// - If the order is larger than the order of the next route map (set using `continue_at`).
-    pub fn build(&self) -> RouteMap {
+    pub fn build(&self) -> RouteMap<P> {
         let order = match self.order {
             Some(o) => o,
             None => panic!("Order was not set for a Route-Map!"),
@@ -434,8 +447,7 @@ impl RouteMapBuilder {
 }
 
 /// State of a route map, which can either be allow or deny
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RouteMapState {
     /// Set the state to allow
     Allow,
@@ -456,11 +468,10 @@ impl RouteMapState {
 }
 
 /// Match statement of the route map. Can be combined to generate complex match statements
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum RouteMapMatch {
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+pub enum RouteMapMatch<P: Prefix> {
     /// Matches on the Prefix (exact value or a range)
-    Prefix(HashSet<Prefix>),
+    Prefix(P::Set),
     /// Matches on the As Path (either if it contains an as, or on the length of the path)
     AsPath(RouteMapMatchAsPath),
     /// Matches on the Next Hop (exact value)
@@ -469,9 +480,9 @@ pub enum RouteMapMatch {
     Community(u32),
 }
 
-impl RouteMapMatch {
-    /// Returns true if the `BgpRibEntry` matches the expression
-    pub fn matches(&self, entry: &BgpRibEntry) -> bool {
+impl<P: Prefix> RouteMapMatch<P> {
+    /// Returns true if the `BgpRibEntry<P>` matches the expression
+    pub fn matches(&self, entry: &BgpRibEntry<P>) -> bool {
         match self {
             Self::Prefix(prefixes) => prefixes.contains(&entry.route.prefix),
             Self::AsPath(clause) => clause.matches(&entry.route.as_path),
@@ -482,8 +493,7 @@ impl RouteMapMatch {
 }
 
 /// Generic RouteMapMatchClause to match on all, a range or on a specific element
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RouteMapMatchClause<T> {
     /// Matches a range of values (inclusive)
     Range(T, T),
@@ -523,8 +533,7 @@ where
 }
 
 /// Clause to match on the as path
-#[derive(Debug, Clone, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RouteMapMatchAsPath {
     /// Contains a specific AsId
     Contains(AsId),
@@ -554,8 +563,7 @@ impl fmt::Display for RouteMapMatchAsPath {
 }
 
 /// Set action, if a route map matches
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub enum RouteMapSet {
     /// overwrite the next hop
     NextHop(RouterId),
@@ -576,7 +584,7 @@ pub enum RouteMapSet {
 
 impl RouteMapSet {
     /// Apply the set statement to a route
-    pub fn apply(&self, entry: &mut BgpRibEntry) {
+    pub fn apply<P: Prefix>(&self, entry: &mut BgpRibEntry<P>) {
         match self {
             Self::NextHop(nh) => {
                 entry.route.next_hop = *nh;
@@ -598,8 +606,7 @@ impl RouteMapSet {
 }
 
 /// Direction of the Route Map
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RouteMapDirection {
     /// Incoming Route Map
     Incoming,
@@ -619,8 +626,7 @@ impl fmt::Display for RouteMapDirection {
 /// Description of the control-flow of route maps. This changes the way a sequence of route maps is
 /// applied to a route. It changes what happens when a `allow` route map matches the given
 /// route.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum RouteMapFlow {
     /// If a route matches this route-map, apply the set actions stop.
     Exit,

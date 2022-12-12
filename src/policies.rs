@@ -56,57 +56,56 @@ use crate::{
 };
 
 use itertools::iproduct;
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::{collections::VecDeque, error::Error};
 use thiserror::Error;
 
 /// Extendable trait for policies. Each type that implements `Policy` is something that can *at
 /// least* be checked on the forwarding state of a network.
-pub trait Policy {
+pub trait Policy<P: Prefix> {
     /// Error type that is thrown when `check` fails.
     type Err: Error;
 
     /// Check that a forwarding state satisfies the policy.
-    fn check(&self, fw_state: &mut ForwardingState) -> Result<(), Self::Err>;
+    fn check(&self, fw_state: &mut ForwardingState<P>) -> Result<(), Self::Err>;
 
     /// Return the router for which the policy should apply.
     fn router(&self) -> Option<RouterId>;
 
     /// Return the prefix for which the policy should apply.
-    fn prefix(&self) -> Option<Prefix>;
+    fn prefix(&self) -> Option<P>;
 }
 
 /// Condition that can be checked for either being true or false.
 #[non_exhaustive]
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum FwPolicy {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub enum FwPolicy<P: Prefix> {
     /// Condition that a router can reach a prefix.
-    Reachable(RouterId, Prefix),
+    Reachable(RouterId, P),
     /// Condition that the rotuer cannot reach the prefix, which means that there exists a black
     /// hole somewhere in between the path.
-    NotReachable(RouterId, Prefix),
+    NotReachable(RouterId, P),
     /// `PathCondition` to be met, if the prefix can be reached. If there is a `BlackHole` or
     /// `ForwardingLoop`, the `PathCondition` is satisfied.
-    PathCondition(RouterId, Prefix, PathCondition),
+    PathCondition(RouterId, P, PathCondition),
     /// The `LoopFree` policy verifies that traffic from this router toward a prefix does not run
     /// in a loop. Note that this does not imply reachability, as a `BlackHole` might still occur.
-    LoopFree(RouterId, Prefix),
+    LoopFree(RouterId, P),
     /// Condition that there exist `k` paths from the router to the prefix.
-    LoadBalancing(RouterId, Prefix, usize),
+    LoadBalancing(RouterId, P, usize),
     /// Condition that there exist `k` vertex-disjoint paths from the router to the prefix.
     /// CAUTION: Currently not implemented!
-    LoadBalancingVertexDisjoint(RouterId, Prefix, usize),
+    LoadBalancingVertexDisjoint(RouterId, P, usize),
     /// Condition that there exist `k` edge-disjoint paths from the router to the prefix.
     /// CAUTION: Currently not implemented!
-    LoadBalancingEdgeDisjoint(RouterId, Prefix, usize),
+    LoadBalancingEdgeDisjoint(RouterId, P, usize),
 }
 
-impl Policy for FwPolicy {
-    type Err = PolicyError;
+impl<P: Prefix> Policy<P> for FwPolicy<P> {
+    type Err = PolicyError<P>;
 
-    fn check(&self, fw_state: &mut ForwardingState) -> Result<(), Self::Err> {
+    fn check(&self, fw_state: &mut ForwardingState<P>) -> Result<(), Self::Err> {
         match self {
             Self::Reachable(r, p) => match fw_state.get_route(*r, *p) {
                 Ok(_) => Ok(()),
@@ -166,7 +165,7 @@ impl Policy for FwPolicy {
         })
     }
 
-    fn prefix(&self) -> Option<Prefix> {
+    fn prefix(&self) -> Option<P> {
         Some(match self {
             FwPolicy::Reachable(_, p) => *p,
             FwPolicy::NotReachable(_, p) => *p,
@@ -181,8 +180,7 @@ impl Policy for FwPolicy {
 
 /// Condition on the path, which may be either to require that the path passes through a specirif
 /// node, or that the path traverses a specific edge.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum PathCondition {
     /// Condition that a specific node must be traversed by the path
     Node(RouterId),
@@ -203,7 +201,7 @@ pub enum PathCondition {
 
 impl PathCondition {
     /// Returns wether the path condition is satisfied
-    pub fn check(&self, path: &[RouterId], prefix: Prefix) -> Result<(), PolicyError> {
+    pub fn check<P: Prefix>(&self, path: &[RouterId], prefix: P) -> Result<(), PolicyError<P>> {
         if match self {
             Self::And(v) => v.iter().all(|c| c.check(path, prefix).is_ok()),
             Self::Or(v) => v.iter().any(|c| c.check(path, prefix).is_ok()),
@@ -358,8 +356,7 @@ impl From<PathCondition> for PathConditionCNF {
 }
 
 /// Part of the positional waypointing argument
-#[derive(Clone, Debug, PartialEq, Eq, Hash, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Copy, Serialize, Deserialize)]
 pub enum Waypoint {
     /// The next node is always allowed, no matter what it is. This is equivalent to the regular
     /// expression `.` (UNIX style)
@@ -376,8 +373,7 @@ pub enum Waypoint {
 /// There might be cases, where the PathCondition cannot fully be expressed as a CNF. This is the
 /// case if positional requirements are used (like requiring the path * A * B *). In this case,
 /// is_cnf is set to false.
-#[derive(Clone, Debug, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct PathConditionCNF {
     /// Expression in the CNF form. The first vector contains all groups, which are finally combined
     /// with a logical AND. Every group consists of two vectors, the first containing the non-
@@ -403,13 +399,13 @@ impl PathConditionCNF {
     }
 
     /// Returns wether the path condition is satisfied
-    pub fn check(&self, path: &[RouterId], prefix: Prefix) -> Result<(), PolicyError> {
+    pub fn check<P: Prefix>(&self, path: &[RouterId], prefix: P) -> Result<(), PolicyError<P>> {
         // define the function for checking each ANDed element of the CNF formula
-        fn cnf_or(
+        fn cnf_or<P: Prefix>(
             vt: &[PathCondition],
             vf: &[PathCondition],
             path: &[RouterId],
-            prefix: Prefix,
+            prefix: P,
         ) -> bool {
             vt.iter().any(|c| c.check(path, prefix).is_ok())
                 || vf.iter().any(|c| c.check(path, prefix).is_err())
@@ -450,56 +446,56 @@ impl From<PathConditionCNF> for PathCondition {
 
 /// # Hard Policy Error
 /// This indicates which policy resulted in the policy failing.
-#[derive(Debug, Error, PartialEq, Eq, Hash, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum PolicyError {
+#[derive(Debug, Error, PartialEq, Eq, Hash, Clone, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub enum PolicyError<P: Prefix> {
     /// Forwarding Black Hole occured
-    #[error("Black Hole at router {router:?} for {prefix:?}")]
+    #[error("Black Hole at router {router:?} for {prefix}")]
     BlackHole {
         /// The router where the black hole exists.
         router: RouterId,
         /// The prefix for which the black hole exists.
-        prefix: Prefix,
+        prefix: P,
     },
 
     /// Forwarding Loop occured
-    #[error("Forwarding Loop {path:?} for {prefix:?}")]
+    #[error("Forwarding Loop {path:?} for {prefix}")]
     ForwardingLoop {
         /// The loop, only containing the relevant routers.
         path: Vec<RouterId>,
         /// The prefix for which the forwarding loop exists.
-        prefix: Prefix,
+        prefix: P,
     },
 
     /// PathRequirement was not satisfied
-    #[error("Invalid Path for {prefix:?}: path: {path:?}")]
+    #[error("Invalid Path for {prefix}: path: {path:?}")]
     PathCondition {
         /// The actual path taken in the network
         path: Vec<RouterId>,
         /// The expected path
         condition: PathCondition,
         /// The prefix for which the wrong path exists.
-        prefix: Prefix,
+        prefix: P,
     },
 
     /// A route is present, where it should be dropped somewhere
-    #[error("Router {router:?} should not be able to reach {prefix:?} but the following path(s) is valid: {paths:?}")]
+    #[error("Router {router:?} should not be able to reach {prefix} but the following path(s) is valid: {paths:?}")]
     UnallowedPathExists {
         /// The router who should not be able to reach the prefix
         router: RouterId,
         /// The prefix which should not be reached
-        prefix: Prefix,
+        prefix: P,
         /// The path with which the router can reach the prefix
         paths: Vec<Vec<RouterId>>,
     },
 
     /// Not enough routes are present, where we require load balancing
-    #[error("Router {router:?} should be able to reach {prefix:?} by at least {k:?} paths")]
+    #[error("Router {router:?} should be able to reach {prefix} by at least {k} paths")]
     InsufficientPathsExist {
         /// The router who should not be able to reach the prefix
         router: RouterId,
         /// The prefix which should be reached with k paths
-        prefix: Prefix,
+        prefix: P,
         /// The k
         k: usize,
     },
@@ -551,6 +547,8 @@ mod test {
 
     use super::PathCondition::*;
     use super::Waypoint::*;
+
+    use crate::types::SimplePrefix as Prefix;
 
     #[test]
     fn path_condition_node() {

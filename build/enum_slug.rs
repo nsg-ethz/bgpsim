@@ -35,13 +35,16 @@
 //! }
 //! ```
 
-use crate::{network::Network, types::RouterId};
 use super::TopologyZooParser;
+use crate::{
+    event::EventQueue,
+    network::Network, 
+    types::{Prefix, RouterId}
+};
 
-use std::collections::HashMap;
 use geoutils::Location;
+use std::collections::HashMap;
 
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Topologies from [TopologyZoo](http://www.topology-zoo.org/dataset.html). The following example
@@ -87,8 +90,7 @@ use serde::{Deserialize, Serialize};
 ///   doi={10.1109/JSAC.2011.111002},
 ///   ISSN={0733-8716},
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TopologyZoo {
 {{VARIANTS}}
 }
@@ -96,8 +98,11 @@ pub enum TopologyZoo {
 impl TopologyZoo {
 
     /// Generate the network.
-    pub fn build<Q>(&self, queue: Q) -> Network<Q> {
-        TopologyZooParser::new(self.graphml()).unwrap().get_network(queue).unwrap()
+    pub fn build<P: Prefix, Q: EventQueue<P>>(&self, queue: Q) -> Network<P, Q> {
+        TopologyZooParser::new(self.graphml())
+            .unwrap()
+            .get_network(queue)
+            .unwrap()
     }
 
     /// Get the number of internal routers
