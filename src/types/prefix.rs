@@ -211,7 +211,7 @@ where
         T: Default;
 
     /// Returns a reference to the value corresponding to the longest prefix match of the key.
-    fn get_lp(&self, k: &Self::P) -> Option<&T>;
+    fn get_lp(&self, k: &Self::P) -> Option<(&Self::P, &T)>;
 
     /// Returns `true` if the map contains a value for the specified key.
     fn contains_key(&self, k: &Self::P) -> bool;
@@ -227,6 +227,9 @@ where
     /// Remove a key from the map, returning a value at the key if the key was previously in the
     /// map.
     fn remove(&mut self, k: &Self::P) -> Option<T>;
+
+    /// Remove all elements from the map where `k` is a prefix of that key.
+    fn remove_lp(&mut self, k: &Self::P);
 }
 
 /// A type of prefix where there only exists a single prefix in the network. This is used for fast
@@ -514,8 +517,8 @@ where
         self.0.as_mut().unwrap()
     }
 
-    fn get_lp(&self, k: &Self::P) -> Option<&T> {
-        self.get(k)
+    fn get_lp(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
+        self.get(k).map(|t| (&SINGLE_PREFIX, t))
     }
 
     fn contains_key(&self, _: &Self::P) -> bool {
@@ -528,6 +531,10 @@ where
 
     fn remove(&mut self, _: &Self::P) -> Option<T> {
         self.0.take()
+    }
+
+    fn remove_lp(&mut self, _: &Self::P) {
+        self.0.take();
     }
 }
 
@@ -746,8 +753,8 @@ where
         self.entry(k).or_default()
     }
 
-    fn get_lp(&self, k: &Self::P) -> Option<&T> {
-        self.get(k)
+    fn get_lp(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
+        self.get_key_value(k)
     }
 
     fn contains_key(&self, k: &Self::P) -> bool {
@@ -760,5 +767,9 @@ where
 
     fn remove(&mut self, k: &Self::P) -> Option<T> {
         self.remove(k)
+    }
+
+    fn remove_lp(&mut self, k: &Self::P) {
+        self.remove(k);
     }
 }

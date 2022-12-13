@@ -146,7 +146,7 @@ impl<P: Prefix> ForwardingState<P> {
             .state
             .get(&cur_node)
             .and_then(|fib| fib.get_lp(&prefix))
-            .cloned()
+            .map(|(_, nhs)| nhs.clone())
             .unwrap_or_default();
 
         // test if there are any next hops
@@ -205,6 +205,7 @@ impl<P: Prefix> ForwardingState<P> {
         self.reversed
             .get(&TO_DST)
             .and_then(|r| r.get_lp(&prefix))
+            .map(|(_, set)| set)
             .unwrap_or(&EMPTY_SET)
     }
 
@@ -264,6 +265,7 @@ impl<P: Prefix> ForwardingState<P> {
         self.reversed
             .get(&router)
             .and_then(|r| r.get_lp(&prefix))
+            .map(|(_, set)| set)
             .unwrap_or(&EMPTY_SET)
     }
 
