@@ -297,8 +297,8 @@ impl<P: Prefix> ExternalRouter<P> {
     }
 
     /// Returns an iterator over all advertised BGP routes.
-    pub fn get_advertised_routes(&self) -> impl Iterator<Item = (&P, &BgpRoute<P>)> {
-        self.active_routes.iter()
+    pub fn get_advertised_routes(&self) -> &P::Map<BgpRoute<P>> {
+        &self.active_routes
     }
 
     /// Returns a reference to the hashset containing all BGP sessions.

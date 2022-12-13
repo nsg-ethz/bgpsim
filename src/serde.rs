@@ -27,7 +27,7 @@ use crate::{
     config::{ConfigExpr, ConfigModifier, NetworkConfig},
     event::{EventQueue, FmtPriority},
     network::Network,
-    types::{AsId, NetworkDevice, NetworkError, Prefix, RouterId},
+    types::{AsId, NetworkDevice, NetworkError, Prefix, PrefixMap, RouterId},
 };
 
 const JSON_FIELD_NAME_NETWORK: &str = "net";
@@ -78,7 +78,7 @@ where
             .into_iter()
             .filter_map(|r| Some((r, self.get_device(r).external()?)))
             .flat_map(|(id, r)| {
-                r.get_advertised_routes().map(move |(_, route)| {
+                r.get_advertised_routes().values().map(move |route| {
                     (
                         id,
                         route.prefix,
