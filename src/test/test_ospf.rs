@@ -368,6 +368,7 @@ type Routers = (
     RouterId,
 );
 
+#[allow(clippy::type_complexity)]
 fn test_net() -> Result<
     (
         Network<Prefix, BasicEventQueue<Prefix>>,
@@ -435,6 +436,7 @@ fn test_net() -> Result<
     ))
 }
 
+#[allow(clippy::type_complexity)]
 fn test_net_disconnected() -> Result<
     (
         Network<Prefix, BasicEventQueue<Prefix>>,

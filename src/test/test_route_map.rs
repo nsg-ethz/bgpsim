@@ -546,7 +546,7 @@ fn simple_matches() {
     assert!(map.apply(entry.clone()).1.is_none());
     entry.route.next_hop = 1.into();
     assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry.clone()).1.is_some());
+    assert!(map.apply(entry).1.is_some());
 
     // Match on Prefix, exact
     let map = RouteMap::new(
@@ -607,7 +607,7 @@ fn simple_matches() {
     assert!(map.apply(entry.clone()).1.is_none());
     entry.route.as_path = vec![AsId(1), AsId(2)];
     assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry.clone()).1.is_some());
+    assert!(map.apply(entry).1.is_some());
 
     // Match on AsPath length to be equal
     let map = RouteMap::new(

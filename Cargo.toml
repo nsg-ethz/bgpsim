@@ -15,12 +15,12 @@ required-features = ["topology_zoo"]
 [[bench]]
 name = "benchmark"
 harness = false
-required-features = ["topology_zoo"]
+required-features = ["topology_zoo", "rand_queue", "rand"]
 
 [[bench]]
-name = "profile"
+name = "roland"
 harness = false
-required-features = ["topology_zoo"]
+required-features = ["topology_zoo", "rand_queue", "rand"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
@@ -53,6 +53,6 @@ bimap = { version = "0.6.2", optional = true }
 rand = "0.8.4"
 env_logger = "0.9.0"
 pretty_assertions = "1.2.1"
-criterion = "0.3.6"
+criterion = "0.4.0"
 approx = "0.5.1"
 generic-tests = "0.1.2"

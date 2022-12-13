@@ -242,7 +242,7 @@ mod t {
     #[cfg(feature = "rand")]
     #[test]
     fn test_build_advertisements<P: Prefix>() {
-        use crate::types::{NetworkError, Prefix};
+        use crate::types::NetworkError;
 
         let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
 

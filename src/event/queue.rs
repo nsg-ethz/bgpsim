@@ -31,7 +31,7 @@ use super::Event;
 /// Interface of an event queue.
 pub trait EventQueue<P: Prefix> {
     /// Type of the priority.
-    type Priority;
+    type Priority: Default + FmtPriority + Clone;
 
     /// Enqueue a new event.
     fn push(
