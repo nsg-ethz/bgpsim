@@ -120,7 +120,7 @@ pub struct Net {
     recorder: Option<Network<Pfx, Queue>>,
     speed: Mrc<HashMap<RouterId, Point>>,
     #[cfg(feature = "atomic_bgp")]
-    pub migration: Mrc<Vec<Vec<AtomicCommand>>>,
+    pub migration: Mrc<Vec<Vec<AtomicCommand<Pfx>>>>,
     #[cfg(feature = "atomic_bgp")]
     pub migration_state: Mrc<Vec<Vec<MigrationState>>>,
 }
@@ -177,7 +177,7 @@ impl Net {
     }
 
     #[cfg(feature = "atomic_bgp")]
-    pub fn migration(&self) -> impl Deref<Target = Vec<Vec<AtomicCommand>>> + '_ {
+    pub fn migration(&self) -> impl Deref<Target = Vec<Vec<AtomicCommand<Pfx>>>> + '_ {
         self.migration.borrow()
     }
 

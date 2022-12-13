@@ -23,7 +23,7 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::{MigrationState, Net},
+    net::{MigrationState, Net, Pfx},
     sidebar::{Divider, ExpandableSection},
     state::{Hover, State},
 };
@@ -144,7 +144,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
                         html!(<div class="w-4 h-4 self-center"></div>),
                         net_dispatch.reduce_mut_callback(move |n| {
                             n.migration_state_mut()[major][minor] = MigrationState::WaitPost;
-                            let raw: Vec<ConfigModifier> = cmd.clone().into();
+                            let raw: Vec<ConfigModifier<Pfx>> = cmd.clone().into();
                             for c in raw {
                                 n.net_mut().apply_modifier_unchecked(&c).unwrap();
                             }
