@@ -99,14 +99,15 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// ```
 /// use std::time::Duration;
 /// use bgpsim::prelude::*;
-/// use bgpsim::export::{DefaultAddressor<P>Builder, ExternalCfgGen, ExaBgpCfgGen};
+/// use bgpsim::types::SimplePrefix as P;
+/// use bgpsim::export::{DefaultAddressorBuilder, ExternalCfgGen, ExaBgpCfgGen};
 /// # use pretty_assertions::assert_eq;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // create the network and get the external router
 /// let mut net = {
 ///     // ...
 /// #   use bgpsim::builder::NetworkBuilder;
-/// #   let mut net = Network::build_complete_graph(BasicEventQueue::new(), 1);
+/// #   let mut net = Network::build_complete_graph(BasicEventQueue::<P>::new(), 1);
 /// #   let router = net.add_external_router("external_router", AsId(100));
 /// #   net.get_routers().into_iter().for_each(|r| net.add_link(r, router));
 /// #   net.build_ibgp_full_mesh()?;
@@ -117,11 +118,11 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// let router = net.get_router_id("external_router")?;
 ///
 /// // Create some advertisements
-/// net.advertise_external_route(router, Prefix::from(0), [100], None, None)?;
-/// net.advertise_external_route(router, Prefix::from(1), [100, 200, 300], None, None)?;
+/// net.advertise_external_route(router, P::from(0), [100], None, None)?;
+/// net.advertise_external_route(router, P::from(1), [100, 200, 300], None, None)?;
 ///
 /// // create the addressor
-/// let mut addressor = DefaultAddressor<P>Builder::default().build(&net)?;
+/// let mut addressor = DefaultAddressorBuilder::default().build(&net)?;
 ///
 /// // create the config generator
 /// let mut cfg = ExaBgpCfgGen::new(&net, router)?;
@@ -144,12 +145,12 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// // create a script that withdraws the route for prefix 0 after 10 seconds, and changes the AS
 /// // path of prefix 1 after 20 seconds
 /// cfg.step_time(Duration::from_secs(10));
-/// cfg.withdraw_route(&net, &mut addressor, Prefix::from(0))?;
+/// cfg.withdraw_route(&net, &mut addressor, P::from(0))?;
 /// cfg.step_time(Duration::from_secs(10));
 /// cfg.advertise_route(
 ///     &net,
 ///     &mut addressor,
-///     &BgpRoute::new(router, Prefix::from(1), [100, 300], None, None)
+///     &BgpRoute::new(router, P::from(1), [100, 300], None, None)
 /// )?;
 ///
 /// // generate the script
@@ -164,14 +165,14 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 ///
 /// time.sleep(5)
 ///
-/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 3.0.0.0/24 next-hop self as-path [100]\\n\")
-/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 3.0.1.0/24 next-hop self as-path [100, 200, 300]\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 100.0.0.0/24 next-hop self as-path [100]\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 100.0.1.0/24 next-hop self as-path [100, 200, 300]\\n\")
 /// sys.stdout.flush()
 /// time.sleep(10)
-/// sys.stdout.write(\"neighbor 1.192.0.1 withdraw route 3.0.0.0/24\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 withdraw route 100.0.0.0/24\\n\")
 /// sys.stdout.flush()
 /// time.sleep(10)
-/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 3.0.1.0/24 next-hop self as-path [100, 300]\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 100.0.1.0/24 next-hop self as-path [100, 300]\\n\")
 /// sys.stdout.flush()
 ///
 /// while True:

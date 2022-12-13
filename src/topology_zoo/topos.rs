@@ -56,10 +56,11 @@ use serde::{Deserialize, Serialize};
 /// use bgpsim::topology_zoo::TopologyZoo;
 /// use bgpsim::event::BasicEventQueue;
 /// use bgpsim::builder::*;
+/// use bgpsim::types::SimplePrefix as P;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
-/// let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());
-/// let prefix = Prefix::from(0);
+/// let mut net = TopologyZoo::Abilene.build(BasicEventQueue::<P>::new());
+/// let prefix = P::from(0);
 ///
 /// // Make sure that at least 3 external routers exist
 /// net.build_external_routers(extend_to_k_external_routers, 3)?;

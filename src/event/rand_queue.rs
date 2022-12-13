@@ -179,12 +179,14 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
 ///   with parametrers 2.0 and 5.0.
 ///
 /// ```
+/// use bgpsim::types::SimplePrefix as P;
 /// # #[cfg(all(feature = "rand_queue", feature = "topology_zoo"))]
 /// use bgpsim::event::{GeoTimingModel, ModelParams};
 /// # #[cfg(all(feature = "rand_queue", feature = "topology_zoo"))]
 /// use bgpsim::topology_zoo::TopologyZoo;
+///
 /// # #[cfg(all(feature = "rand_queue", feature = "topology_zoo"))]
-/// let _queue = GeoTimingModel::new(
+/// let _queue = GeoTimingModel::<P>::new(
 ///     ModelParams::new(0.1, 0.1, 2.0, 5.0, 0.01),
 ///     ModelParams::new(0.000_1, 0.000_1, 2.0, 5.0, 0.0),
 ///     &TopologyZoo::EliBackbone.geo_location(),
@@ -207,10 +209,11 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
 /// use bgpsim::topology_zoo::TopologyZoo;
 /// use bgpsim::event::{BasicEventQueue, GeoTimingModel, ModelParams};
 /// use bgpsim::builder::*;
+/// use bgpsim::types::SimplePrefix as P;
 ///
 /// // create the network with the basic event queue
-/// let mut net = TopologyZoo::EliBackbone.build(BasicEventQueue::new());
-/// let prefix = Prefix::from(0);
+/// let mut net = TopologyZoo::EliBackbone.build(BasicEventQueue::<P>::new());
+/// let prefix = P::from(0);
 ///
 /// // Build the configuration for the network
 /// net.build_external_routers(extend_to_k_external_routers, 3)?;

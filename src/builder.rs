@@ -90,13 +90,12 @@ pub trait NetworkBuilder<P, Q> {
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
     /// use bgpsim::prelude::*;
-    /// use bgpsim::prelude::SimplePrefix as Prefix;
-    ///
+    /// # use bgpsim::prelude::SimplePrefix as P;
     /// # use bgpsim::topology_zoo::TopologyZoo;
     /// # use bgpsim::event::BasicEventQueue as Queue;
     /// use bgpsim::builder::{NetworkBuilder, k_highest_degree_nodes};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
+    /// # let mut net = TopologyZoo::Abilene.build(Queue::<P>::new());
     ///
     /// // let mut net = ...
     ///
@@ -129,13 +128,13 @@ pub trait NetworkBuilder<P, Q> {
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
     /// use bgpsim::prelude::*;
-    /// use bgpsim::prelude::SimplePrefix as Prefix;
+    /// use bgpsim::prelude::SimplePrefix as P;
     ///
     /// # use bgpsim::topology_zoo::TopologyZoo;
-    /// # use bgpsim::event::BasicEventQueue as Queue;
+    /// use bgpsim::event::BasicEventQueue;
     /// use bgpsim::builder::{NetworkBuilder, constant_link_weight};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
+    /// # let mut net = TopologyZoo::Abilene.build(BasicEventQueue::<P>::new());
     ///
     /// // let mut net = ...
     ///
@@ -223,13 +222,12 @@ pub trait NetworkBuilder<P, Q> {
     /// # #[cfg(feature = "topology_zoo")]
     /// # {
     /// use bgpsim::prelude::*;
-    /// use bgpsim::prelude::SimplePrefix as Prefix;
-    ///
+    /// # use bgpsim::prelude::SimplePrefix as P;
     /// # use bgpsim::topology_zoo::TopologyZoo;
     /// # use bgpsim::event::BasicEventQueue as Queue;
     /// use bgpsim::builder::{NetworkBuilder, extend_to_k_external_routers};
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    /// # let mut net = TopologyZoo::Abilene.build(Queue::new());
+    /// # let mut net = TopologyZoo::Abilene.build(Queue::<P>::new());
     ///
     /// // let mut net = ...
     ///
