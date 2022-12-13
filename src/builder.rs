@@ -30,7 +30,7 @@ use rand::{
 };
 
 use crate::{
-    event::{EventQueue, FmtPriority},
+    event::EventQueue,
     network::Network,
     prelude::BgpSessionType,
     types::IndexType,
@@ -296,12 +296,7 @@ pub trait NetworkBuilder<P, Q> {
     fn build_connected_graph(&mut self);
 }
 
-impl<P, Q> NetworkBuilder<P, Q> for Network<P, Q>
-where
-    P: Prefix,
-    Q: EventQueue<P>,
-    Q::Priority: Default + FmtPriority + Clone,
-{
+impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
     fn build_ibgp_full_mesh(&mut self) -> Result<(), NetworkError> {
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;

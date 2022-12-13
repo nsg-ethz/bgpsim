@@ -20,7 +20,6 @@
 
 use crate::{
     event::EventQueue,
-    event::FmtPriority,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
     network::Network,
@@ -60,7 +59,6 @@ pub trait RecordNetwork<Q> {
 impl<Q> RecordNetwork<Q> for Network<SinglePrefix, Q>
 where
     Q: EventQueue<SinglePrefix>,
-    Q::Priority: FmtPriority + Default + Clone,
 {
     fn record<F>(&mut self, f: F) -> Result<ConvergenceRecording, NetworkError>
     where

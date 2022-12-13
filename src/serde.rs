@@ -25,7 +25,7 @@ use serde_json::json;
 
 use crate::{
     config::{ConfigExpr, ConfigModifier, NetworkConfig},
-    event::{EventQueue, FmtPriority},
+    event::EventQueue,
     network::Network,
     types::{AsId, NetworkDevice, NetworkError, Prefix, PrefixMap, RouterId},
 };
@@ -39,7 +39,6 @@ impl<P, Q> Network<P, Q>
 where
     P: Prefix,
     Q: EventQueue<P> + Serialize,
-    Q::Priority: Default + FmtPriority + Clone,
 {
     /// Create a json string from the network. This string will contain both the actual network
     /// state and the configuration. In case the network state can no longer be deserialized, the
@@ -98,7 +97,6 @@ where
     P: Prefix,
     Q: EventQueue<P>,
     for<'a> Q: Deserialize<'a>,
-    Q::Priority: Default + FmtPriority + Clone,
 {
     /// Read a json file containing the network and create the network. If the network cannot be
     /// deserialized directly, reconstruct it from the configuration that should also be part of the
@@ -139,7 +137,6 @@ impl<P, Q> Network<P, Q>
 where
     P: Prefix,
     Q: EventQueue<P>,
-    Q::Priority: Default + FmtPriority + Clone,
 {
     /// Deserialize the json structure containing configuration, nodes and routes.
     fn from_config_nodes_routes<F>(

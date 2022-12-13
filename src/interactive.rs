@@ -23,7 +23,6 @@ use log::debug;
 #[cfg(feature = "undo")]
 use crate::network::UndoAction;
 use crate::{
-    event::FmtPriority,
     event::{Event, EventQueue},
     formatter::NetworkFormatter,
     network::Network,
@@ -97,12 +96,7 @@ where
     fn partial_clone(&self) -> PartialClone<'_, P, Q>;
 }
 
-impl<P, Q> InteractiveNetwork<P, Q> for Network<P, Q>
-where
-    P: Prefix,
-    Q: EventQueue<P>,
-    Q::Priority: Default + FmtPriority + Clone,
-{
+impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
     fn auto_simulation(&mut self) {
         self.skip_queue = false;
     }

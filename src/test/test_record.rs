@@ -19,7 +19,7 @@
 
 use crate::{
     bgp::BgpSessionType::*,
-    event::{EventQueue, FmtPriority},
+    event::EventQueue,
     network::Network,
     record::RecordNetwork,
     types::{AsId, NetworkError, RouterId, SinglePrefix as P},
@@ -42,7 +42,6 @@ fn setup_simple<Q>(
 ) -> Result<(RouterId, RouterId, RouterId, RouterId, RouterId, RouterId), NetworkError>
 where
     Q: EventQueue<P>,
-    Q::Priority: FmtPriority + Clone + Default,
 {
     let e0 = net.add_external_router("E0", AsId(1));
     let b0 = net.add_router("B0");

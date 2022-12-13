@@ -23,7 +23,7 @@
 use crate::{
     bgp::{BgpSessionType, BgpState, BgpStateRef},
     config::NetworkConfig,
-    event::{BasicEventQueue, Event, EventQueue, FmtPriority},
+    event::{BasicEventQueue, Event, EventQueue},
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
@@ -422,12 +422,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     }
 }
 
-impl<P, Q> Network<P, Q>
-where
-    P: Prefix,
-    Q: EventQueue<P>,
-    Q::Priority: Default + FmtPriority + Clone,
-{
+impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// Swap out the queue with a different one. This requires that the queue is empty! If it is
     /// not, then nothing is changed.
     #[allow(clippy::result_large_err)]
@@ -1009,7 +1004,6 @@ impl<P, Q> Network<P, Q>
 where
     P: Prefix,
     Q: EventQueue<P> + PartialEq,
-    Q::Priority: Default,
 {
     /// Checks for weak equivalence, by only comparing the IGP and BGP tables, as well as the event
     /// queue. The function also checks that the same routers are present.
@@ -1052,7 +1046,6 @@ impl<P, Q> PartialEq for Network<P, Q>
 where
     P: Prefix,
     Q: EventQueue<P> + PartialEq,
-    Q::Priority: Default + FmtPriority + Clone,
 {
     #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {

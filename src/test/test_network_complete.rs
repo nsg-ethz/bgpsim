@@ -16,7 +16,7 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 use crate::{
     bgp::BgpSessionType::*,
-    event::{EventQueue, FmtPriority},
+    event::EventQueue,
     network::Network,
     types::{AsId, NetworkError, Prefix, RouterId, SimplePrefix},
 };
@@ -47,7 +47,6 @@ mod t {
     where
         P: Prefix,
         Q: EventQueue<P>,
-        Q::Priority: FmtPriority + Clone + Default,
     {
         let e0 = net.add_external_router("E0", AsId(1));
         let b0 = net.add_router("B0");
@@ -183,7 +182,6 @@ mod t {
     where
         P: Prefix,
         Q: EventQueue<P>,
-        Q::Priority: FmtPriority + Clone + Default,
     {
         // add routers
         let r1 = net.add_router("r1");

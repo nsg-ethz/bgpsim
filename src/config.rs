@@ -75,7 +75,7 @@ use log::debug;
 
 use crate::{
     bgp::BgpSessionType,
-    event::{EventQueue, FmtPriority},
+    event::EventQueue,
     formatter::NetworkFormatter,
     network::Network,
     ospf::OspfArea,
@@ -644,12 +644,7 @@ pub trait NetworkConfig<P: Prefix> {
     fn get_config(&self) -> Result<Config<P>, NetworkError>;
 }
 
-impl<P, Q> NetworkConfig<P> for Network<P, Q>
-where
-    P: Prefix,
-    Q: EventQueue<P>,
-    Q::Priority: Default + FmtPriority + Clone,
-{
+impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
     /// Set the provided network-wide configuration. The network first computes the patch from the
     /// current configuration to the next one, and applies the patch. If the patch cannot be
     /// applied, then an error is returned. Note, that this function may apply a large number of
