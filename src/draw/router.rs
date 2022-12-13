@@ -17,8 +17,8 @@
 
 use std::rc::Rc;
 
-use gloo_utils::window;
 use bgpsim::types::RouterId;
+use gloo_utils::window;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -154,6 +154,7 @@ impl Component for Router {
                 let new_selected = s.selected() == Selected::Router(ctx.props().router_id);
                 let new_glow = match s.hover() {
                     Hover::Router(r) | Hover::Policy(r, _) if r == router_id => true,
+                    #[cfg(feature = "atomic_bgp")]
                     Hover::AtomicCommand(routers) if routers.contains(&router_id) => true,
                     _ => false,
                 };

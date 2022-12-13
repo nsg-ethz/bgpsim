@@ -15,21 +15,21 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::rc::Rc;
+use std::{rc::Rc, str::FromStr};
 
-use itertools::Itertools;
 use bgpsim::{
     policies::{FwPolicy, PathCondition, Policy, Waypoint},
     prelude::{Network, NetworkFormatter},
-    types::{Prefix, RouterId},
+    types::RouterId,
 };
+use itertools::Itertools;
 use sise::TreeNode;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
     draw::SvgColor,
-    net::{Net, Queue},
+    net::{Net, Pfx, Queue},
     sidebar::{Button, Element, ExpandableSection, Select, TextField},
 };
 
@@ -42,7 +42,7 @@ pub struct FwPolicyCfg {
 
 pub enum Msg {
     StateNet(Rc<Net>),
-    ChangeKind(FwPolicy),
+    ChangeKind(FwPolicy<Pfx>),
     SetPrefix(String),
     CheckPrefix(String),
     SetRegex(String),
@@ -128,7 +128,7 @@ impl Component for FwPolicyCfg {
             html!()
         };
 
-        let options: Vec<(FwPolicy, String)> = vec![
+        let options: Vec<(FwPolicy<Pfx>, String)> = vec![
             (
                 FwPolicy::Reachable(router, prefix),
                 "Reachability".to_string(),
@@ -158,10 +158,10 @@ impl Component for FwPolicyCfg {
         html! {
             <ExpandableSection text={section_text}>
                 <Element text={ "Policy kind" }>
-                    <Select<FwPolicy> text={current_kind} {options} {on_select} />
+                    <Select<FwPolicy<Pfx>> text={current_kind} {options} {on_select} />
                 </Element>
                 <Element text={ "Prefix" }>
-                <TextField text={prefix.0.to_string()} correct={self.prefix_correct} on_change={ctx.link().callback(Msg::CheckPrefix)} on_set={ctx.link().callback(Msg::SetPrefix)} />
+                <TextField text={prefix.to_string()} correct={self.prefix_correct} on_change={ctx.link().callback(Msg::CheckPrefix)} on_set={ctx.link().callback(Msg::SetPrefix)} />
                 </Element>
                 { regex_field }
                 <Element text={""}>
@@ -212,7 +212,7 @@ impl Component for FwPolicyCfg {
                 }
             }
             Msg::SetPrefix(p) => {
-                let prefix = Prefix::from(p.parse::<u32>().unwrap());
+                let prefix = Pfx::from_str(&p).unwrap();
                 let policy = match &self.net.spec()[&router][idx].0 {
                     FwPolicy::Reachable(_, _) => FwPolicy::Reachable(router, prefix),
                     FwPolicy::NotReachable(_, _) => FwPolicy::NotReachable(router, prefix),
@@ -232,7 +232,7 @@ impl Component for FwPolicyCfg {
                 false
             }
             Msg::CheckPrefix(p) => {
-                let correct = p.parse::<u32>().is_ok();
+                let correct = Pfx::from_str(&p).is_ok();
                 if correct != self.prefix_correct {
                     self.prefix_correct = correct;
                     true
@@ -249,7 +249,7 @@ impl Component for FwPolicyCfg {
     }
 }
 
-fn policy_name(pol: &FwPolicy) -> &'static str {
+fn policy_name(pol: &FwPolicy<Pfx>) -> &'static str {
     match pol {
         FwPolicy::Reachable(_, _) => "Reachability",
         FwPolicy::NotReachable(_, _) => "Isolation",
@@ -259,14 +259,14 @@ fn policy_name(pol: &FwPolicy) -> &'static str {
     }
 }
 
-fn regex_text(pol: &FwPolicy, net: &Network<Queue>) -> Option<String> {
+fn regex_text(pol: &FwPolicy<Pfx>, net: &Network<Pfx, Queue>) -> Option<String> {
     match pol {
         FwPolicy::PathCondition(_, _, c) => Some(path_condition_to_text(c, net)),
         _ => None,
     }
 }
 
-fn path_condition_to_text(cond: &PathCondition, net: &Network<Queue>) -> String {
+fn path_condition_to_text(cond: &PathCondition, net: &Network<Pfx, Queue>) -> String {
     match cond {
         PathCondition::Node(r) => path_condition_to_text(
             &PathCondition::Positional(vec![Waypoint::Star, Waypoint::Fix(*r), Waypoint::Star]),
@@ -305,13 +305,13 @@ fn path_condition_to_text(cond: &PathCondition, net: &Network<Queue>) -> String 
     }
 }
 
-fn text_to_path_condition(text: &str, net: &Network<Queue>) -> Option<PathCondition> {
+fn text_to_path_condition(text: &str, net: &Network<Pfx, Queue>) -> Option<PathCondition> {
     let mut parser = sise::Parser::new(text);
     let tree = sise::parse_tree(&mut parser).ok()?;
     node_to_path_condition(tree, net)
 }
 
-fn node_to_path_condition(node: TreeNode, net: &Network<Queue>) -> Option<PathCondition> {
+fn node_to_path_condition(node: TreeNode, net: &Network<Pfx, Queue>) -> Option<PathCondition> {
     // node must be a list
     let mut elems = node.into_list()?;
     // node must have at least 2 elements

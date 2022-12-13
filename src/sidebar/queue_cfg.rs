@@ -17,19 +17,19 @@
 
 use std::{ops::Deref, rc::Rc};
 
-use gloo_timers::callback::Timeout;
 use bgpsim::{
     bgp::BgpEvent,
     event::{Event, EventQueue},
     formatter::NetworkFormatter,
     interactive::InteractiveNetwork,
-    types::{Prefix, RouterId},
+    types::RouterId,
 };
+use gloo_timers::callback::Timeout;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::{Net, Queue},
+    net::{Net, Pfx, Queue},
     state::{Hover, State},
     tooltip::RouteTable,
 };
@@ -154,7 +154,7 @@ impl Component for QueueCfg {
 #[derive(PartialEq, Properties)]
 struct EventProps {
     i: usize,
-    event: Event<()>,
+    event: Event<Pfx, ()>,
     on_mouse_enter: Callback<(RouterId, RouterId, usize)>,
     on_mouse_leave: Callback<()>,
     translate: isize,
@@ -224,7 +224,7 @@ fn event_cfg(props: &EventProps) -> Html {
 
 #[derive(Properties, PartialEq, Eq)]
 pub struct PrefixTableProps {
-    pub prefix: Prefix,
+    pub prefix: Pfx,
 }
 
 #[function_component(PrefixTable)]

@@ -23,7 +23,7 @@ use yewdux::prelude::*;
 
 use crate::{
     dim::Dim,
-    net::Net,
+    net::{Net, Pfx},
     point::Point,
     state::{Hover, State},
 };
@@ -52,7 +52,7 @@ pub enum Msg {
 pub struct Properties {
     pub src: RouterId,
     pub dst: RouterId,
-    pub route: BgpRoute,
+    pub route: BgpRoute<Pfx>,
 }
 
 impl Component for Propagation {

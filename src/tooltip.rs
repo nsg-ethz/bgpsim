@@ -17,8 +17,6 @@
 
 use std::{ops::Deref, rc::Rc};
 
-use gloo_utils::window;
-use itertools::{join, Itertools};
 use bgpsim::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute},
     event::Event,
@@ -26,6 +24,8 @@ use bgpsim::{
     interactive::InteractiveNetwork,
     prelude::BgpSessionType,
 };
+use gloo_utils::window;
+use itertools::{join, Itertools};
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::HtmlElement;
 use yew::prelude::*;
@@ -33,7 +33,7 @@ use yewdux::prelude::*;
 
 use crate::{
     dim::{Dim, TOOLTIP_OFFSET},
-    net::Net,
+    net::{Net, Pfx},
     point::Point,
     sidebar::queue_cfg::PrefixTable,
     state::{Hover, Layer, State},
@@ -166,9 +166,9 @@ impl Component for Tooltip {
                     </div>
                 }
             }
-            Hover::Message(_, _, _, _) | Hover::AtomicCommand(_) | Hover::Policy(_, _) => {
-                return html! {}
-            }
+            Hover::Message(_, _, _, _) | Hover::Policy(_, _) => return html! {},
+            #[cfg(feature = "atomic_bgp")]
+            Hover::AtomicCommand(_) => return html! {},
             Hover::None => unreachable!(),
         };
 
@@ -266,7 +266,7 @@ impl Tooltip {
 
 #[derive(Properties, PartialEq, Eq)]
 pub struct RouteTableProps {
-    pub route: BgpRoute,
+    pub route: BgpRoute<Pfx>,
 }
 
 #[function_component(RouteTable)]
@@ -301,7 +301,7 @@ pub fn route_table(props: &RouteTableProps) -> Html {
 
 #[derive(Properties, PartialEq, Eq)]
 pub struct RibTableProps {
-    pub rib: Vec<(BgpRibEntry, bool)>,
+    pub rib: Vec<(BgpRibEntry<Pfx>, bool)>,
 }
 
 #[function_component(RibTable)]

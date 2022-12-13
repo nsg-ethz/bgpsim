@@ -17,8 +17,8 @@
 
 use std::ops::Deref;
 
-use itertools::Itertools;
 use bgpsim::prelude::BgpSessionType;
+use itertools::Itertools;
 
 use crate::net::Net;
 
@@ -102,7 +102,7 @@ pub fn generate_latex(net: &Net) -> String {
 
     let prefix_choices = n
         .get_known_prefixes()
-        .map(|p| format!("prefix{}", p.0))
+        .map(|p| format!("prefix{}", p.to_string().replace(['.', '/'], "_"),))
         .join(", ");
 
     let internal_nodes = n
@@ -159,7 +159,7 @@ pub fn generate_latex(net: &Net) -> String {
         .map(|p| {
             format!(
                 "    \\ifdefined\\prefix{}\n{}\n  \\fi",
-                p.0,
+                p.to_string().replace(['.', '/'], "_"),
                 n.get_routers()
                     .into_iter()
                     .filter_map(|r| n.get_device(r).internal())
@@ -209,7 +209,7 @@ pub fn generate_latex(net: &Net) -> String {
         .map(|p| {
             format!(
                 "    \\ifdefined\\prefix{}\n{}\n  \\fi",
-                p.0,
+                p.to_string().replace(['.', '/'], "_"),
                 net.get_route_propagation(*p)
                     .into_iter()
                     .map(|(src, dst, _)| format!(

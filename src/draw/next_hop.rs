@@ -17,13 +17,13 @@
 
 use std::rc::Rc;
 
-use bgpsim::types::{Prefix, RouterId};
+use bgpsim::types::RouterId;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
     dim::{Dim, FW_ARROW_LENGTH, ROUTER_RADIUS},
-    net::Net,
+    net::{Net, Pfx},
     point::Point,
     state::{Hover, State},
 };
@@ -51,7 +51,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub router_id: RouterId,
-    pub prefix: Prefix,
+    pub prefix: Pfx,
 }
 
 impl Component for NextHop {
@@ -144,7 +144,7 @@ impl Component for NextHop {
     }
 }
 
-fn get_next_hop(net: &Net, dim: &Dim, router: RouterId, prefix: Prefix) -> Vec<(RouterId, Point)> {
+fn get_next_hop(net: &Net, dim: &Dim, router: RouterId, prefix: Pfx) -> Vec<(RouterId, Point)> {
     if let Some(r) = net.net().get_device(router).internal() {
         r.get_next_hop(prefix)
             .into_iter()

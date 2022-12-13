@@ -28,7 +28,7 @@ use bgpsim::{
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::net::Net;
+use crate::net::{Net, Pfx};
 
 use super::super::{Divider, Element, ExpandableDivider, Select, TextField};
 use super::route_map_item_cfg::RouteMapCfg;
@@ -44,7 +44,7 @@ pub struct RouteMapsCfg {
 pub enum Msg {
     StateNet(Rc<Net>),
     ChooseRMNeighbor(RouterId),
-    UpdateRM(RouterId, i16, Option<RouteMap>, RouteMapDirection),
+    UpdateRM(RouterId, i16, Option<RouteMap<Pfx>>, RouteMapDirection),
     ChangeRMOrder(RouterId, RouteMapDirection, String),
     AddRM(RouterId, RouteMapDirection, String),
 }
@@ -91,7 +91,7 @@ impl Component for RouteMapsCfg {
             let on_in_route_map_add = ctx
                 .link()
                 .callback(move |x| Msg::AddRM(neighbor, Incoming, x));
-            let incoming_rms: Vec<(i16, RouteMap)> = r
+            let incoming_rms: Vec<(i16, RouteMap<Pfx>)> = r
                 .get_bgp_route_maps(neighbor, Incoming)
                 .iter()
                 .map(|r| (r.order, r.clone()))
@@ -105,7 +105,7 @@ impl Component for RouteMapsCfg {
             let on_out_route_map_add = ctx
                 .link()
                 .callback(move |x| Msg::AddRM(neighbor, Outgoing, x));
-            let outgoing_rms: Vec<(i16, RouteMap)> = r
+            let outgoing_rms: Vec<(i16, RouteMap<Pfx>)> = r
                 .get_bgp_route_maps(neighbor, Outgoing)
                 .iter()
                 .map(|r| (r.order, r.clone()))

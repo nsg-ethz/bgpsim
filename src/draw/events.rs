@@ -23,7 +23,7 @@ use yewdux::prelude::*;
 
 use crate::{
     dim::Dim,
-    net::Net,
+    net::{Net, Pfx},
     point::Point,
     state::{Hover, State},
 };
@@ -48,7 +48,7 @@ pub enum BgpSessionQueueMsg {
 #[derive(Properties, PartialEq, Eq)]
 pub struct BgpSessionQueueProps {
     pub dst: RouterId,
-    pub events: Vec<(usize, Event<()>)>,
+    pub events: Vec<(usize, Event<Pfx, ()>)>,
 }
 
 impl Component for BgpSessionQueue {
@@ -107,7 +107,7 @@ struct BgpEventProps {
     p: Point,
     src: RouterId,
     dst: RouterId,
-    event: BgpsimBgpEvent,
+    event: BgpsimBgpEvent<Pfx>,
     i: usize,
 }
 

@@ -15,18 +15,21 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::{collections::BTreeSet, rc::Rc};
+use std::{collections::BTreeSet, iter::once, rc::Rc, str::FromStr};
 
-use itertools::Itertools;
 use bgpsim::{
     formatter::NetworkFormatter,
     route_map::{RouteMapMatch, RouteMapMatchAsPath, RouteMapMatchClause},
-    types::{Prefix, RouterId},
+    types::RouterId,
 };
+use itertools::Itertools;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{net::Net, sidebar::TextField};
+use crate::{
+    net::{Net, Pfx},
+    sidebar::TextField,
+};
 
 use super::Select;
 
@@ -39,7 +42,7 @@ pub struct RouteMapMatchCfg {
 
 pub enum Msg {
     StateNet(Rc<Net>),
-    KindUpdate(RouteMapMatch),
+    KindUpdate(RouteMapMatch<Pfx>),
     InputUpdateRouter(RouterId),
     InputChange(String),
     InputSet(String),
@@ -50,8 +53,8 @@ pub enum Msg {
 pub struct Properties {
     pub router: RouterId,
     pub index: usize,
-    pub m: RouteMapMatch,
-    pub on_update: Callback<(usize, Option<RouteMapMatch>)>,
+    pub m: RouteMapMatch<Pfx>,
+    pub on_update: Callback<(usize, Option<RouteMapMatch<Pfx>>)>,
 }
 
 impl Component for RouteMapMatchCfg {
@@ -77,7 +80,7 @@ impl Component for RouteMapMatchCfg {
             .net()
             .get_device(ctx.props().router)
             .internal()
-            .map(|r| r.get_bgp_sessions().map(|(r, _)| *r).collect())
+            .map(|r| r.get_bgp_sessions().keys().copied().collect())
             .unwrap_or_default();
 
         let kind_text = match_kind_text(&ctx.props().m);
@@ -107,7 +110,7 @@ impl Component for RouteMapMatchCfg {
         html! {
             <div class="w-full flex">
                 <div class="basis-1/5 flex-none"></div>
-                <div class="w-40 flex-none"><Select<RouteMapMatch> text={kind_text} options={match_kind_options()} {on_select} button_class={Classes::from("text-sm")} /></div>
+                <div class="w-40 flex-none"><Select<RouteMapMatch<Pfx>> text={kind_text} options={match_kind_options()} {on_select} button_class={Classes::from("text-sm")} /></div>
                 <div class="w-full ml-2">
                   { value_html }
                 </div>
@@ -151,7 +154,7 @@ impl Component for RouteMapMatchCfg {
 }
 
 impl RouteMapMatchCfg {
-    fn update_from_props(&mut self, m: &RouteMapMatch) {
+    fn update_from_props(&mut self, m: &RouteMapMatch<Pfx>) {
         self.value = match_values(m);
     }
 }
@@ -162,13 +165,24 @@ enum MatchValue {
     Integer(u32),
     Router(RouterId),
     List(BTreeSet<u32>),
+    PrefixList(BTreeSet<Pfx>),
     Range(u32, u32),
 }
 
 impl MatchValue {
     fn parse(s: &str) -> Option<Self> {
+        if let Ok(p) = Pfx::from_str(s) {
+            return Some(Self::PrefixList(once(p).collect()));
+        }
         if let Ok(x) = s.parse::<u32>() {
             return Some(Self::Integer(x));
+        }
+        if let Some(vs) = s
+            .split(|c| c == ',' || c == ';')
+            .map(|x| Pfx::from_str(x.trim()).ok())
+            .collect::<Option<BTreeSet<Pfx>>>()
+        {
+            return Some(Self::PrefixList(vs));
         }
         if let Some(vs) = s
             .split(|c| c == ',' || c == ';')
@@ -192,12 +206,13 @@ impl MatchValue {
             MatchValue::Integer(x) => x.to_string(),
             MatchValue::Router(r) => r.fmt(&net.net()).to_string(),
             MatchValue::List(x) => x.iter().join("; "),
+            MatchValue::PrefixList(x) => x.iter().join("; "),
             MatchValue::Range(x, y) => format!("{} - {}", x, y),
         }
     }
 }
 
-fn match_kind_text(m: &RouteMapMatch) -> &'static str {
+fn match_kind_text(m: &RouteMapMatch<Pfx>) -> &'static str {
     match m {
         RouteMapMatch::Prefix(_) => "Prefix in",
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(_)) => "Path has",
@@ -207,9 +222,9 @@ fn match_kind_text(m: &RouteMapMatch) -> &'static str {
     }
 }
 
-fn match_kind_options() -> Vec<(RouteMapMatch, String)> {
+fn match_kind_options() -> Vec<(RouteMapMatch<Pfx>, String)> {
     [
-        RouteMapMatch::Prefix([Prefix::from(0)].into()),
+        RouteMapMatch::Prefix([Pfx::from(0)].into()),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(0.into())),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(
             1, 10,
@@ -225,9 +240,9 @@ fn match_kind_options() -> Vec<(RouteMapMatch, String)> {
     .collect()
 }
 
-fn match_values(m: &RouteMapMatch) -> MatchValue {
+fn match_values(m: &RouteMapMatch<Pfx>) -> MatchValue {
     match m {
-        RouteMapMatch::Prefix(ps) => MatchValue::List(ps.iter().map(|x| x.0).collect()),
+        RouteMapMatch::Prefix(ps) => MatchValue::PrefixList(ps.iter().copied().collect()),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(v)) => MatchValue::Integer(v.0),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Equal(v))) => {
             MatchValue::Integer(*v as u32)
@@ -241,10 +256,10 @@ fn match_values(m: &RouteMapMatch) -> MatchValue {
     }
 }
 
-fn match_update(m: &RouteMapMatch, val: MatchValue) -> Option<RouteMapMatch> {
+fn match_update(m: &RouteMapMatch<Pfx>, val: MatchValue) -> Option<RouteMapMatch<Pfx>> {
     Some(match (m, val) {
-        (RouteMapMatch::Prefix(_), MatchValue::List(x)) => {
-            RouteMapMatch::Prefix(x.into_iter().map(Prefix::from).collect())
+        (RouteMapMatch::Prefix(_), MatchValue::PrefixList(x)) => {
+            RouteMapMatch::Prefix(x.into_iter().collect())
         }
         (RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(_)), MatchValue::Integer(x)) => {
             RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(x.into()))
