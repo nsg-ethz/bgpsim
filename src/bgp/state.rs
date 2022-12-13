@@ -28,7 +28,7 @@ use std::collections::{
 use crate::{
     bgp::BgpRoute,
     network::Network,
-    types::{NetworkDevice, Prefix, RouterId},
+    types::{NetworkDevice, Prefix, PrefixMap, RouterId},
 };
 
 /// BGP State, which contains information on how all routes of an individual prefix were propagated
@@ -327,8 +327,10 @@ impl<T> BgpStateGraph<T> {
                     }
                     // handle RIB_OUT
                     r.get_bgp_rib_out()
-                        .filter(|(_, p, _)| **p == prefix)
-                        .for_each(|(peer, _, entry)| {
+                        .get(&prefix)
+                        .into_iter()
+                        .flatten()
+                        .for_each(|(peer, entry)| {
                             g.get_mut(&id)
                                 .unwrap()
                                 .edges_out

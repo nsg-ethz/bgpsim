@@ -546,8 +546,8 @@ impl<P: Prefix> Router<P> {
     }
 
     /// Returns an interator over all BGP sessions
-    pub fn get_bgp_sessions(&self) -> impl Iterator<Item = (&RouterId, &BgpSessionType)> {
-        self.bgp_sessions.iter()
+    pub fn get_bgp_sessions(&self) -> &HashMap<RouterId, BgpSessionType> {
+        &self.bgp_sessions
     }
 
     /// Returns the bgp session type.
@@ -716,13 +716,13 @@ impl<P: Prefix> Router<P> {
     }
 
     /// Get an iterator over all outgoing route-maps
-    pub fn get_static_routes(&self) -> impl Iterator<Item = (&P, &StaticRoute)> {
-        self.static_routes.iter()
+    pub fn get_static_routes(&self) -> &P::Map<StaticRoute> {
+        &self.static_routes
     }
 
     /// Get an iterator over all Routes in the BGP table.
-    pub fn get_bgp_rib(&self) -> impl Iterator<Item = (&P, &BgpRibEntry<P>)> {
-        self.bgp_rib.iter()
+    pub fn get_bgp_rib(&self) -> &P::Map<BgpRibEntry<P>> {
+        &self.bgp_rib
     }
 
     /// Get a reference to the RIB table
@@ -731,16 +731,13 @@ impl<P: Prefix> Router<P> {
     }
 
     /// Get an iterator over the incoming RIB table
-    pub fn get_bgp_rib_in(&self) -> impl Iterator<Item = (&P, &HashMap<RouterId, BgpRibEntry<P>>)> {
-        self.bgp_rib_in.iter()
+    pub fn get_bgp_rib_in(&self) -> &P::Map<HashMap<RouterId, BgpRibEntry<P>>> {
+        &self.bgp_rib_in
     }
 
     /// Get an iterator over the outgoing RIB table.
-    pub fn get_bgp_rib_out(&self) -> impl Iterator<Item = (&RouterId, &P, &BgpRibEntry<P>)> {
-        self.bgp_rib_out.iter().flat_map(|(prefix, rib)| {
-            rib.iter()
-                .map(move |(neighbor, route)| (neighbor, prefix, route))
-        })
+    pub fn get_bgp_rib_out(&self) -> &P::Map<HashMap<RouterId, BgpRibEntry<P>>> {
+        &self.bgp_rib_out
     }
 
     /// Get the processed BGP RIB table for a specific prefix. This function will apply all incoming

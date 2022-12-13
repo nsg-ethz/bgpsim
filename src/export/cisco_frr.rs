@@ -98,6 +98,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
             .internal()
             .map(|r| {
                 r.get_bgp_sessions()
+                    .iter()
                     // build all keys
                     .flat_map(|(n, _)| [(*n, RmDir::Incoming), (*n, RmDir::Outgoing)])
                     .map(|(n, dir)| {
@@ -255,7 +256,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     ) -> Result<String, ExportError> {
         let mut config = String::from("!\n! Static Routes\n!\n");
 
-        for (p, sr) in router.get_static_routes() {
+        for (p, sr) in router.get_static_routes().iter() {
             for sr in self.static_route(net, addressor, *p, *sr)? {
                 config.push_str(&sr.build(self.target));
             }

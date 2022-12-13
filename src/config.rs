@@ -925,7 +925,7 @@ where
             }
 
             // get all route-maps
-            for (neighbor, _) in r.get_bgp_sessions() {
+            for neighbor in r.get_bgp_sessions().keys() {
                 for rm in r.get_bgp_route_maps(*neighbor, RouteMapDirection::Incoming) {
                     c.add(ConfigExpr::BgpRouteMap {
                         router: *rid,
@@ -945,7 +945,7 @@ where
             }
 
             // get all static routes
-            for (prefix, target) in r.get_static_routes() {
+            for (prefix, target) in r.get_static_routes().iter() {
                 c.add(ConfigExpr::StaticRoute {
                     router: *rid,
                     prefix: *prefix,
