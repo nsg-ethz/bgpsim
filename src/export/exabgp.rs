@@ -310,7 +310,7 @@ impl ExaBgpCfgGen {
                     (time - current_time).as_secs_f64()
                 ));
             }
-            current_time += time;
+            current_time = time;
             for route in routes {
                 script.push_str(&route);
                 script.push('\n');
