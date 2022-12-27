@@ -30,6 +30,8 @@ use std::{
 use ipnet::{AddrParseError, Ipv4Net};
 use serde::{de::Error, Deserialize, Serialize};
 
+use prefixmap::PrefixMap as PMap;
+
 /// Trait for prefix.
 pub trait Prefix
 where
@@ -99,12 +101,6 @@ where
 
     /// Get the union of two prefix sets.
     fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a>;
-
-    /// Returns the number of elements in the set.
-    fn len(&self) -> usize;
-
-    /// Returns `true` if the set contains no elements.
-    fn is_empty(&self) -> bool;
 
     /// Clears the set, removing all values.
     fn clear(&mut self);
@@ -188,12 +184,6 @@ where
     /// An iterator visiting all values mutablyin arbitrary order. The iterator element type is
     /// `&'a T`.
     fn values_mut(&mut self) -> Self::ValuesMut<'_>;
-
-    /// Returns the number of elements in the map.
-    fn len(&self) -> usize;
-
-    /// Returns `true` if the map contains no elements.
-    fn is_empty(&self) -> bool;
 
     /// Clears the map, removing all key-value pairs. Keeps the allocated memory for reuse.
     fn clear(&mut self);
@@ -354,6 +344,19 @@ impl FromIterator<SinglePrefix> for SinglePrefixSet {
     }
 }
 
+impl SinglePrefixSet {
+    /// Return the length of the prefix set, i.e., `1` if the single prefix is present, and `0`
+    /// otherwise.
+    pub fn len(&self) -> usize {
+        usize::from(self.0)
+    }
+
+    /// Return wether the prefix set contains the single prefix or not.
+    pub fn is_empty(&self) -> bool {
+        !self.0
+    }
+}
+
 impl PrefixSet for SinglePrefixSet {
     type P = SinglePrefix;
 
@@ -368,14 +371,6 @@ impl PrefixSet for SinglePrefixSet {
 
     fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a> {
         repeat(&SINGLE_PREFIX).take(usize::from(self.0 || other.0))
-    }
-
-    fn len(&self) -> usize {
-        usize::from(self.0)
-    }
-
-    fn is_empty(&self) -> bool {
-        !self.0
     }
 
     fn clear(&mut self) {
@@ -441,6 +436,19 @@ impl<'a, T> IntoIterator for &'a SinglePrefixMap<T> {
     }
 }
 
+impl<T> SinglePrefixMap<T> {
+    /// Return the length of the prefix map, i.e., `1` if there is a value stored for the single
+    /// prefix, and `0` otheriwse.
+    pub fn len(&self) -> usize {
+        usize::from(self.0.is_some())
+    }
+
+    /// Return wether the prefix map is empty, i.e., wether there is a value stored for the single preifx.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_none()
+    }
+}
+
 impl<T> FromIterator<(SinglePrefix, T)> for SinglePrefixMap<T> {
     fn from_iter<I: IntoIterator<Item = (SinglePrefix, T)>>(iter: I) -> Self {
         Self(iter.into_iter().next().map(|(_, x)| x))
@@ -485,14 +493,6 @@ where
 
     fn values_mut(&mut self) -> Self::ValuesMut<'_> {
         self.0.iter_mut()
-    }
-
-    fn len(&self) -> usize {
-        usize::from(self.0.is_some())
-    }
-
-    fn is_empty(&self) -> bool {
-        self.0.is_none()
     }
 
     fn clear(&mut self) {
@@ -651,14 +651,6 @@ impl PrefixSet for HashSet<SimplePrefix> {
         self.union(other)
     }
 
-    fn len(&self) -> usize {
-        self.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-
     fn clear(&mut self) {
         self.clear()
     }
@@ -726,14 +718,6 @@ where
         self.values_mut()
     }
 
-    fn len(&self) -> usize {
-        self.len()
-    }
-
-    fn is_empty(&self) -> bool {
-        self.is_empty()
-    }
-
     fn clear(&mut self) {
         self.clear()
     }
@@ -773,3 +757,160 @@ where
         self.remove(k);
     }
 }
+
+/*
+/// Regular IPv4 Prefix
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+pub struct Ipv4Prefix(Ipv4Net);
+
+impl Serialize for Ipv4Prefix {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Ipv4Prefix {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ipv4Net::from_str(&s)
+            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {}", s)))
+            .map(Self)
+    }
+}
+
+impl FromStr for Ipv4Prefix {
+    type Err = AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ipv4Net::from_str(s).map(|x| x.into())
+    }
+}
+
+impl Display for Ipv4Prefix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl From<u32> for Ipv4Prefix {
+    fn from(value: u32) -> Self {
+        Ipv4Prefix(Ipv4Net::new(((value << 8) + (100 << 24)).into(), 24).unwrap())
+    }
+}
+
+impl From<usize> for Ipv4Prefix {
+    fn from(value: usize) -> Self {
+        (value as u32).into()
+    }
+}
+
+impl From<i32> for Ipv4Prefix {
+    fn from(value: i32) -> Self {
+        (value as u32).into()
+    }
+}
+
+impl From<Ipv4Addr> for Ipv4Prefix {
+    fn from(value: Ipv4Addr) -> Self {
+        Ipv4Prefix(Ipv4Net::new(value, 24).unwrap())
+    }
+}
+
+impl From<Ipv4Net> for Ipv4Prefix {
+    fn from(value: Ipv4Net) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Ipv4Prefix> for u32 {
+    fn from(value: Ipv4Prefix) -> Self {
+        value.0.addr().into()
+    }
+}
+
+impl From<Ipv4Prefix> for Ipv4Addr {
+    fn from(value: Ipv4Prefix) -> Self {
+        value.0.addr()
+    }
+}
+
+impl From<Ipv4Prefix> for Ipv4Net {
+    fn from(value: Ipv4Prefix) -> Self {
+        value.0
+    }
+}
+
+impl Prefix for Ipv4Prefix {
+    type Set = PMap<Ipv4Prefix, ()>;
+
+    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
+        PMap<Ipv4Prefix, T>;
+}
+
+impl PrefixSet for PMap<Ipv4Prefix, ()> {
+    type P = Ipv4Prefix;
+
+    type Iter<'a> = prefixmap::Keys<'a, Ipv4Prefix, ()>
+    where
+        Self: 'a,
+        Self::P: 'a;
+
+    type Union<'a>
+    = std::collections::hash_set::IntoIter<&'a Ipv4Prefix>
+    where
+        Self: 'a,
+        Self::P: 'a;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.keys()
+    }
+
+    fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a> {
+        self.keys()
+            .chain(other.keys())
+            .collect::<HashSet<_>>()
+            .into_iter()
+    }
+
+    fn len(&self) -> usize {
+        todo!()
+    }
+
+    fn is_empty(&self) -> bool {
+        todo!()
+    }
+
+    fn clear(&mut self) {
+        self.clear()
+    }
+
+    fn contains(&self, value: &Self::P) -> bool {
+        self.get(value).is_some();
+    }
+
+    fn contains_lp(&self, value: &Self::P) -> bool {
+        self.get_lpm(value).is_some();
+    }
+
+    fn insert(&mut self, value: Self::P) -> bool {
+        self.insert(value, ())
+    }
+
+    fn remove(&mut self, value: &Self::P) -> bool {
+        self.remove(value, ())
+    }
+
+    fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&Self::P) -> bool,
+    {
+        self.retain(f)
+    }
+}
+*/

@@ -192,6 +192,7 @@ pub struct RouteMapBuilder<P: Prefix> {
     conds: Vec<RouteMapMatch<P>>,
     set: Vec<RouteMapSet>,
     prefix_conds: P::Set,
+    has_prefix_conds: bool,
     flow: RouteMapFlow,
 }
 
@@ -203,6 +204,7 @@ impl<P: Prefix> Default for RouteMapBuilder<P> {
             conds: Vec::new(),
             set: Vec::new(),
             prefix_conds: Default::default(),
+            has_prefix_conds: false,
             flow: RouteMapFlow::default(),
         }
     }
@@ -256,6 +258,7 @@ impl<P: Prefix> RouteMapBuilder<P> {
     /// this funciton multiple times with different prefixes, then any of them will be matched.
     pub fn match_prefix(&mut self, prefix: P) -> &mut Self {
         self.prefix_conds.insert(prefix);
+        self.has_prefix_conds = true;
         self
     }
 
@@ -431,7 +434,7 @@ impl<P: Prefix> RouteMapBuilder<P> {
         let mut conds = self.conds.clone();
 
         // add the prefix list if necessary
-        if !self.prefix_conds.is_empty() {
+        if self.has_prefix_conds {
             conds.push(RouteMapMatch::Prefix(self.prefix_conds.clone()));
         }
 
