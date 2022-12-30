@@ -31,7 +31,7 @@ use thiserror::Error;
 
 // pub(crate) mod collections;
 pub mod prefix;
-pub use prefix::{Prefix, PrefixMap, PrefixSet, SimplePrefix, SinglePrefix};
+pub use prefix::{Ipv4Prefix, Prefix, PrefixMap, PrefixSet, SimplePrefix, SinglePrefix};
 
 pub(crate) type IndexType = u32;
 /// Router Identification (and index into the graph)

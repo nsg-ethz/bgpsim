@@ -30,7 +30,7 @@ use std::{
 use ipnet::{AddrParseError, Ipv4Net};
 use serde::{de::Error, Deserialize, Serialize};
 
-use prefixmap::PrefixMap as PMap;
+use prefix_trie::{Prefix as PPrefix, PrefixMap as PMap, PrefixSet as PSet};
 
 /// Trait for prefix.
 pub trait Prefix
@@ -109,7 +109,7 @@ where
     fn contains(&self, value: &Self::P) -> bool;
 
     /// Returns `true` if the set contains a value using longest prefix matching.
-    fn contains_lp(&self, value: &Self::P) -> bool;
+    fn get_lpm(&self, value: &Self::P) -> Option<&Self::P>;
 
     /// Adds a value to the set.
     ///
@@ -201,7 +201,7 @@ where
         T: Default;
 
     /// Returns a reference to the value corresponding to the longest prefix match of the key.
-    fn get_lp(&self, k: &Self::P) -> Option<(&Self::P, &T)>;
+    fn get_lpm(&self, k: &Self::P) -> Option<(&Self::P, &T)>;
 
     /// Returns `true` if the map contains a value for the specified key.
     fn contains_key(&self, k: &Self::P) -> bool;
@@ -217,9 +217,6 @@ where
     /// Remove a key from the map, returning a value at the key if the key was previously in the
     /// map.
     fn remove(&mut self, k: &Self::P) -> Option<T>;
-
-    /// Remove all elements from the map where `k` is a prefix of that key.
-    fn remove_lp(&mut self, k: &Self::P);
 }
 
 /// A type of prefix where there only exists a single prefix in the network. This is used for fast
@@ -381,8 +378,12 @@ impl PrefixSet for SinglePrefixSet {
         self.0
     }
 
-    fn contains_lp(&self, _: &Self::P) -> bool {
-        self.0
+    fn get_lpm(&self, _: &Self::P) -> Option<&Self::P> {
+        if self.0 {
+            Some(&SINGLE_PREFIX)
+        } else {
+            None
+        }
     }
 
     fn insert(&mut self, _: Self::P) -> bool {
@@ -517,7 +518,7 @@ where
         self.0.as_mut().unwrap()
     }
 
-    fn get_lp(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
+    fn get_lpm(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
         self.get(k).map(|t| (&SINGLE_PREFIX, t))
     }
 
@@ -531,10 +532,6 @@ where
 
     fn remove(&mut self, _: &Self::P) -> Option<T> {
         self.0.take()
-    }
-
-    fn remove_lp(&mut self, _: &Self::P) {
-        self.0.take();
     }
 }
 
@@ -659,8 +656,8 @@ impl PrefixSet for HashSet<SimplePrefix> {
         self.contains(value)
     }
 
-    fn contains_lp(&self, value: &Self::P) -> bool {
-        self.contains(value)
+    fn get_lpm(&self, value: &Self::P) -> Option<&Self::P> {
+        self.get(value)
     }
 
     fn insert(&mut self, value: Self::P) -> bool {
@@ -737,7 +734,7 @@ where
         self.entry(k).or_default()
     }
 
-    fn get_lp(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
+    fn get_lpm(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
         self.get_key_value(k)
     }
 
@@ -752,16 +749,43 @@ where
     fn remove(&mut self, k: &Self::P) -> Option<T> {
         self.remove(k)
     }
-
-    fn remove_lp(&mut self, k: &Self::P) {
-        self.remove(k);
-    }
 }
 
-/*
 /// Regular IPv4 Prefix
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
 pub struct Ipv4Prefix(Ipv4Net);
+
+impl PPrefix for Ipv4Prefix {
+    type R = u32;
+
+    fn repr(&self) -> u32 {
+        self.0.addr().into()
+    }
+
+    fn prefix_len(&self) -> u8 {
+        self.0.prefix_len()
+    }
+
+    fn from_repr_len(repr: u32, len: u8) -> Self {
+        Ipv4Prefix(Ipv4Net::new(repr.into(), len).unwrap())
+    }
+
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    fn mask(&self) -> u32 {
+        self.0.network().into()
+    }
+
+    fn zero() -> Self {
+        Self(Default::default())
+    }
+
+    fn contains(&self, other: &Self) -> bool {
+        self.0.contains(&other.0)
+    }
+}
 
 impl Serialize for Ipv4Prefix {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
@@ -847,43 +871,31 @@ impl From<Ipv4Prefix> for Ipv4Net {
 }
 
 impl Prefix for Ipv4Prefix {
-    type Set = PMap<Ipv4Prefix, ()>;
+    type Set = PSet<Ipv4Prefix>;
 
     type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
         PMap<Ipv4Prefix, T>;
 }
 
-impl PrefixSet for PMap<Ipv4Prefix, ()> {
+impl PrefixSet for PSet<Ipv4Prefix> {
     type P = Ipv4Prefix;
 
-    type Iter<'a> = prefixmap::Keys<'a, Ipv4Prefix, ()>
+    type Iter<'a> = prefix_trie::set::Iter<'a, Ipv4Prefix>
     where
         Self: 'a,
         Self::P: 'a;
 
-    type Union<'a>
-    = std::collections::hash_set::IntoIter<&'a Ipv4Prefix>
+    type Union<'a> = prefix_trie::set::Union<'a, Ipv4Prefix>
     where
         Self: 'a,
         Self::P: 'a;
 
     fn iter(&self) -> Self::Iter<'_> {
-        self.keys()
+        self.iter()
     }
 
     fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a> {
-        self.keys()
-            .chain(other.keys())
-            .collect::<HashSet<_>>()
-            .into_iter()
-    }
-
-    fn len(&self) -> usize {
-        todo!()
-    }
-
-    fn is_empty(&self) -> bool {
-        todo!()
+        self.union(other)
     }
 
     fn clear(&mut self) {
@@ -891,19 +903,19 @@ impl PrefixSet for PMap<Ipv4Prefix, ()> {
     }
 
     fn contains(&self, value: &Self::P) -> bool {
-        self.get(value).is_some();
+        self.contains(value)
     }
 
-    fn contains_lp(&self, value: &Self::P) -> bool {
-        self.get_lpm(value).is_some();
+    fn get_lpm(&self, value: &Self::P) -> Option<&Self::P> {
+        self.get_lpm(value)
     }
 
     fn insert(&mut self, value: Self::P) -> bool {
-        self.insert(value, ())
+        self.insert(value)
     }
 
     fn remove(&mut self, value: &Self::P) -> bool {
-        self.remove(value, ())
+        self.remove(value)
     }
 
     fn retain<F>(&mut self, f: F)
@@ -913,4 +925,80 @@ impl PrefixSet for PMap<Ipv4Prefix, ()> {
         self.retain(f)
     }
 }
-*/
+
+impl<T> PrefixMap<T> for PMap<Ipv4Prefix, T>
+where
+    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>,
+{
+    type P = Ipv4Prefix;
+
+    type Iter<'a> = prefix_trie::map::Iter<'a, Ipv4Prefix, T>
+    where
+        Self::P: 'a,
+        T: 'a;
+
+    type Keys<'a> = prefix_trie::map::Keys<'a, Ipv4Prefix, T>
+    where
+        Self::P: 'a,
+        T: 'a;
+
+    type Values<'a> = prefix_trie::map::Values<'a, Ipv4Prefix, T>
+    where
+        Self::P: 'a,
+        T: 'a;
+
+    type ValuesMut<'a> = prefix_trie::map::ValuesMut<'a, Ipv4Prefix, T>
+    where
+        T: 'a;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.iter()
+    }
+
+    fn keys(&self) -> Self::Keys<'_> {
+        self.keys()
+    }
+
+    fn values(&self) -> Self::Values<'_> {
+        self.values()
+    }
+
+    fn values_mut(&mut self) -> Self::ValuesMut<'_> {
+        self.values_mut()
+    }
+
+    fn clear(&mut self) {
+        self.clear()
+    }
+
+    fn get(&self, k: &Self::P) -> Option<&T> {
+        self.get(k)
+    }
+
+    fn get_mut(&mut self, k: &Self::P) -> Option<&mut T> {
+        self.get_mut(k)
+    }
+
+    fn get_mut_or_default(&mut self, k: Self::P) -> &mut T
+    where
+        T: Default,
+    {
+        self.entry(k).or_default()
+    }
+
+    fn get_lpm(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
+        self.get_lpm(k)
+    }
+
+    fn contains_key(&self, k: &Self::P) -> bool {
+        self.contains_key(k)
+    }
+
+    fn insert(&mut self, k: Self::P, v: T) -> Option<T> {
+        self.insert(k, v)
+    }
+
+    fn remove(&mut self, k: &Self::P) -> Option<T> {
+        self.remove(k)
+    }
+}

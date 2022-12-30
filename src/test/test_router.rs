@@ -25,48 +25,331 @@ use crate::{
     external_router::*,
     ospf::Ospf,
     router::*,
-    types::{AsId, IgpNetwork, Prefix, SimplePrefix, SinglePrefix},
+    types::{AsId, IgpNetwork, Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
 };
 
-use maplit::hashmap;
+use maplit::{hashmap, hashset};
 
-#[cfg(feature = "multi_prefix")]
-#[test]
-fn test_bgp_single() {
-    use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
-    use crate::types::collections::hashset;
+#[generic_tests::define]
+mod t2 {
+    use super::*;
 
-    let mut r = Router::<SimplePrefix>::new("test".to_string(), 0.into(), AsId(65001));
-    r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
-    r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
-    r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
-    r.set_bgp_session::<()>(3.into(), Some(IBgpPeer)).unwrap();
-    r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
-    r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
-    r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
-    r.igp_table = hashmap! {
-        100.into() => (vec![100.into()], 0.0),
-        1.into()   => (vec![1.into()], 1.0),
-        2.into()   => (vec![2.into()], 1.0),
-        3.into()   => (vec![2.into()], 4.0),
-        4.into()   => (vec![4.into()], 2.0),
-        5.into()   => (vec![4.into()], 6.0),
-        6.into()   => (vec![1.into()], 13.0),
-        10.into()  => (vec![1.into()], 6.0),
-        11.into()  => (vec![1.into()], 15.0),
-    };
+    #[test]
+    fn test_bgp_single<P: Prefix>() {
+        use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
 
-    /////////////////////
-    // external update //
-    /////////////////////
+        let mut r = Router::<P>::new("test".to_string(), 0.into(), AsId(65001));
+        r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
+        r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(3.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
+        r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
+        r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
+        r.igp_table = hashmap! {
+            100.into() => (vec![100.into()], 0.0),
+            1.into()   => (vec![1.into()], 1.0),
+            2.into()   => (vec![2.into()], 1.0),
+            3.into()   => (vec![2.into()], 4.0),
+            4.into()   => (vec![4.into()], 2.0),
+            5.into()   => (vec![4.into()], 6.0),
+            6.into()   => (vec![1.into()], 13.0),
+            10.into()  => (vec![1.into()], 6.0),
+            11.into()  => (vec![1.into()], 15.0),
+        };
 
-    let (_, events) = r
-        .handle_event(Event::Bgp(
+        /////////////////////
+        // external update //
+        /////////////////////
+
+        let (_, events) = r
+            .handle_event(Event::Bgp(
+                (),
+                100.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(200),
+                    as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
+                    next_hop: 100.into(),
+                    local_pref: None,
+                    med: None,
+                    community: Default::default(),
+                    originator_id: None,
+                    cluster_list: Vec::new(),
+                }),
+            ))
+            .unwrap();
+
+        // check that the router now has a route selected for 100 with the correct data
+        let entry = r.get_selected_bgp_route(P::from(200)).unwrap();
+        assert_eq!(entry.from_type, EBgp);
+        assert_eq!(entry.route.next_hop, 100.into());
+        assert_eq!(entry.route.local_pref, Some(100));
+        assert_eq!(events.len(), 6);
+        for event in events {
+            match event {
+                Event::Bgp(_, from, _, BgpEvent::Update(r)) => {
+                    assert_eq!(from, 0.into());
+                    assert_eq!(r.next_hop, 0.into()); // change next-hop to self.
+                }
+                _ => panic!("Test failed"),
+            }
+        }
+        // used for later
+        let original_entry = entry.clone();
+
+        /////////////////////
+        // internal update //
+        /////////////////////
+
+        // update from route reflector
+
+        let (_, events) = r
+            .handle_event(Event::Bgp(
+                (),
+                1.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(201),
+                    as_path: vec![AsId(1), AsId(2), AsId(3)],
+                    next_hop: 11.into(),
+                    local_pref: Some(50),
+                    med: None,
+                    community: Default::default(),
+                    originator_id: None,
+                    cluster_list: Vec::new(),
+                }),
+            ))
+            .unwrap();
+
+        // check that the router now has a route selected for 100 with the correct data
+        let entry = r.get_selected_bgp_route(P::from(201)).unwrap();
+        assert_eq!(entry.from_type, IBgpPeer);
+        assert_eq!(entry.route.next_hop, 11.into());
+        assert_eq!(entry.route.local_pref, Some(50));
+        assert_eq!(events.len(), 4);
+        for event in events {
+            match event {
+                Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
+                    assert_eq!(from, 0.into());
+                    assert!(hashset![4, 5, 6, 100].contains(&(to.index())));
+                    if to == 100.into() {
+                        assert_eq!(r.next_hop, 0.into());
+                    } else {
+                        assert_eq!(r.next_hop, 11.into());
+                    }
+                }
+                _ => panic!("test failed!"),
+            }
+        }
+
+        //////////////////
+        // worse update //
+        //////////////////
+
+        // update from route reflector
+
+        let (_, events) = r
+            .handle_event(Event::Bgp(
+                (),
+                2.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(200),
+                    as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
+                    next_hop: 10.into(),
+                    local_pref: None,
+                    med: None,
+                    community: Default::default(),
+                    originator_id: None,
+                    cluster_list: Vec::new(),
+                }),
+            ))
+            .unwrap();
+
+        // check that
+        let entry = r.get_selected_bgp_route(P::from(200)).unwrap();
+        assert_eq!(entry.from_type, EBgp);
+        assert_eq!(entry.route.next_hop, 100.into());
+        assert_eq!(events.len(), 0);
+
+        ///////////////////
+        // better update //
+        ///////////////////
+
+        // update from route reflector
+
+        let (_, events) = r
+            .handle_event(Event::Bgp(
+                (),
+                5.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(200),
+                    as_path: vec![
+                        AsId(1),
+                        AsId(2),
+                        AsId(3),
+                        AsId(4),
+                        AsId(5),
+                        AsId(6),
+                        AsId(7),
+                        AsId(8),
+                        AsId(9),
+                        AsId(10),
+                    ],
+                    next_hop: 5.into(),
+                    local_pref: Some(150),
+                    med: None,
+                    community: Default::default(),
+                    originator_id: None,
+                    cluster_list: Vec::new(),
+                }),
+            ))
+            .unwrap();
+
+        // check that the router now has a route selected for 100 with the correct data
+        let entry = r.get_selected_bgp_route(P::from(200)).unwrap().clone();
+        assert_eq!(entry.from_type, IBgpClient);
+        assert_eq!(entry.route.next_hop, 5.into());
+        assert_eq!(entry.route.local_pref, Some(150));
+        assert_eq!(events.len(), 7);
+        for event in events {
+            match event {
+                Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
+                    assert_eq!(from, 0.into());
+                    assert!(hashset![1, 2, 3, 4, 6, 100].contains(&(to.index())));
+                    if to == 100.into() {
+                        assert_eq!(r.next_hop, 0.into());
+                        assert_eq!(r.local_pref, None);
+                    } else {
+                        assert_eq!(r.next_hop, 5.into());
+                        assert_eq!(r.local_pref, Some(150));
+                    }
+                }
+                Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix)) => {
+                    assert_eq!(from, 0.into());
+                    assert_eq!(to, 5.into());
+                    assert_eq!(prefix, P::from(200));
+                }
+            }
+        }
+
+        ///////////////////////
+        // retract bad route //
+        ///////////////////////
+
+        let (_, events) = r
+            .handle_event(Event::Bgp(
+                (),
+                2.into(),
+                0.into(),
+                BgpEvent::Withdraw(P::from(200)),
+            ))
+            .unwrap();
+
+        // check that the router now has a route selected for 100 with the correct data
+        let new_entry = r.get_selected_bgp_route(P::from(200)).unwrap();
+        assert_eq!(new_entry, &entry);
+        assert_eq!(events.len(), 0);
+
+        ////////////////////////
+        // retract good route //
+        ////////////////////////
+
+        let (_, events) = r
+            .handle_event(Event::Bgp(
+                (),
+                5.into(),
+                0.into(),
+                BgpEvent::Withdraw(P::from(200)),
+            ))
+            .unwrap();
+
+        // check that the router now has a route selected for 100 with the correct data
+        //eprintln!("{:#?}", r);
+        let new_entry = r.get_selected_bgp_route(P::from(200)).unwrap();
+        assert_eq!(new_entry, &original_entry);
+        assert_eq!(events.len(), 7);
+        for event in events {
+            match event {
+                Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
+                    assert_eq!(from, 0.into());
+                    assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index())));
+                    assert_eq!(r.next_hop, 0.into()); // next-hop must be changed to self.
+                    assert_eq!(r.local_pref, Some(100));
+                }
+                Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix)) => {
+                    assert_eq!(from, 0.into());
+                    assert_eq!(to, 100.into());
+                    assert_eq!(prefix, P::from(200));
+                }
+            }
+        }
+
+        ////////////////////////
+        // retract last route //
+        ////////////////////////
+
+        let (_, events) = r
+            .handle_event(Event::Bgp(
+                (),
+                100.into(),
+                0.into(),
+                BgpEvent::Withdraw(P::from(200)),
+            ))
+            .unwrap();
+
+        // check that the router now has a route selected for 100 with the correct data
+        assert!(r.get_selected_bgp_route(P::from(200)).is_none());
+        assert_eq!(events.len(), 6);
+        for event in events {
+            let p200 = P::from(200);
+            match event {
+                Event::Bgp(_, from, to, BgpEvent::Withdraw(p)) if p == p200 => {
+                    assert_eq!(from, 0.into());
+                    assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index())));
+                }
+                _ => panic!(),
+            }
+        }
+    }
+
+    #[cfg(feature = "undo")]
+    #[test]
+    fn test_bgp_single_undo<P: Prefix>() {
+        let mut r = Router::<P>::new("test".to_string(), 0.into(), AsId(65001));
+        r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
+        r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(3.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
+        r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
+        r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
+        r.igp_table = hashmap! {
+            100.into() => (vec![100.into()], 0.0),
+            1.into()   => (vec![1.into()], 1.0),
+            2.into()   => (vec![2.into()], 1.0),
+            3.into()   => (vec![2.into()], 4.0),
+            4.into()   => (vec![4.into()], 2.0),
+            5.into()   => (vec![4.into()], 6.0),
+            6.into()   => (vec![1.into()], 13.0),
+            10.into()  => (vec![1.into()], 6.0),
+            11.into()  => (vec![1.into()], 15.0),
+        };
+
+        /////////////////////
+        // external update //
+        /////////////////////
+
+        let store_r_1 = r.clone();
+
+        r.handle_event(Event::Bgp(
             (),
             100.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: SimplePrefix::from(200),
+                prefix: P::from(200),
                 as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
                 next_hop: 100.into(),
                 local_pref: None,
@@ -78,37 +361,20 @@ fn test_bgp_single() {
         ))
         .unwrap();
 
-    // check that the router now has a route selected for 100 with the correct data
-    let entry = r.get_selected_bgp_route(SimplePrefix::from(200)).unwrap();
-    assert_eq!(entry.from_type, EBgp);
-    assert_eq!(entry.route.next_hop, 100.into());
-    assert_eq!(entry.route.local_pref, Some(100));
-    assert_eq!(events.len(), 6);
-    for event in events {
-        match event {
-            Event::Bgp(_, from, _, BgpEvent::Update(r)) => {
-                assert_eq!(from, 0.into());
-                assert_eq!(r.next_hop, 0.into()); // change next-hop to self.
-            }
-            _ => panic!("Test failed"),
-        }
-    }
-    // used for later
-    let original_entry = entry;
+        /////////////////////
+        // internal update //
+        /////////////////////
 
-    /////////////////////
-    // internal update //
-    /////////////////////
+        let store_r_2 = r.clone();
 
-    // update from route reflector
+        // update from route reflector
 
-    let (_, events) = r
-        .handle_event(Event::Bgp(
+        r.handle_event(Event::Bgp(
             (),
             1.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: SimplePrefix::from(201),
+                prefix: P::from(201),
                 as_path: vec![AsId(1), AsId(2), AsId(3)],
                 next_hop: 11.into(),
                 local_pref: Some(50),
@@ -120,40 +386,20 @@ fn test_bgp_single() {
         ))
         .unwrap();
 
-    // check that the router now has a route selected for 100 with the correct data
-    let entry = r.get_selected_bgp_route(SimplePrefix::from(201)).unwrap();
-    assert_eq!(entry.from_type, IBgpPeer);
-    assert_eq!(entry.route.next_hop, 11.into());
-    assert_eq!(entry.route.local_pref, Some(50));
-    assert_eq!(events.len(), 4);
-    for event in events {
-        match event {
-            Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
-                assert_eq!(from, 0.into());
-                assert!(hashset![4, 5, 6, 100].contains(&(to.index())));
-                if to == 100.into() {
-                    assert_eq!(r.next_hop, 0.into());
-                } else {
-                    assert_eq!(r.next_hop, 11.into());
-                }
-            }
-            _ => panic!("test failed!"),
-        }
-    }
+        //////////////////
+        // worse update //
+        //////////////////
 
-    //////////////////
-    // worse update //
-    //////////////////
+        let store_r_3 = r.clone();
 
-    // update from route reflector
+        // update from route reflector
 
-    let (_, events) = r
-        .handle_event(Event::Bgp(
+        r.handle_event(Event::Bgp(
             (),
             2.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: SimplePrefix::from(200),
+                prefix: P::from(200),
                 as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
                 next_hop: 10.into(),
                 local_pref: None,
@@ -165,25 +411,20 @@ fn test_bgp_single() {
         ))
         .unwrap();
 
-    // check that
-    let entry = r.get_selected_bgp_route(SimplePrefix::from(200)).unwrap();
-    assert_eq!(entry.from_type, EBgp);
-    assert_eq!(entry.route.next_hop, 100.into());
-    assert_eq!(events.len(), 0);
+        ///////////////////
+        // better update //
+        ///////////////////
 
-    ///////////////////
-    // better update //
-    ///////////////////
+        let store_r_4 = r.clone();
 
-    // update from route reflector
+        // update from route reflector
 
-    let (_, events) = r
-        .handle_event(Event::Bgp(
+        r.handle_event(Event::Bgp(
             (),
             5.into(),
             0.into(),
             BgpEvent::Update(BgpRoute {
-                prefix: SimplePrefix::from(200),
+                prefix: P::from(200),
                 as_path: vec![
                     AsId(1),
                     AsId(2),
@@ -206,315 +447,83 @@ fn test_bgp_single() {
         ))
         .unwrap();
 
-    // check that the router now has a route selected for 100 with the correct data
-    let entry = r.get_selected_bgp_route(SimplePrefix::from(200)).unwrap();
-    assert_eq!(entry.from_type, IBgpClient);
-    assert_eq!(entry.route.next_hop, 5.into());
-    assert_eq!(entry.route.local_pref, Some(150));
-    assert_eq!(events.len(), 7);
-    for event in events {
-        match event {
-            Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
-                assert_eq!(from, 0.into());
-                assert!(hashset![1, 2, 3, 4, 6, 100].contains(&(to.index())));
-                if to == 100.into() {
-                    assert_eq!(r.next_hop, 0.into());
-                    assert_eq!(r.local_pref, None);
-                } else {
-                    assert_eq!(r.next_hop, 5.into());
-                    assert_eq!(r.local_pref, Some(150));
-                }
-            }
-            Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix)) => {
-                assert_eq!(from, 0.into());
-                assert_eq!(to, 5.into());
-                assert_eq!(prefix, SimplePrefix::from(200));
-            }
-        }
-    }
+        ///////////////////////
+        // retract bad route //
+        ///////////////////////
 
-    ///////////////////////
-    // retract bad route //
-    ///////////////////////
+        let store_r_5 = r.clone();
 
-    let (_, events) = r
-        .handle_event(Event::Bgp(
+        r.handle_event(Event::Bgp(
             (),
             2.into(),
             0.into(),
-            BgpEvent::Withdraw(SimplePrefix::from(200)),
+            BgpEvent::Withdraw(P::from(200)),
         ))
         .unwrap();
 
-    // check that the router now has a route selected for 100 with the correct data
-    let new_entry = r.get_selected_bgp_route(SimplePrefix::from(200)).unwrap();
-    assert_eq!(new_entry, entry);
-    assert_eq!(events.len(), 0);
+        ////////////////////////
+        // retract good route //
+        ////////////////////////
 
-    ////////////////////////
-    // retract good route //
-    ////////////////////////
+        let store_r_6 = r.clone();
 
-    let (_, events) = r
-        .handle_event(Event::Bgp(
+        r.handle_event(Event::Bgp(
             (),
             5.into(),
             0.into(),
-            BgpEvent::Withdraw(SimplePrefix::from(200)),
+            BgpEvent::Withdraw(P::from(200)),
         ))
         .unwrap();
 
-    // check that the router now has a route selected for 100 with the correct data
-    //eprintln!("{:#?}", r);
-    let new_entry = r.get_selected_bgp_route(SimplePrefix::from(200)).unwrap();
-    assert_eq!(new_entry, original_entry);
-    assert_eq!(events.len(), 7);
-    for event in events {
-        match event {
-            Event::Bgp(_, from, to, BgpEvent::Update(r)) => {
-                assert_eq!(from, 0.into());
-                assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index())));
-                assert_eq!(r.next_hop, 0.into()); // next-hop must be changed to self.
-                assert_eq!(r.local_pref, Some(100));
-            }
-            Event::Bgp(_, from, to, BgpEvent::Withdraw(prefix)) => {
-                assert_eq!(from, 0.into());
-                assert_eq!(to, 100.into());
-                assert_eq!(prefix, SimplePrefix::from(200));
-            }
-        }
-    }
+        ////////////////////////
+        // retract last route //
+        ////////////////////////
+        let store_r_7 = r.clone();
 
-    ////////////////////////
-    // retract last route //
-    ////////////////////////
-
-    let (_, events) = r
-        .handle_event(Event::Bgp(
+        r.handle_event(Event::Bgp(
             (),
             100.into(),
             0.into(),
-            BgpEvent::Withdraw(SimplePrefix::from(200)),
+            BgpEvent::Withdraw(P::from(200)),
         ))
         .unwrap();
 
-    // check that the router now has a route selected for 100 with the correct data
-    assert!(r.get_selected_bgp_route(SimplePrefix::from(200)).is_none());
-    assert_eq!(events.len(), 6);
-    for event in events {
-        let p200 = SimplePrefix::from(200);
-        match event {
-            Event::Bgp(_, from, to, BgpEvent::Withdraw(p)) if p == p200 => {
-                assert_eq!(from, 0.into());
-                assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(to.index())));
-            }
-            _ => panic!(),
-        }
+        ////////////////////////////
+        // check the undo history //
+        ////////////////////////////
+
+        eprintln!("7");
+        r.undo_event();
+        assert_eq!(r, store_r_7);
+        eprintln!("6");
+        r.undo_event();
+        assert_eq!(r, store_r_6);
+        eprintln!("5");
+        r.undo_event();
+        assert_eq!(r, store_r_5);
+        eprintln!("4");
+        r.undo_event();
+        assert_eq!(r, store_r_4);
+        eprintln!("3");
+        r.undo_event();
+        assert_eq!(r, store_r_3);
+        eprintln!("2");
+        r.undo_event();
+        assert_eq!(r, store_r_2);
+        eprintln!("1");
+        r.undo_event();
+        assert_eq!(r, store_r_1);
     }
-}
 
-#[cfg(feature = "undo")]
-#[test]
-fn test_bgp_single_undo() {
-    let mut r = Router::<SimplePrefix>::new("test".to_string(), 0.into(), AsId(65001));
-    r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
-    r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
-    r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
-    r.set_bgp_session::<()>(3.into(), Some(IBgpPeer)).unwrap();
-    r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
-    r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
-    r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
-    r.igp_table = hashmap! {
-        100.into() => (vec![100.into()], 0.0),
-        1.into()   => (vec![1.into()], 1.0),
-        2.into()   => (vec![2.into()], 1.0),
-        3.into()   => (vec![2.into()], 4.0),
-        4.into()   => (vec![4.into()], 2.0),
-        5.into()   => (vec![4.into()], 6.0),
-        6.into()   => (vec![1.into()], 13.0),
-        10.into()  => (vec![1.into()], 6.0),
-        11.into()  => (vec![1.into()], 15.0),
-    };
+    #[instantiate_tests(<SimplePrefix>)]
+    mod simple {}
 
-    /////////////////////
-    // external update //
-    /////////////////////
-
-    let store_r_1 = r.clone();
-
-    r.handle_event(Event::Bgp(
-        (),
-        100.into(),
-        0.into(),
-        BgpEvent::Update(BgpRoute {
-            prefix: SimplePrefix::from(200),
-            as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
-            next_hop: 100.into(),
-            local_pref: None,
-            med: None,
-            community: Default::default(),
-            originator_id: None,
-            cluster_list: Vec::new(),
-        }),
-    ))
-    .unwrap();
-
-    /////////////////////
-    // internal update //
-    /////////////////////
-
-    let store_r_2 = r.clone();
-
-    // update from route reflector
-
-    r.handle_event(Event::Bgp(
-        (),
-        1.into(),
-        0.into(),
-        BgpEvent::Update(BgpRoute {
-            prefix: SimplePrefix::from(201),
-            as_path: vec![AsId(1), AsId(2), AsId(3)],
-            next_hop: 11.into(),
-            local_pref: Some(50),
-            med: None,
-            community: Default::default(),
-            originator_id: None,
-            cluster_list: Vec::new(),
-        }),
-    ))
-    .unwrap();
-
-    //////////////////
-    // worse update //
-    //////////////////
-
-    let store_r_3 = r.clone();
-
-    // update from route reflector
-
-    r.handle_event(Event::Bgp(
-        (),
-        2.into(),
-        0.into(),
-        BgpEvent::Update(BgpRoute {
-            prefix: SimplePrefix::from(200),
-            as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
-            next_hop: 10.into(),
-            local_pref: None,
-            med: None,
-            community: Default::default(),
-            originator_id: None,
-            cluster_list: Vec::new(),
-        }),
-    ))
-    .unwrap();
-
-    ///////////////////
-    // better update //
-    ///////////////////
-
-    let store_r_4 = r.clone();
-
-    // update from route reflector
-
-    r.handle_event(Event::Bgp(
-        (),
-        5.into(),
-        0.into(),
-        BgpEvent::Update(BgpRoute {
-            prefix: SimplePrefix::from(200),
-            as_path: vec![
-                AsId(1),
-                AsId(2),
-                AsId(3),
-                AsId(4),
-                AsId(5),
-                AsId(6),
-                AsId(7),
-                AsId(8),
-                AsId(9),
-                AsId(10),
-            ],
-            next_hop: 5.into(),
-            local_pref: Some(150),
-            med: None,
-            community: Default::default(),
-            originator_id: None,
-            cluster_list: Vec::new(),
-        }),
-    ))
-    .unwrap();
-
-    ///////////////////////
-    // retract bad route //
-    ///////////////////////
-
-    let store_r_5 = r.clone();
-
-    r.handle_event(Event::Bgp(
-        (),
-        2.into(),
-        0.into(),
-        BgpEvent::Withdraw(SimplePrefix::from(200)),
-    ))
-    .unwrap();
-
-    ////////////////////////
-    // retract good route //
-    ////////////////////////
-
-    let store_r_6 = r.clone();
-
-    r.handle_event(Event::Bgp(
-        (),
-        5.into(),
-        0.into(),
-        BgpEvent::Withdraw(SimplePrefix::from(200)),
-    ))
-    .unwrap();
-
-    ////////////////////////
-    // retract last route //
-    ////////////////////////
-    let store_r_7 = r.clone();
-
-    r.handle_event(Event::Bgp(
-        (),
-        100.into(),
-        0.into(),
-        BgpEvent::Withdraw(SimplePrefix::from(200)),
-    ))
-    .unwrap();
-
-    ////////////////////////////
-    // check the undo history //
-    ////////////////////////////
-
-    eprintln!("7");
-    r.undo_event();
-    assert_eq!(r, store_r_7);
-    eprintln!("6");
-    r.undo_event();
-    assert_eq!(r, store_r_6);
-    eprintln!("5");
-    r.undo_event();
-    assert_eq!(r, store_r_5);
-    eprintln!("4");
-    r.undo_event();
-    assert_eq!(r, store_r_4);
-    eprintln!("3");
-    r.undo_event();
-    assert_eq!(r, store_r_3);
-    eprintln!("2");
-    r.undo_event();
-    assert_eq!(r, store_r_2);
-    eprintln!("1");
-    r.undo_event();
-    assert_eq!(r, store_r_1);
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }
 
 #[generic_tests::define]
-mod t {
+mod t1 {
     use super::*;
 
     #[test]
@@ -896,4 +905,7 @@ mod t {
 
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }

@@ -33,7 +33,10 @@ mod t {
             RouteMap, RouteMapDirection::*, RouteMapFlow::*, RouteMapSet as Set, RouteMapState::*,
         },
         router::StaticRoute::*,
-        types::{AsId, LinkWeight, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix},
+        types::{
+            AsId, Ipv4Prefix, LinkWeight, NetworkError, Prefix, RouterId, SimplePrefix,
+            SinglePrefix,
+        },
     };
     use lazy_static::lazy_static;
     use maplit::{btreemap, btreeset};
@@ -1671,4 +1674,7 @@ mod t {
 
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }

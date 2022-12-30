@@ -22,7 +22,7 @@ mod t {
         bgp::BgpSessionType::*,
         event::{EventQueue, ModelParams, SimpleTimingModel},
         network::Network,
-        types::{AsId, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix},
+        types::{AsId, Ipv4Prefix, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix},
     };
     use pretty_assertions::assert_eq;
 
@@ -977,4 +977,7 @@ mod t {
 
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }

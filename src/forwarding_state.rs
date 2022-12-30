@@ -145,7 +145,7 @@ impl<P: Prefix> ForwardingState<P> {
         let nhs = self
             .state
             .get(&cur_node)
-            .and_then(|fib| fib.get_lp(&prefix))
+            .and_then(|fib| fib.get_lpm(&prefix))
             .map(|(_, nhs)| nhs.clone())
             .unwrap_or_default();
 
@@ -204,7 +204,7 @@ impl<P: Prefix> ForwardingState<P> {
     pub fn get_terminals(&self, prefix: P) -> &HashSet<RouterId> {
         self.reversed
             .get(&TO_DST)
-            .and_then(|r| r.get_lp(&prefix))
+            .and_then(|r| r.get_lpm(&prefix))
             .map(|(_, set)| set)
             .unwrap_or(&EMPTY_SET)
     }
@@ -264,7 +264,7 @@ impl<P: Prefix> ForwardingState<P> {
     pub fn get_prev_hops(&self, router: RouterId, prefix: P) -> &HashSet<RouterId> {
         self.reversed
             .get(&router)
-            .and_then(|r| r.get_lp(&prefix))
+            .and_then(|r| r.get_lpm(&prefix))
             .map(|(_, set)| set)
             .unwrap_or(&EMPTY_SET)
     }

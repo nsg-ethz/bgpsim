@@ -15,7 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use maplit::{btreeset, hashset};
+use maplit::btreeset;
 use ordered_float::NotNan;
 
 use crate::{
@@ -24,11 +24,11 @@ use crate::{
         RouteMapFlow::*, RouteMapMatch as Match, RouteMapMatchAsPath as AClause,
         RouteMapMatchClause as Clause, RouteMapSet as Set, RouteMapState::*, *,
     },
-    types::{AsId, Prefix, SimplePrefix, SinglePrefix},
+    types::{AsId, Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
 };
 
 #[generic_tests::define]
-mod t {
+mod t1 {
     use super::*;
 
     #[test]
@@ -516,223 +516,240 @@ mod t {
 
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }
 
-#[test]
-fn simple_matches() {
-    let default_entry = BgpRibEntry {
-        route: BgpRoute {
-            prefix: SimplePrefix::from(0),
-            as_path: vec![AsId(0)],
-            next_hop: 0.into(),
-            local_pref: None,
-            med: None,
-            community: Default::default(),
-            originator_id: None,
-            cluster_list: Vec::new(),
-        },
-        from_type: IBgpClient,
-        from_id: 0.into(),
-        to_id: None,
-        igp_cost: Some(NotNan::new(10.0).unwrap()),
-        weight: 100,
-    };
+#[generic_tests::define]
+mod t2 {
+    use super::*;
 
-    // Match on NextHop
-    let map = RouteMap::new(10, Deny, vec![Match::NextHop(0.into())], vec![], Exit);
-    let mut entry = default_entry.clone();
-    entry.route.next_hop = 0.into();
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.next_hop = 1.into();
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry).1.is_some());
+    #[test]
+    fn simple_matches<P: Prefix>() {
+        let default_entry = BgpRibEntry {
+            route: BgpRoute::<P> {
+                prefix: P::from(0),
+                as_path: vec![AsId(0)],
+                next_hop: 0.into(),
+                local_pref: None,
+                med: None,
+                community: Default::default(),
+                originator_id: None,
+                cluster_list: Vec::new(),
+            },
+            from_type: IBgpClient,
+            from_id: 0.into(),
+            to_id: None,
+            igp_cost: Some(NotNan::new(10.0).unwrap()),
+            weight: 100,
+        };
 
-    // Match on Prefix, exact
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::Prefix(hashset! {SimplePrefix::from(0)})],
-        vec![],
-        Exit,
-    );
-    let mut entry = default_entry.clone();
-    entry.route.prefix = SimplePrefix::from(0);
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.prefix = SimplePrefix::from(1);
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry).1.is_some());
+        // Match on NextHop
+        let map = RouteMap::new(10, Deny, vec![Match::NextHop(0.into())], vec![], Exit);
+        let mut entry = default_entry.clone();
+        entry.route.next_hop = 0.into();
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.next_hop = 1.into();
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry).1.is_some());
 
-    // Match on Prefix with range
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::Prefix(hashset! {
-            SimplePrefix::from(0),
-            SimplePrefix::from(1),
-            SimplePrefix::from(2),
-        })],
-        vec![],
-        Exit,
-    );
-    let mut entry = default_entry.clone();
-    entry.route.prefix = SimplePrefix::from(0);
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.prefix = SimplePrefix::from(1);
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.prefix = SimplePrefix::from(2);
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.prefix = SimplePrefix::from(3);
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry).1.is_some());
-
-    // Match on AsPath to contain 0
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::AsPath(AClause::Contains(AsId(0)))],
-        vec![],
-        Continue,
-    );
-    let mut entry = default_entry.clone();
-    entry.route.as_path = vec![AsId(0)];
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.as_path = vec![AsId(1), AsId(0), AsId(2)];
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.as_path = vec![AsId(1), AsId(2)];
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry).1.is_some());
-
-    // Match on AsPath length to be equal
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::AsPath(AClause::Length(Clause::Equal(1)))],
-        vec![],
-        Exit,
-    );
-    let mut entry = default_entry.clone();
-    entry.route.as_path = vec![AsId(0)];
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.as_path = vec![AsId(1), AsId(2)];
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry).1.is_some());
-
-    // Match on AsPath length to be in range
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::AsPath(AClause::Length(Clause::Range(2, 4)))],
-        vec![],
-        Exit,
-    );
-    let mut entry = default_entry.clone();
-    entry.route.as_path = vec![AsId(0), AsId(1)];
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.as_path = vec![AsId(0), AsId(1), AsId(2), AsId(3)];
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.as_path = vec![];
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry.clone()).1.is_some());
-    entry.route.as_path = vec![AsId(0), AsId(1), AsId(2), AsId(3), AsId(4)];
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry).1.is_some());
-
-    // Match on Community, exact
-    let map = RouteMap::new(10, Deny, vec![Match::Community(0)], vec![], Continue);
-    let mut entry = default_entry;
-    entry.route.community = Default::default();
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry.clone()).1.is_some());
-    entry.route.community.insert(1);
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry.clone()).1.is_some());
-    entry.route.community.insert(0);
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry).1.is_none());
-}
-
-#[test]
-fn complex_matches() {
-    let default_entry = BgpRibEntry {
-        route: BgpRoute {
-            prefix: SimplePrefix::from(0),
-            as_path: vec![AsId(0)],
-            next_hop: 0.into(),
-            local_pref: None,
-            med: None,
-            community: Default::default(),
-            originator_id: None,
-            cluster_list: Vec::new(),
-        },
-        from_type: IBgpClient,
-        from_id: 0.into(),
-        to_id: None,
-        igp_cost: Some(NotNan::new(10.0).unwrap()),
-        weight: 100,
-    };
-
-    // And Clause
-    let map = RouteMap::new(
-        10,
-        Deny,
-        vec![Match::NextHop(0.into()), Match::Prefix(hashset! {0.into()})],
-        vec![],
-        Continue,
-    );
-    let mut entry = default_entry.clone();
-    entry.route.next_hop = 0.into();
-    entry.route.prefix = 0.into();
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry.clone()).1.is_none());
-    entry.route.next_hop = 0.into();
-    entry.route.prefix = 1.into();
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry.clone()).1.is_some());
-    entry.route.next_hop = 1.into();
-    entry.route.prefix = 0.into();
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry.clone()).1.is_some());
-    entry.route.next_hop = 1.into();
-    entry.route.prefix = 1.into();
-    assert_eq!(map.apply(entry.clone()).0, Continue);
-    assert!(map.apply(entry).1.is_some());
-
-    // Empty And Clause
-    let map = RouteMap::new(10, Deny, vec![], vec![], Continue);
-    let mut entry = default_entry;
-    entry.route.next_hop = 0.into();
-    entry.from_id = 0.into();
-    assert_eq!(map.apply(entry.clone()).0, Exit);
-    assert!(map.apply(entry).1.is_none());
-}
-
-#[test]
-fn builder_multiple_prefixes() {
-    assert_eq!(
-        RouteMap::<SimplePrefix>::new(
+        // Match on Prefix, exact
+        let map = RouteMap::new(
             10,
             Deny,
-            vec![Match::Prefix(
-                vec![0.into(), 1.into()].into_iter().collect()
-            )],
+            vec![Match::Prefix(P::Set::from_iter([P::from(0)]))],
             vec![],
-            Continue
-        ),
-        RouteMapBuilder::<SimplePrefix>::new()
-            .order(10)
-            .deny()
-            .match_prefix(0.into())
-            .match_prefix(1.into())
-            .build()
-    );
+            Exit,
+        );
+        let mut entry = default_entry.clone();
+        entry.route.prefix = P::from(0);
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.prefix = P::from(1);
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry).1.is_some());
+
+        // Match on Prefix with range
+        let map = RouteMap::new(
+            10,
+            Deny,
+            vec![Match::Prefix(P::Set::from_iter([
+                P::from(0),
+                P::from(1),
+                P::from(2),
+            ]))],
+            vec![],
+            Exit,
+        );
+        let mut entry = default_entry.clone();
+        entry.route.prefix = P::from(0);
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.prefix = P::from(1);
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.prefix = P::from(2);
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.prefix = P::from(3);
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry).1.is_some());
+
+        // Match on AsPath to contain 0
+        let map = RouteMap::new(
+            10,
+            Deny,
+            vec![Match::AsPath(AClause::Contains(AsId(0)))],
+            vec![],
+            Continue,
+        );
+        let mut entry = default_entry.clone();
+        entry.route.as_path = vec![AsId(0)];
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.as_path = vec![AsId(1), AsId(0), AsId(2)];
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.as_path = vec![AsId(1), AsId(2)];
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry).1.is_some());
+
+        // Match on AsPath length to be equal
+        let map = RouteMap::new(
+            10,
+            Deny,
+            vec![Match::AsPath(AClause::Length(Clause::Equal(1)))],
+            vec![],
+            Exit,
+        );
+        let mut entry = default_entry.clone();
+        entry.route.as_path = vec![AsId(0)];
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.as_path = vec![AsId(1), AsId(2)];
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry).1.is_some());
+
+        // Match on AsPath length to be in range
+        let map = RouteMap::new(
+            10,
+            Deny,
+            vec![Match::AsPath(AClause::Length(Clause::Range(2, 4)))],
+            vec![],
+            Exit,
+        );
+        let mut entry = default_entry.clone();
+        entry.route.as_path = vec![AsId(0), AsId(1)];
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.as_path = vec![AsId(0), AsId(1), AsId(2), AsId(3)];
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.as_path = vec![];
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry.clone()).1.is_some());
+        entry.route.as_path = vec![AsId(0), AsId(1), AsId(2), AsId(3), AsId(4)];
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry).1.is_some());
+
+        // Match on Community, exact
+        let map = RouteMap::new(10, Deny, vec![Match::Community(0)], vec![], Continue);
+        let mut entry = default_entry;
+        entry.route.community = Default::default();
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry.clone()).1.is_some());
+        entry.route.community.insert(1);
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry.clone()).1.is_some());
+        entry.route.community.insert(0);
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry).1.is_none());
+    }
+
+    #[test]
+    fn complex_matches<P: Prefix>() {
+        let default_entry = BgpRibEntry {
+            route: BgpRoute::<P> {
+                prefix: P::from(0),
+                as_path: vec![AsId(0)],
+                next_hop: 0.into(),
+                local_pref: None,
+                med: None,
+                community: Default::default(),
+                originator_id: None,
+                cluster_list: Vec::new(),
+            },
+            from_type: IBgpClient,
+            from_id: 0.into(),
+            to_id: None,
+            igp_cost: Some(NotNan::new(10.0).unwrap()),
+            weight: 100,
+        };
+
+        // And Clause
+        let map = RouteMap::new(
+            10,
+            Deny,
+            vec![
+                Match::NextHop(0.into()),
+                Match::Prefix(P::Set::from_iter([0.into()])),
+            ],
+            vec![],
+            Continue,
+        );
+        let mut entry = default_entry.clone();
+        entry.route.next_hop = 0.into();
+        entry.route.prefix = 0.into();
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry.clone()).1.is_none());
+        entry.route.next_hop = 0.into();
+        entry.route.prefix = 1.into();
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry.clone()).1.is_some());
+        entry.route.next_hop = 1.into();
+        entry.route.prefix = 0.into();
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry.clone()).1.is_some());
+        entry.route.next_hop = 1.into();
+        entry.route.prefix = 1.into();
+        assert_eq!(map.apply(entry.clone()).0, Continue);
+        assert!(map.apply(entry).1.is_some());
+
+        // Empty And Clause
+        let map = RouteMap::new(10, Deny, vec![], vec![], Continue);
+        let mut entry = default_entry;
+        entry.route.next_hop = 0.into();
+        entry.from_id = 0.into();
+        assert_eq!(map.apply(entry.clone()).0, Exit);
+        assert!(map.apply(entry).1.is_none());
+    }
+
+    #[test]
+    fn builder_multiple_prefixes<P: Prefix>() {
+        assert_eq!(
+            RouteMap::<P>::new(
+                10,
+                Deny,
+                vec![Match::Prefix(
+                    vec![0.into(), 1.into()].into_iter().collect()
+                )],
+                vec![],
+                Continue
+            ),
+            RouteMapBuilder::<P>::new()
+                .order(10)
+                .deny()
+                .match_prefix(0.into())
+                .match_prefix(1.into())
+                .build()
+        );
+    }
+
+    #[instantiate_tests(<SimplePrefix>)]
+    mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }

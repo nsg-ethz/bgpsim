@@ -30,7 +30,7 @@ mod t {
         event::BasicEventQueue,
         network::Network,
         topology_zoo::TopologyZoo,
-        types::{Prefix, SimplePrefix, SinglePrefix},
+        types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
     };
 
     fn get_net<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
@@ -114,4 +114,7 @@ mod t {
 
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }

@@ -27,7 +27,7 @@ use crate::event::{GeoTimingModel, ModelParams, SimpleTimingModel};
 #[generic_tests::define]
 mod t {
 
-    use crate::types::{SimplePrefix, SinglePrefix};
+    use crate::types::{Ipv4Prefix, SinglePrefix};
 
     use super::*;
 
@@ -873,6 +873,9 @@ mod t {
 
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }
 
 #[test]

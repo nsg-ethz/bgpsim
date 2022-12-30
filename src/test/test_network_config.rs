@@ -50,7 +50,7 @@ macro_rules! bgp_session {
 mod t {
 
     use super::*;
-    use crate::types::SinglePrefix;
+    use crate::types::{Ipv4Prefix, SinglePrefix};
 
     /// Setup the simple network, and return `(e0, b0, r0, r1, b1, e1)`
     /// All weights are 1, r0 and b0 form a iBGP cluster, and so does r1 and b1
@@ -957,6 +957,9 @@ mod t {
 
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }
 
 #[test]
