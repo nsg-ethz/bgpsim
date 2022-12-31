@@ -123,7 +123,7 @@ impl<P: Prefix> ForwardingState<P> {
 
     /// Returns the route from the source router to a specific prefix.
     pub fn get_route(
-        &mut self,
+        &self,
         source: RouterId,
         prefix: P,
     ) -> Result<Vec<Vec<RouterId>>, NetworkError> {
@@ -135,7 +135,7 @@ impl<P: Prefix> ForwardingState<P> {
 
     /// Recursive function to build the paths recursively.
     fn get_route_recursive(
-        &mut self,
+        &self,
         prefix: P,
         cur_node: RouterId,
         visited: &mut HashSet<RouterId>,
@@ -154,7 +154,7 @@ impl<P: Prefix> ForwardingState<P> {
             return Err(NetworkError::ForwardingBlackHole(vec![cur_node]));
         }
 
-        // test if the next hop is only self. In that case, the path is finished.
+        // test if the next hop to the destination. In that case, we are done.
         if nhs == [*TO_DST] {
             return Ok(vec![vec![cur_node]]);
         }
@@ -181,15 +181,43 @@ impl<P: Prefix> ForwardingState<P> {
             if visited.contains(&nh) {
                 // Forwarding loop! construct the loop path for nh
                 let mut p = path.clone();
-                let first_idx = p.iter().position(|x| x == &nh).unwrap();
+                let first_idx = p
+                    .iter()
+                    .position(|x| *x == nh)
+                    .expect("visited contains the same nodes as path, and visited contains `nh`");
                 let mut loop_path = p.split_off(first_idx);
                 loop_path.push(nh);
+
+                // now, also do the same thing for cur_node.
+                let first_idx = loop_path
+                    .iter()
+                    .position(|x| *x == cur_node)
+                    .unwrap_or(loop_path.len() - 1);
+                loop_path.truncate(first_idx + 1);
+                loop_path.insert(0, cur_node);
+
                 return Err(NetworkError::ForwardingLoop(loop_path));
             }
 
             visited.insert(nh);
             path.push(nh);
-            let mut paths = self.get_route_recursive(prefix, nh, visited, path)?;
+            let mut paths = match self.get_route_recursive(prefix, nh, visited, path) {
+                Ok(p) => p,
+                Err(NetworkError::ForwardingBlackHole(mut p)) => {
+                    p.insert(0, cur_node);
+                    return Err(NetworkError::ForwardingBlackHole(p));
+                }
+                Err(NetworkError::ForwardingLoop(mut p)) => {
+                    debug_assert!(!p.is_empty());
+                    let first_idx = p.iter().position(|x| *x == cur_node).unwrap_or(p.len() - 1);
+                    p.truncate(first_idx + 1);
+                    p.insert(0, cur_node);
+                    return Err(NetworkError::ForwardingLoop(p));
+                }
+                _ => {
+                    unreachable!("Only forwarding blackholes and forwardingloops can be triggered.")
+                }
+            };
             paths.iter_mut().for_each(|p| p.insert(0, cur_node));
             fw_paths.append(&mut paths);
             visited.remove(&nh);
@@ -374,432 +402,415 @@ impl ForwardingState<SimplePrefix> {
     }
 }
 
-/*
-#[cfg(not(tarpaulin_include))]
 #[cfg(test)]
 mod test {
-    use maplit::{hashmap, hashset};
-
-    use super::NetworkError::{ForwardingBlackHole as EHole, ForwardingLoop as ELoop};
     use super::*;
-    use crate::types::SimplePrefix as Prefix;
+    use crate::types::{Ipv4Prefix, NetworkError, Prefix, SimplePrefix, SinglePrefix};
 
-    #[allow(non_snake_case)]
-    fn SLoop(x: Vec<RouterId>) -> Result<Vec<Vec<RouterId>>, CacheError> {
-        Err(CacheError::ForwardingLoop(x))
-    }
-
-    fn assert_loop(
-        state: &mut ForwardingState<Prefix>,
-        router: RouterId,
-        prefix: impl Into<Prefix>,
-        path: Vec<RouterId>,
-    ) {
-        assert_eq!(state.get_route(router, prefix.into()), Err(ELoop(path)));
-    }
-
-    fn assert_cache_loop(
-        state: &ForwardingState<Prefix>,
-        router: RouterId,
-        prefix: impl Into<Prefix>,
-        path: Vec<RouterId>,
-    ) {
-        assert_eq!(
-            state.cache.get(&(router, prefix.into())),
-            Some(&SLoop(path))
-        );
-    }
-
-    fn assert_cache_empty(
-        state: &ForwardingState<Prefix>,
-        router: RouterId,
-        prefix: impl Into<Prefix>,
-    ) {
-        assert_eq!(state.cache.get(&(router, prefix.into())), None)
-    }
-
-    fn assert_paths(
-        state: &mut ForwardingState<Prefix>,
-        router: RouterId,
-        prefix: impl Into<Prefix>,
-        paths: Vec<Vec<RouterId>>,
-    ) {
-        assert_eq!(state.get_route(router, prefix.into()), Ok(paths));
-    }
-
-    fn assert_cache_paths(
-        state: &ForwardingState<Prefix>,
-        router: RouterId,
-        prefix: impl Into<Prefix>,
-        paths: Vec<Vec<RouterId>>,
-    ) {
-        assert_eq!(state.cache.get(&(router, prefix.into())), Some(&Ok(paths)));
-    }
-
-    fn assert_reach(
-        state: &ForwardingState<Prefix>,
-        router: RouterId,
-        prefix: impl Into<Prefix>,
-        reach: Vec<RouterId>,
-    ) {
-        let prefix = prefix.into();
-        assert_eq!(
-            state.get_nodes_along_paths(router, prefix),
-            HashSet::from_iter(reach.into_iter()),
-            "Invalid reach for r{}, {}",
-            router.index(),
-            prefix
-        )
-    }
-
-    #[test]
-    fn test_route() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0 = 0.into();
-        let r1 = 1.into();
-        let r2 = 2.into();
-        let r3 = 3.into();
-        let r4 = 4.into();
-        let r5 = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]].into(),
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
-            cache: hashmap![].into(),
+    macro_rules! check_route {
+        ($acq:expr, $src:literal, $pfx:expr => ($($path:tt),*)) => {
+            check_route!($acq.get_route($src.into(), $pfx), Ok(vec!($(_path!($path)),*)))
         };
-        assert_reach(&s, r2, p, vec![r0, r1, r2]);
-        assert_paths(&mut s, r0, p, vec![vec![r0]]);
-        assert_paths(&mut s, r1, p, vec![vec![r1, r0]]);
-        assert_paths(&mut s, r2, p, vec![vec![r2, r1, r0]]);
-        assert_paths(&mut s, r3, p, vec![vec![r3, r1, r0]]);
-        assert_paths(&mut s, r4, p, vec![vec![r4, r2, r1, r0]]);
-        assert_eq!(s.get_route(r5, p), Err(EHole(vec![r5])));
-        assert_reach(&s, r2, p, vec![r0, r1, r2]);
+        ($acq:expr, $src:literal, $pfx:expr => fwloop $path:tt) => {
+            check_route!(
+                $acq.get_route($src.into(), $pfx),
+                Err(NetworkError::ForwardingLoop(_path!($path)))
+            )
+        };
+        ($acq:expr, $src:literal, $pfx:expr => blackhole $path:tt) => {
+            check_route!(
+                $acq.get_route($src.into(), $pfx),
+                Err(NetworkError::ForwardingBlackHole(_path!($path)))
+            )
+        };
+        ($acq:expr, $exp:expr) => {
+            ::pretty_assertions::assert_eq!($acq, $exp)
+        };
     }
 
-    #[test]
-    fn test_caching() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0 = 0.into();
-        let r1 = 1.into();
-        let r2 = 2.into();
-        let r3 = 3.into();
-        let r4 = 4.into();
-        let r5 = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1], (r3, p) => vec![r1], (r4, p) => vec![r2]].into(),
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
-            cache: hashmap![].into(),
-        };
-        assert_reach(&s, r2, p, vec![r0, r1, r2]);
-        assert_paths(&mut s, r4, 0, vec![vec![r4, r2, r1, r0]]);
-        assert_cache_empty(&s, r5, p);
-        assert_cache_paths(&s, r4, p, vec![vec![r4, r2, r1, r0]]);
-        assert_cache_empty(&s, r3, p);
-        assert_cache_paths(&s, r2, p, vec![vec![r2, r1, r0]]);
-        assert_cache_paths(&s, r1, p, vec![vec![r1, r0]]);
-        assert_cache_paths(&s, r0, p, vec![vec![r0]]);
-        assert_reach(&s, r2, p, vec![r0, r1, r2]);
+    macro_rules! _path {
+        (($($r:literal),*)) => {_path!($($r),*)};
+        ($($r:literal),*) => {vec![$(RouterId::from($r)),*]};
     }
 
-    #[test]
-    fn test_forwarding_loop_2() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0: RouterId = 0.into();
-        let r1: RouterId = 1.into();
-        let r2: RouterId = 2.into();
-        let r3: RouterId = 3.into();
-        let r4: RouterId = 4.into();
-        let r5: RouterId = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r3]].into(),
-            reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]].into(),
-            cache: hashmap![].into(),
+    macro_rules! fw_state {
+        ($($a:literal => {$($pfx:expr => $nhs:tt),*}),* $(,)?) => {
+            {
+            let mut _map = ::std::collections::HashMap::new();
+            $(
+                let _ = _map.insert($a, _build_table!($($pfx => $nhs),*));
+            )*
+            _build::<P>(_map)
+            }
         };
-        assert_reach(&s, r2, p, vec![r2, r3, r4]);
-        assert_reach(&s, r3, p, vec![r3, r4]);
-        assert_reach(&s, r4, p, vec![r3, r4]);
-        assert_loop(&mut s, r2, 0, vec![r2, r3, r4, r3]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_empty(&s, r1, p);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r3]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r3, 0, vec![r3, r4, r3]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_empty(&s, r1, p);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r3]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r4, 0, vec![r4, r3, r4]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_empty(&s, r1, p);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r3]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_reach(&s, r2, p, vec![r2, r3, r4]);
-        assert_reach(&s, r3, p, vec![r3, r4]);
-        assert_reach(&s, r4, p, vec![r3, r4]);
     }
 
-    #[test]
-    fn test_forwarding_loop_3() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0: RouterId = 0.into();
-        let r1: RouterId = 1.into();
-        let r2: RouterId = 2.into();
-        let r3: RouterId = 3.into();
-        let r4: RouterId = 4.into();
-        let r5: RouterId = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r2], (r2, p) => vec![r3], (r3, p) => vec![r4], (r4, p) => vec![r2]].into(),
-            reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]].into(),
-            cache: hashmap![].into(),
+    macro_rules! _build_table {
+        ($($pfx:expr => $nhs:tt),* $(,)?) => {
+            P::Map::from_iter([$(_build_table_entry!($pfx => $nhs)),*])
         };
-        assert_reach(&s, r1, p, vec![r1, r2, r3, r4]);
-        assert_reach(&s, r2, p, vec![r2, r3, r4]);
-        assert_loop(&mut s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_loop(&s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r2]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r2, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r2, 0, vec![r2, r3, r4, r2]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_loop(&s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r2]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r2, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r3, 0, vec![r3, r4, r2, r3]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_loop(&s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r2]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r2, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r4, 0, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_loop(&s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r2]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r2, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_reach(&s, r1, p, vec![r1, r2, r3, r4]);
-        assert_reach(&s, r2, p, vec![r2, r3, r4]);
     }
 
-    #[test]
-    fn test_route_load_balancing() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0 = 0.into();
-        let r1 = 1.into();
-        let r2 = 2.into();
-        let r3 = 3.into();
-        let r4 = 4.into();
-        let r5 = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]].into(),
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
-            cache: hashmap![].into(),
+    macro_rules! _build_table_entry {
+        ($pfx:expr => ()) => {
+            ($pfx, vec![])
         };
-        assert_reach(&s, r2, p, vec![r2, r1, r0]);
-        assert_paths(&mut s, r0, p, vec![vec![r0]]);
-        assert_paths(&mut s, r1, p, vec![vec![r1, r0]]);
-        assert_paths(&mut s, r2, p, vec![vec![r2, r1, r0], vec![r2, r0]]);
-        assert_paths(&mut s, r3, p, vec![vec![r3, r1, r0]]);
-        assert_paths(&mut s, r4, p, vec![vec![r4, r2, r1, r0], vec![r4, r2, r0]]);
-        assert_eq!(s.get_route(r5, p), Err(EHole(vec![r5])));
-        assert_reach(&s, r2, p, vec![r2, r1, r0]);
+        ($pfx:expr => ($($dst:literal),*)) => {
+            ($pfx, vec!($($dst),*))
+        };
+        ($pfx:expr => $($dst:literal),*) => {
+            ($pfx, vec!($($dst),*))
+        };
     }
 
-    #[test]
-    fn test_caching_load_balancing() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0 = 0.into();
-        let r1 = 1.into();
-        let r2 = 2.into();
-        let r3 = 3.into();
-        let r4 = 4.into();
-        let r5 = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2]].into(),
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
-            cache: hashmap![].into(),
-        };
-        assert_reach(&s, r4, p, vec![r4, r2, r1, r0]);
-        assert_paths(
-            &mut s,
-            r4,
-            Prefix::from(0),
-            vec![vec![r4, r2, r1, r0], vec![r4, r2, r0]],
-        );
-        assert_cache_empty(&s, r5, p);
-        assert_cache_paths(&s, r4, p, vec![vec![r4, r2, r1, r0], vec![r4, r2, r0]]);
-        assert_cache_empty(&s, r3, p);
-        assert_cache_paths(&s, r2, p, vec![vec![r2, r1, r0], vec![r2, r0]]);
-        assert_cache_paths(&s, r1, p, vec![vec![r1, r0]]);
-        assert_cache_paths(&s, r0, p, vec![vec![r0]]);
-        assert_reach(&s, r4, p, vec![r4, r2, r1, r0]);
+    fn _build<P: Prefix>(s: HashMap<u32, P::Map<Vec<u32>>>) -> ForwardingState<P> {
+        let mut state: HashMap<RouterId, P::Map<Vec<RouterId>>> = Default::default();
+        let mut reversed: HashMap<RouterId, P::Map<HashSet<RouterId>>> = Default::default();
+
+        for (r, table) in s {
+            let r: RouterId = r.into();
+            for (p, next_hops) in table {
+                for nh in next_hops {
+                    let nh: RouterId = nh.into();
+                    state.entry(r).or_default().get_mut_or_default(p).push(nh);
+                    reversed
+                        .entry(nh)
+                        .or_default()
+                        .get_mut_or_default(p)
+                        .insert(r);
+                    if nh.index() >= 100 {
+                        reversed
+                            .entry(*TO_DST)
+                            .or_default()
+                            .get_mut_or_default(p)
+                            .insert(nh);
+                        let nh_state = state.entry(nh).or_default();
+                        if !nh_state.contains_key(&p) {
+                            nh_state.insert(p, vec![*TO_DST]);
+                        }
+                    }
+                }
+            }
+        }
+
+        ForwardingState { state, reversed }
     }
 
-    #[test]
-    fn test_route_load_balancing_multiply_1() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0 = 0.into();
-        let r1 = 1.into();
-        let r2 = 2.into();
-        let r3 = 3.into();
-        let r4 = 4.into();
-        let r5 = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r1], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]].into(),
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
-            cache: hashmap![].into(),
-        };
-        assert_reach(&s, r5, p, vec![r5, r4, r3, r2, r1, r0]);
-        assert_paths(
-            &mut s,
-            r5,
-            0,
-            vec![
-                vec![r5, r3, r1, r0],
-                vec![r5, r4, r2, r1, r0],
-                vec![r5, r4, r2, r0],
-            ],
-        );
-        assert_reach(&s, r5, p, vec![r5, r4, r3, r2, r1, r0]);
+    #[generic_tests::define]
+    mod one {
+        use super::*;
+
+        #[test]
+        fn single_path<P: Prefix>() {
+            let p = P::from(0);
+            let fw = fw_state! {
+                1 => {p => 100},
+                2 => {p => 1},
+                3 => {p => 2},
+                4 => {p => 1},
+                5 => {p => 4},
+            };
+
+            check_route!(fw, 100, p => ((100)));
+            check_route!(fw, 1, p => ((1, 100)));
+            check_route!(fw, 2, p => ((2, 1, 100)));
+            check_route!(fw, 3, p => ((3, 2, 1, 100)));
+            check_route!(fw, 4, p => ((4, 1, 100)));
+            check_route!(fw, 5, p => ((5, 4, 1, 100)));
+        }
+
+        #[test]
+        fn two_paths<P: Prefix>() {
+            let p = P::from(0);
+            let fw = fw_state! {
+                1 => {p => 100},
+                2 => {p => 1},
+                3 => {p => 1},
+                4 => {p => (2, 3)},
+            };
+
+            check_route!(fw, 100, p => ((100)));
+            check_route!(fw, 1, p => ((1, 100)));
+            check_route!(fw, 2, p => ((2, 1, 100)));
+            check_route!(fw, 3, p => ((3, 1, 100)));
+            check_route!(fw, 4, p => ((4, 2, 1, 100), (4, 3, 1, 100)));
+        }
+
+        #[test]
+        fn black_hole<P: Prefix>() {
+            let p = P::from(0);
+            let fw = fw_state! {
+                1 => {p => 100},
+                2 => {p => 1},
+                3 => {p => ()},
+                4 => {p => (3)},
+            };
+
+            check_route!(fw, 100, p => ((100)));
+            check_route!(fw, 1, p => ((1, 100)));
+            check_route!(fw, 2, p => ((2, 1, 100)));
+            check_route!(fw, 3, p => blackhole (3));
+            check_route!(fw, 4, p => blackhole (4, 3));
+        }
+
+        #[test]
+        fn black_hole_two_paths<P: Prefix>() {
+            let p = P::from(0);
+            let fw = fw_state! {
+                1 => {p => 100},
+                2 => {p => 1},
+                3 => {p => ()},
+                4 => {p => (1, 3)},
+            };
+
+            check_route!(fw, 100, p => ((100)));
+            check_route!(fw, 1, p => ((1, 100)));
+            check_route!(fw, 2, p => ((2, 1, 100)));
+            check_route!(fw, 3, p => blackhole (3));
+            check_route!(fw, 4, p => blackhole (4, 3));
+        }
+
+        #[test]
+        fn fw_loop<P: Prefix>() {
+            let p = P::from(0);
+            let fw = fw_state! {
+                1 => {p => 100},
+                2 => {p => 3},
+                3 => {p => 4},
+                4 => {p => 2},
+                5 => {p => 4},
+            };
+
+            check_route!(fw, 100, p => ((100)));
+            check_route!(fw, 1, p => ((1, 100)));
+            check_route!(fw, 2, p => fwloop (2, 3, 4, 2));
+            check_route!(fw, 3, p => fwloop (3, 4, 2, 3));
+            check_route!(fw, 4, p => fwloop (4, 2, 3, 4));
+            check_route!(fw, 5, p => fwloop (5, 4, 2, 3, 4));
+        }
+
+        #[test]
+        fn fw_loop_branch<P: Prefix>() {
+            let p = P::from(0);
+            let fw = fw_state! {
+                1 => {p => 100},
+                2 => {p => (1, 3)},
+                3 => {p => 4},
+                4 => {p => 2},
+                5 => {p => 4},
+            };
+
+            check_route!(fw, 100, p => ((100)));
+            check_route!(fw, 1, p => ((1, 100)));
+            check_route!(fw, 2, p => fwloop (2, 3, 4, 2));
+            check_route!(fw, 3, p => fwloop (3, 4, 2, 3));
+            check_route!(fw, 4, p => fwloop (4, 2, 3, 4));
+            check_route!(fw, 5, p => fwloop (5, 4, 2, 3, 4));
+        }
+
+        #[test]
+        fn fw_loop_branch_two_paths<P: Prefix>() {
+            let p = P::from(0);
+            let fw = fw_state! {
+                1 => {p => 100},
+                2 => {p => (1, 3)},
+                3 => {p => 4},
+                4 => {p => 2},
+                5 => {p => (1, 4)},
+            };
+
+            check_route!(fw, 100, p => ((100)));
+            check_route!(fw, 1, p => ((1, 100)));
+            check_route!(fw, 2, p => fwloop (2, 3, 4, 2));
+            check_route!(fw, 3, p => fwloop (3, 4, 2, 3));
+            check_route!(fw, 4, p => fwloop (4, 2, 3, 4));
+            check_route!(fw, 5, p => fwloop (5, 4, 2, 3, 4));
+        }
+
+        #[instantiate_tests(<SinglePrefix>)]
+        mod single {}
+
+        #[instantiate_tests(<SimplePrefix>)]
+        mod simple {}
+
+        #[instantiate_tests(<Ipv4Prefix>)]
+        mod ipv4 {}
     }
 
-    #[test]
-    fn test_route_load_balancing_multiply_2() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0 = 0.into();
-        let r1 = 1.into();
-        let r2 = 2.into();
-        let r3 = 3.into();
-        let r4 = 4.into();
-        let r5 = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r1, r0], (r3, p) => vec![r2], (r4, p) => vec![r2], (r5, p) => vec![r3, r4]].into(),
-            reversed: hashmap![(r0, p) => hashset![r1], (r1, p) => hashset![r2, r3], (r2, p) => hashset![r4]].into(),
-            cache: hashmap![].into(),
-        };
-        assert_reach(&s, r5, p, vec![r5, r4, r3, r2, r1, r0]);
-        assert_paths(
-            &mut s,
-            r5,
-            0,
-            vec![
-                vec![r5, r3, r2, r1, r0],
-                vec![r5, r3, r2, r0],
-                vec![r5, r4, r2, r1, r0],
-                vec![r5, r4, r2, r0],
-            ],
-        );
-        assert_reach(&s, r5, p, vec![r5, r4, r3, r2, r1, r0]);
+    #[generic_tests::define]
+    mod two {
+        use super::*;
+
+        #[test]
+        fn single_path<P: Prefix>() {
+            let p1 = P::from(1);
+            let p2 = P::from(2);
+            let fw = fw_state! {
+                1 => {p1 => 100, p2 => 2},
+                2 => {p1 => 1, p2 => 5},
+                3 => {p1 => 2, p2 => 4},
+                4 => {p1 => 1, p2 => 5},
+                5 => {p1 => 4, p2 => 101},
+            };
+
+            check_route!(fw, 100, p1 => ((100)));
+            check_route!(fw, 101, p1 => blackhole (101));
+            check_route!(fw, 1, p1 => ((1, 100)));
+            check_route!(fw, 2, p1 => ((2, 1, 100)));
+            check_route!(fw, 3, p1 => ((3, 2, 1, 100)));
+            check_route!(fw, 4, p1 => ((4, 1, 100)));
+            check_route!(fw, 5, p1 => ((5, 4, 1, 100)));
+
+            check_route!(fw, 100, p2 => blackhole (100));
+            check_route!(fw, 101, p2 => ((101)));
+            check_route!(fw, 1, p2 => ((1, 2, 5, 101)));
+            check_route!(fw, 2, p2 => ((2, 5, 101)));
+            check_route!(fw, 3, p2 => ((3, 4, 5, 101)));
+            check_route!(fw, 4, p2 => ((4, 5, 101)));
+            check_route!(fw, 5, p2 => ((5, 101)));
+        }
+
+        #[test]
+        fn two_paths<P: Prefix>() {
+            let p1 = P::from(1);
+            let p2 = P::from(2);
+            let fw = fw_state! {
+                1 => {p1 => 100, p2 => (2, 3)},
+                2 => {p1 => 1, p2 => 4},
+                3 => {p1 => 1, p2 => 4},
+                4 => {p1 => (2, 3), p2 => 101},
+            };
+
+            check_route!(fw, 100, p1 => ((100)));
+            check_route!(fw, 101, p1 => blackhole (101));
+            check_route!(fw, 1, p1 => ((1, 100)));
+            check_route!(fw, 2, p1 => ((2, 1, 100)));
+            check_route!(fw, 3, p1 => ((3, 1, 100)));
+            check_route!(fw, 4, p1 => ((4, 2, 1, 100), (4, 3, 1, 100)));
+
+            check_route!(fw, 100, p2 => blackhole (100));
+            check_route!(fw, 101, p2 => ((101)));
+            check_route!(fw, 1, p2 => ((1, 2, 4, 101), (1, 3, 4, 101)));
+            check_route!(fw, 2, p2 => ((2, 4, 101)));
+            check_route!(fw, 3, p2 => ((3, 4, 101)));
+            check_route!(fw, 4, p2 => ((4, 101)));
+        }
+
+        #[instantiate_tests(<SimplePrefix>)]
+        mod simple {}
+
+        #[instantiate_tests(<Ipv4Prefix>)]
+        mod ipv4 {}
     }
 
-    #[test]
-    fn test_forwarding_loop_2_load_balancing() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0: RouterId = 0.into();
-        let r1: RouterId = 1.into();
-        let r2: RouterId = 2.into();
-        let r3: RouterId = 3.into();
-        let r4: RouterId = 4.into();
-        let r5: RouterId = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r0], (r2, p) => vec![r3], (r3, p) => vec![r4, r1], (r4, p) => vec![r3]].into(),
-            reversed: hashmap![(r0, p) => hashset![r1], (r3, p) => hashset![r2, r4], (r4, p) => hashset![r3]].into(),
-            cache: hashmap![].into(),
-        };
-        assert_reach(&s, r2, p, vec![r0, r1, r2, r3, r4]);
-        assert_reach(&s, r3, p, vec![r1, r0, r3, r4]);
-        assert_reach(&s, r4, p, vec![r1, r0, r3, r4]);
-        assert_loop(&mut s, r2, 0, vec![r2, r3, r4, r3]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_empty(&s, r1, p);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r3]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r3, 0, vec![r3, r4, r3]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_empty(&s, r1, p);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r3]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r4, 0, vec![r4, r3, r4]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_empty(&s, r1, p);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r3]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_reach(&s, r2, p, vec![r0, r1, r2, r3, r4]);
-        assert_reach(&s, r3, p, vec![r1, r0, r3, r4]);
-        assert_reach(&s, r4, p, vec![r1, r0, r3, r4]);
-    }
+    #[generic_tests::define]
+    mod ipv4 {
+        use super::*;
+        use ipnet::Ipv4Net;
 
-    #[test]
-    fn test_forwarding_loop_3_load_balancing() {
-        let p = Prefix::from(0);
-        let dst = u32::MAX.into();
-        let r0: RouterId = 0.into();
-        let r1: RouterId = 1.into();
-        let r2: RouterId = 2.into();
-        let r3: RouterId = 3.into();
-        let r4: RouterId = 4.into();
-        let r5: RouterId = 5.into();
-        let mut s = ForwardingState::<Prefix> {
-            state: hashmap![(r0, p) => vec![dst], (r1, p) => vec![r2], (r2, p) => vec![r3, r1], (r3, p) => vec![r4], (r4, p) => vec![r2]].into(),
-            reversed: hashmap![(r2, p) => hashset![r1, r4], (r3, p) => hashset![r2], (r4, p) => hashset![r3]].into(),
-            cache: hashmap![].into(),
-        };
-        assert_reach(&s, r1, p, vec![r1, r2, r3, r4]);
-        assert_loop(&mut s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_loop(&s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r2]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r2, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r2, 0, vec![r2, r3, r4, r2]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_loop(&s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r2]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r2, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r3, 0, vec![r3, r4, r2, r3]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_loop(&s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r2]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r2, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_loop(&mut s, r4, 0, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r0, p);
-        assert_cache_loop(&s, r1, p, vec![r1, r2, r3, r4, r2]);
-        assert_cache_loop(&s, r2, p, vec![r2, r3, r4, r2]);
-        assert_cache_loop(&s, r3, p, vec![r3, r4, r2, r3]);
-        assert_cache_loop(&s, r4, p, vec![r4, r2, r3, r4]);
-        assert_cache_empty(&s, r5, p);
-        assert_reach(&s, r1, p, vec![r1, r2, r3, r4]);
+        #[test]
+        fn single_path<P: Prefix>() {
+            let p0 = P::from(Ipv4Net::new("10.0.0.0".parse().unwrap(), 16).unwrap());
+            let p1 = P::from(Ipv4Net::new("10.0.0.0".parse().unwrap(), 24).unwrap());
+            let p2 = P::from(Ipv4Net::new("10.0.1.0".parse().unwrap(), 24).unwrap());
+            let probe_0 = P::from(Ipv4Net::new("10.0.0.1".parse().unwrap(), 32).unwrap());
+            let probe_1 = P::from(Ipv4Net::new("10.0.1.1".parse().unwrap(), 32).unwrap());
+            let probe_2 = P::from(Ipv4Net::new("10.0.2.1".parse().unwrap(), 32).unwrap());
+            let probe_3 = P::from(Ipv4Net::new("10.1.0.1".parse().unwrap(), 32).unwrap());
+            let fw = fw_state! {
+                1 => {p0 => 100, p2 => 2},
+                2 => {p0 => 1, p2 => 5},
+                3 => {p0 => 2, p1 => 102, p2 => 4},
+                4 => {p0 => 1, p1 => 3, p2 => 5},
+                5 => {p0 => 4, p2 => 101},
+            };
+
+            {
+                let p = p0;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => ((1, 100)));
+                check_route!(fw, 2, p => ((2, 1, 100)));
+                check_route!(fw, 3, p => ((3, 2, 1, 100)));
+                check_route!(fw, 4, p => ((4, 1, 100)));
+                check_route!(fw, 5, p => ((5, 4, 1, 100)));
+            }
+
+            {
+                let p = p1;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => ((102)));
+                check_route!(fw, 1, p => ((1, 100)));
+                check_route!(fw, 2, p => ((2, 1, 100)));
+                check_route!(fw, 3, p => ((3, 102)));
+                check_route!(fw, 4, p => ((4, 3, 102)));
+                check_route!(fw, 5, p => ((5, 4, 3, 102)));
+            }
+
+            {
+                let p = p2;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => ((101)));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => ((1, 2, 5, 101)));
+                check_route!(fw, 2, p => ((2, 5, 101)));
+                check_route!(fw, 3, p => ((3, 4, 5, 101)));
+                check_route!(fw, 4, p => ((4, 5, 101)));
+                check_route!(fw, 5, p => ((5, 101)));
+            }
+
+            {
+                let p = probe_0;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => ((102)));
+                check_route!(fw, 1, p => ((1, 100)));
+                check_route!(fw, 2, p => ((2, 1, 100)));
+                check_route!(fw, 3, p => ((3, 102)));
+                check_route!(fw, 4, p => ((4, 3, 102)));
+                check_route!(fw, 5, p => ((5, 4, 3, 102)));
+            }
+
+            {
+                let p = probe_1;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => ((101)));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => ((1, 2, 5, 101)));
+                check_route!(fw, 2, p => ((2, 5, 101)));
+                check_route!(fw, 3, p => ((3, 4, 5, 101)));
+                check_route!(fw, 4, p => ((4, 5, 101)));
+                check_route!(fw, 5, p => ((5, 101)));
+            }
+
+            {
+                let p = probe_2;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => ((1, 100)));
+                check_route!(fw, 2, p => ((2, 1, 100)));
+                check_route!(fw, 3, p => ((3, 2, 1, 100)));
+                check_route!(fw, 4, p => ((4, 1, 100)));
+                check_route!(fw, 5, p => ((5, 4, 1, 100)));
+            }
+
+            {
+                let p = probe_3;
+                check_route!(fw, 100, p => blackhole (100));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => blackhole (1));
+                check_route!(fw, 2, p => blackhole (2));
+                check_route!(fw, 3, p => blackhole (3));
+                check_route!(fw, 4, p => blackhole (4));
+                check_route!(fw, 5, p => blackhole (5));
+            }
+        }
+
+        #[instantiate_tests(<Ipv4Prefix>)]
+        mod t {}
     }
 }
-*/

@@ -23,7 +23,7 @@ mod t {
         config::{Config, ConfigExpr::*, NetworkConfig},
         network::Network,
         route_map::*,
-        types::{AsId, Prefix, SimplePrefix},
+        types::{AsId, Ipv4Prefix, Prefix, SimplePrefix},
     };
 
     macro_rules! link_weight {
@@ -252,7 +252,7 @@ mod t {
             let mut routers = net.get_routers();
             routers.sort();
 
-            let mut state = net.get_forwarding_state();
+            let state = net.get_forwarding_state();
 
             // check for all next hops
             for router in routers.iter() {
@@ -280,7 +280,7 @@ mod t {
             }
 
             // check again, but build cache in reverse order
-            let mut state = net.get_forwarding_state();
+            let state = net.get_forwarding_state();
             for router in routers.iter().rev() {
                 for prefix in net.get_known_prefixes() {
                     assert_eq!(
@@ -294,4 +294,7 @@ mod t {
 
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }

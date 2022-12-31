@@ -395,31 +395,6 @@ impl<P: Prefix, Q> Network<P, Q> {
 
         Ok(self.ospf.get_area(source, target))
     }
-
-    // *******************
-    // * Print Functions *
-    // *******************
-
-    /// Return the route for the given prefix, starting at the source router, as a list of
-    /// `RouterIds,` starting at the source, and ending at the (probably external) router ID that
-    /// originated the prefix. The Router ID must be the ID of an internal router.
-    ///
-    /// **Warning** use `net.get_fw_state().get_route()` for a cached implementation if you need
-    /// multiple routes at once. This function will extract the entire forwarding state just to get
-    /// this individual route.
-    #[deprecated(
-        since = "0.4.0",
-        note = "Use `self.get_forwarding_state().get_route(src, p)` instead!"
-    )]
-    pub fn get_route(
-        &self,
-        source: RouterId,
-        prefix: impl Into<P>,
-    ) -> Result<Vec<Vec<RouterId>>, NetworkError> {
-        // get the forwarding state of the network
-        let mut fw_state = self.get_forwarding_state();
-        fw_state.get_route(source, prefix.into())
-    }
 }
 
 impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {

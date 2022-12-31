@@ -29,7 +29,7 @@ use crate::{
 fn only_backbone() {
     let (mut net, r, p8, p9, p10) = test_net().unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(
         state.get_route(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
@@ -53,7 +53,7 @@ fn only_backbone() {
     net.set_load_balancing(r.6, true).unwrap();
     net.set_load_balancing(r.7, true).unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(
         state.get_route(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8], vec![r.0, r.4, r.5, r.8]]
@@ -86,7 +86,7 @@ fn left_right() {
     net.set_ospf_area(r.4, r.5, 1).unwrap();
     net.set_ospf_area(r.5, r.6, 1).unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(
         state.get_route(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
@@ -110,7 +110,7 @@ fn left_right() {
     net.set_load_balancing(r.6, true).unwrap();
     net.set_load_balancing(r.7, true).unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(
         state.get_route(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
@@ -133,7 +133,7 @@ fn left_right() {
     net.set_ospf_area(r.5, r.6, OspfArea::BACKBONE).unwrap();
 
     // check that the network state is as it was originally.
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(
         state.get_route(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8], vec![r.0, r.4, r.5, r.8]]
@@ -166,7 +166,7 @@ fn left_mid_right() {
     net.set_ospf_area(r.6, r.5, 2).unwrap();
     net.set_ospf_area(r.6, r.7, 2).unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(
         state.get_route(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
@@ -199,7 +199,7 @@ fn left_mid_right() {
     net.set_load_balancing(r.6, true).unwrap();
     net.set_load_balancing(r.7, true).unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(
         state.get_route(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
@@ -238,7 +238,7 @@ fn left_right_bottom() {
     net.set_ospf_area(r.5, r.1, 2).unwrap();
     net.set_ospf_area(r.5, r.6, 2).unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(
         state.get_route(r.0, p8).unwrap(),
         vec![vec![r.0, r.4, r.5, r.8]]
@@ -271,7 +271,7 @@ fn left_right_bottom() {
     net.set_load_balancing(r.6, true).unwrap();
     net.set_load_balancing(r.7, true).unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(
         state.get_route(r.0, p8).unwrap(),
         vec![vec![r.0, r.4, r.5, r.8]]
@@ -308,7 +308,7 @@ fn disconnected() {
     net.set_ospf_area(r.6, r.5, 1).unwrap();
     net.set_ospf_area(r.6, r.7, 1).unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(state.get_route(r.0, p9), Ok(vec![vec![r.0, r.4, r.8, r.9]]));
     assert_eq!(
         state.get_route(r.0, p10),
@@ -338,7 +338,7 @@ fn disconnected_backbone() {
     net.set_ospf_area(r.4, r.5, 1).unwrap();
     net.set_ospf_area(r.4, r.7, 1).unwrap();
 
-    let mut state = net.get_forwarding_state();
+    let state = net.get_forwarding_state();
     assert_eq!(state.get_route(r.0, p9), Ok(vec![vec![r.0, r.4, r.8, r.9]]));
     assert_eq!(
         state.get_route(r.0, p10),
