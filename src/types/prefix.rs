@@ -67,6 +67,9 @@ where
     fn as_num(&self) -> u32 {
         (*self).into()
     }
+
+    /// Check if `self` contains `other`, or `self` is equal to `other`.
+    fn contains(&self, other: &Self) -> bool;
 }
 
 /// Trait of a set of prefixes
@@ -308,6 +311,10 @@ impl Prefix for SinglePrefix {
 
     type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
         SinglePrefixMap<T>;
+
+    fn contains(&self, _other: &Self) -> bool {
+        true
+    }
 }
 
 /// A set that stores wether the single prefix is present or not. Essentially, this is a boolean
@@ -630,6 +637,10 @@ impl Prefix for SimplePrefix {
 
     type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
         HashMap<SimplePrefix, T>;
+
+    fn contains(&self, other: &Self) -> bool {
+        self == other
+    }
 }
 
 impl PrefixSet for HashSet<SimplePrefix> {
@@ -875,6 +886,10 @@ impl Prefix for Ipv4Prefix {
 
     type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
         PMap<Ipv4Prefix, T>;
+
+    fn contains(&self, other: &Self) -> bool {
+        self.0.contains(&other.0)
+    }
 }
 
 impl PrefixSet for PSet<Ipv4Prefix> {

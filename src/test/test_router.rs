@@ -909,3 +909,137 @@ mod t1 {
     #[instantiate_tests(<Ipv4Prefix>)]
     mod ipv4 {}
 }
+
+mod ipv4 {
+    use super::*;
+    use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
+    use ipnet::Ipv4Net;
+
+    #[test]
+    fn test_hierarchical_bgp() {
+        let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), AsId(65001));
+        r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
+        r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(3.into(), Some(IBgpClient)).unwrap();
+        r.igp_table = hashmap! {
+            100.into() => (vec![100.into()], 0.0),
+            1.into()   => (vec![1.into()], 1.0),
+            2.into()   => (vec![2.into()], 1.0),
+            3.into()   => (vec![2.into()], 4.0),
+        };
+
+        let p0: Ipv4Prefix = "10.0.0.0/16".parse::<Ipv4Net>().unwrap().into();
+        let p1: Ipv4Prefix = "10.0.0.0/24".parse::<Ipv4Net>().unwrap().into();
+
+        // external update
+        let (_, events) = r
+            .handle_event(Event::Bgp(
+                (),
+                100.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute::new(100.into(), p0, 1..=5, None, None)),
+            ))
+            .unwrap();
+        assert_eq!(events.len(), 3);
+        for event in events {
+            match event {
+                Event::Bgp(_, from, _, BgpEvent::Update(r)) => {
+                    assert_eq!(r, BgpRoute::new(0.into(), p0, 1..=5, None, None));
+                    assert_eq!(from, 0.into());
+                }
+                _ => panic!("Test failed"),
+            }
+        }
+
+        // Internal update
+        let (_, events) = r
+            .handle_event(Event::Bgp(
+                (),
+                100.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute::new(100.into(), p1, 1..=7, None, None)),
+            ))
+            .unwrap();
+        assert_eq!(events.len(), 3);
+        for event in events {
+            match event {
+                Event::Bgp(_, from, _, BgpEvent::Update(r)) => {
+                    assert_eq!(r, BgpRoute::new(0.into(), p1, 1..=7, None, None));
+                    assert_eq!(from, 0.into());
+                }
+                _ => panic!("Test failed"),
+            }
+        }
+
+        // check that the router now has a route selected for 100 with the correct data
+        let entry_p0 = r.get_selected_bgp_route(p0).unwrap();
+        assert_eq!(entry_p0.from_type, EBgp);
+        assert_eq!(entry_p0.route.as_path.len(), 5);
+        assert_eq!(entry_p0.route.next_hop, 100.into());
+        assert_eq!(entry_p0.route.local_pref, Some(100));
+
+        let entry_p1 = r.get_selected_bgp_route(p1).unwrap();
+        assert_eq!(entry_p1.from_type, EBgp);
+        assert_eq!(entry_p1.route.as_path.len(), 7);
+        assert_eq!(entry_p1.route.next_hop, 100.into());
+        assert_eq!(entry_p1.route.local_pref, Some(100));
+    }
+
+    #[test]
+    fn next_hop_static_route() {
+        let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), AsId(65001));
+        r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
+        r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
+        r.set_bgp_session::<()>(3.into(), Some(IBgpClient)).unwrap();
+        r.igp_table = hashmap! {
+            100.into() => (vec![100.into()], 0.0),
+            1.into()   => (vec![1.into()], 1.0),
+            2.into()   => (vec![2.into()], 1.0),
+            3.into()   => (vec![2.into()], 4.0),
+        };
+        r.neighbors = hashmap! {
+            100.into() => 0.0,
+            1.into() => 1.0,
+            2.into() => 1.0
+        };
+
+        let p0: Ipv4Prefix = "10.0.0.0/16".parse::<Ipv4Net>().unwrap().into();
+        let p1: Ipv4Prefix = "10.0.0.0/24".parse::<Ipv4Net>().unwrap().into();
+
+        // send a BGP route
+        r.handle_event(Event::Bgp(
+            (),
+            100.into(),
+            0.into(),
+            BgpEvent::Update(BgpRoute::new(100.into(), p0, 1..=5, None, None)),
+        ))
+        .unwrap();
+
+        // set a static route
+        r.set_static_route(p1, Some(StaticRoute::Direct(1.into())));
+
+        // check that the next hop is generated properly.
+        assert_eq!(
+            r.get_next_hop("10.0.0.0/16".parse::<Ipv4Net>().unwrap().into()),
+            vec![100.into()]
+        );
+        assert_eq!(
+            r.get_next_hop("10.0.0.0/24".parse::<Ipv4Net>().unwrap().into()),
+            vec![1.into()]
+        );
+        assert_eq!(
+            r.get_next_hop("10.0.0.1/32".parse::<Ipv4Net>().unwrap().into()),
+            vec![1.into()]
+        );
+        assert_eq!(
+            r.get_next_hop("10.0.1.1/32".parse::<Ipv4Net>().unwrap().into()),
+            vec![100.into()]
+        );
+        assert_eq!(
+            r.get_next_hop("10.1.0.1/32".parse::<Ipv4Net>().unwrap().into()),
+            vec![]
+        );
+    }
+}

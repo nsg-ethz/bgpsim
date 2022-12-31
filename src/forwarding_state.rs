@@ -810,6 +810,108 @@ mod test {
             }
         }
 
+        #[test]
+        fn two_paths<P: Prefix>() {
+            let p0 = P::from(Ipv4Net::new("10.0.0.0".parse().unwrap(), 16).unwrap());
+            let p1 = P::from(Ipv4Net::new("10.0.0.0".parse().unwrap(), 24).unwrap());
+            let p2 = P::from(Ipv4Net::new("10.0.1.0".parse().unwrap(), 24).unwrap());
+            let probe_0 = P::from(Ipv4Net::new("10.0.0.1".parse().unwrap(), 32).unwrap());
+            let probe_1 = P::from(Ipv4Net::new("10.0.1.1".parse().unwrap(), 32).unwrap());
+            let probe_2 = P::from(Ipv4Net::new("10.0.2.1".parse().unwrap(), 32).unwrap());
+            let probe_3 = P::from(Ipv4Net::new("10.1.0.1".parse().unwrap(), 32).unwrap());
+            let fw = fw_state! {
+                1 => {p0 => 100, p2 => 2},
+                2 => {p0 => 1, p2 => 5},
+                3 => {p0 => 2, p1 => 102, p2 => 4},
+                4 => {p0 => (1, 2), p1 => 3, p2 => 5},
+                5 => {p0 => 4, p2 => 101},
+            };
+
+            {
+                let p = p0;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => ((1, 100)));
+                check_route!(fw, 2, p => ((2, 1, 100)));
+                check_route!(fw, 3, p => ((3, 2, 1, 100)));
+                check_route!(fw, 4, p => ((4, 1, 100), (4, 2, 1, 100)));
+                check_route!(fw, 5, p => ((5, 4, 1, 100), (5, 4, 2, 1, 100)));
+            }
+
+            {
+                let p = p1;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => ((102)));
+                check_route!(fw, 1, p => ((1, 100)));
+                check_route!(fw, 2, p => ((2, 1, 100)));
+                check_route!(fw, 3, p => ((3, 102)));
+                check_route!(fw, 4, p => ((4, 3, 102)));
+                check_route!(fw, 5, p => ((5, 4, 3, 102)));
+            }
+
+            {
+                let p = p2;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => ((101)));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => ((1, 2, 5, 101)));
+                check_route!(fw, 2, p => ((2, 5, 101)));
+                check_route!(fw, 3, p => ((3, 4, 5, 101)));
+                check_route!(fw, 4, p => ((4, 5, 101)));
+                check_route!(fw, 5, p => ((5, 101)));
+            }
+
+            {
+                let p = probe_0;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => ((102)));
+                check_route!(fw, 1, p => ((1, 100)));
+                check_route!(fw, 2, p => ((2, 1, 100)));
+                check_route!(fw, 3, p => ((3, 102)));
+                check_route!(fw, 4, p => ((4, 3, 102)));
+                check_route!(fw, 5, p => ((5, 4, 3, 102)));
+            }
+
+            {
+                let p = probe_1;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => ((101)));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => ((1, 2, 5, 101)));
+                check_route!(fw, 2, p => ((2, 5, 101)));
+                check_route!(fw, 3, p => ((3, 4, 5, 101)));
+                check_route!(fw, 4, p => ((4, 5, 101)));
+                check_route!(fw, 5, p => ((5, 101)));
+            }
+
+            {
+                let p = probe_2;
+                check_route!(fw, 100, p => ((100)));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => ((1, 100)));
+                check_route!(fw, 2, p => ((2, 1, 100)));
+                check_route!(fw, 3, p => ((3, 2, 1, 100)));
+                check_route!(fw, 4, p => ((4, 1, 100), (4, 2, 1, 100)));
+                check_route!(fw, 5, p => ((5, 4, 1, 100), (5, 4, 2, 1, 100)));
+            }
+
+            {
+                let p = probe_3;
+                check_route!(fw, 100, p => blackhole (100));
+                check_route!(fw, 101, p => blackhole (101));
+                check_route!(fw, 102, p => blackhole (102));
+                check_route!(fw, 1, p => blackhole (1));
+                check_route!(fw, 2, p => blackhole (2));
+                check_route!(fw, 3, p => blackhole (3));
+                check_route!(fw, 4, p => blackhole (4));
+                check_route!(fw, 5, p => blackhole (5));
+            }
+        }
+
         #[instantiate_tests(<Ipv4Prefix>)]
         mod t {}
     }
