@@ -168,3 +168,5 @@ pub mod types;
 #[cfg(test)]
 #[cfg(not(tarpaulin_include))]
 mod test;
+
+pub use bgpsim_macros::*;
