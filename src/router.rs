@@ -389,10 +389,6 @@ impl<P: Prefix> Router<P> {
     /// Get the IGP next hop for a prefix. Prefixes are matched using longest prefix match.
     pub fn get_next_hop(&self, prefix: P) -> Vec<RouterId> {
         fn sr_next_hops<P: Prefix>(r: &Router<P>, target: &StaticRoute) -> Vec<RouterId> {
-            eprintln!(
-                "get sr target next-hops {target:?} with\n{:#?}",
-                r.neighbors
-            );
             match target {
                 StaticRoute::Direct(target) => r
                     .neighbors

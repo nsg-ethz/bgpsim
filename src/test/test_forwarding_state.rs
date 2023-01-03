@@ -355,12 +355,19 @@ mod ipv4 {
 
         net.advertise_external_route(e1, prefix!("100.0.0.0/16"), [1, 10], None, None)
             .unwrap();
-        net.advertise_external_route(e4, prefix!("100.0.1.0/24"), [4, 4, 4, 10], None, None)
+        net.advertise_external_route(e4, prefix!("100.0.2.0/24"), [4, 4, 4, 10], None, None)
             .unwrap();
 
         net.set_static_route(
             r2,
-            prefix!("100.0.1.128/25" as),
+            prefix!("100.0.2.128/25" as),
+            Some(StaticRoute::Direct(r3)),
+        )
+        .unwrap();
+
+        net.set_static_route(
+            r2,
+            prefix!("100.0.2.0/23" as),
             Some(StaticRoute::Direct(r3)),
         )
         .unwrap();
@@ -373,18 +380,33 @@ mod ipv4 {
         );
 
         assert_eq!(
+            fw_state.get_route(r2, prefix!("100.0.2.0/23" as)).unwrap(),
+            vec![vec![r2, r3, r1, e1]]
+        );
+
+        assert_eq!(
+            fw_state.get_route(r2, prefix!("100.0.3.1/32" as)).unwrap(),
+            vec![vec![r2, r3, r1, e1]]
+        );
+
+        assert_eq!(
+            fw_state.get_route(r2, prefix!("100.0.2.0/24" as)).unwrap(),
+            vec![vec![r2, r4, e4]]
+        );
+
+        assert_eq!(
             fw_state.get_route(r2, prefix!("100.0.0.1/32" as)).unwrap(),
             vec![vec![r2, r1, e1]]
         );
 
         assert_eq!(
-            fw_state.get_route(r2, prefix!("100.0.1.1/32" as)).unwrap(),
+            fw_state.get_route(r2, prefix!("100.0.2.1/32" as)).unwrap(),
             vec![vec![r2, r4, e4]]
         );
 
         assert_eq!(
             fw_state
-                .get_route(r2, prefix!("100.0.1.129/32" as))
+                .get_route(r2, prefix!("100.0.2.129/32" as))
                 .unwrap(),
             vec![vec![r2, r3, r4, e4]]
         );
