@@ -15,16 +15,17 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use crate::{
+    bgp::BgpSessionType::*,
+    config::{Config, ConfigExpr::*, NetworkConfig},
+    network::Network,
+    route_map::*,
+    types::{AsId, Ipv4Prefix, Prefix, SimplePrefix},
+};
+
 #[generic_tests::define]
 mod t {
-
-    use crate::{
-        bgp::BgpSessionType::*,
-        config::{Config, ConfigExpr::*, NetworkConfig},
-        network::Network,
-        route_map::*,
-        types::{AsId, Ipv4Prefix, Prefix, SimplePrefix},
-    };
+    use super::*;
 
     macro_rules! link_weight {
         ($source:expr,$target:expr,$weight:expr) => {
@@ -297,4 +298,95 @@ mod t {
 
     #[instantiate_tests(<Ipv4Prefix>)]
     mod ipv4 {}
+}
+
+mod ipv4 {
+    use crate::event::BasicEventQueue;
+    use crate::prefix;
+    use crate::router::StaticRoute;
+
+    use super::*;
+
+    #[test]
+    fn longest_prefix_match() {
+        let mut net: Network<_, BasicEventQueue<Ipv4Prefix>> = Network::new(Default::default());
+
+        let r1 = net.add_router("R1");
+        let r2 = net.add_router("R2");
+        let r3 = net.add_router("R3");
+        let r4 = net.add_router("R4");
+        let e1 = net.add_external_router("e1", 1);
+        let e4 = net.add_external_router("e4", 4);
+
+        net.add_link(r1, r2);
+        net.add_link(r1, r3);
+        net.add_link(r1, r4);
+        net.add_link(r2, r3);
+        net.add_link(r2, r4);
+        net.add_link(r3, r4);
+        net.add_link(r1, e1);
+        net.add_link(r4, e4);
+
+        net.set_link_weight(r1, r2, 1.0).unwrap();
+        net.set_link_weight(r1, r3, 1.0).unwrap();
+        net.set_link_weight(r1, r4, 1.0).unwrap();
+        net.set_link_weight(r2, r3, 1.0).unwrap();
+        net.set_link_weight(r2, r4, 1.0).unwrap();
+        net.set_link_weight(r3, r4, 1.0).unwrap();
+        net.set_link_weight(r1, e1, 1.0).unwrap();
+        net.set_link_weight(r4, e4, 1.0).unwrap();
+        net.set_link_weight(r2, r1, 1.0).unwrap();
+        net.set_link_weight(r3, r1, 1.0).unwrap();
+        net.set_link_weight(r4, r1, 1.0).unwrap();
+        net.set_link_weight(r3, r2, 1.0).unwrap();
+        net.set_link_weight(r4, r2, 1.0).unwrap();
+        net.set_link_weight(r4, r3, 1.0).unwrap();
+        net.set_link_weight(e1, r1, 1.0).unwrap();
+        net.set_link_weight(e4, r4, 1.0).unwrap();
+
+        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r1, r3, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r1, r4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r2, r3, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r2, r4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r3, r4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r1, e1, Some(EBgp)).unwrap();
+        net.set_bgp_session(r4, e4, Some(EBgp)).unwrap();
+
+        net.advertise_external_route(e1, prefix!("100.0.0.0/16"), [1, 10], None, None)
+            .unwrap();
+        net.advertise_external_route(e4, prefix!("100.0.1.0/24"), [4, 4, 4, 10], None, None)
+            .unwrap();
+
+        net.set_static_route(
+            r2,
+            prefix!("100.0.1.128/25" as),
+            Some(StaticRoute::Direct(r3)),
+        )
+        .unwrap();
+
+        let fw_state = net.get_forwarding_state();
+
+        assert_eq!(
+            fw_state.get_route(r2, prefix!("100.0.0.0/16" as)).unwrap(),
+            vec![vec![r2, r1, e1]]
+        );
+
+        assert_eq!(
+            fw_state.get_route(r2, prefix!("100.0.0.1/32" as)).unwrap(),
+            vec![vec![r2, r1, e1]]
+        );
+
+        assert_eq!(
+            fw_state.get_route(r2, prefix!("100.0.1.1/32" as)).unwrap(),
+            vec![vec![r2, r4, e4]]
+        );
+
+        assert_eq!(
+            fw_state
+                .get_route(r2, prefix!("100.0.1.129/32" as))
+                .unwrap(),
+            vec![vec![r2, r3, r4, e4]]
+        );
+    }
 }
