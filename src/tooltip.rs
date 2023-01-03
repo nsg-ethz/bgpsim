@@ -22,6 +22,7 @@ use bgpsim::{
     event::Event,
     formatter::NetworkFormatter,
     interactive::InteractiveNetwork,
+    prefix,
     prelude::BgpSessionType,
 };
 use gloo_utils::window;
@@ -95,14 +96,21 @@ impl Component for Tooltip {
         let content: Html = match hover {
             Hover::Router(r) if self.state.layer() == Layer::RouteProp => {
                 if let Some(x) = self.net.net().get_device(r).internal() {
+                    let rib = x
+                        .get_processed_bgp_rib()
+                        .into_children(
+                            &self
+                                .state
+                                .prefix()
+                                .unwrap_or_else(|| prefix!("0.0.0.0/0" as)),
+                        )
+                        .collect_vec();
                     html! {
                         <>
                             <p class={"font-bold text-center flex-0"}> {
                                 format!("BGP Table of {}", r.fmt(&self.net.net()))
                             } </p>
-                            <RibTable rib={
-                                x.get_processed_bgp_rib(self.state.prefix().unwrap_or_else(|| 0.into()))
-                            }/>
+                            <RibTable {rib}/>
                         </>
                     }
                 } else {
@@ -301,7 +309,7 @@ pub fn route_table(props: &RouteTableProps) -> Html {
 
 #[derive(Properties, PartialEq, Eq)]
 pub struct RibTableProps {
-    pub rib: Vec<(BgpRibEntry<Pfx>, bool)>,
+    pub rib: Vec<(Pfx, Vec<(BgpRibEntry<Pfx>, bool)>)>,
 }
 
 #[function_component(RibTable)]
@@ -314,6 +322,7 @@ pub fn rib_table(props: &RibTableProps) -> Html {
         <table class="table-auto border-separate border-spacing-x-3">
             <tr>
               <td class="italic text-main-ia"></td>
+              <td class="italic text-main-ia"> {"prefix"} </td>
               <td class="italic text-main-ia"> {"peer"} </td>
               <td class="italic text-main-ia"> {"nh"} </td>
               <td class="italic text-main-ia"> {"path"} </td>
@@ -325,10 +334,11 @@ pub fn rib_table(props: &RibTableProps) -> Html {
             </tr>
 
             {
-                props.rib.iter().map(|(r, s)| {
+                props.rib.iter().flat_map(|(_, rib)| rib) .map(|(r, s)| {
                     html!{
                         <tr>
                             <td> {if *s { "*" } else { "" }} </td>
+                            <td> {r.route.prefix} </td>
                             <td> {r.from_id.fmt(n)} </td>
                             <td> {r.route.next_hop.fmt(n)} </td>
                             <td> {r.route.as_path.iter().map(|x| x.0).join(", ")} </td>

@@ -266,6 +266,7 @@ impl Component for PrefixSelection {
                     .unwrap_or_default();
                 if let Ok(p) = Pfx::from_str(&self.text) {
                     if Some(p) != self.last_prefix {
+                        log::debug!("update prefix to {}", p);
                         self.input_wrong = false;
                         self.state_dispatch
                             .reduce_mut(move |s| s.set_prefix(Some(p)));

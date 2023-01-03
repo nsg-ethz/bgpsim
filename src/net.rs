@@ -20,7 +20,7 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-pub use bgpsim::types::SimplePrefix as Pfx;
+pub use bgpsim::types::Ipv4Prefix as Pfx;
 use bgpsim::{
     bgp::{BgpRoute, BgpSessionType},
     event::{Event, EventQueue},

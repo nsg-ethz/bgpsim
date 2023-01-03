@@ -19,6 +19,7 @@ use std::{collections::BTreeSet, iter::once, rc::Rc, str::FromStr};
 
 use bgpsim::{
     formatter::NetworkFormatter,
+    prefix,
     route_map::{RouteMapMatch, RouteMapMatchAsPath, RouteMapMatchClause},
     types::RouterId,
 };
@@ -224,7 +225,7 @@ fn match_kind_text(m: &RouteMapMatch<Pfx>) -> &'static str {
 
 fn match_kind_options() -> Vec<(RouteMapMatch<Pfx>, String)> {
     [
-        RouteMapMatch::Prefix([Pfx::from(0)].into()),
+        RouteMapMatch::Prefix([prefix!("0.0.0.0/0" as Pfx)].into_iter().collect()),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(0.into())),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(RouteMapMatchClause::Range(
             1, 10,
