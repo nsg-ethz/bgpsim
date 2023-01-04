@@ -7,33 +7,30 @@ rust-latest-build:
   image: rust:latest
   script:
     - cargo build
-    - cargo build --no-default-features
+    - cargo build
     - cargo build --all-features
-    - cargo build --features "cow" --no-default-features
 
 rust-nightly-build:
   stage: build
   image: rustlang/rust:nightly
   script:
     - cargo build
-    - cargo build --no-default-features
     - cargo build --all-features
-    - cargo build --features "cow" --no-default-features
   allow_failure: true
 
 rust-latest-test:
   stage: test
   image: rust:latest
   script:
+    - cargo test --tests --release
     - cargo test --tests --all-features --release
-    - cargo test --tests --no-default-features --release
     - cargo test --doc --all-features
 
 rust-nightly-test:
   stage: test
   image: rustlang/rust:nightly
   script:
+    - cargo test --tests --release
     - cargo test --tests --all-features --release
-    - cargo test --tests --no-default-features --release
     - cargo test --doc --all-features
   allow_failure: true
