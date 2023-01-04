@@ -184,7 +184,10 @@ impl Net {
             .iter()
             .map(|((src, dst), ty)| {
                 let is_external = self.external_session(src, dst);
-                let ty = match (SessionType::try_from(ty).unwrap(), is_external) {
+                let ty = match (
+                    SessionType::try_from(ty).expect("Already checked!"),
+                    is_external,
+                ) {
                     (_, true) => quote! {::bgpsim::prelude::BgpSessionType::EBgp},
                     (SessionType::Empty, false) | (SessionType::IBgpPeer, false) => {
                         quote! {::bgpsim::prelude::BgpSessionType::IBgpPeer}
@@ -311,14 +314,14 @@ impl Net {
                     .span()
                     .join(ty.map(|x| x.span()).unwrap_or_else(|| dst.span()));
                 let mut err = Error::new(
-                    this_span.unwrap(),
+                    this_span.expect("Cannot get the span 1"),
                     "Declared a BGP session between two nodes twice!",
                 );
                 let last_span = a
                     .span()
                     .join(c.as_ref().map(|x| x.span()).unwrap_or_else(|| b.span()));
                 err.combine(Error::new(
-                    last_span.unwrap(),
+                    last_span.expect("Cannot get the span 2"),
                     "The BGP session is already declared here!",
                 ));
                 return Err(err);
@@ -392,7 +395,7 @@ impl Net {
             self.nodes.get(src).unwrap().is_some() && self.nodes.get(dst).unwrap().is_some()
         }) {
             return Err(Error::new(
-                src.span().join(dst.span()).unwrap(),
+                src.span().join(dst.span()).expect("Cannot get the span 3"),
                 "BGP Sessions between two external routers are not allowed!",
             ));
         }
@@ -420,11 +423,15 @@ impl Net {
         for route in self.routes.iter() {
             if let Some((a, b)) = announcements.get(&(&route.src, &route.prefix)) {
                 let mut err = Error::new(
-                    route.src.span().join(route.prefix.span()).unwrap(),
+                    route
+                        .src
+                        .span()
+                        .join(route.prefix.span())
+                        .expect("Cannot get the span 4"),
                     "A router cannot advertise the same prefix twice!",
                 );
                 err.combine(Error::new(
-                    a.span().join(b.span()).unwrap(),
+                    a.span().join(b.span()).expect("Cannot get the span 5"),
                     "The same route was defined here.",
                 ));
                 return Err(err);
@@ -446,7 +453,7 @@ impl Net {
             if !(self.links.contains_key(&(src.clone(), dst.clone()))
                 || self.links.contains_key(&(dst.clone(), src.clone())))
             {
-                let span = src.span().join(dst.span()).unwrap();
+                let span = Span::call_site();
                 self.links.insert((src, dst), (1.0, span));
             }
         }
