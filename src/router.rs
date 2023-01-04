@@ -744,25 +744,31 @@ impl<P: Prefix> Router<P> {
         &self.bgp_rib_out
     }
 
-    /// Get the processed BGP RIB table for a specific prefix. This function will apply all incoming
+    /// Get the processed BGP RIB table for all prefixes. This function will apply all incoming
     /// route-maps to all entries in `RIB_IN`, and return the current table from which the router
     /// has selected a route. Along with the routes, this function will also return a boolean wether
     /// this route was actually selected. The vector is sorted by the neighboring ID.
-    pub fn get_processed_bgp_rib(&self, prefix: P) -> Vec<(BgpRibEntry<P>, bool)> {
-        let best_route = self.bgp_rib.get(&prefix);
+    pub fn get_processed_bgp_rib(&self) -> P::Map<Vec<(BgpRibEntry<P>, bool)>> {
         self.bgp_rib_in
-            .get(&prefix)
             .iter()
-            .flat_map(|x| x.iter())
-            .filter_map(|(_, rib)| {
-                let proc = self.process_bgp_rib_in_route(rib.clone()).ok().flatten();
-                if proc.as_ref() == best_route {
-                    Some((proc?, true))
-                } else {
-                    Some((proc?, false))
-                }
+            .map(|(p, rib_in)| {
+                let best_route = self.bgp_rib.get(p);
+                (
+                    *p,
+                    rib_in
+                        .iter()
+                        .filter_map(|(_, rib)| {
+                            let proc = self.process_bgp_rib_in_route(rib.clone()).ok().flatten();
+                            if proc.as_ref() == best_route {
+                                Some((proc?, true))
+                            } else {
+                                Some((proc?, false))
+                            }
+                        })
+                        .sorted_by_key(|(r, _)| r.from_id)
+                        .collect(),
+                )
             })
-            .sorted_by_key(|(r, _)| r.from_id)
             .collect()
     }
 
