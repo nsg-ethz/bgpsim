@@ -130,7 +130,7 @@ ip route 10.0.0.0/8 null 0
 !
 ! Route-Maps
 !
-ip prefix-list neighbor-R0_ext_4-in-32778-pl seq 1 permit 128.0.0.0/16
+ip prefix-list neighbor-R0_ext_4-in-32778-pl seq 1 permit 100.0.0.0/24
 ip community-list standard neighbor-R0_ext_4-in-32778-cl permit 65535:10
 route-map neighbor-R0_ext_4-in permit 32778
   match ip address prefix-list neighbor-R0_ext_4-in-32778-pl

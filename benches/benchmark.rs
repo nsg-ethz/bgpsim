@@ -15,44 +15,37 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-#![cfg(all(feature = "topology_zoo", feature = "rand_queue", feature = "rand"))]
-
 use std::time::Duration;
 use std::time::Instant;
 
+use bgpsim::event::EventQueue;
 use criterion::black_box;
 use criterion::{criterion_group, criterion_main, Criterion};
 
 mod common;
-use common::*;
-use bgpsim::event::GeoTimingModel;
-use bgpsim::forwarding_state::ForwardingState;
-use bgpsim::policies::FwPolicy;
 use bgpsim::prelude::*;
-use bgpsim::record::ConvergenceTrace;
+use common::*;
 
-pub fn benchmark_generation(c: &mut Criterion) {
+pub fn benchmark_generation<P: Prefix>(c: &mut Criterion) {
     c.bench_function("retract", |b| {
-        b.iter_custom(|iters| setup_measure(iters, simulate_event))
+        b.iter_custom(|iters| setup_measure(iters, timing_queue::<P>(), simulate_event))
     });
 }
 
-pub fn clone_network(net: &Net) -> Net {
-    net.clone()
+pub fn benchmark_clone<P: Prefix>(c: &mut Criterion) {
+    let net = setup_net::<P, _>(timing_queue()).unwrap();
+    c.bench_function("clone", |b| b.iter(|| black_box(net.clone())));
 }
 
-pub fn benchmark_clone(c: &mut Criterion) {
-    let net = setup_net().unwrap();
-    c.bench_function("clone", |b| b.iter(|| black_box(clone_network(&net))));
-}
-
-pub fn setup_measure<F>(iters: u64, function: F) -> Duration
+pub fn setup_measure<P, Q, F>(iters: u64, queue: Q, function: F) -> Duration
 where
-    F: Fn(Net) -> Net,
+    P: Prefix,
+    Q: EventQueue<P> + Clone,
+    F: Fn(Network<P, Q>) -> Network<P, Q>,
 {
     let mut dur = Duration::default();
     for _ in 0..iters {
-        let net = setup_net().unwrap();
+        let net = setup_net::<P, Q>(queue.clone()).unwrap();
         let start = Instant::now();
         black_box(function(net));
         dur += start.elapsed();
@@ -60,49 +53,11 @@ where
     dur
 }
 
-pub fn benchmark_roland(c: &mut Criterion) {
-    let (mut net, prefix, policies, withdraw_at) = roland::try_setup_net().unwrap();
-    let (fw_state, trace) = roland::setup_experiment(&mut net, prefix, withdraw_at).unwrap();
-    c.bench_function("roland", |b| {
-        b.iter_custom(|iters| {
-            setup_measure_roland(iters, &net, prefix, &fw_state, &trace, &policies)
-        })
-    });
-}
-
-pub fn setup_measure_roland(
-    iters: u64,
-    net: &Network<GeoTimingModel>,
-    prefix: Prefix,
-    fw_state: &ForwardingState,
-    trace: &ConvergenceTrace,
-    policies: &[FwPolicy],
-) -> Duration {
-    let mut dur = Duration::default();
-    let mut fw_state = fw_state.clone();
-    let mut worker = net.clone();
-    for _ in 0..iters {
-        let start = Instant::now();
-        fw_state = roland::compute_sample(&mut worker, prefix, fw_state, trace, policies);
-        unsafe {
-            worker = net
-                .partial_clone()
-                .reuse_advertisements(true)
-                .reuse_config(true)
-                .reuse_igp_state(true)
-                .reuse_queue_params(true)
-                .conquer(worker);
-        };
-        dur += start.elapsed();
-        assert_eq!(&worker, net);
-    }
-    dur
-}
-
 criterion_group!(
     benches,
-    benchmark_generation,
-    benchmark_clone,
-    benchmark_roland
+    benchmark_generation::<SinglePrefix>,
+    benchmark_generation::<SimplePrefix>,
+    benchmark_clone::<SinglePrefix>,
+    benchmark_clone::<SimplePrefix>,
 );
 criterion_main!(benches);

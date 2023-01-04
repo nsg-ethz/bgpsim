@@ -22,7 +22,7 @@ use crate::{
     event::BasicEventQueue,
     network::Network,
     ospf::OspfArea,
-    types::{AsId, NetworkError, Prefix, RouterId},
+    types::{AsId, NetworkError, RouterId, SimplePrefix as Prefix},
 };
 
 #[test]
@@ -368,7 +368,17 @@ type Routers = (
     RouterId,
 );
 
-fn test_net() -> Result<(Network<BasicEventQueue>, Routers, Prefix, Prefix, Prefix), NetworkError> {
+#[allow(clippy::type_complexity)]
+fn test_net() -> Result<
+    (
+        Network<Prefix, BasicEventQueue<Prefix>>,
+        Routers,
+        Prefix,
+        Prefix,
+        Prefix,
+    ),
+    NetworkError,
+> {
     let mut net = Network::default();
 
     let r0 = net.add_router("R0");
@@ -426,8 +436,16 @@ fn test_net() -> Result<(Network<BasicEventQueue>, Routers, Prefix, Prefix, Pref
     ))
 }
 
-fn test_net_disconnected(
-) -> Result<(Network<BasicEventQueue>, Routers, Prefix, Prefix), NetworkError> {
+#[allow(clippy::type_complexity)]
+fn test_net_disconnected() -> Result<
+    (
+        Network<Prefix, BasicEventQueue<Prefix>>,
+        Routers,
+        Prefix,
+        Prefix,
+    ),
+    NetworkError,
+> {
     let mut net = Network::default();
 
     let r0 = net.add_router("R0");

@@ -26,7 +26,7 @@ use std::{
 use crate::{
     bgp::BgpRoute,
     network::Network,
-    types::{AsId, Prefix, RouterId},
+    types::{AsId, Prefix, PrefixMap, RouterId},
 };
 
 use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
@@ -99,6 +99,7 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// ```
 /// use std::time::Duration;
 /// use bgpsim::prelude::*;
+/// use bgpsim::types::SimplePrefix as P;
 /// use bgpsim::export::{DefaultAddressorBuilder, ExternalCfgGen, ExaBgpCfgGen};
 /// # use pretty_assertions::assert_eq;
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -106,7 +107,7 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// let mut net = {
 ///     // ...
 /// #   use bgpsim::builder::NetworkBuilder;
-/// #   let mut net = Network::build_complete_graph(BasicEventQueue::new(), 1);
+/// #   let mut net = Network::build_complete_graph(BasicEventQueue::<P>::new(), 1);
 /// #   let router = net.add_external_router("external_router", AsId(100));
 /// #   net.get_routers().into_iter().for_each(|r| net.add_link(r, router));
 /// #   net.build_ibgp_full_mesh()?;
@@ -117,8 +118,8 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// let router = net.get_router_id("external_router")?;
 ///
 /// // Create some advertisements
-/// net.advertise_external_route(router, Prefix::from(0), [100], None, None)?;
-/// net.advertise_external_route(router, Prefix::from(1), [100, 200, 300], None, None)?;
+/// net.advertise_external_route(router, P::from(0), [100], None, None)?;
+/// net.advertise_external_route(router, P::from(1), [100, 200, 300], None, None)?;
 ///
 /// // create the addressor
 /// let mut addressor = DefaultAddressorBuilder::default().build(&net)?;
@@ -144,12 +145,12 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// // create a script that withdraws the route for prefix 0 after 10 seconds, and changes the AS
 /// // path of prefix 1 after 20 seconds
 /// cfg.step_time(Duration::from_secs(10));
-/// cfg.withdraw_route(&net, &mut addressor, Prefix::from(0))?;
+/// cfg.withdraw_route(&net, &mut addressor, P::from(0))?;
 /// cfg.step_time(Duration::from_secs(10));
 /// cfg.advertise_route(
 ///     &net,
 ///     &mut addressor,
-///     &BgpRoute::new(router, Prefix::from(1), [100, 300], None, None)
+///     &BgpRoute::new(router, P::from(1), [100, 300], None, None)
 /// )?;
 ///
 /// // generate the script
@@ -164,14 +165,14 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 ///
 /// time.sleep(5)
 ///
-/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 3.0.0.0/24 next-hop self as-path [100]\\n\")
-/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 3.0.1.0/24 next-hop self as-path [100, 200, 300]\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 100.0.0.0/24 next-hop self as-path [100]\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 100.0.1.0/24 next-hop self as-path [100, 200, 300]\\n\")
 /// sys.stdout.flush()
 /// time.sleep(10)
-/// sys.stdout.write(\"neighbor 1.192.0.1 withdraw route 3.0.0.0/24\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 withdraw route 100.0.0.0/24\\n\")
 /// sys.stdout.flush()
 /// time.sleep(10)
-/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 3.0.1.0/24 next-hop self as-path [100, 300]\\n\")
+/// sys.stdout.write(\"neighbor 1.192.0.1 announce route 100.0.1.0/24 next-hop self as-path [100, 300]\\n\")
 /// sys.stdout.flush()
 ///
 /// while True:
@@ -182,10 +183,10 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// # Ok(()) }
 /// ```
 #[derive(Debug)]
-pub struct ExaBgpCfgGen {
+pub struct ExaBgpCfgGen<P: Prefix> {
     router: RouterId,
     as_id: AsId,
-    routes: BTreeMap<Prefix, BTreeMap<Duration, Option<BgpRoute>>>,
+    routes: BTreeMap<P, BTreeMap<Duration, Option<BgpRoute<P>>>>,
     neighbors: BTreeSet<RouterId>,
     current_time: Duration,
 }
@@ -194,10 +195,10 @@ use ipnet::Ipv4Net;
 use itertools::Itertools;
 use maplit::btreemap;
 
-impl ExaBgpCfgGen {
+impl<P: Prefix> ExaBgpCfgGen<P> {
     /// Create a new instance of the ExaBGP config generator. This will initialize all
     /// routes. Further, it will
-    pub fn new<Q>(net: &Network<Q>, router: RouterId) -> Result<Self, ExportError> {
+    pub fn new<Q>(net: &Network<P, Q>, router: RouterId) -> Result<Self, ExportError> {
         let r = net
             .get_device(router)
             .external_or(ExportError::NotAnExternalRouter(router))?;
@@ -223,7 +224,10 @@ impl ExaBgpCfgGen {
 
     /// Generate the python script that loops over the history of routes, and replays that over and
     /// over again.
-    pub fn generate_script<A: Addressor>(&self, addressor: &mut A) -> Result<String, ExportError> {
+    pub fn generate_script<A: Addressor<P>>(
+        &self,
+        addressor: &mut A,
+    ) -> Result<String, ExportError> {
         let script = String::from(
             "#!/usr/bin/env python3\n\nimport sys\nimport time\n\n\ntime.sleep(5)\n\n",
         );
@@ -234,7 +238,7 @@ impl ExaBgpCfgGen {
     /// Generate all python command lines to advertise or withdraw the routes. This will create a
     /// vector of strings for each time step, and return all of these time steps along with the
     /// duration when they should be triggered.
-    pub fn generate_lines<A: Addressor>(
+    pub fn generate_lines<A: Addressor<P>>(
         &self,
         addressor: &mut A,
     ) -> Result<Vec<(Vec<String>, Duration)>, ExportError> {
@@ -249,8 +253,7 @@ impl ExaBgpCfgGen {
 
         let mut result = Vec::new();
 
-        let mut times_routes: BTreeMap<Duration, Vec<(Prefix, Option<&BgpRoute>)>> =
-            Default::default();
+        let mut times_routes: BTreeMap<_, Vec<_>> = Default::default();
         for (p, routes) in self.routes.iter() {
             for (time, route) in routes.iter() {
                 times_routes
@@ -263,14 +266,7 @@ impl ExaBgpCfgGen {
         for (time, routes) in times_routes {
             let ads = routes
                 .into_iter()
-                .flat_map(|(p, r)| {
-                    addressor
-                        .prefix(p)
-                        .ok()
-                        .into_iter()
-                        .flatten()
-                        .map(move |x| (x, r))
-                })
+                .filter_map(|(p, r)| Some((addressor.prefix(p).ok()?, r)))
                 .map(|(p, r)| {
                     Ok(if let Some(r) = r {
                         format!(
@@ -294,7 +290,7 @@ impl ExaBgpCfgGen {
 
     /// Generate the python script that does not loop, but trigger the events once. The header of
     /// the script is not generated!
-    fn generate_script_no_loop<A: Addressor>(
+    fn generate_script_no_loop<A: Addressor<P>>(
         &self,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
@@ -324,7 +320,7 @@ impl ExaBgpCfgGen {
     }
 
     /// Generate the configuration for a single neighbor
-    fn generate_neighbor_cfg<A: Addressor>(
+    fn generate_neighbor_cfg<A: Addressor<P>>(
         &self,
         addressor: &mut A,
         neighbor: RouterId,
@@ -355,7 +351,7 @@ neighbor {} {{
 }
 
 /// Get the text to announce a route.
-fn route_text(route: &BgpRoute, address: Ipv4Net) -> Result<String, ExportError> {
+fn route_text<P: Prefix>(route: &BgpRoute<P>, address: Ipv4Net) -> Result<String, ExportError> {
     Ok(format!(
         "announce route {} next-hop self as-path [{}]{}{}",
         address,
@@ -380,10 +376,10 @@ fn route_text(route: &BgpRoute, address: Ipv4Net) -> Result<String, ExportError>
     ))
 }
 
-impl<A: Addressor, Q> ExternalCfgGen<Q, A> for ExaBgpCfgGen {
+impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for ExaBgpCfgGen<P> {
     fn generate_config(
         &mut self,
-        _net: &Network<Q>,
+        _net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         Ok(self
@@ -397,9 +393,9 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for ExaBgpCfgGen {
 
     fn advertise_route(
         &mut self,
-        _net: &Network<Q>,
+        _net: &Network<P, Q>,
         addressor: &mut A,
-        route: &BgpRoute,
+        route: &BgpRoute<P>,
     ) -> Result<String, ExportError> {
         self.routes
             .entry(route.prefix)
@@ -410,9 +406,9 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for ExaBgpCfgGen {
 
     fn withdraw_route(
         &mut self,
-        _net: &Network<Q>,
+        _net: &Network<P, Q>,
         addressor: &mut A,
-        prefix: Prefix,
+        prefix: P,
     ) -> Result<String, ExportError> {
         self.routes
             .entry(prefix)
@@ -423,7 +419,7 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for ExaBgpCfgGen {
 
     fn establish_ebgp_session(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
@@ -433,7 +429,7 @@ impl<A: Addressor, Q> ExternalCfgGen<Q, A> for ExaBgpCfgGen {
 
     fn teardown_ebgp_session(
         &mut self,
-        net: &Network<Q>,
+        net: &Network<P, Q>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {

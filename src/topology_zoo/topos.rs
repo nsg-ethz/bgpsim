@@ -35,13 +35,16 @@
 //! }
 //! ```
 
-use crate::{network::Network, types::RouterId};
 use super::TopologyZooParser;
+use crate::{
+    event::EventQueue,
+    network::Network,
+    types::{Prefix, RouterId},
+};
 
-use std::collections::HashMap;
 use geoutils::Location;
+use std::collections::HashMap;
 
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 
 /// Topologies from [TopologyZoo](http://www.topology-zoo.org/dataset.html). The following example
@@ -53,10 +56,11 @@ use serde::{Deserialize, Serialize};
 /// use bgpsim::topology_zoo::TopologyZoo;
 /// use bgpsim::event::BasicEventQueue;
 /// use bgpsim::builder::*;
+/// use bgpsim::types::SimplePrefix as P;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
-/// let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());
-/// let prefix = Prefix::from(0);
+/// let mut net = TopologyZoo::Abilene.build(BasicEventQueue::<P>::new());
+/// let prefix = P::from(0);
 ///
 /// // Make sure that at least 3 external routers exist
 /// net.build_external_routers(extend_to_k_external_routers, 3)?;
@@ -87,8 +91,7 @@ use serde::{Deserialize, Serialize};
 ///   doi={10.1109/JSAC.2011.111002},
 ///   ISSN={0733-8716},
 /// ```
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum TopologyZoo {
     /// - 19 routers
     /// - 19 internal routers
@@ -2438,14 +2441,15 @@ pub enum TopologyZoo {
     ///
     /// <img src="http://www.topology-zoo.org/maps/Zamren.jpg" alt="--- No image available ---" width="400"/>
     Zamren,
-
 }
 
 impl TopologyZoo {
-
     /// Generate the network.
-    pub fn build<Q>(&self, queue: Q) -> Network<Q> {
-        TopologyZooParser::new(self.graphml()).unwrap().get_network(queue).unwrap()
+    pub fn build<P: Prefix, Q: EventQueue<P>>(&self, queue: Q) -> Network<P, Q> {
+        TopologyZooParser::new(self.graphml())
+            .unwrap()
+            .get_network(queue)
+            .unwrap()
     }
 
     /// Get the number of internal routers
@@ -3584,7 +3588,9 @@ impl TopologyZoo {
             Self::Colt => include_str!("../../topology_zoo/Colt.graphml"),
             Self::Columbus => include_str!("../../topology_zoo/Columbus.graphml"),
             Self::Compuserve => include_str!("../../topology_zoo/Compuserve.graphml"),
-            Self::CrlNetworkServices => include_str!("../../topology_zoo/CrlNetworkServices.graphml"),
+            Self::CrlNetworkServices => {
+                include_str!("../../topology_zoo/CrlNetworkServices.graphml")
+            }
             Self::Cudi => include_str!("../../topology_zoo/Cudi.graphml"),
             Self::Cwix => include_str!("../../topology_zoo/Cwix.graphml"),
             Self::Cynet => include_str!("../../topology_zoo/Cynet.graphml"),
@@ -3666,7 +3672,9 @@ impl TopologyZoo {
             Self::HiberniaUk => include_str!("../../topology_zoo/HiberniaUk.graphml"),
             Self::HiberniaUs => include_str!("../../topology_zoo/HiberniaUs.graphml"),
             Self::Highwinds => include_str!("../../topology_zoo/Highwinds.graphml"),
-            Self::HostwayInternational => include_str!("../../topology_zoo/HostwayInternational.graphml"),
+            Self::HostwayInternational => {
+                include_str!("../../topology_zoo/HostwayInternational.graphml")
+            }
             Self::HurricaneElectric => include_str!("../../topology_zoo/HurricaneElectric.graphml"),
             Self::Ibm => include_str!("../../topology_zoo/Ibm.graphml"),
             Self::Iij => include_str!("../../topology_zoo/Iij.graphml"),
@@ -3679,7 +3687,9 @@ impl TopologyZoo {
             Self::Interoute => include_str!("../../topology_zoo/Interoute.graphml"),
             Self::Intranetwork => include_str!("../../topology_zoo/Intranetwork.graphml"),
             Self::Ion => include_str!("../../topology_zoo/Ion.graphml"),
-            Self::IowaStatewideFiberMap => include_str!("../../topology_zoo/IowaStatewideFiberMap.graphml"),
+            Self::IowaStatewideFiberMap => {
+                include_str!("../../topology_zoo/IowaStatewideFiberMap.graphml")
+            }
             Self::Iris => include_str!("../../topology_zoo/Iris.graphml"),
             Self::Istar => include_str!("../../topology_zoo/Istar.graphml"),
             Self::Itnet => include_str!("../../topology_zoo/Itnet.graphml"),
@@ -3790,7 +3800,9 @@ impl TopologyZoo {
 
     /// Get the geo location of the Topology Zoo
     pub fn geo_location(&self) -> HashMap<RouterId, Location> {
-        TopologyZooParser::new(self.graphml()).unwrap().get_geo_location()
+        TopologyZooParser::new(self.graphml())
+            .unwrap()
+            .get_geo_location()
     }
 
     /// Get all topologies with increasing number of internal nodes. If two topologies have the same number

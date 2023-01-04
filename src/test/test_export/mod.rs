@@ -24,7 +24,7 @@ use crate::{
     },
     network::Network,
     route_map::{RouteMapBuilder, RouteMapDirection},
-    types::Prefix,
+    types::{Prefix, SimplePrefix},
 };
 
 mod cisco;
@@ -38,21 +38,18 @@ pub(self) fn iface_names(target: Target) -> Vec<String> {
     }
 }
 
-pub(self) fn addressor<Q>(net: &Network<Q>, pec: usize) -> DefaultAddressor<Q> {
+pub(self) fn addressor<P: Prefix, Q>(net: &Network<P, Q>) -> DefaultAddressor<P, Q> {
     DefaultAddressorBuilder {
         internal_ip_range: "10.0.0.0/8".parse().unwrap(),
         external_ip_range: "20.0.0.0/8".parse().unwrap(),
-        prefix_ip_range: "128.0.0.0/1".parse().unwrap(),
-        prefix_len: 16,
-        pec_size: pec,
         ..Default::default()
     }
     .build(net)
     .unwrap()
 }
 
-pub(self) fn generate_internal_config_full_mesh(target: Target, pec: usize) -> String {
-    let mut net: Network<BasicEventQueue> =
+pub(self) fn generate_internal_config_full_mesh(target: Target) -> String {
+    let mut net: Network<SimplePrefix, _> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
@@ -60,14 +57,14 @@ pub(self) fn generate_internal_config_full_mesh(target: Target, pec: usize) -> S
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
 
-    let mut ip = addressor(&net, pec);
+    let mut ip = addressor(&net);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
-pub(self) fn generate_internal_config_route_reflector(target: Target, pec: usize) -> String {
-    let mut net: Network<BasicEventQueue> =
+pub(self) fn generate_internal_config_route_reflector(target: Target) -> String {
+    let mut net: Network<SimplePrefix, _> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
@@ -76,15 +73,14 @@ pub(self) fn generate_internal_config_route_reflector(target: Target, pec: usize
         .unwrap();
     net.build_ebgp_sessions().unwrap();
 
-    let mut ip = addressor(&net, pec);
+    let mut ip = addressor(&net);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
-pub(self) fn net_for_route_maps() -> Network<BasicEventQueue> {
-    let mut net: Network<BasicEventQueue> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+pub(self) fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
+    let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();
@@ -163,50 +159,49 @@ pub(self) fn net_for_route_maps() -> Network<BasicEventQueue> {
     net
 }
 
-pub(self) fn generate_internal_config_route_maps(target: Target, pec: usize) -> String {
-    let net = net_for_route_maps();
-    let mut ip = addressor(&net, pec);
+pub(self) fn generate_internal_config_route_maps<P: Prefix>(target: Target) -> String {
+    let net = net_for_route_maps::<P>();
+    let mut ip = addressor(&net);
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
-pub(self) fn generate_external_config(target: Target, pec: usize) -> String {
-    let mut net: Network<BasicEventQueue> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+pub(self) fn generate_external_config<P: Prefix>(target: Target) -> String {
+    let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    net.advertise_external_route(4.into(), Prefix::from(0), [4, 4, 4, 2, 1], None, None)
+    net.advertise_external_route(4.into(), P::from(0), [4, 4, 4, 2, 1], None, None)
         .unwrap();
 
-    let mut ip = addressor(&net, pec);
+    let mut ip = addressor(&net);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 4.into(), target, iface_names(target)).unwrap();
     ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
-pub(self) fn generate_external_config_withdraw(target: Target, pec: usize) -> (String, String) {
-    let mut net: Network<BasicEventQueue> =
+pub(self) fn generate_external_config_withdraw(target: Target) -> (String, String) {
+    let mut net: Network<SimplePrefix, _> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    net.advertise_external_route(4.into(), Prefix::from(0), [4, 4, 4, 2, 1], None, None)
+    net.advertise_external_route(4.into(), SimplePrefix::from(0), [4, 4, 4, 2, 1], None, None)
         .unwrap();
-    net.advertise_external_route(4.into(), Prefix::from(1), [4, 5, 5, 6], None, None)
+    net.advertise_external_route(4.into(), SimplePrefix::from(1), [4, 5, 5, 6], None, None)
         .unwrap();
 
-    let mut ip = addressor(&net, pec);
+    let mut ip = addressor(&net);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 4.into(), target, iface_names(target)).unwrap();
     let c = ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap();
 
     let withdraw_c =
-        ExternalCfgGen::withdraw_route(&mut cfg_gen, &net, &mut ip, Prefix::from(1)).unwrap();
+        ExternalCfgGen::withdraw_route(&mut cfg_gen, &net, &mut ip, SimplePrefix::from(1)).unwrap();
 
     (c, withdraw_c)
 }

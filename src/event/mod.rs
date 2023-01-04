@@ -17,7 +17,8 @@
 
 //! Module for defining events
 
-#[cfg(feature = "serde")]
+use std::hash::Hash;
+
 use serde::{Deserialize, Serialize};
 
 mod queue;
@@ -29,20 +30,23 @@ pub use rand_queue::{GeoTimingModel, ModelParams, SimpleTimingModel};
 
 use crate::{
     bgp::BgpEvent,
-    types::{Prefix, RouterId},
+    types::{Prefix, RouterId, StepUpdate},
 };
 
 /// Event to handle
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum Event<P> {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[serde(bound(
+    serialize = "P: Serialize, T: serde::Serialize",
+    deserialize = "P: for<'a> serde::Deserialize<'a>, T: for<'a> serde::Deserialize<'a>"
+))]
+pub enum Event<P: Prefix, T> {
     /// BGP Event from `#1` to `#2`.
-    Bgp(P, RouterId, RouterId, BgpEvent),
+    Bgp(T, RouterId, RouterId, BgpEvent<P>),
 }
 
-impl<P> Event<P> {
+impl<P: Prefix, T> Event<P, T> {
     /// Returns the prefix for which this event talks about.
-    pub fn prefix(&self) -> Option<Prefix> {
+    pub fn prefix(&self) -> Option<P> {
         match self {
             Event::Bgp(_, _, _, BgpEvent::Update(route)) => Some(route.prefix),
             Event::Bgp(_, _, _, BgpEvent::Withdraw(prefix)) => Some(*prefix),
@@ -50,7 +54,7 @@ impl<P> Event<P> {
     }
 
     /// Get a reference to the priority of this event.
-    pub fn priority(&self) -> &P {
+    pub fn priority(&self) -> &T {
         match self {
             Event::Bgp(p, _, _, _) => p,
         }
@@ -68,3 +72,7 @@ impl<P> Event<P> {
         }
     }
 }
+
+/// The outcome of a handled event. This will include a update in the forwarding state (0:
+/// [`StepUpdate`]), and a set of new events that must be enqueued (1: [`Event`]).
+pub(crate) type EventOutcome<P, T> = (StepUpdate<P>, Vec<Event<P, T>>);

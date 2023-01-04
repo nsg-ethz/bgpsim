@@ -23,19 +23,19 @@ use log::debug;
 #[cfg(feature = "undo")]
 use crate::network::UndoAction;
 use crate::{
-    event::FmtPriority,
     event::{Event, EventQueue},
     formatter::NetworkFormatter,
     network::Network,
     types::NetworkError,
-    types::StepUpdate,
+    types::{Prefix, StepUpdate},
 };
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
 /// interface to simulate a single event, inspect the queue of the network, and even reorder events.
-pub trait InteractiveNetwork<Q>
+pub trait InteractiveNetwork<P, Q>
 where
-    Q: EventQueue,
+    P: Prefix,
+    Q: EventQueue<P>,
 {
     /// Setup the network to automatically simulate each change of the network. This is the default
     /// behavior. Disable auto-simulation by using [`InteractiveNetwork::manual_simulation`].
@@ -59,7 +59,7 @@ where
     /// prohibit you to call `with_manual_simulation` multiple times.
     fn with_manual_simulation<F>(self, f: F) -> Self
     where
-        F: FnOnce(&mut Network<Q>);
+        F: FnOnce(&mut Network<P, Q>);
 
     /// Simulate the network behavior, given the current event queue. This function will execute all
     /// events (that may trigger new events), until either the event queue is empt (i.e., the
@@ -71,7 +71,9 @@ where
     /// will not execute any subsequent event. This function will return the number of events left
     /// in the queue.
     #[allow(clippy::type_complexity)]
-    fn simulate_step(&mut self) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError>;
+    fn simulate_step(
+        &mut self,
+    ) -> Result<Option<(StepUpdate<P>, Event<P, Q::Priority>)>, NetworkError>;
 
     /// Undo the last event in the network.
     ///
@@ -91,14 +93,10 @@ where
 
     /// Clone the structure by moving some values from a different network. See [`PartialClone`] for
     /// more details.
-    fn partial_clone(&self) -> PartialClone<'_, Q>;
+    fn partial_clone(&self) -> PartialClone<'_, P, Q>;
 }
 
-impl<Q> InteractiveNetwork<Q> for Network<Q>
-where
-    Q: EventQueue,
-    Q::Priority: Default + FmtPriority + Clone,
-{
+impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
     fn auto_simulation(&mut self) {
         self.skip_queue = false;
     }
@@ -113,7 +111,7 @@ where
 
     fn with_manual_simulation<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(&mut Network<Q>),
+        F: FnOnce(&mut Network<P, Q>),
     {
         self.manual_simulation();
         f(&mut self);
@@ -121,7 +119,9 @@ where
         self
     }
 
-    fn simulate_step(&mut self) -> Result<Option<(StepUpdate, Event<Q::Priority>)>, NetworkError> {
+    fn simulate_step(
+        &mut self,
+    ) -> Result<Option<(StepUpdate<P>, Event<P, Q::Priority>)>, NetworkError> {
         if let Some(event) = self.queue.pop() {
             // log the job
             log::trace!("{}", event.fmt(self));
@@ -194,7 +194,7 @@ where
                     //     self.external_routers.insert(id, *router);
                     // }
                     UndoAction::UndoDevice(id) => {
-                        self.get_device_mut(id).undo_event::<Q::Priority>()?;
+                        self.get_device_mut(id).undo_event()?;
                     }
                 }
             }
@@ -245,7 +245,7 @@ where
         self.verbose = verbose;
     }
 
-    fn partial_clone(&self) -> PartialClone<'_, Q> {
+    fn partial_clone(&self) -> PartialClone<'_, P, Q> {
         PartialClone {
             source: self,
             reuse_igp_state: false,
@@ -269,11 +269,12 @@ where
 /// # #[cfg(feature = "topology_zoo")]
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # use bgpsim::prelude::*;
+/// # use bgpsim::types::SimplePrefix as P;
 /// # use bgpsim::topology_zoo::TopologyZoo;
 /// # use bgpsim::event::BasicEventQueue;
 /// # use bgpsim::builder::*;
 /// # let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());
-/// # let prefix = Prefix::from(0);
+/// # let prefix = P::from(0);
 /// # net.build_external_routers(extend_to_k_external_routers, 3)?;
 /// # net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
 /// # net.build_ebgp_sessions()?;
@@ -300,8 +301,8 @@ where
 /// # fn main() {}
 /// ```
 #[derive(Debug)]
-pub struct PartialClone<'a, Q> {
-    source: &'a Network<Q>,
+pub struct PartialClone<'a, P: Prefix, Q> {
+    source: &'a Network<P, Q>,
     reuse_config: bool,
     reuse_advertisements: bool,
     reuse_igp_state: bool,
@@ -309,7 +310,7 @@ pub struct PartialClone<'a, Q> {
     reuse_queue_params: bool,
 }
 
-impl<'a, Q> PartialClone<'a, Q> {
+impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
     /// Reuse the entire configuration from the conquered network.
     ///
     /// # Safety
@@ -369,9 +370,9 @@ impl<'a, Q> PartialClone<'a, Q> {
     /// # Safety
     /// You must ensure that the physical topology of both the source and the conquered network is
     /// identical.
-    pub unsafe fn conquer(self, other: Network<Q>) -> Network<Q>
+    pub unsafe fn conquer(self, other: Network<P, Q>) -> Network<P, Q>
     where
-        Q: Clone + EventQueue,
+        Q: Clone + EventQueue<P>,
     {
         // assert that the properties are correct
         if self.reuse_igp_state && !self.reuse_config {

@@ -17,10 +17,7 @@
 
 //! Testcase for forwarding state that appeared while Roland Schmid was using bgpsim.
 
-use std::{
-    collections::{HashMap, HashSet},
-    iter::repeat,
-};
+use std::{collections::HashSet, iter::repeat};
 
 use crate::{
     builder::{
@@ -33,7 +30,7 @@ use crate::{
     policies::{FwPolicy, Policy},
     record::{ConvergenceRecording, ConvergenceTrace, RecordNetwork},
     topology_zoo::TopologyZoo,
-    types::Prefix,
+    types::SinglePrefix as P,
 };
 
 use pretty_assertions::assert_eq;
@@ -41,9 +38,9 @@ use pretty_assertions::assert_eq;
 #[test]
 fn roland_pacificwave() {
     // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
+    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Pacificwave.build(queue);
-    let prefix = Prefix::from(1);
+    let prefix = P::from(1);
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
@@ -86,7 +83,7 @@ fn roland_pacificwave() {
             let _ = p.check(state);
         });
 
-        while let Some((_, _, state)) = recording.step(prefix) {
+        while let Some((_, _, state)) = recording.step() {
             policies.iter().for_each(|p| {
                 let _ = p.check(state);
             });
@@ -97,9 +94,9 @@ fn roland_pacificwave() {
 #[test]
 fn roland_pacificwave_manual() {
     // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
+    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Pacificwave.build(queue);
-    let prefix = Prefix::from(1);
+    let prefix = P::from(1);
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
@@ -142,12 +139,7 @@ fn roland_pacificwave_manual() {
     let diff = fw_state_before.diff(&fw_state_after);
 
     // construct the trace
-    let trace: ConvergenceTrace = diff
-        .into_iter()
-        .filter(|(p, _)| *p == prefix)
-        .map(|(_, delta)| vec![(delta, Some(0.0).into())])
-        .next()
-        .unwrap();
+    let trace = vec![(diff, Some(0.0).into())];
 
     let mut fw_state = net.get_forwarding_state();
     let fw_state_ref = net.get_forwarding_state();
@@ -172,7 +164,7 @@ fn roland_pacificwave_manual() {
             }
         }
 
-        let mut recording = ConvergenceRecording::new(fw_state, HashMap::from([(prefix, trace)]));
+        let mut recording = ConvergenceRecording::new(fw_state, trace);
 
         // check the initial state
         let state = recording.state();
@@ -180,7 +172,7 @@ fn roland_pacificwave_manual() {
             let _ = p.check(state);
         });
 
-        while let Some((_, _, state)) = recording.step(prefix) {
+        while let Some((_, _, state)) = recording.step() {
             policies.iter().for_each(|p| {
                 let _ = p.check(state);
             });
@@ -194,9 +186,9 @@ fn roland_pacificwave_manual() {
 #[test]
 fn roland_arpanet() {
     // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
+    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Arpanet196912.build(queue);
-    let prefix = Prefix::from(1);
+    let prefix = P::from(1);
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
@@ -239,7 +231,7 @@ fn roland_arpanet() {
             let _ = p.check(state);
         });
 
-        while let Some((_, _, state)) = recording.step(prefix) {
+        while let Some((_, _, state)) = recording.step() {
             policies.iter().for_each(|p| {
                 let _ = p.check(state);
             });
@@ -250,9 +242,9 @@ fn roland_arpanet() {
 #[test]
 fn roland_arpanet_manual() {
     // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
+    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Arpanet196912.build(queue);
-    let prefix = Prefix::from(0);
+    let prefix = P::from(0);
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
@@ -299,12 +291,7 @@ fn roland_arpanet_manual() {
     let t0 = t.queue().get_time().unwrap_or_default();
 
     // construct the trace
-    let trace: ConvergenceTrace = diff
-        .into_iter()
-        .filter(|(p, _)| *p == prefix)
-        .map(|(_, delta)| vec![(delta, Some(0.0).into())])
-        .next()
-        .unwrap();
+    let trace = vec![(diff, Some(0.0).into())];
 
     let mut fw_state = net.get_forwarding_state();
     let fw_state_ref = net.get_forwarding_state();
@@ -327,7 +314,7 @@ fn roland_arpanet_manual() {
             }
         }
 
-        let mut recording = ConvergenceRecording::new(fw_state, HashMap::from([(prefix, trace)]));
+        let mut recording = ConvergenceRecording::new(fw_state, trace);
 
         // check the initial state
         let state = recording.state();
@@ -335,14 +322,14 @@ fn roland_arpanet_manual() {
             let _ = p.check(state);
         });
 
-        while recording.step(prefix).is_some() {
+        while recording.step().is_some() {
             policies.iter().for_each(|p| {
                 let _ = p.check(recording.state());
             });
         }
 
         // go back
-        while recording.back(prefix).is_some() {}
+        while recording.back().is_some() {}
 
         // undo the recording
         fw_state = recording.into_initial_fw_state();
@@ -350,9 +337,9 @@ fn roland_arpanet_manual() {
 }
 
 #[test]
-fn roland_arpanet_complete() -> Result<(), Box<dyn std::error::Error>> {
+fn roland_arpanet_complete() {
     // setup basic timing model
-    let queue = SimpleTimingModel::new(ModelParams::new(
+    let queue = SimpleTimingModel::<P>::new(ModelParams::new(
         1.0, // offset: 1.0,
         1.0, // scale: 1.0,
         2.0, // alpha: 2.0,
@@ -360,22 +347,29 @@ fn roland_arpanet_complete() -> Result<(), Box<dyn std::error::Error>> {
         0.5, // collision: 0.5,
     ));
 
-    let prefix = Prefix::from(0);
+    let prefix = P::from(0);
 
     let topology = TopologyZoo::Arpanet196912;
 
     let mut net = topology.build(queue);
 
     // Make sure that at least 3 external routers exist
-    let _external_routers = net.build_external_routers(extend_to_k_external_routers, 3)?;
+    let _external_routers = net
+        .build_external_routers(extend_to_k_external_routers, 3)
+        .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
-    let route_reflectors = net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
+    let route_reflectors = net
+        .build_ibgp_route_reflection(k_highest_degree_nodes, 2)
+        .unwrap();
     // setup all external bgp sessions
-    net.build_ebgp_sessions()?;
+    net.build_ebgp_sessions().unwrap();
     // create random link weights between 10 and 100
-    net.build_link_weights(uniform_link_weight, (10.0, 100.0))?;
+    net.build_link_weights(uniform_link_weight, (10.0, 100.0))
+        .unwrap();
     // advertise 3 routes with unique preferences for a single prefix
-    let advertisements = net.build_advertisements(prefix, unique_preferences, 3)?;
+    let advertisements = net
+        .build_advertisements(prefix, unique_preferences, 3)
+        .unwrap();
 
     // start simulation of withdrawal of the preferred route
 
@@ -392,20 +386,16 @@ fn roland_arpanet_complete() -> Result<(), Box<dyn std::error::Error>> {
     let fw_state_before = t.get_forwarding_state();
 
     // execute the function
-    t.retract_external_route(advertisements[0][0], prefix)?;
+    t.retract_external_route(advertisements[0][0], prefix)
+        .unwrap();
 
     // get the forwarding state difference and start generating the trace
     let fw_state_after = t.get_forwarding_state();
     let diff = fw_state_before.diff(&fw_state_after);
 
-    let trace: ConvergenceTrace = diff
-        .into_iter()
-        .filter(|(p, _)| *p == prefix)
-        .map(|(_, delta)| vec![(delta, Some(0.0).into())])
-        .next()
-        .unwrap();
+    let trace = vec![(diff, Some(0.0).into())];
 
-    let sample_func = |(mut t, mut trace): (Network<SimpleTimingModel>, ConvergenceTrace)| {
+    let sample_func = |(mut t, mut trace): (Network<P, SimpleTimingModel<P>>, ConvergenceTrace)| {
         while let Some((step, event)) = t.simulate_step().unwrap() {
             if step.changed() {
                 trace.push((
@@ -456,7 +446,7 @@ fn roland_arpanet_complete() -> Result<(), Box<dyn std::error::Error>> {
 
     for trace in traces.into_iter() {
         // generate convergence recording
-        let mut recording = ConvergenceRecording::new(fw_state, HashMap::from([(prefix, trace)]));
+        let mut recording = ConvergenceRecording::new(fw_state, trace);
         // check transient policies
 
         // check atomic policies on initial state
@@ -465,18 +455,16 @@ fn roland_arpanet_complete() -> Result<(), Box<dyn std::error::Error>> {
         });
 
         // step through to the last state while checking atomic properties on all other states
-        while recording.step(prefix).is_some() {
+        while recording.step().is_some() {
             transient_policies.iter().for_each(|x| {
                 _ = x.check(recording.state());
             });
         }
 
         // step backwards through to the initial state while keeping data structures for all transient properties
-        while recording.back(prefix).is_some() {}
+        while recording.back().is_some() {}
 
         // recover forwarding state
         fw_state = recording.into_initial_fw_state();
     }
-
-    Ok(())
 }

@@ -33,7 +33,7 @@
 //! ```rust
 //! use bgpsim::bgp::BgpSessionType::*;
 //! use bgpsim::config::{Config, ConfigExpr::BgpSession, ConfigModifier};
-//! use bgpsim::types::ConfigError;
+//! use bgpsim::types::{ConfigError, SimplePrefix};
 //!
 //! fn main() -> Result<(), ConfigError> {
 //!     // routers
@@ -43,8 +43,8 @@
 //!     let r3 = 3.into();
 //!     let r4 = 4.into();
 //!
-//!     let mut c1 = Config::new();
-//!     let mut c2 = Config::new();
+//!     let mut c1 = Config::<SimplePrefix>::new();
+//!     let mut c2 = Config::<SimplePrefix>::new();
 //!
 //!     // add the same bgp expression
 //!     c1.add(BgpSession { source: r0, target: r1, session_type: IBgpPeer })?;
@@ -75,17 +75,16 @@ use log::debug;
 
 use crate::{
     bgp::BgpSessionType,
-    event::{EventQueue, FmtPriority},
+    event::EventQueue,
     formatter::NetworkFormatter,
     network::Network,
     ospf::OspfArea,
     route_map::{RouteMap, RouteMapDirection},
     router::StaticRoute,
-    types::{ConfigError, LinkWeight, NetworkDevice, NetworkError, Prefix, RouterId},
+    types::{ConfigError, LinkWeight, NetworkDevice, NetworkError, Prefix, PrefixMap, RouterId},
 };
 
 use petgraph::algo::FloatMeasure;
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 use std::ops::Index;
@@ -101,20 +100,20 @@ use std::ops::Index;
 /// The `Config` struct contains only "unique" `ConfigExpr`. This means, that a config cannot have a
 /// expression to set a specific link weight to 1, and another expression setting the same link to
 /// 2.0.
-#[derive(Debug, Clone)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Config {
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub struct Config<P: Prefix> {
     /// All lines of configuration
-    pub expr: HashMap<ConfigExprKey, ConfigExpr>,
+    pub expr: HashMap<ConfigExprKey<P>, ConfigExpr<P>>,
 }
 
-impl Default for Config {
+impl<P: Prefix> Default for Config<P> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl Config {
+impl<P: Prefix> Config<P> {
     /// Create an empty configuration
     pub fn new() -> Self {
         Self {
@@ -123,7 +122,7 @@ impl Config {
     }
 
     /// Add a single configuration expression. This fails if a similar expression already exists.
-    pub fn add(&mut self, expr: ConfigExpr) -> Result<(), ConfigError> {
+    pub fn add(&mut self, expr: ConfigExpr<P>) -> Result<(), ConfigError> {
         // check if there is an expression which this one would overwrite
         if let Some(old_expr) = self.expr.insert(expr.key(), expr) {
             self.expr.insert(old_expr.key(), old_expr);
@@ -142,20 +141,20 @@ impl Config {
     /// need to match the existing config expression. It just needs to have the same `ConfigExprKey`
     /// as the already existing expression. Also, both expressions in `ConfigModifier::Update` must
     /// produce the same `ConfigExprKey`.
-    pub fn apply_modifier(&mut self, modifier: &ConfigModifier) -> Result<(), ConfigError> {
+    pub fn apply_modifier(&mut self, modifier: &ConfigModifier<P>) -> Result<(), ConfigError> {
         match modifier {
             ConfigModifier::Insert(expr) => {
                 if let Some(old_expr) = self.expr.insert(expr.key(), expr.clone()) {
                     self.expr.insert(old_expr.key(), old_expr);
-                    return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())));
+                    return Err(ConfigError::ConfigModifier);
                 }
             }
             ConfigModifier::Remove(expr) => match self.expr.remove(&expr.key()) {
                 Some(old_expr) if &old_expr != expr => {
                     self.expr.insert(old_expr.key(), old_expr);
-                    return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())));
+                    return Err(ConfigError::ConfigModifier);
                 }
-                None => return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone()))),
+                None => return Err(ConfigError::ConfigModifier),
                 _ => {}
             },
             ConfigModifier::Update {
@@ -165,16 +164,14 @@ impl Config {
                 // check if both are similar
                 let key = expr_a.key();
                 if key != expr_b.key() {
-                    return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())));
+                    return Err(ConfigError::ConfigModifier);
                 }
                 match self.expr.remove(&key) {
                     Some(old_expr) if &old_expr != expr_a => {
                         self.expr.insert(key, old_expr);
-                        return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())));
+                        return Err(ConfigError::ConfigModifier);
                     }
-                    None => {
-                        return Err(ConfigError::ConfigModifierError(Box::new(modifier.clone())))
-                    }
+                    None => return Err(ConfigError::ConfigModifier),
                     _ => {}
                 }
                 self.expr.insert(key, expr_b.clone());
@@ -186,7 +183,7 @@ impl Config {
     /// Apply a patch on the current configuration. `self` will be updated to reflect all chages in
     /// the patch. The function will return an error if the patch cannot be applied. If an error
     /// occurs, the config will remain untouched.
-    pub fn apply_patch(&mut self, patch: &ConfigPatch) -> Result<(), ConfigError> {
+    pub fn apply_patch(&mut self, patch: &ConfigPatch<P>) -> Result<(), ConfigError> {
         // clone the current config
         // TODO this can be implemented more efficiently, by undoing the change in reverse.
         let mut config_before = self.expr.clone();
@@ -205,10 +202,10 @@ impl Config {
 
     /// returns a ConfigPatch containing the difference between self and other
     /// When the patch is applied on self, it will be the same as other.
-    pub fn get_diff(&self, other: &Self) -> ConfigPatch {
+    pub fn get_diff(&self, other: &Self) -> ConfigPatch<P> {
         let mut patch = ConfigPatch::new();
-        let self_keys: HashSet<&ConfigExprKey> = self.expr.keys().collect();
-        let other_keys: HashSet<&ConfigExprKey> = other.expr.keys().collect();
+        let self_keys: HashSet<&ConfigExprKey<P>> = self.expr.keys().collect();
+        let other_keys: HashSet<&ConfigExprKey<P>> = other.expr.keys().collect();
 
         // expressions missing in other (must be removed)
         for k in self_keys.difference(&other_keys) {
@@ -245,32 +242,32 @@ impl Config {
     }
 
     /// Returns an iterator over all expressions in the configuration.
-    pub fn iter(&self) -> std::collections::hash_map::Values<ConfigExprKey, ConfigExpr> {
+    pub fn iter(&self) -> std::collections::hash_map::Values<ConfigExprKey<P>, ConfigExpr<P>> {
         self.expr.values()
     }
 
     /// Lookup a configuration
-    pub fn get(&self, mut index: ConfigExprKey) -> Option<&ConfigExpr> {
+    pub fn get(&self, mut index: ConfigExprKey<P>) -> Option<&ConfigExpr<P>> {
         index.normalize();
         self.expr.get(&index)
     }
 
     /// Lookup a configuration
-    pub fn get_mut(&mut self, mut index: ConfigExprKey) -> Option<&mut ConfigExpr> {
+    pub fn get_mut(&mut self, mut index: ConfigExprKey<P>) -> Option<&mut ConfigExpr<P>> {
         index.normalize();
         self.expr.get_mut(&index)
     }
 }
 
-impl Index<ConfigExprKey> for Config {
-    type Output = ConfigExpr;
+impl<P: Prefix> Index<ConfigExprKey<P>> for Config<P> {
+    type Output = ConfigExpr<P>;
 
-    fn index(&self, index: ConfigExprKey) -> &Self::Output {
+    fn index(&self, index: ConfigExprKey<P>) -> &Self::Output {
         self.get(index).unwrap()
     }
 }
 
-impl PartialEq for Config {
+impl<P: Prefix> PartialEq for Config<P> {
     fn eq(&self, other: &Self) -> bool {
         if self.expr.keys().collect::<HashSet<_>>() != other.expr.keys().collect::<HashSet<_>>() {
             return false;
@@ -304,9 +301,9 @@ impl PartialEq for Config {
 
 /// # Single configuration expression
 /// The expression sets a specific thing in the network.
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ConfigExpr {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub enum ConfigExpr<P: Prefix> {
     /// Sets the link weight of a single link (directional)
     /// TODO make sure that the weight is strictly smaller than infinity.
     IgpLinkWeight {
@@ -348,14 +345,14 @@ pub enum ConfigExpr {
         /// Direction (incoming or outgoing)
         direction: RouteMapDirection,
         /// Route Map
-        map: RouteMap,
+        map: RouteMap<P>,
     },
     /// Set a static route
     StaticRoute {
         /// On which router set the static route
         router: RouterId,
         /// For which prefix to set the static route
-        prefix: Prefix,
+        prefix: P,
         /// To which neighbor to forward packets to.
         target: StaticRoute,
     },
@@ -366,11 +363,11 @@ pub enum ConfigExpr {
     },
 }
 
-impl ConfigExpr {
+impl<P: Prefix> ConfigExpr<P> {
     /// Returns the key of the config expression. The idea behind the key is that the `ConfigExpr`
     /// cannot be hashed and used as a key for a `HashMap`. But `ConfigExprKey` implements `Hash`,
     /// and can therefore be used as a key.
-    pub fn key(&self) -> ConfigExprKey {
+    pub fn key(&self) -> ConfigExprKey<P> {
         match self {
             ConfigExpr::IgpLinkWeight {
                 source,
@@ -467,9 +464,8 @@ impl ConfigExpr {
 /// it would be used as a key-value store. By using a different struct, it is very clear how the
 /// `Config` is indexed, and which expressions represent the same key. In addition, it does not
 /// require us to reimplement `Eq` and `Hash`.
-#[derive(Debug, Clone, PartialEq, Eq, Hash)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ConfigExprKey {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub enum ConfigExprKey<P> {
     /// Sets the link weight of a single link (directional)
     IgpLinkWeight {
         /// Source router for link
@@ -507,7 +503,7 @@ pub enum ConfigExprKey {
         /// Router to be configured
         router: RouterId,
         /// Prefix for which to configure the router
-        prefix: Prefix,
+        prefix: P,
     },
     /// Key for Load Balancing
     LoadBalancing {
@@ -516,7 +512,7 @@ pub enum ConfigExprKey {
     },
 }
 
-impl ConfigExprKey {
+impl<P> ConfigExprKey<P> {
     /// Normalize the config expr key (needed for BGP sessions)
     pub fn normalize(&mut self) {
         if let ConfigExprKey::BgpSession {
@@ -534,25 +530,25 @@ impl ConfigExprKey {
 /// # Config Modifier
 /// A single patch to apply on a configuration. The modifier can either insert a new expression,
 /// update an existing expression or remove an old expression.
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub enum ConfigModifier {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub enum ConfigModifier<P: Prefix> {
     /// Insert a new expression
-    Insert(ConfigExpr),
+    Insert(ConfigExpr<P>),
     /// Remove an existing expression
-    Remove(ConfigExpr),
+    Remove(ConfigExpr<P>),
     /// Change a config expression
     Update {
         /// Original configuration expression
-        from: ConfigExpr,
+        from: ConfigExpr<P>,
         /// New configuration expression, which replaces the `from` expression.
-        to: ConfigExpr,
+        to: ConfigExpr<P>,
     },
 }
 
-impl ConfigModifier {
+impl<P: Prefix> ConfigModifier<P> {
     /// Returns the ConfigExprKey for the config expression stored inside.
-    pub fn key(&self) -> ConfigExprKey {
+    pub fn key(&self) -> ConfigExprKey<P> {
         match self {
             Self::Insert(e) => e.key(),
             Self::Remove(e) => e.key(),
@@ -583,20 +579,20 @@ impl ConfigModifier {
 /// # Config Patch
 /// A series of `ConfigModifiers` which can be applied on a `Config` to get a new `Config`. The
 /// series is an ordered list, and the modifiers are applied in the order they were added.
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct ConfigPatch {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub struct ConfigPatch<P: Prefix> {
     /// List of all modifiers, in the order in which they are applied.
-    pub modifiers: Vec<ConfigModifier>,
+    pub modifiers: Vec<ConfigModifier<P>>,
 }
 
-impl Default for ConfigPatch {
+impl<P: Prefix> Default for ConfigPatch<P> {
     fn default() -> Self {
         Self::new()
     }
 }
 
-impl ConfigPatch {
+impl<P: Prefix> ConfigPatch<P> {
     /// Create an empty patch
     pub fn new() -> Self {
         Self {
@@ -605,19 +601,19 @@ impl ConfigPatch {
     }
 
     /// Add a new modifier to the patch
-    pub fn add(&mut self, modifier: ConfigModifier) {
+    pub fn add(&mut self, modifier: ConfigModifier<P>) {
         self.modifiers.push(modifier);
     }
 }
 
 /// Trait to manage the network using configurations, patches, and modifiers.
-pub trait NetworkConfig {
+pub trait NetworkConfig<P: Prefix> {
     /// Set the provided network-wide configuration. The network first computes the patch from the
     /// current configuration to the next one, and applies the patch. If the patch cannot be
     /// applied, then an error is returned. Note, that this function may apply a large number of
     /// modifications in an order which cannot be determined beforehand. If the process fails, then
     /// the network is in an undefined state.
-    fn set_config(&mut self, config: &Config) -> Result<(), NetworkError>;
+    fn set_config(&mut self, config: &Config<P>) -> Result<(), NetworkError>;
 
     /// Apply a configuration patch. The modifications of the patch are applied to the network in
     /// the order in which they appear in `patch.modifiers`. After each modifier is applied, the
@@ -625,37 +621,36 @@ pub trait NetworkConfig {
     /// fail if the modifiers cannot be applied to the current config, or if there was a problem
     /// while applying a modifier and letting the network converge. If the process fails, the
     /// network is in an undefined state.
-    fn apply_patch(&mut self, patch: &ConfigPatch) -> Result<(), NetworkError>;
+    fn apply_patch(&mut self, patch: &ConfigPatch<P>) -> Result<(), NetworkError>;
 
     /// Apply a single configuration modification. The modification must be applicable to the
     /// current configuration. All messages are exchanged. The process fails, then the network is
     /// in an undefined state, and it should be rebuilt.
-    fn apply_modifier(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError>;
+    fn apply_modifier(&mut self, modifier: &ConfigModifier<P>) -> Result<(), NetworkError>;
 
     /// Apply a single configuration modification without checking that the modifier can be
     /// applied. This function ignores the old value stored in `ConfigModifier`, and just makes sure
     /// that the network will have the new value applied in the network.
-    fn apply_modifier_unchecked(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError>;
+    fn apply_modifier_unchecked(
+        &mut self,
+        modifier: &ConfigModifier<P>,
+    ) -> Result<(), NetworkError>;
 
     /// Check if a modifier can be applied.
-    fn can_apply_modifier(&self, expr: &ConfigModifier) -> bool;
+    fn can_apply_modifier(&self, expr: &ConfigModifier<P>) -> bool;
 
     /// Get the current running configuration. This structure will be constructed by gathering all
     /// necessary information from routers.
-    fn get_config(&self) -> Result<Config, NetworkError>;
+    fn get_config(&self) -> Result<Config<P>, NetworkError>;
 }
 
-impl<Q> NetworkConfig for Network<Q>
-where
-    Q: EventQueue,
-    Q::Priority: Default + FmtPriority + Clone,
-{
+impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
     /// Set the provided network-wide configuration. The network first computes the patch from the
     /// current configuration to the next one, and applies the patch. If the patch cannot be
     /// applied, then an error is returned. Note, that this function may apply a large number of
     /// modifications in an order which cannot be determined beforehand. If the process fails, then
     /// the network is in an undefined state.
-    fn set_config(&mut self, config: &Config) -> Result<(), NetworkError> {
+    fn set_config(&mut self, config: &Config<P>) -> Result<(), NetworkError> {
         let patch = self.get_config()?.get_diff(config);
         self.apply_patch(&patch)
     }
@@ -666,7 +661,7 @@ where
     /// fail if the modifiers cannot be applied to the current config, or if there was a problem
     /// while applying a modifier and letting the network converge. If the process fails, the
     /// network is in an undefined state.
-    fn apply_patch(&mut self, patch: &ConfigPatch) -> Result<(), NetworkError> {
+    fn apply_patch(&mut self, patch: &ConfigPatch<P>) -> Result<(), NetworkError> {
         // apply every modifier in order
         self.skip_queue = true;
         for modifier in patch.modifiers.iter() {
@@ -679,21 +674,22 @@ where
     /// Apply a single configuration modification. The modification must be applicable to the
     /// current configuration. All messages are exchanged. The process fails, then the network is
     /// in an undefined state, and it should be rebuilt.
-    fn apply_modifier(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError> {
+    fn apply_modifier(&mut self, modifier: &ConfigModifier<P>) -> Result<(), NetworkError> {
         if self.can_apply_modifier(modifier) {
             self.apply_modifier_unchecked(modifier)
         } else {
             log::warn!("Cannot apply mod.: {}", modifier.fmt(self));
-            Err(NetworkError::ConfigError(ConfigError::ConfigModifierError(
-                Box::new(modifier.clone()),
-            )))
+            Err(ConfigError::ConfigModifier)?
         }
     }
 
     /// Apply a single configuration modification without checking that the modifier can be
     /// applied. This function ignores the old value stored in `ConfigModifier`, and just makes sure
     /// that the network will have the new value applied in the network.
-    fn apply_modifier_unchecked(&mut self, modifier: &ConfigModifier) -> Result<(), NetworkError> {
+    fn apply_modifier_unchecked(
+        &mut self,
+        modifier: &ConfigModifier<P>,
+    ) -> Result<(), NetworkError> {
         debug!("Applying modifier: {}", modifier.fmt(self));
 
         // If the modifier can be applied, then everything is ok and we can do the actual change.
@@ -778,7 +774,7 @@ where
     }
 
     /// Check if a modifier can be applied.
-    fn can_apply_modifier(&self, expr: &ConfigModifier) -> bool {
+    fn can_apply_modifier(&self, expr: &ConfigModifier<P>) -> bool {
         match expr {
             ConfigModifier::Insert(x) => match x {
                 ConfigExpr::IgpLinkWeight { source, target, .. } => self
@@ -860,7 +856,7 @@ where
 
     /// Get the current running configuration. This structure will be constructed by gathering all
     /// necessary information from routers.
-    fn get_config(&self) -> Result<Config, NetworkError> {
+    fn get_config(&self) -> Result<Config<P>, NetworkError> {
         let mut c = Config::new();
 
         // get all link weights
@@ -919,12 +915,12 @@ where
                             unreachable!()
                         }
                     }
-                    Err(ConfigError::ConfigModifierError(_)) => unreachable!(),
+                    Err(ConfigError::ConfigModifier) => unreachable!(),
                 }
             }
 
             // get all route-maps
-            for (neighbor, _) in r.get_bgp_sessions() {
+            for neighbor in r.get_bgp_sessions().keys() {
                 for rm in r.get_bgp_route_maps(*neighbor, RouteMapDirection::Incoming) {
                     c.add(ConfigExpr::BgpRouteMap {
                         router: *rid,
@@ -944,7 +940,7 @@ where
             }
 
             // get all static routes
-            for (prefix, target) in r.get_static_routes() {
+            for (prefix, target) in r.get_static_routes().iter() {
                 c.add(ConfigExpr::StaticRoute {
                     router: *rid,
                     prefix: *prefix,

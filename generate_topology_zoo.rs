@@ -20,9 +20,10 @@
 use std::fs::{remove_file, OpenOptions};
 use std::io::Write;
 
-use itertools::Itertools;
 use bgpsim::event::BasicEventQueue;
 use bgpsim::topology_zoo::TopologyZooParser;
+use bgpsim::types::SimplePrefix;
+use itertools::Itertools;
 
 fn main() {
     let read_dir = match std::fs::read_dir("topology_zoo") {
@@ -68,7 +69,7 @@ fn main() {
         println!("Generating {}", topo_name);
         // generate the network
         let net = match TopologyZooParser::new(&content)
-            .and_then(|p| p.get_network(BasicEventQueue::new()))
+            .and_then(|p| p.get_network(BasicEventQueue::<SimplePrefix>::new()))
         {
             Ok(net) => net,
             Err(_) => continue,

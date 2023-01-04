@@ -15,12 +15,28 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use crate::{event::BasicEventQueue, topology_zoo::TopologyZoo};
+use crate::{
+    event::BasicEventQueue,
+    network::Network,
+    topology_zoo::TopologyZoo,
+    types::{SimplePrefix, SinglePrefix},
+};
 
 #[test]
-fn test_all() {
+fn test_all_single() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
-        let n = topo.build(BasicEventQueue::new());
+        let n: Network<SinglePrefix, _> = topo.build(BasicEventQueue::new());
+        assert_eq!(n.get_routers().len(), topo.num_internals());
+        assert_eq!(n.get_external_routers().len(), topo.num_externals());
+        assert_eq!(n.get_topology().node_indices().len(), topo.num_routers());
+        assert_eq!(n.get_topology().edge_indices().len() / 2, topo.num_edges());
+    }
+}
+
+#[test]
+fn test_all_simple() {
+    for topo in TopologyZoo::topologies_increasing_nodes() {
+        let n: Network<SimplePrefix, _> = topo.build(BasicEventQueue::new());
         assert_eq!(n.get_routers().len(), topo.num_internals());
         assert_eq!(n.get_external_routers().len(), topo.num_externals());
         assert_eq!(n.get_topology().node_indices().len(), topo.num_routers());
@@ -30,7 +46,7 @@ fn test_all() {
 
 #[test]
 fn test_extract() {
-    let n = TopologyZoo::Epoch.build(BasicEventQueue::new());
+    let n: Network<SimplePrefix, _> = TopologyZoo::Epoch.build(BasicEventQueue::new());
 
     assert_eq!(n.get_device(0.into()).unwrap_internal().name(), "PaloAlto");
     assert_eq!(

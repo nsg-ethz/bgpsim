@@ -1,6 +1,6 @@
 [package]
 name = "bgpsim"
-version = "0.10.2"
+version = "0.11.2"
 edition = "2021"
 
 [package.metadata.docs.rs]
@@ -15,46 +15,46 @@ required-features = ["topology_zoo"]
 [[bench]]
 name = "benchmark"
 harness = false
-required-features = ["topology_zoo"]
+required-features = ["topology_zoo", "rand_queue", "rand"]
 
 [[bench]]
-name = "profile"
+name = "roland"
 harness = false
-required-features = ["topology_zoo"]
+required-features = ["topology_zoo", "rand_queue", "rand"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-default = ["multi_prefix"]
-multi_prefix = []
 undo = []
 rand = ["dep:rand"]
 rand_queue = ["dep:rand", "dep:rand_distr", "dep:priority-queue", "dep:geoutils"]
-serde = ["dep:serde", "dep:serde_with", "petgraph/serde-1", "ordered-float/serde", "priority-queue?/serde", "dep:serde_json"]
 topology_zoo = ["dep:xmltree", "dep:geoutils"]
-export = ["dep:ipnet", "dep:bimap"]
+export = ["dep:bimap"]
 
 [dependencies]
+bgpsim-macros = {path = "../bgpsim-macros"}
+prefix-trie = { version = "0.2", features = [ "serde" ]}
 thiserror = "1"
-petgraph = "0.6"
+petgraph = { version = "0.6", features = [ "serde-1" ]}
 log = "0.4"
 itertools = "0.10"
-ordered-float = "3.0.0"
+ordered-float = { version = "3.0.0", features = [ "serde" ]}
 lazy_static = "1.4.0"
-priority-queue = { version = "1.2.2", optional = true }
+priority-queue = { version = "1.2.2", features = [ "serde" ], optional = true }
 rand = { version = "0.8.4", optional = true }
 rand_distr = { version = "0.4.3", optional = true }
-serde = { version = "1", features = [ "derive" ], optional = true }
-serde_json = { version = "1", optional = true }
-serde_with = { version = "2.0", features = [], optional = true }
+serde = { version = "1", features = [ "derive" ]}
+serde_json = { version = "1" }
+serde_with = { version = "2.0", features = []}
 xmltree = { version = "0.10", optional = true }
 geoutils = { version = "0.5.1", optional = true }
 maplit = "1.0.2"
-ipnet = { version = "2.5.0", optional = true }
+ipnet = { version = "2.5.0", features = [ "serde" ] }
 bimap = { version = "0.6.2", optional = true }
 
 [dev-dependencies]
 rand = "0.8.4"
 env_logger = "0.9.0"
 pretty_assertions = "1.2.1"
-criterion = "0.3.6"
+criterion = "0.4.0"
 approx = "0.5.1"
+generic-tests = "0.1.2"

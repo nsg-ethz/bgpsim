@@ -19,11 +19,13 @@
 
 use crate::{
     bgp::BgpSessionType::*,
-    event::{EventQueue, FmtPriority},
+    event::EventQueue,
     network::Network,
     record::RecordNetwork,
-    types::{AsId, NetworkError, Prefix, RouterId},
+    types::{AsId, NetworkError, RouterId, SinglePrefix as P},
 };
+
+use pretty_assertions::assert_eq;
 
 /// Setup the simple network, and return `(e0, b0, r0, r1, b1, e1)`
 /// All weights are 1, r0 and b0 form a iBGP cluster, and so does r1 and b1
@@ -36,11 +38,10 @@ use crate::{
 /// |        |    external
 /// e0       e1
 fn setup_simple<Q>(
-    net: &mut Network<Q>,
+    net: &mut Network<P, Q>,
 ) -> Result<(RouterId, RouterId, RouterId, RouterId, RouterId, RouterId), NetworkError>
 where
-    Q: EventQueue,
-    Q::Priority: FmtPriority + Clone + Default,
+    Q: EventQueue<P>,
 {
     let e0 = net.add_external_router("E0", AsId(1));
     let b0 = net.add_router("B0");
@@ -76,8 +77,8 @@ where
 
 #[test]
 fn test_simple_deterministic() {
-    let mut net = Network::default();
-    let prefix = Prefix::from(0);
+    let mut net: Network<P, _> = Network::default();
+    let prefix = P::from(0);
 
     let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net).unwrap();
 
@@ -90,8 +91,8 @@ fn test_simple_deterministic() {
         .unwrap();
 
     assert_eq!(
-        rec.trace()[&prefix],
-        vec![
+        rec.trace(),
+        &vec![
             (vec![(e1, vec![], vec![u32::MAX.into()])], None.into()),
             (vec![(b1, vec![r1], vec![e1])], None.into()),
             (vec![(r1, vec![r0], vec![b1])], None.into()),
@@ -111,7 +112,7 @@ fn test_simple_deterministic() {
     );
 
     // perform one step
-    rec.step(prefix).unwrap();
+    rec.step().unwrap();
 
     let s = rec.state();
     assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
@@ -123,7 +124,7 @@ fn test_simple_deterministic() {
     );
 
     // perform one step
-    rec.step(prefix).unwrap();
+    rec.step().unwrap();
 
     // test all paths
     let s = rec.state();
@@ -133,7 +134,7 @@ fn test_simple_deterministic() {
     assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
-    rec.step(prefix).unwrap();
+    rec.step().unwrap();
 
     // test all paths
     let s = rec.state();
@@ -143,7 +144,7 @@ fn test_simple_deterministic() {
     assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
-    rec.step(prefix).unwrap();
+    rec.step().unwrap();
 
     // test all paths
     let s = rec.state();
@@ -153,7 +154,7 @@ fn test_simple_deterministic() {
     assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
-    rec.step(prefix).unwrap();
+    rec.step().unwrap();
 
     // test all paths
     let s = rec.state();
@@ -166,7 +167,7 @@ fn test_simple_deterministic() {
     assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // go back and test the same thing again.
-    rec.back(prefix).unwrap();
+    rec.back().unwrap();
 
     // test all paths
     let s = rec.state();
@@ -176,7 +177,7 @@ fn test_simple_deterministic() {
     assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
-    rec.back(prefix).unwrap();
+    rec.back().unwrap();
 
     // test all paths
     let s = rec.state();
@@ -186,7 +187,7 @@ fn test_simple_deterministic() {
     assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
-    rec.back(prefix).unwrap();
+    rec.back().unwrap();
 
     // test all paths
     let s = rec.state();
@@ -196,7 +197,7 @@ fn test_simple_deterministic() {
     assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
-    rec.back(prefix).unwrap();
+    rec.back().unwrap();
 
     let s = rec.state();
     assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
@@ -208,7 +209,7 @@ fn test_simple_deterministic() {
     );
 
     // perform one step
-    rec.back(prefix).unwrap();
+    rec.back().unwrap();
 
     let s = rec.state();
     assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);

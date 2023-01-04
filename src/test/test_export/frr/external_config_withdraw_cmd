@@ -1,9 +1,9 @@
 interface lo
-  no ip address 128.1.0.1/16
+  no ip address 100.0.1.1/24
 exit
 router bgp 4
   address-family ipv4 unicast
-    no network 128.1.0.0/16
+    no network 100.0.1.0/24
   exit-address-family
 exit
 no ip prefix-list prefix-list-1

@@ -17,29 +17,28 @@
 
 //! Module containing all type definitions
 
+use crate::event::EventOutcome;
 use crate::formatter::NetworkFormatter;
 use crate::{
-    bgp::BgpSessionType, config::ConfigModifier, event::Event, external_router::ExternalRouter,
-    network::Network, router::Router,
+    bgp::BgpSessionType, event::Event, external_router::ExternalRouter, network::Network,
+    router::Router,
 };
 use itertools::Itertools;
 use petgraph::graph::Graph;
 use petgraph::prelude::*;
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 // pub(crate) mod collections;
 pub mod prefix;
-pub use prefix::Prefix;
+pub use prefix::{Ipv4Prefix, Prefix, PrefixMap, PrefixSet, SimplePrefix, SinglePrefix};
 
 pub(crate) type IndexType = u32;
 /// Router Identification (and index into the graph)
 pub type RouterId = NodeIndex<IndexType>;
 
 /// AS Number
-#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy, Serialize, Deserialize)]
 pub struct AsId(pub u32);
 
 impl std::fmt::Display for AsId {
@@ -99,20 +98,29 @@ pub type LinkWeight = f64;
 pub type IgpNetwork = Graph<(), LinkWeight, Directed, IndexType>;
 
 /// How does the next hop change after a BGP event has been processed?
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct StepUpdate {
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct StepUpdate<P> {
     /// Which prefix was affected
-    pub prefix: Option<Prefix>,
+    pub prefix: Option<P>,
     /// Old next-hop
     pub old: Vec<RouterId>,
     /// New next-hop
     pub new: Vec<RouterId>,
 }
 
-impl StepUpdate {
+impl<P> Default for StepUpdate<P> {
+    fn default() -> Self {
+        Self {
+            prefix: None,
+            old: Default::default(),
+            new: Default::default(),
+        }
+    }
+}
+
+impl<P> StepUpdate<P> {
     /// Create a new StepUpdate
-    pub fn new(prefix: Prefix, old: Vec<RouterId>, new: Vec<RouterId>) -> Self {
+    pub fn new(prefix: P, old: Vec<RouterId>, new: Vec<RouterId>) -> Self {
         Self {
             prefix: Some(prefix),
             old,
@@ -124,9 +132,11 @@ impl StepUpdate {
     pub fn changed(&self) -> bool {
         self.old != self.new
     }
+}
 
+impl<P: Prefix> StepUpdate<P> {
     /// Get a struct to display the StepUpdate
-    pub fn fmt<Q>(&self, net: &'_ Network<Q>, router: RouterId) -> String {
+    pub fn fmt<Q>(&self, net: &Network<P, Q>, router: RouterId) -> String {
         format!(
             "{} => {}: {} > {}",
             router.fmt(net),
@@ -154,8 +164,7 @@ impl StepUpdate {
 }
 
 /// Configuration Error
-#[derive(Error, Debug, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Error, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ConfigError {
     /// The added expression would overwrite an existing expression
     #[error("The new ConfigExpr would overwrite an existing one!")]
@@ -164,8 +173,8 @@ pub enum ConfigError {
     /// 1. The ConfigModifier::Insert would insert an already existing expression
     /// 2. The ConfigModifier::Remove would remove an non-existing expression
     /// 3. The ConfigModifier::Update would update an non-existing expression
-    #[error("The ConfigModifier cannot be applied: {0:?}")]
-    ConfigModifierError(Box<ConfigModifier>),
+    #[error("The ConfigModifier cannot be applied.")]
+    ConfigModifier,
 }
 
 /// # Network Device (similar to `Option`)
@@ -174,19 +183,19 @@ pub enum ConfigError {
 /// knows three different `unwrap` functions, the `unwrap_internal`, `unwrap_external` and
 /// `unwrap_none` function, as well as `internal_or` and `external_or`.
 #[derive(Debug)]
-pub enum NetworkDevice<'a> {
+pub enum NetworkDevice<'a, P: Prefix> {
     /// Internal Router
-    InternalRouter(&'a Router),
+    InternalRouter(&'a Router<P>),
     /// External Router
-    ExternalRouter(&'a ExternalRouter),
+    ExternalRouter(&'a ExternalRouter<P>),
     /// None was found
     None(RouterId),
 }
 
 #[cfg(not(tarpaulin_include))]
-impl<'a> NetworkDevice<'a> {
+impl<'a, P: Prefix> NetworkDevice<'a, P> {
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::InternalRouter`
-    pub fn unwrap_internal(self) -> &'a Router {
+    pub fn unwrap_internal(self) -> &'a Router<P> {
         match self {
             Self::InternalRouter(r) => r,
             Self::ExternalRouter(_) => {
@@ -197,7 +206,7 @@ impl<'a> NetworkDevice<'a> {
     }
 
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::ExternalRouter`
-    pub fn unwrap_external(self) -> &'a ExternalRouter {
+    pub fn unwrap_external(self) -> &'a ExternalRouter<P> {
         match self {
             Self::InternalRouter(_) => {
                 panic!("`unwrap_external()` called on a `NetworkDevice::InternalRouter`")
@@ -236,7 +245,7 @@ impl<'a> NetworkDevice<'a> {
     }
 
     /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `InternalRouter`.
-    pub fn internal(self) -> Option<&'a Router> {
+    pub fn internal(self) -> Option<&'a Router<P>> {
         match self {
             Self::InternalRouter(e) => Some(e),
             _ => None,
@@ -244,7 +253,7 @@ impl<'a> NetworkDevice<'a> {
     }
 
     /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `ExternalRouter`.
-    pub fn external(self) -> Option<&'a ExternalRouter> {
+    pub fn external(self) -> Option<&'a ExternalRouter<P>> {
         match self {
             Self::ExternalRouter(e) => Some(e),
             _ => None,
@@ -253,7 +262,7 @@ impl<'a> NetworkDevice<'a> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `InternalRouter`. If
     /// `self` is not `InternalError`, then the provided error is returned.
-    pub fn internal_or<E: std::error::Error>(self, error: E) -> Result<&'a Router, E> {
+    pub fn internal_or<E: std::error::Error>(self, error: E) -> Result<&'a Router<P>, E> {
         match self {
             Self::InternalRouter(e) => Ok(e),
             _ => Err(error),
@@ -262,7 +271,7 @@ impl<'a> NetworkDevice<'a> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `ExternalRouter`. If
     /// `self` is not `ExternalRouter`, then the provided error is returned.
-    pub fn external_or<E: std::error::Error>(self, error: E) -> Result<&'a ExternalRouter, E> {
+    pub fn external_or<E: std::error::Error>(self, error: E) -> Result<&'a ExternalRouter<P>, E> {
         match self {
             Self::ExternalRouter(e) => Ok(e),
             _ => Err(error),
@@ -280,7 +289,7 @@ impl<'a> NetworkDevice<'a> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
     /// `InternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`].
-    pub fn internal_or_err(self) -> Result<&'a Router, NetworkError> {
+    pub fn internal_or_err(self) -> Result<&'a Router<P>, NetworkError> {
         match self {
             Self::InternalRouter(r) => Ok(r),
             Self::ExternalRouter(r) => Err(NetworkError::DeviceIsExternalRouter(r.router_id())),
@@ -290,7 +299,7 @@ impl<'a> NetworkDevice<'a> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
     /// `ExternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`]
-    pub fn external_or_err(self) -> Result<&'a ExternalRouter, NetworkError> {
+    pub fn external_or_err(self) -> Result<&'a ExternalRouter<P>, NetworkError> {
         match self {
             Self::ExternalRouter(r) => Ok(r),
             Self::InternalRouter(r) => Err(NetworkError::DeviceIsInternalRouter(r.router_id())),
@@ -305,19 +314,19 @@ impl<'a> NetworkDevice<'a> {
 /// knows three different `unwrap` functions, the `unwrap_internal`, `unwrap_external` and
 /// `unwrap_none` function, as well as `internal_or` and `external_or`.
 #[derive(Debug)]
-pub enum NetworkDeviceMut<'a> {
+pub enum NetworkDeviceMut<'a, P: Prefix> {
     /// Internal Router
-    InternalRouter(&'a mut Router),
+    InternalRouter(&'a mut Router<P>),
     /// External Router
-    ExternalRouter(&'a mut ExternalRouter),
+    ExternalRouter(&'a mut ExternalRouter<P>),
     /// None was found
     None(RouterId),
 }
 
 #[cfg(not(tarpaulin_include))]
-impl<'a> NetworkDeviceMut<'a> {
+impl<'a, P: Prefix> NetworkDeviceMut<'a, P> {
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::InternalRouter`
-    pub fn unwrap_internal(self) -> &'a mut Router {
+    pub fn unwrap_internal(self) -> &'a mut Router<P> {
         match self {
             Self::InternalRouter(r) => r,
             Self::ExternalRouter(_) => {
@@ -328,7 +337,7 @@ impl<'a> NetworkDeviceMut<'a> {
     }
 
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::ExternalRouter`
-    pub fn unwrap_external(self) -> &'a mut ExternalRouter {
+    pub fn unwrap_external(self) -> &'a mut ExternalRouter<P> {
         match self {
             Self::InternalRouter(_) => {
                 panic!("`unwrap_external()` called on a `NetworkDevice::InternalRouter`")
@@ -367,7 +376,7 @@ impl<'a> NetworkDeviceMut<'a> {
     }
 
     /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `InternalRouter`.
-    pub fn internal(self) -> Option<&'a mut Router> {
+    pub fn internal(self) -> Option<&'a mut Router<P>> {
         match self {
             Self::InternalRouter(e) => Some(e),
             _ => None,
@@ -375,7 +384,7 @@ impl<'a> NetworkDeviceMut<'a> {
     }
 
     /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `ExternalRouter`.
-    pub fn external(self) -> Option<&'a mut ExternalRouter> {
+    pub fn external(self) -> Option<&'a mut ExternalRouter<P>> {
         match self {
             Self::ExternalRouter(e) => Some(e),
             _ => None,
@@ -384,7 +393,7 @@ impl<'a> NetworkDeviceMut<'a> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `InternalRouter`. If
     /// `self` is not `InternalError`, then the provided error is returned.
-    pub fn internal_or<E: std::error::Error>(self, error: E) -> Result<&'a mut Router, E> {
+    pub fn internal_or<E: std::error::Error>(self, error: E) -> Result<&'a mut Router<P>, E> {
         match self {
             Self::InternalRouter(e) => Ok(e),
             _ => Err(error),
@@ -393,7 +402,10 @@ impl<'a> NetworkDeviceMut<'a> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `ExternalRouter`. If
     /// `self` is not `ExternalRouter`, then the provided error is returned.
-    pub fn external_or<E: std::error::Error>(self, error: E) -> Result<&'a mut ExternalRouter, E> {
+    pub fn external_or<E: std::error::Error>(
+        self,
+        error: E,
+    ) -> Result<&'a mut ExternalRouter<P>, E> {
         match self {
             Self::ExternalRouter(e) => Ok(e),
             _ => Err(error),
@@ -411,7 +423,7 @@ impl<'a> NetworkDeviceMut<'a> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
     /// `InternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`].
-    pub fn internal_or_err(self) -> Result<&'a mut Router, NetworkError> {
+    pub fn internal_or_err(self) -> Result<&'a mut Router<P>, NetworkError> {
         match self {
             Self::InternalRouter(r) => Ok(r),
             Self::ExternalRouter(r) => Err(NetworkError::DeviceIsExternalRouter(r.router_id())),
@@ -421,7 +433,7 @@ impl<'a> NetworkDeviceMut<'a> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
     /// `ExternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`]
-    pub fn external_or_err(self) -> Result<&'a mut ExternalRouter, NetworkError> {
+    pub fn external_or_err(self) -> Result<&'a mut ExternalRouter<P>, NetworkError> {
         match self {
             Self::ExternalRouter(r) => Ok(r),
             Self::InternalRouter(r) => Err(NetworkError::DeviceIsInternalRouter(r.router_id())),
@@ -432,10 +444,10 @@ impl<'a> NetworkDeviceMut<'a> {
     /// handle an `Event`. This function returns all events triggered by this function, and a
     /// boolean to check if there was an update or not. If the device does not exist, then raise an
     /// error.
-    pub(crate) fn handle_event<P: Default>(
+    pub(crate) fn handle_event<T: Default>(
         &mut self,
-        event: Event<P>,
-    ) -> Result<(StepUpdate, Vec<Event<P>>), NetworkError> {
+        event: Event<P, T>,
+    ) -> Result<EventOutcome<P, T>, NetworkError> {
         match self {
             NetworkDeviceMut::InternalRouter(r) => Ok(r.handle_event(event)?),
             NetworkDeviceMut::ExternalRouter(r) => Ok(r.handle_event(event)?),
@@ -447,7 +459,7 @@ impl<'a> NetworkDeviceMut<'a> {
     /// error.
     #[cfg(feature = "undo")]
     #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-    pub(crate) fn undo_event<P: Default>(&mut self) -> Result<(), NetworkError> {
+    pub(crate) fn undo_event(&mut self) -> Result<(), NetworkError> {
         match self {
             NetworkDeviceMut::InternalRouter(r) => {
                 r.undo_event();
@@ -463,8 +475,7 @@ impl<'a> NetworkDeviceMut<'a> {
 }
 
 /// Router Errors
-#[derive(Error, Debug, PartialEq, Eq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Error, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DeviceError {
     /// No BGP session is established
     #[error("BGP Session with {0:?} is not yet created!")]
@@ -524,13 +535,11 @@ pub enum NetworkError {
     /// Some undo error happened.
     #[error("Undo error: {0}")]
     UndoError(String),
-    #[cfg(feature = "serde")]
     /// Json error
     #[error("{0}")]
     JsonError(Box<serde_json::Error>),
 }
 
-#[cfg(feature = "serde")]
 impl From<serde_json::Error> for NetworkError {
     fn from(value: serde_json::Error) -> Self {
         Self::JsonError(Box::new(value))
@@ -557,7 +566,6 @@ impl PartialEq for NetworkError {
             }
             (Self::InvalidBgpTable(l0), Self::InvalidBgpTable(r0)) => l0 == r0,
             (Self::UndoError(l0), Self::UndoError(r0)) => l0 == r0,
-            #[cfg(feature = "serde")]
             (Self::JsonError(l), Self::JsonError(r)) => l.to_string() == r.to_string(),
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }

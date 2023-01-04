@@ -53,8 +53,9 @@ use thiserror::Error;
 use xmltree::{Element, ParseError as XmlParseError};
 
 use crate::{
+    event::EventQueue,
     network::Network,
-    types::{IndexType, NetworkError, RouterId},
+    types::{IndexType, NetworkError, Prefix, RouterId},
 };
 
 /// Structure to read the topology zoo GraphMl file.
@@ -113,8 +114,11 @@ impl TopologyZooParser {
 
     /// Create and extract the network from the topology. This will generate the routers (both
     /// internal and external, if given), and add all edges.
-    pub fn get_network<Q>(&self, queue: Q) -> Result<Network<Q>, TopologyZooError> {
-        let mut net = Network::new(queue);
+    pub fn get_network<P: Prefix, Q: EventQueue<P>>(
+        &self,
+        queue: Q,
+    ) -> Result<Network<P, Q>, TopologyZooError> {
+        let mut net: Network<P, Q> = Network::new(queue);
 
         let mut last_as_id = 1000;
         let nodes_lut: HashMap<&str, RouterId> = self

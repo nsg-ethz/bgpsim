@@ -23,7 +23,7 @@
 use crate::{
     bgp::{BgpSessionType, BgpState, BgpStateRef},
     config::NetworkConfig,
-    event::{BasicEventQueue, Event, EventQueue, FmtPriority},
+    event::{BasicEventQueue, Event, EventQueue},
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
@@ -31,15 +31,14 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        prefix::HashSetPrefix, AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut,
-        NetworkError, Prefix, RouterId,
+        AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut, NetworkError, Prefix,
+        PrefixSet, RouterId, SimplePrefix,
     },
 };
 
 use log::*;
 use petgraph::algo::FloatMeasure;
 use petgraph::visit::EdgeRef;
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -49,10 +48,34 @@ static DEFAULT_STOP_AFTER: usize = 1_000_000;
 /// The struct contains all information about the underlying physical network (Links), a manages
 /// all (both internal and external) routers, and handles all events between them.
 ///
-/// If you wish to interact with the network by using configuration, then import the trait
-/// `NetworkConfig`.
+/// ```rust
+/// use bgpsim::prelude::*;
 ///
-/// *Undo Functionality*: The undo stack is a 3-dim vector (`Vec<Vec<Vec<UndoAction>>>`). Each action
+/// fn main() -> Result<(), NetworkError> {
+///     // create an empty network.
+///     let mut net: Network<SimplePrefix, _> = Network::default();
+///
+///     // add two internal routers and connect them.
+///     let r1 = net.add_router("r1");
+///     let r2 = net.add_router("r2");
+///     net.add_link(r1, r2);
+///     net.set_link_weight(r1, r2, 5.0)?;
+///     net.set_link_weight(r2, r1, 4.0)?;
+///
+///     Ok(())
+/// }
+/// ```
+///
+/// ## Type arguments
+///
+/// The [`Network`] accepts two type attributes:
+/// - `P`: The kind of [`Prefix`] used in the network. This attribute allows compiler optimizations
+///   if no longest-prefix matching is necessary, or if only a single prefix is simulated.
+/// - `Q`: The kind of [`EventQueue`] used in the network. The queue determines the order in which
+///   events are processed.
+///
+/// ## Undo Functionality (feature `undo`)
+/// The undo stack is a 3-dim vector (`Vec<Vec<Vec<UndoAction>>>`). Each action
 /// (like advertising a new route) will add a new top-level element to the first vector. The second
 /// vector represents each event (and which things need to be applied to undo an event). This is
 /// usually just a single event (i.e., undo the last event on a device). However, some actions
@@ -64,14 +87,17 @@ static DEFAULT_STOP_AFTER: usize = 1_000_000;
 /// undo a single event by calling `crate::interactive::InteractiveNetwork::undo_step`. Finally,
 /// you can create an undo-mark by calling `Network::get_undo_mark`, and undo up to this mark
 /// using `Network::undo_to_mark`.
-#[derive(Debug)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-pub struct Network<Q = BasicEventQueue> {
+#[derive(Debug, Serialize, Deserialize)]
+#[serde(bound(
+    serialize = "Q: serde::Serialize",
+    deserialize = "P: for<'a> serde::Deserialize<'a>, Q: for<'a> serde::Deserialize<'a>"
+))]
+pub struct Network<P: Prefix = SimplePrefix, Q = BasicEventQueue<SimplePrefix>> {
     pub(crate) net: IgpNetwork,
     pub(crate) ospf: Ospf,
-    pub(crate) routers: HashMap<RouterId, Router>,
-    pub(crate) external_routers: HashMap<RouterId, ExternalRouter>,
-    pub(crate) known_prefixes: HashSetPrefix,
+    pub(crate) routers: HashMap<RouterId, Router<P>>,
+    pub(crate) external_routers: HashMap<RouterId, ExternalRouter<P>>,
+    pub(crate) known_prefixes: P::Set,
     pub(crate) stop_after: Option<usize>,
     pub(crate) queue: Q,
     pub(crate) skip_queue: bool,
@@ -80,7 +106,7 @@ pub struct Network<Q = BasicEventQueue> {
     pub(crate) undo_stack: Vec<Vec<Vec<UndoAction>>>,
 }
 
-impl<Q: Clone> Clone for Network<Q> {
+impl<P: Prefix, Q: Clone> Clone for Network<P, Q> {
     /// Cloning the network does not clone the event history.
     fn clone(&self) -> Self {
         log::debug!("Cloning the network!");
@@ -101,20 +127,20 @@ impl<Q: Clone> Clone for Network<Q> {
     }
 }
 
-impl Default for Network<BasicEventQueue> {
+impl<P: Prefix> Default for Network<P, BasicEventQueue<P>> {
     fn default() -> Self {
         Self::new(BasicEventQueue::new())
     }
 }
 
-impl<Q> Network<Q> {
+impl<P: Prefix, Q> Network<P, Q> {
     /// Generate an empty Network
     pub fn new(queue: Q) -> Self {
         Self {
             net: IgpNetwork::new(),
             ospf: Ospf::new(),
             routers: HashMap::new(),
-            known_prefixes: HashSetPrefix::new(),
+            known_prefixes: Default::default(),
             external_routers: HashMap::new(),
             stop_after: Some(DEFAULT_STOP_AFTER),
             queue,
@@ -173,7 +199,7 @@ impl<Q> Network<Q> {
     /// ```rust
     /// # use bgpsim::prelude::*;
     /// # fn main() -> Result<(), NetworkError> {
-    /// let mut net = Network::default();
+    /// let mut net: Network<SimplePrefix, _> = Network::default();
     /// let r1 = net.add_router("r1");
     /// let r2 = net.add_router("r2");
     /// net.add_link(r1, r2);
@@ -202,21 +228,21 @@ impl<Q> Network<Q> {
     }
 
     /// Compute and return the current forwarding state.
-    pub fn get_forwarding_state(&self) -> ForwardingState {
+    pub fn get_forwarding_state(&self) -> ForwardingState<P> {
         ForwardingState::from_net(self)
     }
 
     /// Compute and return the current BGP state as a reference for the given prefix. The returned
     /// structure contains references into `self`. In order to get a BGP state that does not keep an
     /// immutable reference to `self`, use [`Self::get_bgp_state_owned`].
-    pub fn get_bgp_state(&self, prefix: Prefix) -> BgpStateRef<'_> {
+    pub fn get_bgp_state(&self, prefix: P) -> BgpStateRef<'_, P> {
         BgpStateRef::from_net(self, prefix)
     }
 
     /// Compute and return the current BGP state for the given prefix. This function clones many
     /// routes of the network. See [`Self::get_bgp_state`] in case you wish to keep references
     /// instead.
-    pub fn get_bgp_state_owned(&self, prefix: Prefix) -> BgpState {
+    pub fn get_bgp_state_owned(&self, prefix: P) -> BgpState<P> {
         BgpState::from_net(self, prefix)
     }
 
@@ -235,7 +261,7 @@ impl<Q> Network<Q> {
     }
 
     /// Returns a reference to the network device.
-    pub fn get_device(&self, id: RouterId) -> NetworkDevice<'_> {
+    pub fn get_device(&self, id: RouterId) -> NetworkDevice<'_, P> {
         match self.routers.get(&id) {
             Some(r) => NetworkDevice::InternalRouter(r),
             None => match self.external_routers.get(&id) {
@@ -246,7 +272,7 @@ impl<Q> Network<Q> {
     }
 
     /// Returns a reference to the network device.
-    pub(crate) fn get_device_mut(&mut self, id: RouterId) -> NetworkDeviceMut<'_> {
+    pub(crate) fn get_device_mut(&mut self, id: RouterId) -> NetworkDeviceMut<'_, P> {
         match self.routers.get_mut(&id) {
             Some(r) => NetworkDeviceMut::InternalRouter(r),
             None => match self.external_routers.get_mut(&id) {
@@ -291,7 +317,7 @@ impl<Q> Network<Q> {
     }
 
     /// Returns a hashset of all known prefixes
-    pub fn get_known_prefixes(&self) -> impl Iterator<Item = &Prefix> {
+    pub fn get_known_prefixes(&self) -> impl Iterator<Item = &P> {
         self.known_prefixes.iter()
     }
 
@@ -369,44 +395,15 @@ impl<Q> Network<Q> {
 
         Ok(self.ospf.get_area(source, target))
     }
-
-    // *******************
-    // * Print Functions *
-    // *******************
-
-    /// Return the route for the given prefix, starting at the source router, as a list of
-    /// `RouterIds,` starting at the source, and ending at the (probably external) router ID that
-    /// originated the prefix. The Router ID must be the ID of an internal router.
-    ///
-    /// **Warning** use `net.get_fw_state().get_route()` for a cached implementation if you need
-    /// multiple routes at once. This function will extract the entire forwarding state just to get
-    /// this individual route.
-    #[deprecated(
-        since = "0.4.0",
-        note = "Use `self.get_forwarding_state().get_route(src, p)` instead!"
-    )]
-    pub fn get_route(
-        &self,
-        source: RouterId,
-        prefix: impl Into<Prefix>,
-    ) -> Result<Vec<Vec<RouterId>>, NetworkError> {
-        // get the forwarding state of the network
-        let mut fw_state = self.get_forwarding_state();
-        fw_state.get_route(source, prefix.into())
-    }
 }
 
-impl<Q> Network<Q>
-where
-    Q: EventQueue,
-    Q::Priority: Default + FmtPriority + Clone,
-{
+impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// Swap out the queue with a different one. This requires that the queue is empty! If it is
     /// not, then nothing is changed.
     #[allow(clippy::result_large_err)]
-    pub fn swap_queue<QA>(self, mut queue: QA) -> Result<Network<QA>, Self>
+    pub fn swap_queue<QA>(self, mut queue: QA) -> Result<Network<P, QA>, Self>
     where
-        QA: EventQueue,
+        QA: EventQueue<P>,
     {
         if !self.queue.is_empty() {
             return Err(self);
@@ -626,8 +623,8 @@ where
         router: RouterId,
         neighbor: RouterId,
         direction: RouteMapDirection,
-        route_map: RouteMap,
-    ) -> Result<Option<RouteMap>, NetworkError> {
+        route_map: RouteMap<P>,
+    ) -> Result<Option<RouteMap<P>>, NetworkError> {
         // prepare undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -662,7 +659,7 @@ where
         neighbor: RouterId,
         direction: RouteMapDirection,
         order: i16,
-    ) -> Result<Option<RouteMap>, NetworkError> {
+    ) -> Result<Option<RouteMap<P>>, NetworkError> {
         // prepare undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
@@ -692,7 +689,7 @@ where
     pub fn set_static_route(
         &mut self,
         router: RouterId,
-        prefix: Prefix,
+        prefix: P,
         route: Option<StaticRoute>,
     ) -> Result<Option<StaticRoute>, NetworkError> {
         // prepare undo stack
@@ -740,7 +737,7 @@ where
     pub fn advertise_external_route<A, C>(
         &mut self,
         source: RouterId,
-        prefix: impl Into<Prefix>,
+        prefix: impl Into<P>,
         as_path: A,
         med: Option<u32>,
         community: C,
@@ -754,7 +751,7 @@ where
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
 
-        let prefix: Prefix = prefix.into();
+        let prefix: P = prefix.into();
         let as_path: Vec<AsId> = as_path.into_iter().map(|id| id.into()).collect();
 
         debug!("Advertise {} on {}", prefix, self.get_router_name(source)?);
@@ -786,9 +783,9 @@ where
     pub fn retract_external_route(
         &mut self,
         source: RouterId,
-        prefix: impl Into<Prefix>,
+        prefix: impl Into<P>,
     ) -> Result<(), NetworkError> {
-        let prefix: Prefix = prefix.into();
+        let prefix: P = prefix.into();
 
         // prepare undo stack
         #[cfg(feature = "undo")]
@@ -967,21 +964,21 @@ where
 
     /// Enqueue the event
     #[inline(always)]
-    fn enqueue_event(&mut self, event: Event<Q::Priority>) {
+    fn enqueue_event(&mut self, event: Event<P, Q::Priority>) {
         self.queue.push(event, &self.routers, &self.net)
     }
 
     /// Enqueue all events
     #[inline(always)]
-    pub(crate) fn enqueue_events(&mut self, events: Vec<Event<Q::Priority>>) {
+    pub(crate) fn enqueue_events(&mut self, events: Vec<Event<P, Q::Priority>>) {
         events.into_iter().for_each(|e| self.enqueue_event(e))
     }
 }
 
-impl<Q> Network<Q>
+impl<P, Q> Network<P, Q>
 where
-    Q: EventQueue + PartialEq,
-    Q::Priority: Default,
+    P: Prefix,
+    Q: EventQueue<P> + PartialEq,
 {
     /// Checks for weak equivalence, by only comparing the IGP and BGP tables, as well as the event
     /// queue. The function also checks that the same routers are present.
@@ -1020,10 +1017,10 @@ where
 /// checks "simple" conditions, like the configuration, before checking the state of each individual
 /// router. Use the `Network::weak_eq` function to skip some checks, which can be known beforehand.
 /// This implementation will check the configuration, advertised prefixes and all routers.
-impl<Q> PartialEq for Network<Q>
+impl<P, Q> PartialEq for Network<P, Q>
 where
-    Q: EventQueue + PartialEq,
-    Q::Priority: Default + FmtPriority + Clone,
+    P: Prefix,
+    Q: EventQueue<P> + PartialEq,
 {
     #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {
@@ -1084,8 +1081,7 @@ pub struct UndoMark {
 /// Undo action on the Network
 #[cfg(feature = "undo")]
 #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-#[derive(Debug, Clone, PartialEq)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub(crate) enum UndoAction {
     /// Update an edge weight or remove the edge entirely.
     UpdateIGP(RouterId, RouterId, Option<LinkWeight>),

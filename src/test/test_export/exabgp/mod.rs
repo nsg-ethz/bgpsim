@@ -24,12 +24,12 @@ use crate::{
     event::BasicEventQueue,
     export::{ExaBgpCfgGen, ExternalCfgGen},
     network::Network,
-    types::{AsId, RouterId},
+    types::{AsId, Prefix, RouterId, SimplePrefix, SinglePrefix},
 };
 
 use super::addressor;
 
-fn get_test_net(num_neighbors: usize) -> Network<BasicEventQueue> {
+fn get_test_net<P: Prefix>(num_neighbors: usize) -> Network<P, BasicEventQueue<P>> {
     let mut net = Network::build_complete_graph(BasicEventQueue::new(), num_neighbors);
     let ext = net.add_external_router("external_router", AsId(100));
     net.get_routers()
@@ -42,58 +42,70 @@ fn get_test_net(num_neighbors: usize) -> Network<BasicEventQueue> {
     net
 }
 
-#[test]
-fn config_1n() {
-    let num_neighbors = 1;
-    let net = get_test_net(num_neighbors);
-    let ext: RouterId = (num_neighbors as u32).into();
-    let mut ip = addressor(&net, 1);
+#[generic_tests::define]
+mod t {
+    use super::*;
+    use pretty_assertions::assert_eq;
 
-    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
-    let cfg = gen.generate_config(&net, &mut ip).unwrap();
+    #[test]
+    fn config_1n<P: Prefix>() {
+        let num_neighbors = 1;
+        let net = get_test_net::<P>(num_neighbors);
+        let ext: RouterId = (num_neighbors as u32).into();
+        let mut ip = addressor(&net);
 
-    assert_eq!(cfg, include_str!("config_1n.ini"))
-}
+        let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
+        let cfg = gen.generate_config(&net, &mut ip).unwrap();
 
-#[test]
-fn config_2n() {
-    let num_neighbors = 2;
-    let net = get_test_net(num_neighbors);
-    let ext: RouterId = (num_neighbors as u32).into();
-    let mut ip = addressor(&net, 1);
+        assert_eq!(cfg, include_str!("config_1n.ini"))
+    }
 
-    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
-    let cfg = gen.generate_config(&net, &mut ip).unwrap();
+    #[test]
+    fn config_2n<P: Prefix>() {
+        let num_neighbors = 2;
+        let net = get_test_net::<P>(num_neighbors);
+        let ext: RouterId = (num_neighbors as u32).into();
+        let mut ip = addressor(&net);
 
-    assert_eq!(cfg, include_str!("config_2n.ini"))
-}
+        let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
+        let cfg = gen.generate_config(&net, &mut ip).unwrap();
 
-#[test]
-fn script_1n_1p() {
-    let num_neighbors = 1;
-    let mut net = get_test_net(num_neighbors);
-    let ext: RouterId = (num_neighbors as u32).into();
-    net.advertise_external_route(ext, 0, [100], None, None)
-        .unwrap();
-    let mut ip = addressor(&net, 1);
+        assert_eq!(cfg, include_str!("config_2n.ini"))
+    }
 
-    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
-    let cfg = gen.generate_config(&net, &mut ip).unwrap();
-    assert_eq!(cfg, include_str!("config_1n.ini"));
-    let script = gen.generate_script(&mut ip).unwrap();
-    assert_eq!(script, include_str!("config_1n_1p.py"));
+    #[test]
+    fn script_1n_1p<P: Prefix>() {
+        let num_neighbors = 1;
+        let mut net = get_test_net::<P>(num_neighbors);
+        let ext: RouterId = (num_neighbors as u32).into();
+        net.advertise_external_route(ext, 0, [100], None, None)
+            .unwrap();
+        let mut ip = addressor(&net);
+
+        let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
+        let cfg = gen.generate_config(&net, &mut ip).unwrap();
+        assert_eq!(cfg, include_str!("config_1n.ini"));
+        let script = gen.generate_script(&mut ip).unwrap();
+        assert_eq!(script, include_str!("config_1n_1p.py"));
+    }
+
+    #[instantiate_tests(<SinglePrefix>)]
+    mod single {}
+
+    #[instantiate_tests(<SimplePrefix>)]
+    mod simple {}
 }
 
 #[test]
 fn script_1n_2p() {
     let num_neighbors = 1;
-    let mut net = get_test_net(num_neighbors);
+    let mut net = get_test_net::<SimplePrefix>(num_neighbors);
     let ext: RouterId = (num_neighbors as u32).into();
     net.advertise_external_route(ext, 0, [100, 60], None, None)
         .unwrap();
     net.advertise_external_route(ext, 1, [100, 40, 10], None, None)
         .unwrap();
-    let mut ip = addressor(&net, 1);
+    let mut ip = addressor(&net);
 
     let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
@@ -105,7 +117,7 @@ fn script_1n_2p() {
 #[test]
 fn script_1n_2p_withdraw() {
     let num_neighbors = 1;
-    let mut net = get_test_net(num_neighbors);
+    let mut net = get_test_net::<SimplePrefix>(num_neighbors);
     let ext: RouterId = (num_neighbors as u32).into();
 
     net.advertise_external_route(ext, 0, [100, 60], None, None)
@@ -113,7 +125,7 @@ fn script_1n_2p_withdraw() {
     net.advertise_external_route(ext, 1, [100, 40, 10], None, None)
         .unwrap();
 
-    let mut ip = addressor(&net, 1);
+    let mut ip = addressor(&net);
 
     let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();
@@ -129,13 +141,13 @@ fn script_1n_2p_withdraw() {
 #[test]
 fn script_2n_2p_withdraw() {
     let num_neighbors = 2;
-    let mut net = get_test_net(num_neighbors);
+    let mut net = get_test_net::<SimplePrefix>(num_neighbors);
     let ext: RouterId = (num_neighbors as u32).into();
     net.advertise_external_route(ext, 0, [100, 60], None, None)
         .unwrap();
     net.advertise_external_route(ext, 1, [100, 40, 10], None, None)
         .unwrap();
-    let mut ip = addressor(&net, 1);
+    let mut ip = addressor(&net);
 
     let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
     let cfg = gen.generate_config(&net, &mut ip).unwrap();

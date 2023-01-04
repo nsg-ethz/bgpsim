@@ -26,9 +26,7 @@ use std::{
 
 use itertools::Itertools;
 use petgraph::{algo::floyd_warshall, visit::EdgeRef, Directed, Graph};
-#[cfg(feature = "serde")]
 use serde::{Deserialize, Serialize};
-#[cfg(feature = "serde")]
 use serde_with::{As, Same};
 
 use crate::types::{IgpNetwork, IndexType, LinkWeight, RouterId};
@@ -37,8 +35,7 @@ pub(crate) const MAX_WEIGHT: LinkWeight = LinkWeight::MAX / 16.0;
 pub(crate) const MIN_EPSILON: LinkWeight = LinkWeight::EPSILON * 1024.0;
 
 /// OSPF Area as a regular number. Area 0 (default) is the backbone area.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize)]
 pub struct OspfArea(pub(crate) u32);
 
 impl std::fmt::Display for OspfArea {
@@ -118,10 +115,9 @@ impl From<isize> for OspfArea {
 }
 
 /// Data struture capturing the distributed OSPF state.
-#[derive(Debug, Clone, PartialEq, Eq, Default)]
-#[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
+#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub(crate) struct Ospf {
-    #[cfg_attr(feature = "serde", serde(with = "As::<Vec<(Same, Same)>>"))]
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     areas: HashMap<(RouterId, RouterId), OspfArea>,
 }
 

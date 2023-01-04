@@ -25,20 +25,20 @@ use serde_json::json;
 
 use crate::{
     config::{ConfigExpr, ConfigModifier, NetworkConfig},
-    event::{EventQueue, FmtPriority},
+    event::EventQueue,
     network::Network,
-    types::{AsId, NetworkDevice, NetworkError, Prefix, RouterId},
+    types::{AsId, NetworkDevice, NetworkError, Prefix, PrefixMap, RouterId},
 };
 
 const JSON_FIELD_NAME_NETWORK: &str = "net";
 const JSON_FIELD_NAME_CONFIG: &str = "config_nodes_routes";
 
-type ExportRoutes = (RouterId, Prefix, Vec<AsId>, Option<u32>, BTreeSet<u32>);
+type ExportRoutes<P> = (RouterId, P, Vec<AsId>, Option<u32>, BTreeSet<u32>);
 
-impl<Q> Network<Q>
+impl<P, Q> Network<P, Q>
 where
-    Q: EventQueue + Serialize,
-    Q::Priority: Default + FmtPriority + Clone,
+    P: Prefix,
+    Q: EventQueue<P> + Serialize,
 {
     /// Create a json string from the network. This string will contain both the actual network
     /// state and the configuration. In case the network state can no longer be deserialized, the
@@ -72,12 +72,12 @@ where
                 NetworkDevice::None(_) => unreachable!(),
             })
             .collect();
-        let routes: Vec<ExportRoutes> = self
+        let routes: Vec<ExportRoutes<P>> = self
             .get_external_routers()
             .into_iter()
             .filter_map(|r| Some((r, self.get_device(r).external()?)))
             .flat_map(|(id, r)| {
-                r.get_advertised_routes().map(move |(_, route)| {
+                r.get_advertised_routes().values().map(move |route| {
                     (
                         id,
                         route.prefix,
@@ -92,11 +92,11 @@ where
     }
 }
 
-impl<Q> Network<Q>
+impl<P, Q> Network<P, Q>
 where
-    Q: EventQueue,
+    P: Prefix,
+    Q: EventQueue<P>,
     for<'a> Q: Deserialize<'a>,
-    Q::Priority: Default + FmtPriority + Clone,
 {
     /// Read a json file containing the network and create the network. If the network cannot be
     /// deserialized directly, reconstruct it from the configuration that should also be part of the
@@ -133,10 +133,10 @@ where
     }
 }
 
-impl<Q> Network<Q>
+impl<P, Q> Network<P, Q>
 where
-    Q: EventQueue,
-    Q::Priority: Default + FmtPriority + Clone,
+    P: Prefix,
+    Q: EventQueue<P>,
 {
     /// Deserialize the json structure containing configuration, nodes and routes.
     fn from_config_nodes_routes<F>(
@@ -148,9 +148,9 @@ where
     where
         F: FnOnce() -> Q,
     {
-        let config: Vec<ConfigExpr> = serde_json::from_value(config)?;
+        let config: Vec<ConfigExpr<P>> = serde_json::from_value(config)?;
         let nodes: Vec<(RouterId, String, Option<AsId>)> = serde_json::from_value(nodes)?;
-        let routes: Vec<ExportRoutes> = serde_json::from_value(routes)?;
+        let routes: Vec<ExportRoutes<P>> = serde_json::from_value(routes)?;
         let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();
         let links: HashSet<(RouterId, RouterId)> = config
             .iter()

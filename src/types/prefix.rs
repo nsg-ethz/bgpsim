@@ -18,839 +18,1038 @@
 //! This module contains the definition for prefixes. In addition, it contains all collections
 //! containing the prefix. This allows consistent handling of the feature `multi_prefix`.
 
-pub use _prefix::*;
+use std::{
+    collections::{hash_map::RandomState, HashMap, HashSet},
+    fmt::{Debug, Display},
+    hash::Hash,
+    iter::{repeat, Repeat, Take, Zip},
+    net::Ipv4Addr,
+    str::FromStr,
+};
 
-#[cfg(feature = "multi_prefix")]
-#[allow(dead_code)]
-mod _prefix {
+use ipnet::{AddrParseError, Ipv4Net};
+use serde::{de::Error, Deserialize, Serialize};
 
-    #[cfg(feature = "serde")]
-    use serde::{Deserialize, Deserializer, Serialize};
-    #[cfg(feature = "serde")]
-    use serde_with::{DeserializeAs, SerializeAs};
+use prefix_trie::{Prefix as PPrefix, PrefixMap as PMap, PrefixSet as PSet};
 
-    use std::collections::hash_map::{
-        HashMap, IntoIter as HashMapIntoIter, Iter as HashMapIter, IterMut as HashMapIterMut,
-        Keys as HashMapKeys, Values as HashMapValues,
-    };
-    use std::collections::hash_set::{HashSet, IntoIter as HashSetIntoIter, Iter as HashSetIter};
-    use std::hash::Hash;
+/// Trait for prefix.
+pub trait Prefix
+where
+    Self: Clone
+        + Copy
+        + Hash
+        + Eq
+        + PartialEq
+        + Ord
+        + PartialOrd
+        + Display
+        + FromStr<Err = AddrParseError>
+        + Debug
+        + From<u32>
+        + From<Ipv4Addr>
+        + From<Ipv4Net>
+        + Into<Ipv4Net>
+        + Into<Ipv4Addr>
+        + Into<u32>
+        + Serialize
+        + for<'de> Deserialize<'de>,
+{
+    /// Set prefixes that are known.
+    type Set: PrefixSet<P = Self>;
 
-    /// IP Prefix (simple representation)
-    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub struct Prefix(u32);
+    /// Mapping of one prefix to a concrete value `T`.
+    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>>: PrefixMap<
+        T,
+        P = Self,
+    >;
 
-    impl Prefix {
-        /// Get the actual value of the prefix, as a u32.
-        pub(crate) fn get(&self) -> u32 {
-            self.0
-        }
+    /// Convert the prefix to a number
+    fn as_num(&self) -> u32 {
+        (*self).into()
     }
 
-    impl std::fmt::Display for Prefix {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Prefix({})", self.0)
-        }
-    }
+    /// Check if `self` contains `other`, or `self` is equal to `other`.
+    fn contains(&self, other: &Self) -> bool;
+}
 
-    impl From<u32> for Prefix {
-        fn from(x: u32) -> Self {
-            Self(x)
-        }
-    }
+/// Trait of a set of prefixes
+pub trait PrefixSet
+where
+    Self: Default
+        + Clone
+        + PartialEq
+        + Debug
+        + FromIterator<Self::P>
+        + IntoIterator<Item = Self::P>
+        + Serialize
+        + for<'de> Deserialize<'de>,
+{
+    /// The type of prefix
+    type P: Prefix;
 
-    impl From<u64> for Prefix {
-        fn from(x: u64) -> Self {
-            Self(x as u32)
-        }
-    }
-
-    impl From<usize> for Prefix {
-        fn from(x: usize) -> Self {
-            Self(x as u32)
-        }
-    }
-
-    impl From<i32> for Prefix {
-        fn from(x: i32) -> Self {
-            Self(x as u32)
-        }
-    }
-
-    impl From<i64> for Prefix {
-        fn from(x: i64) -> Self {
-            Self(x as u32)
-        }
-    }
-
-    impl From<isize> for Prefix {
-        fn from(x: isize) -> Self {
-            Self(x as u32)
-        }
-    }
-
-    impl<T> From<&T> for Prefix
+    /// Type of `Union`
+    type Iter<'a>: Iterator<Item = &'a Self::P>
     where
-        T: Into<Prefix> + Copy,
-    {
-        fn from(x: &T) -> Self {
-            (*x).into()
-        }
-    }
+        Self: 'a,
+        Self::P: 'a;
 
-    /// Wrapper around `HashMap<Prefix, T>`
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct HashMapPrefix<T>(HashMap<Prefix, T>);
-    pub(crate) type InnerHashMapPrefix<T> = HashMap<Prefix, T>;
-
-    impl<T> HashMapPrefix<T> {
-        #[inline]
-        pub fn new() -> Self {
-            Self(HashMap::new())
-        }
-
-        #[inline]
-        pub fn inner(&self) -> &HashMap<Prefix, T> {
-            &self.0
-        }
-
-        #[inline]
-        pub fn is_empty(&self) -> bool {
-            self.0.is_empty()
-        }
-
-        #[inline]
-        pub fn len(&self) -> usize {
-            self.0.len()
-        }
-
-        #[inline]
-        pub fn contains_key(&self, key: &Prefix) -> bool {
-            self.0.contains_key(key)
-        }
-
-        #[inline]
-        pub fn iter(&self) -> HashMapIter<'_, Prefix, T> {
-            self.0.iter()
-        }
-
-        #[inline]
-        pub fn keys(&self) -> HashMapKeys<'_, Prefix, T> {
-            self.0.keys()
-        }
-
-        #[inline]
-        pub fn values(&self) -> HashMapValues<'_, Prefix, T> {
-            self.0.values()
-        }
-
-        #[inline]
-        pub fn get(&self, key: &Prefix) -> Option<&T> {
-            self.0.get(key)
-        }
-
-        #[inline]
-        pub fn get_mut(&mut self, key: &Prefix) -> Option<&mut T> {
-            self.0.get_mut(key)
-        }
-
-        #[inline]
-        pub fn insert(&mut self, key: Prefix, value: T) -> Option<T> {
-            self.0.insert(key, value)
-        }
-
-        #[inline]
-        pub fn remove(&mut self, key: &Prefix) -> Option<T> {
-            self.0.remove(key)
-        }
-    }
-
-    impl<T: Default> HashMapPrefix<T> {
-        #[inline]
-        pub fn get_mut_or_default(&mut self, key: Prefix) -> &mut T {
-            self.0.entry(key).or_default()
-        }
-    }
-
-    impl<'a, T> IntoIterator for &'a HashMapPrefix<T> {
-        type Item = (&'a Prefix, &'a T);
-
-        type IntoIter = HashMapIter<'a, Prefix, T>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.iter()
-        }
-    }
-
-    impl<'a, T> IntoIterator for &'a mut HashMapPrefix<T> {
-        type Item = (&'a Prefix, &'a mut T);
-
-        type IntoIter = HashMapIterMut<'a, Prefix, T>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.iter_mut()
-        }
-    }
-
-    impl<T> IntoIterator for HashMapPrefix<T> {
-        type Item = (Prefix, T);
-
-        type IntoIter = HashMapIntoIter<Prefix, T>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.into_iter()
-        }
-    }
-
-    /// Wrapper around `HashMap<Prefix, T>`
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct HashMapPrefixKV<K: Eq + Hash, V>(HashMap<(K, Prefix), V>);
-    pub(crate) type InnerHashMapPrefixKV<K, V> = HashMap<(K, Prefix), V>;
-
-    impl<K: Eq + Hash, V> HashMapPrefixKV<K, V> {
-        #[inline]
-        pub fn new() -> Self {
-            Self(HashMap::new())
-        }
-
-        #[inline]
-        pub fn with_capacity(capacity: usize) -> Self {
-            Self(HashMap::with_capacity(capacity))
-        }
-
-        #[inline]
-        pub fn inner(&self) -> &HashMap<(K, Prefix), V> {
-            &self.0
-        }
-
-        #[inline]
-        pub fn is_empty(&self) -> bool {
-            self.0.is_empty()
-        }
-
-        #[inline]
-        pub fn len(&self) -> usize {
-            self.0.len()
-        }
-
-        #[inline]
-        pub fn contains_key(&self, key: &(K, Prefix)) -> bool {
-            self.0.contains_key(key)
-        }
-
-        #[inline]
-        pub fn iter(&self) -> HashMapIter<'_, (K, Prefix), V> {
-            self.0.iter()
-        }
-
-        #[inline]
-        pub fn keys(&self) -> impl Iterator<Item = (&K, &Prefix)> {
-            self.0.keys().map(|(k, v)| (k, v))
-        }
-
-        #[inline]
-        pub fn values(&self) -> HashMapValues<'_, (K, Prefix), V> {
-            self.0.values()
-        }
-
-        #[inline]
-        pub fn get(&self, key: &(K, Prefix)) -> Option<&V> {
-            self.0.get(key)
-        }
-
-        #[inline]
-        pub fn get_mut(&mut self, key: &(K, Prefix)) -> Option<&mut V> {
-            self.0.get_mut(key)
-        }
-
-        #[inline]
-        pub fn insert(&mut self, key: (K, Prefix), value: V) -> Option<V> {
-            self.0.insert(key, value)
-        }
-
-        #[inline]
-        pub fn remove(&mut self, key: &(K, Prefix)) -> Option<V> {
-            self.0.remove(key)
-        }
-
-        #[inline]
-        pub fn retain_values<F>(&mut self, mut f: F)
-        where
-            F: FnMut(&mut V) -> bool,
-        {
-            self.0.retain(|_, v| f(v))
-        }
-    }
-
-    impl<K: Eq + Hash, V: Default> HashMapPrefixKV<K, V> {
-        #[inline]
-        pub fn get_mut_or_default(&mut self, key: (K, Prefix)) -> &mut V {
-            self.0.entry(key).or_default()
-        }
-    }
-
-    impl<'a, K: Eq + Hash, V> IntoIterator for &'a HashMapPrefixKV<K, V> {
-        type Item = (&'a (K, Prefix), &'a V);
-
-        type IntoIter = HashMapIter<'a, (K, Prefix), V>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.iter()
-        }
-    }
-
-    impl<'a, K: Eq + Hash, V> IntoIterator for &'a mut HashMapPrefixKV<K, V> {
-        type Item = (&'a (K, Prefix), &'a mut V);
-
-        type IntoIter = HashMapIterMut<'a, (K, Prefix), V>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.iter_mut()
-        }
-    }
-
-    impl<K: Eq + Hash, V> IntoIterator for HashMapPrefixKV<K, V> {
-        type Item = ((K, Prefix), V);
-
-        type IntoIter = HashMapIntoIter<(K, Prefix), V>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.into_iter()
-        }
-    }
-
-    impl<K: Eq + Hash, V> From<HashMap<(K, Prefix), V>> for HashMapPrefixKV<K, V> {
-        fn from(x: HashMap<(K, Prefix), V>) -> Self {
-            Self(x)
-        }
-    }
-
-    #[cfg(feature = "serde")]
-    impl<'de, K, KAs, V, VAs> DeserializeAs<'de, HashMapPrefixKV<K, V>> for Vec<(KAs, VAs)>
+    /// Type of `Union`
+    type Union<'a>: Iterator<Item = &'a Self::P>
     where
-        K: Eq + Hash + Clone,
-        V: Clone,
-        KAs: DeserializeAs<'de, (K, Prefix)>,
-        VAs: DeserializeAs<'de, V>,
-    {
-        fn deserialize_as<D>(deserializer: D) -> Result<HashMapPrefixKV<K, V>, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            Ok(HashMapPrefixKV(Vec::<(KAs, VAs)>::deserialize_as(
-                deserializer,
-            )?))
-        }
-    }
+        Self: 'a,
+        Self::P: 'a;
 
-    #[cfg(feature = "serde")]
-    impl<K, KAs, V, VAs> SerializeAs<HashMapPrefixKV<K, V>> for Vec<(KAs, VAs)>
+    /// Iterate over references of all elements in the set.
+    fn iter(&self) -> Self::Iter<'_>;
+
+    /// Get the union of two prefix sets.
+    fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a>;
+
+    /// Clears the set, removing all values.
+    fn clear(&mut self);
+
+    /// Returns `true` if the set contains a value.
+    fn contains(&self, value: &Self::P) -> bool;
+
+    /// Returns `true` if the set contains a value using longest prefix matching.
+    fn get_lpm(&self, value: &Self::P) -> Option<&Self::P>;
+
+    /// Adds a value to the set.
+    ///
+    /// Returns whether the value was newly inserted. That is:
+    /// - If the set did not previously contain this value, true is returned.
+    /// - If the set already contained this value, false is returned.
+    fn insert(&mut self, value: Self::P) -> bool;
+
+    /// Removes a value from the set. Returns whether the value was present in the set.
+    fn remove(&mut self, value: &Self::P) -> bool;
+
+    /// Retains only the elements specified by the predicate.
+    ///
+    /// In other words, remove all elements e for which f(&e) returns false. The elements are
+    /// visited in unsorted (and unspecified) order.
+    fn retain<F>(&mut self, f: F)
     where
-        K: Eq + Hash + Clone,
-        V: Clone,
-        KAs: SerializeAs<(K, Prefix)>,
-        VAs: SerializeAs<V>,
-    {
-        fn serialize_as<S>(source: &HashMapPrefixKV<K, V>, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-        {
-            Vec::<(KAs, VAs)>::serialize_as(&source.0, serializer)
-        }
-    }
+        F: FnMut(&Self::P) -> bool;
+}
 
-    /// Wrapper around `bool`, storing wether the prefix is already present or not.
-    #[derive(Debug, Clone, Default, PartialEq, Eq)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct HashSetPrefix(HashSet<Prefix>);
+/// Trait of a mapping of prefixes
+pub trait PrefixMap<T>
+where
+    Self: Default
+        + Clone
+        + PartialEq
+        + Debug
+        + FromIterator<(Self::P, T)>
+        + IntoIterator<Item = (Self::P, T)>
+        + Serialize
+        + for<'de> Deserialize<'de>,
+{
+    /// The type of prefix
+    type P: Prefix;
 
-    impl HashSetPrefix {
-        #[inline]
-        pub fn new() -> Self {
-            Self(HashSet::new())
-        }
+    /// Type of `Union`
+    type Iter<'a>: Iterator<Item = (&'a Self::P, &'a T)>
+    where
+        Self: 'a,
+        Self::P: 'a,
+        T: 'a;
 
-        #[inline]
-        pub fn is_empty(&self) -> bool {
-            self.0.is_empty()
-        }
+    /// The type of iterator over the keys (prefixes)
+    type Keys<'a>: Iterator<Item = &'a Self::P>
+    where
+        Self::P: 'a,
+        Self: 'a;
 
-        #[inline]
-        pub fn len(&self) -> usize {
-            self.0.len()
-        }
+    /// The type of iterator over immutable values.
+    type Values<'a>: Iterator<Item = &'a T>
+    where
+        Self: 'a,
+        T: 'a;
 
-        #[inline]
-        pub fn iter(&self) -> HashSetIter<'_, Prefix> {
-            self.0.iter()
-        }
+    /// The type of iterator over mutable values.
+    type ValuesMut<'a>: Iterator<Item = &'a mut T>
+    where
+        Self: 'a,
+        T: 'a;
 
-        #[inline]
-        pub fn clear(&mut self) {
-            self.0.clear()
-        }
+    /// The type of iterator over children of a given prefix.
+    type Children<'a>: Iterator<Item = (&'a Self::P, &'a T)>
+    where
+        Self: 'a,
+        Self::P: 'a,
+        T: 'a;
 
-        #[inline]
-        pub fn contains(&self, prefix: &Prefix) -> bool {
-            self.0.contains(prefix)
-        }
+    /// Iterate over references of all elements in the map.
+    fn iter(&self) -> Self::Iter<'_>;
 
-        #[inline]
-        pub fn insert(&mut self, prefix: Prefix) -> bool {
-            self.0.insert(prefix)
-        }
+    /// An iterator visiting all keys in arbitrary order. The iterator element type is
+    /// `&'a Self::P`.
+    fn keys(&self) -> Self::Keys<'_>;
 
-        #[inline]
-        pub fn remove(&mut self, prefix: &Prefix) -> bool {
-            self.0.remove(prefix)
-        }
+    /// An iterator visiting all values in arbitrary order. The iterator element type is
+    /// `&'a T`.
+    fn values(&self) -> Self::Values<'_>;
 
-        #[inline]
-        pub fn union<'a>(&'a self, other: &'a Self) -> Self {
-            Self(HashSet::from_iter(self.0.union(&other.0).copied()))
-        }
-    }
+    /// An iterator visiting all values mutablyin arbitrary order. The iterator element type is
+    /// `&'a T`.
+    fn values_mut(&mut self) -> Self::ValuesMut<'_>;
 
-    impl IntoIterator for HashSetPrefix {
-        type Item = Prefix;
+    /// An iterator visiting all keys and values of children of a given prefix. All children are
+    /// contained within that given prefix, or are equal.
+    fn children(&self, prefix: &Self::P) -> Self::Children<'_>;
 
-        type IntoIter = HashSetIntoIter<Prefix>;
+    /// Clears the map, removing all key-value pairs. Keeps the allocated memory for reuse.
+    fn clear(&mut self);
 
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.into_iter()
-        }
-    }
+    /// Returns a reference to the value corresponding to the key.
+    fn get(&self, k: &Self::P) -> Option<&T>;
 
-    impl<'a> IntoIterator for &'a HashSetPrefix {
-        type Item = &'a Prefix;
+    /// Returns a mutable reference to the value corresponding to the key.
+    fn get_mut(&mut self, k: &Self::P) -> Option<&mut T>;
 
-        type IntoIter = HashSetIter<'a, Prefix>;
+    /// Returns a mutable reference to the value corresponding to the key. If the key does not exist
+    /// yet, create it using a default value.
+    fn get_mut_or_default(&mut self, k: Self::P) -> &mut T
+    where
+        T: Default;
 
-        fn into_iter(self) -> Self::IntoIter {
-            self.0.iter()
-        }
+    /// Returns a reference to the value corresponding to the longest prefix match of the key.
+    fn get_lpm(&self, k: &Self::P) -> Option<(&Self::P, &T)>;
+
+    /// Returns `true` if the map contains a value for the specified key.
+    fn contains_key(&self, k: &Self::P) -> bool;
+
+    /// Insert a key-balue pair into the map.
+    ///
+    /// If the map did not have this key present, `None` is returned.
+    ///
+    /// If the map did have this key present, the value is updated and the old value is
+    /// returned.
+    fn insert(&mut self, k: Self::P, v: T) -> Option<T>;
+
+    /// Remove a key from the map, returning a value at the key if the key was previously in the
+    /// map.
+    fn remove(&mut self, k: &Self::P) -> Option<T>;
+}
+
+/// A type of prefix where there only exists a single prefix in the network. This is used for fast
+/// simulation of BGP, when only a single prefix is analyzed.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy, Default)]
+pub struct SinglePrefix;
+
+impl FromStr for SinglePrefix {
+    type Err = AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ipv4Net::from_str(s).map(|x| x.into())
     }
 }
 
-#[cfg(not(feature = "multi_prefix"))]
-#[allow(dead_code)]
-mod _prefix {
-    #[cfg(feature = "serde")]
-    use serde::{Deserialize, Deserializer, Serialize};
-    #[cfg(feature = "serde")]
-    use serde_with::{DeserializeAs, SerializeAs};
-
-    use std::iter::{repeat, Repeat, Take};
-
-    use std::collections::hash_map::{HashMap, Values as HashMapValues};
-    use std::hash::Hash;
-
-    /// IP Prefix with zero-size.
-    #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy, Default)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub struct Prefix;
-
-    impl Prefix {
-        /// Get the actual value of the prefix, as a u32.
-        pub(crate) fn get(&self) -> u32 {
-            0
-        }
+impl Display for SinglePrefix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&Ipv4Net::from(*self), f)
     }
+}
 
-    impl std::fmt::Display for Prefix {
-        fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-            write!(f, "Prefix")
-        }
+impl From<()> for SinglePrefix {
+    fn from(_: ()) -> Self {
+        SinglePrefix
     }
+}
 
-    impl From<u32> for Prefix {
-        fn from(_: u32) -> Self {
-            Self
-        }
+impl From<u32> for SinglePrefix {
+    fn from(_: u32) -> Self {
+        SinglePrefix
     }
+}
 
-    impl From<u64> for Prefix {
-        fn from(_: u64) -> Self {
-            Self
-        }
+impl From<Ipv4Addr> for SinglePrefix {
+    fn from(_: Ipv4Addr) -> Self {
+        SinglePrefix
     }
+}
 
-    impl From<usize> for Prefix {
-        fn from(_: usize) -> Self {
-            Self
-        }
+impl From<Ipv4Net> for SinglePrefix {
+    fn from(_: Ipv4Net) -> Self {
+        SinglePrefix
     }
+}
 
-    impl From<i32> for Prefix {
-        fn from(_: i32) -> Self {
-            Self
-        }
+impl From<SinglePrefix> for u32 {
+    fn from(_: SinglePrefix) -> Self {
+        0
     }
+}
 
-    impl From<i64> for Prefix {
-        fn from(_: i64) -> Self {
-            Self
-        }
+impl From<SinglePrefix> for Ipv4Addr {
+    fn from(_: SinglePrefix) -> Self {
+        Ipv4Addr::new(100, 0, 0, 0)
     }
+}
 
-    impl From<isize> for Prefix {
-        fn from(_: isize) -> Self {
-            Self
-        }
+impl From<SinglePrefix> for Ipv4Net {
+    fn from(x: SinglePrefix) -> Self {
+        Ipv4Net::new(x.into(), 24).unwrap()
     }
+}
 
-    impl<T> From<&T> for Prefix
+impl Serialize for SinglePrefix {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
-        T: Into<Prefix> + Copy,
+        S: serde::Serializer,
     {
-        fn from(_: &T) -> Self {
-            Self
-        }
+        serializer.serialize_str(&Ipv4Net::from(*self).to_string())
     }
+}
 
-    /// Wrapper around `bool`, storing wether the prefix is already present or not.
-    #[derive(Debug, Clone, Default, PartialEq, Eq)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct HashSetPrefix(bool);
-
-    impl HashSetPrefix {
-        #[inline]
-        pub fn new() -> Self {
-            Self(false)
-        }
-
-        #[inline]
-        pub fn is_empty(&self) -> bool {
-            !self.0
-        }
-
-        #[inline]
-        pub fn len(&self) -> usize {
-            if self.0 {
-                1
-            } else {
-                0
-            }
-        }
-
-        #[inline]
-        pub fn iter(&self) -> std::slice::Iter<'static, Prefix> {
-            if self.0 {
-                [Prefix].iter()
-            } else {
-                [].iter()
-            }
-        }
-
-        #[inline]
-        pub fn clear(&mut self) {
-            self.0 = false;
-        }
-
-        #[inline]
-        pub fn contains(&self, _: &Prefix) -> bool {
-            self.0
-        }
-
-        #[inline]
-        pub fn insert(&mut self, _: Prefix) -> bool {
-            if self.0 {
-                false
-            } else {
-                self.0 = true;
-                true
-            }
-        }
-
-        #[inline]
-        pub fn remove(&mut self, _: &Prefix) -> bool {
-            if self.0 {
-                self.0 = false;
-                true
-            } else {
-                false
-            }
-        }
-
-        #[inline]
-        pub fn union<'a>(&'a self, other: &'a Self) -> Self {
-            Self(self.0 || other.0)
-        }
-    }
-
-    impl IntoIterator for &HashSetPrefix {
-        type Item = &'static Prefix;
-
-        type IntoIter = std::slice::Iter<'static, Prefix>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            self.iter()
-        }
-    }
-
-    impl IntoIterator for HashSetPrefix {
-        type Item = Prefix;
-
-        type IntoIter = Take<Repeat<Prefix>>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            repeat(Prefix).take(self.len())
-        }
-    }
-
-    /// Wrapper around `Option<T>`
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct HashMapPrefix<T: Clone>(Option<T>);
-    pub(crate) type InnerHashMapPrefix<T> = Option<T>;
-
-    impl<T: Clone> HashMapPrefix<T> {
-        #[inline]
-        pub fn new() -> Self {
-            Self(None)
-        }
-
-        #[inline]
-        pub fn inner(&self) -> &Option<T> {
-            &self.0
-        }
-
-        #[inline]
-        pub fn is_empty(&self) -> bool {
-            self.0.is_none()
-        }
-
-        #[inline]
-        pub fn len(&self) -> usize {
-            if self.0.is_some() {
-                1
-            } else {
-                0
-            }
-        }
-
-        #[inline]
-        pub fn contains_key(&self, _: &Prefix) -> bool {
-            self.0.is_some()
-        }
-
-        #[inline]
-        pub fn iter(&self) -> impl Iterator<Item = (&Prefix, &T)> {
-            self.0.iter().map(|t| (&Prefix, t))
-        }
-
-        #[inline]
-        pub fn keys(&self) -> std::slice::Iter<'static, Prefix> {
-            if self.0.is_some() {
-                [Prefix].iter()
-            } else {
-                [].iter()
-            }
-        }
-
-        #[inline]
-        pub fn values(&self) -> std::option::Iter<'_, T> {
-            self.0.iter()
-        }
-
-        #[inline]
-        pub fn get(&self, _: &Prefix) -> Option<&T> {
-            self.0.as_ref()
-        }
-
-        #[inline]
-        pub fn get_mut(&mut self, _: &Prefix) -> Option<&mut T> {
-            self.0.as_mut()
-        }
-
-        #[inline]
-        pub fn insert(&mut self, _: Prefix, value: T) -> Option<T> {
-            self.0.replace(value)
-        }
-
-        #[inline]
-        pub fn remove(&mut self, _: &Prefix) -> Option<T> {
-            self.0.take()
-        }
-    }
-
-    impl<T: Clone + Default> HashMapPrefix<T> {
-        #[inline]
-        pub fn get_mut_or_default(&mut self, _: Prefix) -> &mut T {
-            if self.0.is_none() {
-                self.0 = Some(Default::default())
-            }
-            self.0.as_mut().unwrap()
-        }
-    }
-
-    impl<'a, T: Clone> IntoIterator for &'a HashMapPrefix<T> {
-        type Item = (&'a Prefix, &'a T);
-
-        type IntoIter = std::option::IntoIter<(&'a Prefix, &'a T)>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            match self.0.as_ref() {
-                None => None.into_iter(),
-                Some(t) => Some((&Prefix, t)).into_iter(),
-            }
-        }
-    }
-
-    impl<'a, T: Clone> IntoIterator for &'a mut HashMapPrefix<T> {
-        type Item = (&'a Prefix, &'a mut T);
-
-        type IntoIter = std::option::IntoIter<(&'a Prefix, &'a mut T)>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            match self.0.as_mut() {
-                None => None.into_iter(),
-                Some(t) => Some((&Prefix, t)).into_iter(),
-            }
-        }
-    }
-
-    impl<T: Clone> IntoIterator for HashMapPrefix<T> {
-        type Item = (Prefix, T);
-
-        type IntoIter = std::option::IntoIter<(Prefix, T)>;
-
-        fn into_iter(self) -> Self::IntoIter {
-            match self.0 {
-                None => None.into_iter(),
-                Some(t) => Some((Prefix, t)).into_iter(),
-            }
-        }
-    }
-
-    /// Wrapper around `HashMap<K, V>`
-    #[derive(Debug, Clone, PartialEq, Eq, Default)]
-    #[cfg_attr(feature = "serde", derive(Serialize, Deserialize))]
-    pub(crate) struct HashMapPrefixKV<K: Eq + Hash, V>(HashMap<K, V>);
-    pub(crate) type InnerHashMapPrefixKV<K, V> = HashMap<K, V>;
-
-    impl<K: Eq + Hash, V> HashMapPrefixKV<K, V> {
-        #[inline]
-        pub fn new() -> Self {
-            Self(HashMap::new())
-        }
-
-        #[inline]
-        pub fn with_capacity(capacity: usize) -> Self {
-            Self(HashMap::with_capacity(capacity))
-        }
-
-        #[inline]
-        pub fn inner(&self) -> &HashMap<K, V> {
-            &self.0
-        }
-
-        #[inline]
-        pub fn is_empty(&self) -> bool {
-            self.0.is_empty()
-        }
-
-        #[inline]
-        pub fn len(&self) -> usize {
-            self.0.len()
-        }
-
-        #[inline]
-        pub fn contains_key(&self, key: &(K, Prefix)) -> bool {
-            self.0.contains_key(&key.0)
-        }
-
-        #[inline]
-        pub fn iter(&self) -> impl Iterator<Item = ((&K, &Prefix), &V)> {
-            self.0.iter().map(|(k, v)| ((k, &Prefix), v))
-        }
-
-        #[inline]
-        pub fn keys(&self) -> impl Iterator<Item = (&K, &Prefix)> {
-            self.0.keys().map(|k| (k, &Prefix))
-        }
-
-        #[inline]
-        pub fn values(&self) -> HashMapValues<'_, K, V> {
-            self.0.values()
-        }
-
-        #[inline]
-        pub fn get(&self, key: &(K, Prefix)) -> Option<&V> {
-            self.0.get(&key.0)
-        }
-
-        #[inline]
-        pub fn get_mut(&mut self, key: &(K, Prefix)) -> Option<&mut V> {
-            self.0.get_mut(&key.0)
-        }
-
-        #[inline]
-        pub fn insert(&mut self, key: (K, Prefix), value: V) -> Option<V> {
-            self.0.insert(key.0, value)
-        }
-
-        #[inline]
-        pub fn remove(&mut self, key: &(K, Prefix)) -> Option<V> {
-            self.0.remove(&key.0)
-        }
-
-        #[inline]
-        pub fn retain_values<F>(&mut self, mut f: F)
-        where
-            F: FnMut(&mut V) -> bool,
-        {
-            self.0.retain(|_, v| f(v))
-        }
-    }
-
-    impl<K: Eq + Hash, V: Default> HashMapPrefixKV<K, V> {
-        #[inline]
-        pub fn get_mut_or_default(&mut self, key: (K, Prefix)) -> &mut V {
-            self.0.entry(key.0).or_default()
-        }
-    }
-
-    impl<K: Eq + Hash, V> From<HashMap<(K, Prefix), V>> for HashMapPrefixKV<K, V> {
-        fn from(x: HashMap<(K, Prefix), V>) -> Self {
-            Self(x.into_iter().map(|((k, _), v)| (k, v)).collect())
-        }
-    }
-
-    #[cfg(feature = "serde")]
-    impl<'de, K, KAs, V, VAs> DeserializeAs<'de, HashMapPrefixKV<K, V>> for Vec<(KAs, VAs)>
+impl<'de> Deserialize<'de> for SinglePrefix {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
-        K: Eq + Hash + Clone,
-        V: Clone,
-        KAs: DeserializeAs<'de, K>,
-        VAs: DeserializeAs<'de, V>,
+        D: serde::Deserializer<'de>,
     {
-        fn deserialize_as<D>(deserializer: D) -> Result<HashMapPrefixKV<K, V>, D::Error>
-        where
-            D: Deserializer<'de>,
-        {
-            Ok(HashMapPrefixKV(Vec::<(KAs, VAs)>::deserialize_as(
-                deserializer,
-            )?))
+        let s = String::deserialize(deserializer)?;
+        Ipv4Net::from_str(&s)
+            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {}", s)))
+            .map(Self::from)
+    }
+}
+
+const SINGLE_PREFIX: SinglePrefix = SinglePrefix;
+
+impl Prefix for SinglePrefix {
+    type Set = SinglePrefixSet;
+
+    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
+        SinglePrefixMap<T>;
+
+    fn contains(&self, _other: &Self) -> bool {
+        true
+    }
+}
+
+/// A set that stores wether the single prefix is present or not. Essentially, this is a boolean
+/// value with a different interface.
+#[derive(Default, Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+pub struct SinglePrefixSet(pub bool);
+
+impl IntoIterator for SinglePrefixSet {
+    type Item = SinglePrefix;
+
+    type IntoIter = Take<Repeat<SinglePrefix>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        repeat(SinglePrefix).take(self.len())
+    }
+}
+
+impl<'a> IntoIterator for &'a SinglePrefixSet {
+    type Item = &'a SinglePrefix;
+
+    type IntoIter = Take<Repeat<&'a SinglePrefix>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        repeat(&SINGLE_PREFIX).take(self.len())
+    }
+}
+
+impl FromIterator<SinglePrefix> for SinglePrefixSet {
+    fn from_iter<T: IntoIterator<Item = SinglePrefix>>(iter: T) -> Self {
+        Self(iter.into_iter().next().is_some())
+    }
+}
+
+impl SinglePrefixSet {
+    /// Return the length of the prefix set, i.e., `1` if the single prefix is present, and `0`
+    /// otherwise.
+    pub fn len(&self) -> usize {
+        usize::from(self.0)
+    }
+
+    /// Return wether the prefix set contains the single prefix or not.
+    pub fn is_empty(&self) -> bool {
+        !self.0
+    }
+}
+
+impl PrefixSet for SinglePrefixSet {
+    type P = SinglePrefix;
+
+    type Iter<'a> = Take<Repeat<&'a SinglePrefix>>;
+
+    type Union<'a> = Take<Repeat<&'a SinglePrefix>>;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        #[allow(clippy::into_iter_on_ref)]
+        self.into_iter()
+    }
+
+    fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a> {
+        repeat(&SINGLE_PREFIX).take(usize::from(self.0 || other.0))
+    }
+
+    fn clear(&mut self) {
+        self.0 = false;
+    }
+
+    fn contains(&self, _: &Self::P) -> bool {
+        self.0
+    }
+
+    fn get_lpm(&self, _: &Self::P) -> Option<&Self::P> {
+        if self.0 {
+            Some(&SINGLE_PREFIX)
+        } else {
+            None
         }
     }
 
-    #[cfg(feature = "serde")]
-    impl<K, KAs, V, VAs> SerializeAs<HashMapPrefixKV<K, V>> for Vec<(KAs, VAs)>
+    fn insert(&mut self, _: Self::P) -> bool {
+        let old = self.0;
+        self.0 = true;
+        !old
+    }
+
+    fn remove(&mut self, _: &Self::P) -> bool {
+        let old = self.0;
+        self.0 = false;
+        old
+    }
+
+    fn retain<F>(&mut self, mut f: F)
     where
-        K: Eq + Hash + Clone,
-        V: Clone,
-        KAs: SerializeAs<K>,
-        VAs: SerializeAs<V>,
+        F: FnMut(&Self::P) -> bool,
     {
-        fn serialize_as<S>(source: &HashMapPrefixKV<K, V>, serializer: S) -> Result<S::Ok, S::Error>
-        where
-            S: serde::Serializer,
-        {
-            Vec::<(KAs, VAs)>::serialize_as(&source.0, serializer)
+        self.0 = f(&SINGLE_PREFIX)
+    }
+}
+
+/// A mapping of the single prefix to a value. This essentially is a boolean value with a different
+/// interface.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Deserialize, Serialize)]
+pub struct SinglePrefixMap<T>(pub Option<T>);
+
+impl<T> Default for SinglePrefixMap<T> {
+    fn default() -> Self {
+        Self(None)
+    }
+}
+
+impl<T> IntoIterator for SinglePrefixMap<T> {
+    type Item = (SinglePrefix, T);
+
+    type IntoIter = Zip<Repeat<SinglePrefix>, std::option::IntoIter<T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::zip(repeat(SinglePrefix), self.0.into_iter())
+    }
+}
+
+impl<'a, T> IntoIterator for &'a SinglePrefixMap<T> {
+    type Item = (&'a SinglePrefix, &'a T);
+
+    type IntoIter = Zip<Repeat<&'a SinglePrefix>, std::option::IntoIter<&'a T>>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        std::iter::zip(repeat(&SINGLE_PREFIX), self.0.as_ref().into_iter())
+    }
+}
+
+impl<T> SinglePrefixMap<T> {
+    /// Return the length of the prefix map, i.e., `1` if there is a value stored for the single
+    /// prefix, and `0` otheriwse.
+    pub fn len(&self) -> usize {
+        usize::from(self.0.is_some())
+    }
+
+    /// Return wether the prefix map is empty, i.e., wether there is a value stored for the single preifx.
+    pub fn is_empty(&self) -> bool {
+        self.0.is_none()
+    }
+}
+
+impl<T> FromIterator<(SinglePrefix, T)> for SinglePrefixMap<T> {
+    fn from_iter<I: IntoIterator<Item = (SinglePrefix, T)>>(iter: I) -> Self {
+        Self(iter.into_iter().next().map(|(_, x)| x))
+    }
+}
+
+impl<T> PrefixMap<T> for SinglePrefixMap<T>
+where
+    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>,
+{
+    type P = SinglePrefix;
+
+    type Iter<'a> = Zip<Repeat<&'a SinglePrefix>, std::option::IntoIter<&'a T>>
+    where
+        Self: 'a,
+        T: 'a;
+
+    type Keys<'a> = Take<Repeat<&'a SinglePrefix>>
+    where
+        T: 'a;
+
+    type Values<'a> = std::option::Iter<'a, T>
+    where
+        T: 'a;
+
+    type ValuesMut<'a> = std::option::IterMut<'a, T>
+    where
+        T: 'a;
+
+    type Children<'a> = Self::Iter<'a>
+    where
+        Self: 'a,
+        T: 'a;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        #[allow(clippy::into_iter_on_ref)]
+        self.into_iter()
+    }
+
+    fn keys(&self) -> Self::Keys<'_> {
+        repeat(&SINGLE_PREFIX).take(self.len())
+    }
+
+    fn values(&self) -> Self::Values<'_> {
+        self.0.iter()
+    }
+
+    fn values_mut(&mut self) -> Self::ValuesMut<'_> {
+        self.0.iter_mut()
+    }
+
+    fn children(&self, _prefix: &Self::P) -> Self::Children<'_> {
+        self.iter()
+    }
+
+    fn clear(&mut self) {
+        self.0 = None;
+    }
+
+    fn get(&self, _: &Self::P) -> Option<&T> {
+        self.0.as_ref()
+    }
+
+    fn get_mut(&mut self, _: &Self::P) -> Option<&mut T> {
+        self.0.as_mut()
+    }
+
+    fn get_mut_or_default(&mut self, _: Self::P) -> &mut T
+    where
+        T: Default,
+    {
+        if self.0.is_none() {
+            self.0 = Some(T::default())
         }
+        self.0.as_mut().unwrap()
+    }
+
+    fn get_lpm(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
+        self.get(k).map(|t| (&SINGLE_PREFIX, t))
+    }
+
+    fn contains_key(&self, _: &Self::P) -> bool {
+        !self.is_empty()
+    }
+
+    fn insert(&mut self, _: Self::P, v: T) -> Option<T> {
+        self.0.replace(v)
+    }
+
+    fn remove(&mut self, _: &Self::P) -> Option<T> {
+        self.0.take()
+    }
+}
+
+/// Simple representation of a prefix with a single number. There is no prefix here, so no longest
+/// prefix matching.
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+pub struct SimplePrefix(u32);
+
+impl Serialize for SimplePrefix {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&Ipv4Net::from(*self).to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for SimplePrefix {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ipv4Net::from_str(&s)
+            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {}", s)))
+            .map(Self::from)
+    }
+}
+
+impl FromStr for SimplePrefix {
+    type Err = AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ipv4Net::from_str(s).map(|x| x.into())
+    }
+}
+
+impl Display for SimplePrefix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&Ipv4Net::from(*self), f)
+    }
+}
+
+impl From<u32> for SimplePrefix {
+    fn from(value: u32) -> Self {
+        SimplePrefix(value)
+    }
+}
+
+impl From<usize> for SimplePrefix {
+    fn from(value: usize) -> Self {
+        SimplePrefix(value as u32)
+    }
+}
+
+impl From<i32> for SimplePrefix {
+    fn from(value: i32) -> Self {
+        SimplePrefix(value as u32)
+    }
+}
+
+impl From<Ipv4Addr> for SimplePrefix {
+    fn from(value: Ipv4Addr) -> Self {
+        let num: u32 = value.into();
+        SimplePrefix((num - (100 << 24)) >> 8)
+    }
+}
+
+impl From<Ipv4Net> for SimplePrefix {
+    fn from(value: Ipv4Net) -> Self {
+        value.addr().into()
+    }
+}
+
+impl From<SimplePrefix> for u32 {
+    fn from(value: SimplePrefix) -> Self {
+        value.0
+    }
+}
+
+impl From<SimplePrefix> for Ipv4Addr {
+    fn from(value: SimplePrefix) -> Self {
+        let num = (value.0 << 8) + (100 << 24);
+        Ipv4Addr::from(num)
+    }
+}
+
+impl From<SimplePrefix> for Ipv4Net {
+    fn from(value: SimplePrefix) -> Self {
+        Ipv4Net::new(value.into(), 24).unwrap()
+    }
+}
+
+impl Prefix for SimplePrefix {
+    type Set = HashSet<SimplePrefix>;
+
+    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
+        HashMap<SimplePrefix, T>;
+
+    fn contains(&self, other: &Self) -> bool {
+        self == other
+    }
+}
+
+impl PrefixSet for HashSet<SimplePrefix> {
+    type P = SimplePrefix;
+
+    type Iter<'a> = std::collections::hash_set::Iter<'a, SimplePrefix>;
+
+    type Union<'a> = std::collections::hash_set::Union<'a, SimplePrefix, RandomState>;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        #[allow(clippy::into_iter_on_ref)]
+        self.into_iter()
+    }
+
+    fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a> {
+        self.union(other)
+    }
+
+    fn clear(&mut self) {
+        self.clear()
+    }
+
+    fn contains(&self, value: &Self::P) -> bool {
+        self.contains(value)
+    }
+
+    fn get_lpm(&self, value: &Self::P) -> Option<&Self::P> {
+        self.get(value)
+    }
+
+    fn insert(&mut self, value: Self::P) -> bool {
+        self.insert(value)
+    }
+
+    fn remove(&mut self, value: &Self::P) -> bool {
+        self.remove(value)
+    }
+
+    fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&Self::P) -> bool,
+    {
+        self.retain(f)
+    }
+}
+
+impl<T> PrefixMap<T> for HashMap<SimplePrefix, T>
+where
+    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>,
+{
+    type P = SimplePrefix;
+
+    type Iter<'a> = std::collections::hash_map::Iter<'a, SimplePrefix, T>
+    where
+        T: 'a;
+
+    type Keys<'a> = std::collections::hash_map::Keys<'a, SimplePrefix, T>
+    where
+        T: 'a;
+
+    type Values<'a> = std::collections::hash_map::Values<'a, SimplePrefix, T>
+    where
+        T: 'a;
+
+    type ValuesMut<'a> = std::collections::hash_map::ValuesMut<'a, SimplePrefix, T>
+    where
+        T: 'a;
+
+    type Children<'a> = std::option::IntoIter<(&'a Self::P, &'a T)>
+    where
+        T: 'a;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        #[allow(clippy::into_iter_on_ref)]
+        self.into_iter()
+    }
+
+    fn keys(&self) -> Self::Keys<'_> {
+        self.keys()
+    }
+
+    fn values(&self) -> Self::Values<'_> {
+        self.values()
+    }
+
+    fn values_mut(&mut self) -> Self::ValuesMut<'_> {
+        self.values_mut()
+    }
+
+    fn children(&self, prefix: &Self::P) -> Self::Children<'_> {
+        self.get_key_value(prefix).into_iter()
+    }
+
+    fn clear(&mut self) {
+        self.clear()
+    }
+
+    fn get(&self, k: &Self::P) -> Option<&T> {
+        self.get(k)
+    }
+
+    fn get_mut(&mut self, k: &Self::P) -> Option<&mut T> {
+        self.get_mut(k)
+    }
+
+    fn get_mut_or_default(&mut self, k: Self::P) -> &mut T
+    where
+        T: Default,
+    {
+        self.entry(k).or_default()
+    }
+
+    fn get_lpm(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
+        self.get_key_value(k)
+    }
+
+    fn contains_key(&self, k: &Self::P) -> bool {
+        self.contains_key(k)
+    }
+
+    fn insert(&mut self, k: Self::P, v: T) -> Option<T> {
+        self.insert(k, v)
+    }
+
+    fn remove(&mut self, k: &Self::P) -> Option<T> {
+        self.remove(k)
+    }
+}
+
+/// Regular IPv4 Prefix
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
+pub struct Ipv4Prefix(Ipv4Net);
+
+impl PPrefix for Ipv4Prefix {
+    type R = u32;
+
+    fn repr(&self) -> u32 {
+        self.0.addr().into()
+    }
+
+    fn prefix_len(&self) -> u8 {
+        self.0.prefix_len()
+    }
+
+    fn from_repr_len(repr: u32, len: u8) -> Self {
+        Ipv4Prefix(Ipv4Net::new(repr.into(), len).unwrap())
+    }
+
+    fn eq(&self, other: &Self) -> bool {
+        self.0 == other.0
+    }
+
+    fn mask(&self) -> u32 {
+        self.0.network().into()
+    }
+
+    fn zero() -> Self {
+        Self(Default::default())
+    }
+
+    fn contains(&self, other: &Self) -> bool {
+        self.0.contains(&other.0)
+    }
+}
+
+impl Serialize for Ipv4Prefix {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: serde::Serializer,
+    {
+        serializer.serialize_str(&self.0.to_string())
+    }
+}
+
+impl<'de> Deserialize<'de> for Ipv4Prefix {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: serde::Deserializer<'de>,
+    {
+        let s = String::deserialize(deserializer)?;
+        Ipv4Net::from_str(&s)
+            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {}", s)))
+            .map(Self)
+    }
+}
+
+impl FromStr for Ipv4Prefix {
+    type Err = AddrParseError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        Ipv4Net::from_str(s).map(|x| x.into())
+    }
+}
+
+impl Display for Ipv4Prefix {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        Display::fmt(&self.0, f)
+    }
+}
+
+impl From<u32> for Ipv4Prefix {
+    fn from(value: u32) -> Self {
+        Ipv4Prefix(Ipv4Net::new(((value << 8) + (100 << 24)).into(), 24).unwrap())
+    }
+}
+
+impl From<usize> for Ipv4Prefix {
+    fn from(value: usize) -> Self {
+        (value as u32).into()
+    }
+}
+
+impl From<i32> for Ipv4Prefix {
+    fn from(value: i32) -> Self {
+        (value as u32).into()
+    }
+}
+
+impl From<Ipv4Addr> for Ipv4Prefix {
+    fn from(value: Ipv4Addr) -> Self {
+        Ipv4Prefix(Ipv4Net::new(value, 24).unwrap())
+    }
+}
+
+impl From<Ipv4Net> for Ipv4Prefix {
+    fn from(value: Ipv4Net) -> Self {
+        Self(value)
+    }
+}
+
+impl From<Ipv4Prefix> for u32 {
+    fn from(value: Ipv4Prefix) -> Self {
+        value.0.addr().into()
+    }
+}
+
+impl From<Ipv4Prefix> for Ipv4Addr {
+    fn from(value: Ipv4Prefix) -> Self {
+        value.0.addr()
+    }
+}
+
+impl From<Ipv4Prefix> for Ipv4Net {
+    fn from(value: Ipv4Prefix) -> Self {
+        value.0
+    }
+}
+
+impl Prefix for Ipv4Prefix {
+    type Set = PSet<Ipv4Prefix>;
+
+    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
+        PMap<Ipv4Prefix, T>;
+
+    fn contains(&self, other: &Self) -> bool {
+        self.0.contains(&other.0)
+    }
+}
+
+impl PrefixSet for PSet<Ipv4Prefix> {
+    type P = Ipv4Prefix;
+
+    type Iter<'a> = prefix_trie::set::Iter<'a, Ipv4Prefix>
+    where
+        Self: 'a,
+        Self::P: 'a;
+
+    type Union<'a> = prefix_trie::set::Union<'a, Ipv4Prefix>
+    where
+        Self: 'a,
+        Self::P: 'a;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.iter()
+    }
+
+    fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a> {
+        self.union(other)
+    }
+
+    fn clear(&mut self) {
+        self.clear()
+    }
+
+    fn contains(&self, value: &Self::P) -> bool {
+        self.contains(value)
+    }
+
+    fn get_lpm(&self, value: &Self::P) -> Option<&Self::P> {
+        self.get_lpm(value)
+    }
+
+    fn insert(&mut self, value: Self::P) -> bool {
+        self.insert(value)
+    }
+
+    fn remove(&mut self, value: &Self::P) -> bool {
+        self.remove(value)
+    }
+
+    fn retain<F>(&mut self, f: F)
+    where
+        F: FnMut(&Self::P) -> bool,
+    {
+        self.retain(f)
+    }
+}
+
+impl<T> PrefixMap<T> for PMap<Ipv4Prefix, T>
+where
+    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>,
+{
+    type P = Ipv4Prefix;
+
+    type Iter<'a> = prefix_trie::map::Iter<'a, Ipv4Prefix, T>
+    where
+        Self::P: 'a,
+        T: 'a;
+
+    type Keys<'a> = prefix_trie::map::Keys<'a, Ipv4Prefix, T>
+    where
+        Self::P: 'a,
+        T: 'a;
+
+    type Values<'a> = prefix_trie::map::Values<'a, Ipv4Prefix, T>
+    where
+        Self::P: 'a,
+        T: 'a;
+
+    type ValuesMut<'a> = prefix_trie::map::ValuesMut<'a, Ipv4Prefix, T>
+    where
+        T: 'a;
+
+    type Children<'a> = prefix_trie::map::Iter<'a, Ipv4Prefix, T>
+    where
+        T: 'a;
+
+    fn iter(&self) -> Self::Iter<'_> {
+        self.iter()
+    }
+
+    fn keys(&self) -> Self::Keys<'_> {
+        self.keys()
+    }
+
+    fn values(&self) -> Self::Values<'_> {
+        self.values()
+    }
+
+    fn values_mut(&mut self) -> Self::ValuesMut<'_> {
+        self.values_mut()
+    }
+
+    fn children(&self, prefix: &Self::P) -> Self::Children<'_> {
+        self.children(prefix)
+    }
+
+    fn clear(&mut self) {
+        self.clear()
+    }
+
+    fn get(&self, k: &Self::P) -> Option<&T> {
+        self.get(k)
+    }
+
+    fn get_mut(&mut self, k: &Self::P) -> Option<&mut T> {
+        self.get_mut(k)
+    }
+
+    fn get_mut_or_default(&mut self, k: Self::P) -> &mut T
+    where
+        T: Default,
+    {
+        self.entry(k).or_default()
+    }
+
+    fn get_lpm(&self, k: &Self::P) -> Option<(&Self::P, &T)> {
+        self.get_lpm(k)
+    }
+
+    fn contains_key(&self, k: &Self::P) -> bool {
+        self.contains_key(k)
+    }
+
+    fn insert(&mut self, k: Self::P, v: T) -> Option<T> {
+        self.insert(k, v)
+    }
+
+    fn remove(&mut self, k: &Self::P) -> Option<T> {
+        self.remove(k)
     }
 }
