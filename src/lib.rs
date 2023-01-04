@@ -40,9 +40,11 @@ use syn::parse_macro_input;
 ///   and can be omitted. If the type is omitted, then it will be a `BgpSessionType::IBgpPeer` for
 ///   internal sessions, and `BgpSessionType::EBgp` for external sessions. The `TYPE` can be one of
 ///   the following identifiers:
+///
 ///   - `ebgp`, which maps to `BgpSessionType::EBgp`,
 ///   - `peer`, which maps to `BgpSessionType::IBgpPeer`,
-///   - `client`, which maps to `BgpSessionType::IBgpClient`,
+///   - `client`, which maps to `BgpSessionType::IBgpClient`.
+///
 ///   This macro will **automatically add links between nodes for external sessions** if they are
 ///   not already defined in `links`.
 ///
