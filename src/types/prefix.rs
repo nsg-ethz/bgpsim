@@ -173,6 +173,13 @@ where
         Self: 'a,
         T: 'a;
 
+    /// The type of iterator over children of a given prefix.
+    type Children<'a>: Iterator<Item = (&'a Self::P, &'a T)>
+    where
+        Self: 'a,
+        Self::P: 'a,
+        T: 'a;
+
     /// Iterate over references of all elements in the map.
     fn iter(&self) -> Self::Iter<'_>;
 
@@ -187,6 +194,10 @@ where
     /// An iterator visiting all values mutablyin arbitrary order. The iterator element type is
     /// `&'a T`.
     fn values_mut(&mut self) -> Self::ValuesMut<'_>;
+
+    /// An iterator visiting all keys and values of children of a given prefix. All children are
+    /// contained within that given prefix, or are equal.
+    fn children(&self, prefix: &Self::P) -> Self::Children<'_>;
 
     /// Clears the map, removing all key-value pairs. Keeps the allocated memory for reuse.
     fn clear(&mut self);
@@ -486,6 +497,11 @@ where
     where
         T: 'a;
 
+    type Children<'a> = Self::Iter<'a>
+    where
+        Self: 'a,
+        T: 'a;
+
     fn iter(&self) -> Self::Iter<'_> {
         #[allow(clippy::into_iter_on_ref)]
         self.into_iter()
@@ -501,6 +517,10 @@ where
 
     fn values_mut(&mut self) -> Self::ValuesMut<'_> {
         self.0.iter_mut()
+    }
+
+    fn children(&self, _prefix: &Self::P) -> Self::Children<'_> {
+        self.iter()
     }
 
     fn clear(&mut self) {
@@ -709,6 +729,10 @@ where
     where
         T: 'a;
 
+    type Children<'a> = std::option::IntoIter<(&'a Self::P, &'a T)>
+    where
+        T: 'a;
+
     fn iter(&self) -> Self::Iter<'_> {
         #[allow(clippy::into_iter_on_ref)]
         self.into_iter()
@@ -724,6 +748,10 @@ where
 
     fn values_mut(&mut self) -> Self::ValuesMut<'_> {
         self.values_mut()
+    }
+
+    fn children(&self, prefix: &Self::P) -> Self::Children<'_> {
+        self.get_key_value(prefix).into_iter()
     }
 
     fn clear(&mut self) {
@@ -966,6 +994,10 @@ where
     where
         T: 'a;
 
+    type Children<'a> = prefix_trie::map::Iter<'a, Ipv4Prefix, T>
+    where
+        T: 'a;
+
     fn iter(&self) -> Self::Iter<'_> {
         self.iter()
     }
@@ -980,6 +1012,10 @@ where
 
     fn values_mut(&mut self) -> Self::ValuesMut<'_> {
         self.values_mut()
+    }
+
+    fn children(&self, prefix: &Self::P) -> Self::Children<'_> {
+        self.children(prefix)
     }
 
     fn clear(&mut self) {

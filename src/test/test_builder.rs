@@ -265,7 +265,7 @@ mod t {
 
         assert_igp_reachability(&net);
 
-        let fw_state = net.get_forwarding_state();
+        let mut fw_state = net.get_forwarding_state();
         for src in net.get_routers() {
             assert!(fw_state
                 .get_route(src, p)
@@ -277,7 +277,7 @@ mod t {
         // withdraw e1
         net.retract_external_route(e1, p).unwrap();
 
-        let fw_state = net.get_forwarding_state();
+        let mut fw_state = net.get_forwarding_state();
         for src in net.get_routers() {
             assert!(fw_state
                 .get_route(src, p)
@@ -289,7 +289,7 @@ mod t {
         // withdraw e1
         net.retract_external_route(e2, p).unwrap();
 
-        let fw_state = net.get_forwarding_state();
+        let mut fw_state = net.get_forwarding_state();
         for src in net.get_routers() {
             assert!(fw_state
                 .get_route(src, p)
@@ -301,7 +301,7 @@ mod t {
         // withdraw e1
         net.retract_external_route(e3, p).unwrap();
 
-        let fw_state = net.get_forwarding_state();
+        let mut fw_state = net.get_forwarding_state();
         for src in net.get_routers() {
             assert_eq!(
                 fw_state.get_route(src, p),

@@ -1251,7 +1251,7 @@ mod t {
         net.advertise_external_route(e3, p, &[3, 3, 30], None, None)
             .unwrap();
 
-        let fw_state = net.get_forwarding_state();
+        let mut fw_state = net.get_forwarding_state();
 
         assert_eq!(fw_state.get_route(r3, p), Ok(vec![vec![r3, e3]]));
         assert_eq!(fw_state.get_route(r1, p), Ok(vec![vec![r1, r3, e3]]));

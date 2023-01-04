@@ -48,6 +48,9 @@ pub struct ForwardingState<P: Prefix> {
     pub(crate) state: HashMap<RouterId, P::Map<Vec<RouterId>>>,
     /// The reversed forwarding state.
     pub(crate) reversed: HashMap<RouterId, P::Map<HashSet<RouterId>>>,
+    /// Cached paths.
+    #[serde(skip)]
+    cache: HashMap<RouterId, P::Map<CacheResult>>,
 }
 
 impl<P: Prefix> PartialEq for ForwardingState<P> {
@@ -118,12 +121,16 @@ impl<P: Prefix> ForwardingState<P> {
             }
         }
 
-        Self { state, reversed }
+        Self {
+            state,
+            reversed,
+            cache: Default::default(),
+        }
     }
 
     /// Returns the route from the source router to a specific prefix.
     pub fn get_route(
-        &self,
+        &mut self,
         source: RouterId,
         prefix: P,
     ) -> Result<Vec<Vec<RouterId>>, NetworkError> {
@@ -135,12 +142,36 @@ impl<P: Prefix> ForwardingState<P> {
 
     /// Recursive function to build the paths recursively.
     fn get_route_recursive(
-        &self,
+        &mut self,
         prefix: P,
         cur_node: RouterId,
         visited: &mut HashSet<RouterId>,
         path: &mut Vec<RouterId>,
     ) -> Result<Vec<Vec<RouterId>>, NetworkError> {
+        let (path, cached) = self._get_route_recursive_inner(prefix, cur_node, visited, path);
+        if !cached {
+            self.cache
+                .entry(cur_node)
+                .or_default()
+                .insert(prefix, path.clone());
+        }
+        path.result()
+    }
+
+    /// Recursive function to build the paths recursively.
+    #[inline(always)]
+    fn _get_route_recursive_inner(
+        &mut self,
+        prefix: P,
+        cur_node: RouterId,
+        visited: &mut HashSet<RouterId>,
+        path: &mut Vec<RouterId>,
+    ) -> (CacheResult, bool) {
+        // check if we already have a cached result
+        if let Some(p) = self.cache.get(&cur_node).and_then(|x| x.get(&prefix)) {
+            return (p.clone(), true);
+        }
+
         // Get the paths for each of the next hops
         let nhs = self
             .state
@@ -151,12 +182,12 @@ impl<P: Prefix> ForwardingState<P> {
 
         // test if there are any next hops
         if nhs.is_empty() {
-            return Err(NetworkError::ForwardingBlackHole(vec![cur_node]));
+            return (CacheResult::Hole(vec![cur_node]), false);
         }
 
         // test if the next hop to the destination. In that case, we are done.
         if nhs == [*TO_DST] {
-            return Ok(vec![vec![cur_node]]);
+            return (CacheResult::Path(vec![vec![cur_node]]), false);
         }
 
         let mut fw_paths: Vec<Vec<RouterId>> = Vec::new();
@@ -196,7 +227,7 @@ impl<P: Prefix> ForwardingState<P> {
                 loop_path.truncate(first_idx + 1);
                 loop_path.insert(0, cur_node);
 
-                return Err(NetworkError::ForwardingLoop(loop_path));
+                return (CacheResult::Loop(loop_path), false);
             }
 
             visited.insert(nh);
@@ -205,14 +236,14 @@ impl<P: Prefix> ForwardingState<P> {
                 Ok(p) => p,
                 Err(NetworkError::ForwardingBlackHole(mut p)) => {
                     p.insert(0, cur_node);
-                    return Err(NetworkError::ForwardingBlackHole(p));
+                    return (CacheResult::Hole(p), false);
                 }
                 Err(NetworkError::ForwardingLoop(mut p)) => {
                     debug_assert!(!p.is_empty());
                     let first_idx = p.iter().position(|x| *x == cur_node).unwrap_or(p.len() - 1);
                     p.truncate(first_idx + 1);
                     p.insert(0, cur_node);
-                    return Err(NetworkError::ForwardingLoop(p));
+                    return (CacheResult::Loop(p), false);
                 }
                 _ => {
                     unreachable!("Only forwarding blackholes and forwardingloops can be triggered.")
@@ -224,7 +255,7 @@ impl<P: Prefix> ForwardingState<P> {
             path.pop();
         }
 
-        Ok(fw_paths)
+        (CacheResult::Path(fw_paths), false)
     }
 
     /// Get the set of routers that can reach the given prefix internally, or know a route towards
@@ -336,6 +367,37 @@ impl<P: Prefix> ForwardingState<P> {
                 .get_mut_or_default(prefix)
                 .insert(source);
         }
+
+        // finally, invalidate the necessary cache
+        let prefixes_to_invalidate: Vec<P> = self
+            .cache
+            .get(&source)
+            .map(|x| x.children(&prefix).map(|(p, _)| *p).collect())
+            .unwrap_or_default();
+        for p in prefixes_to_invalidate {
+            self.recursive_invalidate_cache(source, p);
+        }
+    }
+
+    /// Recursive invalidate the cache starting at `source` for `prefix`.
+    fn recursive_invalidate_cache(&mut self, source: RouterId, prefix: P) {
+        if self
+            .cache
+            .get_mut(&source)
+            .and_then(|x| x.remove(&prefix))
+            .is_some()
+        {
+            // recursively remove cache of all previous next-hops
+            for previous in self
+                .reversed
+                .get(&source)
+                .and_then(|x| x.get(&prefix))
+                .map(|p| Vec::from_iter(p.iter().copied()))
+                .unwrap_or_default()
+            {
+                self.recursive_invalidate_cache(previous, prefix);
+            }
+        }
     }
 }
 
@@ -399,6 +461,23 @@ impl ForwardingState<SimplePrefix> {
             }
         }
         result
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Hash, Serialize, Deserialize)]
+enum CacheResult {
+    Path(Vec<Vec<RouterId>>),
+    Hole(Vec<RouterId>),
+    Loop(Vec<RouterId>),
+}
+
+impl CacheResult {
+    fn result(self) -> Result<Vec<Vec<RouterId>>, NetworkError> {
+        match self {
+            Self::Path(p) => Ok(p),
+            Self::Hole(p) => Err(NetworkError::ForwardingBlackHole(p)),
+            Self::Loop(p) => Err(NetworkError::ForwardingLoop(p)),
+        }
     }
 }
 
@@ -493,7 +572,11 @@ mod test {
             }
         }
 
-        ForwardingState { state, reversed }
+        ForwardingState {
+            state,
+            reversed,
+            cache: Default::default(),
+        }
     }
 
     #[generic_tests::define]
@@ -503,7 +586,7 @@ mod test {
         #[test]
         fn single_path<P: Prefix>() {
             let p = P::from(0);
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p => 100},
                 2 => {p => 1},
                 3 => {p => 2},
@@ -522,7 +605,7 @@ mod test {
         #[test]
         fn two_paths<P: Prefix>() {
             let p = P::from(0);
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p => 100},
                 2 => {p => 1},
                 3 => {p => 1},
@@ -539,7 +622,7 @@ mod test {
         #[test]
         fn black_hole<P: Prefix>() {
             let p = P::from(0);
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p => 100},
                 2 => {p => 1},
                 3 => {p => ()},
@@ -556,7 +639,7 @@ mod test {
         #[test]
         fn black_hole_two_paths<P: Prefix>() {
             let p = P::from(0);
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p => 100},
                 2 => {p => 1},
                 3 => {p => ()},
@@ -573,7 +656,7 @@ mod test {
         #[test]
         fn fw_loop<P: Prefix>() {
             let p = P::from(0);
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p => 100},
                 2 => {p => 3},
                 3 => {p => 4},
@@ -592,7 +675,7 @@ mod test {
         #[test]
         fn fw_loop_branch<P: Prefix>() {
             let p = P::from(0);
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p => 100},
                 2 => {p => (1, 3)},
                 3 => {p => 4},
@@ -611,7 +694,7 @@ mod test {
         #[test]
         fn fw_loop_branch_two_paths<P: Prefix>() {
             let p = P::from(0);
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p => 100},
                 2 => {p => (1, 3)},
                 3 => {p => 4},
@@ -645,7 +728,7 @@ mod test {
         fn single_path<P: Prefix>() {
             let p1 = P::from(1);
             let p2 = P::from(2);
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p1 => 100, p2 => 2},
                 2 => {p1 => 1, p2 => 5},
                 3 => {p1 => 2, p2 => 4},
@@ -674,7 +757,7 @@ mod test {
         fn two_paths<P: Prefix>() {
             let p1 = P::from(1);
             let p2 = P::from(2);
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p1 => 100, p2 => (2, 3)},
                 2 => {p1 => 1, p2 => 4},
                 3 => {p1 => 1, p2 => 4},
@@ -717,7 +800,7 @@ mod test {
             let probe_1 = P::from(Ipv4Net::new("10.0.1.1".parse().unwrap(), 32).unwrap());
             let probe_2 = P::from(Ipv4Net::new("10.0.2.1".parse().unwrap(), 32).unwrap());
             let probe_3 = P::from(Ipv4Net::new("10.1.0.1".parse().unwrap(), 32).unwrap());
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p0 => 100, p2 => 2},
                 2 => {p0 => 1, p2 => 5},
                 3 => {p0 => 2, p1 => 102, p2 => 4},
@@ -819,7 +902,7 @@ mod test {
             let probe_1 = P::from(Ipv4Net::new("10.0.1.1".parse().unwrap(), 32).unwrap());
             let probe_2 = P::from(Ipv4Net::new("10.0.2.1".parse().unwrap(), 32).unwrap());
             let probe_3 = P::from(Ipv4Net::new("10.1.0.1".parse().unwrap(), 32).unwrap());
-            let fw = fw_state! {
+            let mut fw = fw_state! {
                 1 => {p0 => 100, p2 => 2},
                 2 => {p0 => 1, p2 => 5},
                 3 => {p0 => 2, p1 => 102, p2 => 4},

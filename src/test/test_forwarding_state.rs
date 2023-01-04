@@ -253,7 +253,7 @@ mod t {
             let mut routers = net.get_routers();
             routers.sort();
 
-            let state = net.get_forwarding_state();
+            let mut state = net.get_forwarding_state();
 
             // check for all next hops
             for router in routers.iter() {
@@ -281,7 +281,7 @@ mod t {
             }
 
             // check again, but build cache in reverse order
-            let state = net.get_forwarding_state();
+            let mut state = net.get_forwarding_state();
             for router in routers.iter().rev() {
                 for prefix in net.get_known_prefixes() {
                     assert_eq!(
@@ -372,7 +372,7 @@ mod ipv4 {
         )
         .unwrap();
 
-        let fw_state = net.get_forwarding_state();
+        let mut fw_state = net.get_forwarding_state();
 
         assert_eq!(
             fw_state.get_route(r2, prefix!("100.0.0.0/16" as)).unwrap(),
