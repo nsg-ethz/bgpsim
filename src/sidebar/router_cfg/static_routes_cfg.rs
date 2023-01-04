@@ -15,17 +15,14 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, rc::Rc, str::FromStr};
 
-use bgpsim::{
-    router::StaticRoute,
-    types::{Prefix, RouterId},
-};
+use bgpsim::{router::StaticRoute, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::Net,
+    net::{Net, Pfx},
     sidebar::{Element, ExpandableDivider, TextField},
 };
 
@@ -41,8 +38,8 @@ pub enum Msg {
     StateNet(Rc<Net>),
     NewStaticRouteChange(String),
     InsertStaticRoute(String),
-    UpdateStaticRoute((Prefix, StaticRoute)),
-    RemoveStaticRoute(Prefix),
+    UpdateStaticRoute((Pfx, StaticRoute)),
+    RemoveStaticRoute(Pfx),
 }
 
 #[derive(Properties, PartialEq, Eq)]
@@ -74,8 +71,12 @@ impl Component for StaticRoutesCfg {
 
         let on_new_sr_change = ctx.link().callback(Msg::NewStaticRouteChange);
         let on_new_sr = ctx.link().callback(Msg::InsertStaticRoute);
-        let static_routes: Vec<_> = r.get_static_routes().map(|(k, v)| (*k, *v)).collect();
-        let existing_sr: Rc<HashSet<Prefix>> =
+        let static_routes: Vec<_> = r
+            .get_static_routes()
+            .iter()
+            .map(|(k, v)| (*k, *v))
+            .collect();
+        let existing_sr: Rc<HashSet<Pfx>> =
             Rc::new(static_routes.iter().map(|(p, _)| *p).collect());
 
         html! {
@@ -102,15 +103,12 @@ impl Component for StaticRoutesCfg {
                 true
             }
             Msg::NewStaticRouteChange(s) => {
-                self.new_sr_correct = if let Ok(p) = s.parse::<u32>() {
+                self.new_sr_correct = if let Ok(p) = Pfx::from_str(&s) {
                     self.net
                         .net()
                         .get_device(router)
                         .internal()
-                        .and_then(|r| {
-                            r.get_static_routes()
-                                .find(|(prefix, _)| Prefix(p) == **prefix)
-                        })
+                        .and_then(|r| r.get_static_routes().get(&p))
                         .is_none()
                 } else {
                     false
@@ -118,8 +116,8 @@ impl Component for StaticRoutesCfg {
                 true
             }
             Msg::InsertStaticRoute(s) => {
-                let prefix = if let Ok(p) = s.parse::<u32>() {
-                    Prefix(p)
+                let prefix = if let Ok(p) = Pfx::from_str(&s) {
+                    p
                 } else {
                     self.new_sr_correct = false;
                     return true;

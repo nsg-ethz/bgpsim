@@ -17,14 +17,14 @@
 
 use std::rc::Rc;
 
+use bgpsim::types::{NetworkError, RouterId};
 use itertools::Itertools;
-use bgpsim::types::{NetworkError, Prefix, RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
     dim::{Dim, ROUTER_RADIUS},
-    net::Net,
+    net::{Net, Pfx},
     point::Point,
 };
 
@@ -46,7 +46,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub router_id: RouterId,
-    pub prefix: Prefix,
+    pub prefix: Pfx,
     pub kind: Option<PathKind>,
 }
 
@@ -135,7 +135,7 @@ impl Component for ForwardingPath {
     }
 }
 
-fn get_paths(net: &Net, dim: &Dim, router: RouterId, prefix: Prefix) -> Vec<Vec<Point>> {
+fn get_paths(net: &Net, dim: &Dim, router: RouterId, prefix: Pfx) -> Vec<Vec<Point>> {
     if net.net().get_device(router).is_internal() {
         match net.net().get_forwarding_state().get_route(router, prefix) {
             Ok(paths) => paths,

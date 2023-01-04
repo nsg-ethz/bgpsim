@@ -15,19 +15,22 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, rc::Rc, str::FromStr};
 
-use itertools::{join, Itertools};
 use bgpsim::{
     bgp::BgpRoute,
     formatter::NetworkFormatter,
     prelude::BgpSessionType,
-    types::{AsId, Prefix, RouterId},
+    types::{AsId, RouterId},
 };
+use itertools::{join, Itertools};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{draw::SvgColor, net::Net};
+use crate::{
+    draw::SvgColor,
+    net::{Net, Pfx},
+};
 
 use super::{
     topology_cfg::TopologyCfg, Button, Divider, Element, ExpandableDivider, ExpandableSection,
@@ -50,10 +53,10 @@ pub enum Msg {
     OnAsSet(String),
     AddBgpSession(RouterId),
     RemoveBgpSession(RouterId),
-    UpdateRoute((Prefix, BgpRoute)),
+    UpdateRoute((Pfx, BgpRoute<Pfx>)),
     OnRouteAddChange(String),
     OnRouteAdd(String),
-    DeleteRoute(Prefix),
+    DeleteRoute(Pfx),
 }
 
 #[derive(Properties, PartialEq, Eq)]
@@ -113,7 +116,7 @@ impl Component for ExternalRouterCfg {
         let on_session_add = ctx.link().callback(Msg::AddBgpSession);
         let on_session_remove = ctx.link().callback(Msg::RemoveBgpSession);
 
-        let mut routes: Vec<(Prefix, BgpRoute)> = n
+        let mut routes: Vec<(Pfx, BgpRoute<Pfx>)> = n
             .get_device(router_id)
             .external()
             .map(|r| {
@@ -255,14 +258,7 @@ impl Component for ExternalRouterCfg {
                 false
             }
             Msg::OnRouteAddChange(p) => {
-                let p = p.to_lowercase();
-                self.route_add_input_correct = if let Ok(p) = p
-                    .strip_prefix("prefix(")
-                    .and_then(|p| p.strip_suffix(')'))
-                    .unwrap_or(p.as_str())
-                    .parse::<u32>()
-                    .map(Prefix)
-                {
+                self.route_add_input_correct = if let Ok(p) = Pfx::from_str(&p) {
                     self.net
                         .net()
                         .get_device(ctx.props().router)
@@ -275,15 +271,9 @@ impl Component for ExternalRouterCfg {
                 true
             }
             Msg::OnRouteAdd(p) => {
-                let p = p.to_lowercase();
                 let router = ctx.props().router;
-                let p = if let Ok(p) = p
-                    .strip_prefix("prefix(")
-                    .and_then(|p| p.strip_suffix(')'))
-                    .unwrap_or(p.as_str())
-                    .parse::<u32>()
-                {
-                    Prefix(p)
+                let p = if let Ok(p) = Pfx::from_str(&p) {
+                    p
                 } else {
                     self.route_add_input_correct = false;
                     return true;
@@ -322,11 +312,11 @@ enum AdvertisedRouteMsg {
 
 #[derive(Properties, PartialEq)]
 struct AdvertisedRouteProperties {
-    prefix: Prefix,
-    route: BgpRoute,
-    on_update: Callback<(Prefix, BgpRoute)>,
-    on_delete: Callback<Prefix>,
-    advertised: Rc<HashSet<Prefix>>,
+    prefix: Pfx,
+    route: BgpRoute<Pfx>,
+    on_update: Callback<(Pfx, BgpRoute<Pfx>)>,
+    on_delete: Callback<Pfx>,
+    advertised: Rc<HashSet<Pfx>>,
 }
 
 impl Component for AdvertisedRouteCfg {
@@ -343,7 +333,7 @@ impl Component for AdvertisedRouteCfg {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let prefix_text = ctx.props().prefix.0.to_string();
+        let prefix_text = ctx.props().prefix.to_string();
         let on_prefix_change = ctx.link().callback(AdvertisedRouteMsg::PrefixChange);
         let on_prefix_set = ctx.link().callback(AdvertisedRouteMsg::PrefixSet);
 
@@ -393,16 +383,14 @@ impl Component for AdvertisedRouteCfg {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
             AdvertisedRouteMsg::PrefixChange(p) => {
-                let p = p.to_lowercase();
-                self.prefix_input_correct = p
-                    .parse::<u32>()
-                    .map(|p| !ctx.props().advertised.contains(&Prefix(p)))
+                self.prefix_input_correct = Pfx::from_str(&p)
+                    .map(|p| !ctx.props().advertised.contains(&p))
                     .unwrap_or(false);
                 true
             }
             AdvertisedRouteMsg::PrefixSet(p) => {
-                let p = if let Ok(p) = p.parse::<u32>() {
-                    Prefix(p)
+                let p = if let Ok(p) = Pfx::from_str(&p) {
+                    p
                 } else {
                     self.prefix_input_correct = false;
                     return true;

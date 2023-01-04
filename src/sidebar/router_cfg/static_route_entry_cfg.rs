@@ -17,14 +17,14 @@
 
 use std::{collections::HashSet, rc::Rc};
 
-use bgpsim::{
-    router::StaticRoute,
-    types::{Prefix, RouterId},
-};
+use bgpsim::{router::StaticRoute, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{draw::SvgColor, net::Net};
+use crate::{
+    draw::SvgColor,
+    net::{Net, Pfx},
+};
 
 use super::super::{Button, Element, ExpandableSection, Select, Toggle};
 
@@ -43,11 +43,11 @@ pub enum Msg {
 #[derive(Properties, PartialEq)]
 pub struct Properties {
     pub router: RouterId,
-    pub prefix: Prefix,
+    pub prefix: Pfx,
     pub target: StaticRoute,
-    pub existing: Rc<HashSet<Prefix>>,
-    pub on_update: Callback<(Prefix, StaticRoute)>,
-    pub on_remove: Callback<Prefix>,
+    pub existing: Rc<HashSet<Pfx>>,
+    pub on_update: Callback<(Pfx, StaticRoute)>,
+    pub on_remove: Callback<Pfx>,
 }
 
 impl Component for StaticRouteEntryCfg {

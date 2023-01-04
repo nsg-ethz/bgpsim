@@ -15,21 +15,20 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use bgpsim::{bgp::BgpRoute, types::RouterId};
 use gloo_utils::document;
-use bgpsim::{
-    bgp::BgpRoute,
-    types::{Prefix, RouterId},
-};
 use strum_macros::EnumIter;
 use yew::prelude::Html;
 use yewdux::prelude::Store;
+
+use super::net::Pfx;
 
 #[derive(Clone, Debug, PartialEq, Store)]
 pub struct State {
     selected: Selected,
     hover: Hover,
     layer: Layer,
-    prefix: Option<Prefix>,
+    prefix: Option<Pfx>,
     dark_mode: bool,
 }
 
@@ -60,7 +59,7 @@ impl State {
         self.layer
     }
 
-    pub fn prefix(&self) -> Option<Prefix> {
+    pub fn prefix(&self) -> Option<Pfx> {
         self.prefix
     }
 
@@ -84,7 +83,7 @@ impl State {
         self.layer = layer;
     }
 
-    pub fn set_prefix(&mut self, prefix: Option<Prefix>) {
+    pub fn set_prefix(&mut self, prefix: Option<Pfx>) {
         self.prefix = prefix
     }
 
@@ -137,9 +136,10 @@ pub enum Hover {
     Router(RouterId),
     BgpSession(RouterId, RouterId),
     NextHop(RouterId, RouterId),
-    RouteProp(RouterId, RouterId, BgpRoute),
+    RouteProp(RouterId, RouterId, BgpRoute<Pfx>),
     Message(RouterId, RouterId, usize, bool),
     Policy(RouterId, usize),
+    #[cfg(feature = "atomic_bgp")]
     AtomicCommand(Vec<RouterId>),
     Help(Html),
 }

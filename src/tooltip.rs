@@ -17,15 +17,16 @@
 
 use std::{ops::Deref, rc::Rc};
 
-use gloo_utils::window;
-use itertools::{join, Itertools};
 use bgpsim::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute},
     event::Event,
     formatter::NetworkFormatter,
     interactive::InteractiveNetwork,
+    prefix,
     prelude::BgpSessionType,
 };
+use gloo_utils::window;
+use itertools::{join, Itertools};
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::HtmlElement;
 use yew::prelude::*;
@@ -33,7 +34,7 @@ use yewdux::prelude::*;
 
 use crate::{
     dim::{Dim, TOOLTIP_OFFSET},
-    net::Net,
+    net::{Net, Pfx},
     point::Point,
     sidebar::queue_cfg::PrefixTable,
     state::{Hover, Layer, State},
@@ -95,14 +96,21 @@ impl Component for Tooltip {
         let content: Html = match hover {
             Hover::Router(r) if self.state.layer() == Layer::RouteProp => {
                 if let Some(x) = self.net.net().get_device(r).internal() {
+                    let rib = x
+                        .get_processed_bgp_rib()
+                        .into_children(
+                            &self
+                                .state
+                                .prefix()
+                                .unwrap_or_else(|| prefix!("0.0.0.0/0" as)),
+                        )
+                        .collect_vec();
                     html! {
                         <>
                             <p class={"font-bold text-center flex-0"}> {
                                 format!("BGP Table of {}", r.fmt(&self.net.net()))
                             } </p>
-                            <RibTable rib={
-                                x.get_processed_bgp_rib(self.state.prefix().unwrap_or_else(|| 0.into()))
-                            }/>
+                            <RibTable {rib}/>
                         </>
                     }
                 } else {
@@ -166,9 +174,9 @@ impl Component for Tooltip {
                     </div>
                 }
             }
-            Hover::Message(_, _, _, _) | Hover::AtomicCommand(_) | Hover::Policy(_, _) => {
-                return html! {}
-            }
+            Hover::Message(_, _, _, _) | Hover::Policy(_, _) => return html! {},
+            #[cfg(feature = "atomic_bgp")]
+            Hover::AtomicCommand(_) => return html! {},
             Hover::None => unreachable!(),
         };
 
@@ -266,7 +274,7 @@ impl Tooltip {
 
 #[derive(Properties, PartialEq, Eq)]
 pub struct RouteTableProps {
-    pub route: BgpRoute,
+    pub route: BgpRoute<Pfx>,
 }
 
 #[function_component(RouteTable)]
@@ -301,7 +309,7 @@ pub fn route_table(props: &RouteTableProps) -> Html {
 
 #[derive(Properties, PartialEq, Eq)]
 pub struct RibTableProps {
-    pub rib: Vec<(BgpRibEntry, bool)>,
+    pub rib: Vec<(Pfx, Vec<(BgpRibEntry<Pfx>, bool)>)>,
 }
 
 #[function_component(RibTable)]
@@ -314,6 +322,7 @@ pub fn rib_table(props: &RibTableProps) -> Html {
         <table class="table-auto border-separate border-spacing-x-3">
             <tr>
               <td class="italic text-main-ia"></td>
+              <td class="italic text-main-ia"> {"prefix"} </td>
               <td class="italic text-main-ia"> {"peer"} </td>
               <td class="italic text-main-ia"> {"nh"} </td>
               <td class="italic text-main-ia"> {"path"} </td>
@@ -325,10 +334,11 @@ pub fn rib_table(props: &RibTableProps) -> Html {
             </tr>
 
             {
-                props.rib.iter().map(|(r, s)| {
+                props.rib.iter().flat_map(|(_, rib)| rib) .map(|(r, s)| {
                     html!{
                         <tr>
                             <td> {if *s { "*" } else { "" }} </td>
+                            <td> {r.route.prefix} </td>
                             <td> {r.from_id.fmt(n)} </td>
                             <td> {r.route.next_hop.fmt(n)} </td>
                             <td> {r.route.as_path.iter().map(|x| x.0).join(", ")} </td>

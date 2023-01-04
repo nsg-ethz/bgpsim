@@ -18,14 +18,14 @@
 use std::collections::HashMap;
 use std::rc::Rc;
 
-use gloo_utils::window;
-use itertools::Itertools;
 use bgpsim::bgp::BgpRoute;
 use bgpsim::event::Event;
 use bgpsim::interactive::InteractiveNetwork;
 use bgpsim::policies::Policy;
 use bgpsim::prelude::BgpSessionType;
-use bgpsim::types::{Prefix, RouterId};
+use bgpsim::types::RouterId;
+use gloo_utils::window;
+use itertools::Itertools;
 use wasm_bindgen::prelude::Closure;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlDivElement, HtmlElement};
@@ -45,7 +45,7 @@ use crate::draw::arrows::CurvedArrow;
 use crate::draw::forwarding_path::ForwardingPath;
 use crate::draw::propagation::Propagation;
 use crate::draw::SvgColor;
-use crate::net::Net;
+use crate::net::{Net, Pfx};
 use crate::state::{Hover, Layer, State};
 
 pub enum Msg {
@@ -66,8 +66,9 @@ pub struct Canvas {
     routers: Vec<RouterId>,
     links: Vec<(RouterId, RouterId)>,
     bgp_sessions: Vec<(RouterId, RouterId, BgpSessionType)>,
-    propagations: Vec<(RouterId, RouterId, BgpRoute)>,
-    events: HashMap<RouterId, Vec<(usize, Event<()>)>>,
+    propagations: Vec<(RouterId, RouterId, BgpRoute<Pfx>)>,
+    #[allow(clippy::type_complexity)]
+    events: HashMap<RouterId, Vec<(usize, Event<Pfx, ()>)>>,
     hover_event: Option<(RouterId, RouterId)>,
     last_layer: Option<Layer>,
     last_hover: Option<Hover>,
@@ -229,7 +230,7 @@ impl Component for Canvas {
         });
         ret |= update(&mut self.propagations, || {
             self.net
-                .get_route_propagation(self.state.prefix().unwrap_or(Prefix(0)))
+                .get_route_propagation(self.state.prefix().unwrap_or_else(|| Pfx::from(0)))
         });
         ret |= update(&mut self.events, || {
             self.net

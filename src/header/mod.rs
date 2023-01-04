@@ -21,16 +21,16 @@ mod main_menu;
 mod migration_planner;
 mod verifier;
 
-use std::{collections::HashSet, rc::Rc};
+use std::{collections::HashSet, rc::Rc, str::FromStr};
 
-use bgpsim::types::{AsId, Prefix};
+use bgpsim::types::AsId;
 use strum::IntoEnumIterator;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::Net,
+    net::{Net, Pfx},
     point::Point,
     state::{Layer, State},
 };
@@ -185,7 +185,7 @@ struct PrefixSelection {
     text: String,
     input_ref: NodeRef,
     input_wrong: bool,
-    last_prefix: Option<Prefix>,
+    last_prefix: Option<Pfx>,
     state_dispatch: Dispatch<State>,
     _net_dispatch: Dispatch<Net>,
 }
@@ -205,7 +205,7 @@ impl Component for PrefixSelection {
         let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         PrefixSelection {
             state: Default::default(),
-            text: 0.to_string(),
+            text: Pfx::from(0).to_string(),
             shown: false,
             input_ref: Default::default(),
             input_wrong: false,
@@ -217,14 +217,13 @@ impl Component for PrefixSelection {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let button_class = "z-10 p-2 px-4 flex justify-between items-center rounded-full drop-shadow bg-base-1 text-main opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-auto";
-        let text_input_class = "w-10 ml-2 px-2 border-b border-base-5 focus:border-main peer-checked:border-red focus:outline-none focus:text-main transition duration-150 ease-in-out bg-base-1";
+        let text_input_class = "w-32 ml-2 px-2 border-b border-base-5 focus:border-main peer-checked:border-red focus:outline-none focus:text-main transition duration-150 ease-in-out bg-base-1";
 
         let text_update = ctx.link().callback(|_| Msg::OnChange);
         html! {
             <span class="pointer-events-none">
                 <input type="checkbox" value="" class="sr-only peer" checked={self.shown}/>
                 <div class={button_class}>
-                    <p> {"Prefix"} </p>
                     <input type="checkbox" value="" class="sr-only peer" checked={self.input_wrong}/>
                     <input type="text" class={text_input_class} value={self.text.clone()} ref={self.input_ref.clone()}
                         onchange={text_update.reform(|_| ())}
@@ -244,7 +243,7 @@ impl Component for PrefixSelection {
                 if self.last_prefix != new_prefix {
                     self.last_prefix = new_prefix;
                     self.input_wrong = false;
-                    self.text = new_prefix.map(|p| p.0.to_string()).unwrap_or_default();
+                    self.text = new_prefix.map(|p| p.to_string()).unwrap_or_default();
                 }
                 self.shown = self.state.layer().requires_prefix();
                 true
@@ -265,8 +264,9 @@ impl Component for PrefixSelection {
                     .cast::<HtmlInputElement>()
                     .map(|e| e.value())
                     .unwrap_or_default();
-                if let Ok(p) = self.text.parse::<u32>().map(Prefix) {
+                if let Ok(p) = Pfx::from_str(&self.text) {
                     if Some(p) != self.last_prefix {
+                        log::debug!("update prefix to {}", p);
                         self.input_wrong = false;
                         self.state_dispatch
                             .reduce_mut(move |s| s.set_prefix(Some(p)));

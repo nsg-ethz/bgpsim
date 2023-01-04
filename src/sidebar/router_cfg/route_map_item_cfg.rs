@@ -24,6 +24,7 @@ use bgpsim::{
 use yew::prelude::*;
 
 use crate::draw::SvgColor;
+use crate::net::Pfx;
 
 use super::super::{Button, Element, ExpandableSection, TextField, Toggle};
 use super::{route_map_match_cfg::RouteMapMatchCfg, route_map_set_cfg::RouteMapSetCfg};
@@ -37,7 +38,7 @@ pub enum Msg {
     OrderSet(String),
     StateChange(bool),
     FlowChange(bool),
-    UpdateMatch((usize, Option<RouteMapMatch>)),
+    UpdateMatch((usize, Option<RouteMapMatch<Pfx>>)),
     UpdateSet((usize, Option<RouteMapSet>)),
 }
 
@@ -46,9 +47,9 @@ pub struct Properties {
     pub router: RouterId,
     pub neighbor: RouterId,
     pub order: i16,
-    pub map: RouteMap,
+    pub map: RouteMap<Pfx>,
     pub existing: Rc<HashSet<i16>>,
-    pub on_update: Callback<(i16, RouteMap)>,
+    pub on_update: Callback<(i16, RouteMap<Pfx>)>,
     pub on_remove: Callback<i16>,
 }
 

@@ -1,6 +1,6 @@
 [package]
 name = "bgpsim-web"
-version = "0.10.0"
+version = "0.11.0"
 edition = "2021"
 
 [features]
@@ -9,7 +9,7 @@ atomic_bgp = ["dep:atomic-command"]
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bgpsim = { path = "../bgpsim", features = ["serde"] }
+bgpsim = { path = "../bgpsim" }
 atomic-command = { path = "../atomic-bgp/atomic-command", features = ["serde"], optional = true }
 yew = { version = "0.19" }
 yew-router = { version = "0.16" }
@@ -34,3 +34,4 @@ serde_json = "1.0"
 miniz_oxide = "0.5"
 base64 = "0.13"
 sise = "0.8.0"
+ipnet = "2.7.0"

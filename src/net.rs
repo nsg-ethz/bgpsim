@@ -20,19 +20,20 @@ use std::{
     ops::{Deref, DerefMut},
 };
 
-use forceatlas2::{Layout, Nodes, Settings};
-use getrandom::getrandom;
-#[cfg(feature = "atomic_bgp")]
-use itertools::Itertools;
-use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
+pub use bgpsim::types::Ipv4Prefix as Pfx;
 use bgpsim::{
     bgp::{BgpRoute, BgpSessionType},
     event::{Event, EventQueue},
     network::Network,
     policies::{FwPolicy, PolicyError},
     router::Router,
-    types::{IgpNetwork, NetworkDevice, Prefix, RouterId},
+    types::{IgpNetwork, NetworkDevice, RouterId},
 };
+use forceatlas2::{Layout, Nodes, Settings};
+use getrandom::getrandom;
+#[cfg(feature = "atomic_bgp")]
+use itertools::Itertools;
+use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wasm_bindgen::JsCast;
@@ -46,7 +47,7 @@ use crate::{latex_export, point::Point};
 
 /// Basic event queue
 #[derive(PartialEq, Eq, Clone, Debug, Default, Serialize, Deserialize)]
-pub struct Queue(VecDeque<Event<()>>);
+pub struct Queue(VecDeque<Event<Pfx, ()>>);
 
 impl Queue {
     /// Create a new empty event queue
@@ -58,32 +59,32 @@ impl Queue {
         self.0.swap(i, j)
     }
 
-    pub fn get(&self, index: usize) -> Option<&Event<()>> {
+    pub fn get(&self, index: usize) -> Option<&Event<Pfx, ()>> {
         self.0.get(index)
     }
 
-    pub fn iter(&self) -> Iter<'_, Event<()>> {
+    pub fn iter(&self) -> Iter<'_, Event<Pfx, ()>> {
         self.0.iter()
     }
 }
 
-impl EventQueue for Queue {
+impl EventQueue<Pfx> for Queue {
     type Priority = ();
 
     fn push(
         &mut self,
-        event: Event<Self::Priority>,
-        _: &HashMap<RouterId, Router>,
+        event: Event<Pfx, Self::Priority>,
+        _: &HashMap<RouterId, Router<Pfx>>,
         _: &IgpNetwork,
     ) {
         self.0.push_back(event)
     }
 
-    fn pop(&mut self) -> Option<Event<Self::Priority>> {
+    fn pop(&mut self) -> Option<Event<Pfx, Self::Priority>> {
         self.0.pop_front()
     }
 
-    fn peek(&self) -> Option<&Event<Self::Priority>> {
+    fn peek(&self) -> Option<&Event<Pfx, Self::Priority>> {
         self.0.front()
     }
 
@@ -99,7 +100,7 @@ impl EventQueue for Queue {
         self.0.clear()
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, Router>, _: &IgpNetwork) {}
+    fn update_params(&mut self, _: &HashMap<RouterId, Router<Pfx>>, _: &IgpNetwork) {}
 
     unsafe fn clone_events(&self, _: Self) -> Self {
         self.clone()
@@ -113,13 +114,13 @@ impl EventQueue for Queue {
 #[allow(clippy::type_complexity)]
 #[derive(Clone, PartialEq, Store)]
 pub struct Net {
-    pub net: Mrc<Network<Queue>>,
+    pub net: Mrc<Network<Pfx, Queue>>,
     pub pos: Mrc<HashMap<RouterId, Point>>,
-    pub spec: Mrc<HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>>,
-    recorder: Option<Network<Queue>>,
+    pub spec: Mrc<HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>>,
+    recorder: Option<Network<Pfx, Queue>>,
     speed: Mrc<HashMap<RouterId, Point>>,
     #[cfg(feature = "atomic_bgp")]
-    pub migration: Mrc<Vec<Vec<AtomicCommand>>>,
+    pub migration: Mrc<Vec<Vec<AtomicCommand<Pfx>>>>,
     #[cfg(feature = "atomic_bgp")]
     pub migration_state: Mrc<Vec<Vec<MigrationState>>>,
 }
@@ -145,11 +146,11 @@ const SMOL: f64 = 0.00001;
 const MAX_N_ITER: usize = 1000;
 
 impl Net {
-    pub fn net(&self) -> impl Deref<Target = Network<Queue>> + '_ {
+    pub fn net(&self) -> impl Deref<Target = Network<Pfx, Queue>> + '_ {
         self.net.borrow()
     }
 
-    pub fn net_mut(&mut self) -> impl DerefMut<Target = Network<Queue>> + '_ {
+    pub fn net_mut(&mut self) -> impl DerefMut<Target = Network<Pfx, Queue>> + '_ {
         self.net.borrow_mut()
     }
 
@@ -163,19 +164,20 @@ impl Net {
 
     pub fn spec(
         &self,
-    ) -> impl Deref<Target = HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>> + '_ {
+    ) -> impl Deref<Target = HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>> + '_
+    {
         self.spec.borrow()
     }
 
     pub fn spec_mut(
         &self,
-    ) -> impl DerefMut<Target = HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>> + '_
+    ) -> impl DerefMut<Target = HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>> + '_
     {
         self.spec.borrow_mut()
     }
 
     #[cfg(feature = "atomic_bgp")]
-    pub fn migration(&self) -> impl Deref<Target = Vec<Vec<AtomicCommand>>> + '_ {
+    pub fn migration(&self) -> impl Deref<Target = Vec<Vec<AtomicCommand<Pfx>>>> + '_ {
         self.migration.borrow()
     }
 
@@ -207,6 +209,7 @@ impl Net {
                 net.get_device(src)
                     .unwrap_internal()
                     .get_bgp_sessions()
+                    .iter()
                     .map(|(target, ty)| (*target, *ty))
                     .filter_map(move |(dst, ty)| {
                         if ty == BgpSessionType::IBgpPeer {
@@ -227,7 +230,7 @@ impl Net {
             .collect()
     }
 
-    pub fn get_route_propagation(&self, prefix: Prefix) -> Vec<(RouterId, RouterId, BgpRoute)> {
+    pub fn get_route_propagation(&self, prefix: Pfx) -> Vec<(RouterId, RouterId, BgpRoute<Pfx>)> {
         let net = self.net.borrow();
         let mut results = Vec::new();
         for id in net.get_topology().node_indices() {
@@ -246,7 +249,10 @@ impl Net {
                             .iter()
                             .filter_map(|n| net.get_device(*n).internal().map(|r| (*n, r)))
                             .filter_map(|(n, r)| {
-                                r.get_bgp_rib_out().get(&(id, prefix)).map(|r| (n, r))
+                                r.get_bgp_rib_out()
+                                    .get(&prefix)
+                                    .and_then(|x| x.get(&id))
+                                    .map(|r| (n, r))
                             })
                             .map(|(n, e)| (n, id, e.route.clone())),
                     );
@@ -516,9 +522,9 @@ fn net_from_str(s: &str) -> Result<Net, String> {
     let spec = content
         .get("spec")
         .and_then(|v| {
-            serde_json::from_value::<HashMap<RouterId, Vec<(FwPolicy, Result<(), PolicyError>)>>>(
-                v.clone(),
-            )
+            serde_json::from_value::<
+                HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>,
+            >(v.clone())
             .ok()
         })
         .unwrap_or_default();
