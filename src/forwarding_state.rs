@@ -50,7 +50,7 @@ pub struct ForwardingState<P: Prefix> {
     pub(crate) reversed: HashMap<RouterId, P::Map<HashSet<RouterId>>>,
     /// Cached paths.
     #[serde(skip)]
-    cache: HashMap<RouterId, P::Map<CacheResult>>,
+    pub(self) cache: HashMap<RouterId, P::Map<CacheResult>>,
 }
 
 impl<P: Prefix> PartialEq for ForwardingState<P> {
@@ -486,6 +486,33 @@ mod test {
     use super::*;
     use crate::types::{Ipv4Prefix, NetworkError, Prefix, SimplePrefix, SinglePrefix};
 
+    macro_rules! check_cache {
+        ($acq:expr, $src:literal, $pfx:expr => None) => {
+            assert!($acq.cache.get(&$src.into()).and_then(|x| x.get(&$pfx)).is_none())
+        };
+        ($acq:expr, $src:literal, $pfx:expr => ($($path:tt),*)) => {
+            check_cache!($acq, $src, $pfx, CacheResult::Path(vec!($(_path!($path)),*)))
+        };
+        ($acq:expr, $src:literal, $pfx:expr => fwloop $path:tt) => {
+            check_cache!(
+                $acq, $src, $pfx,
+                CacheResult::Loop(_path!($path))
+            )
+        };
+        ($acq:expr, $src:literal, $pfx:expr => blackhole $path:tt) => {
+            check_cache!(
+                $acq, $src, $pfx,
+                CacheResult::Hole(_path!($path))
+            )
+        };
+        ($acq:expr, $src:literal, $pfx:expr, $exp:expr) => {
+            ::pretty_assertions::assert_eq!(
+                $acq.cache.get(&$src.into()).and_then(|x| x.get(&$pfx)),
+                Some(&$exp)
+            )
+        };
+    }
+
     macro_rules! check_route {
         ($acq:expr, $src:literal, $pfx:expr => ($($path:tt),*)) => {
             check_route!($acq.get_route($src.into(), $pfx), Ok(vec!($(_path!($path)),*)))
@@ -594,12 +621,60 @@ mod test {
                 5 => {p => 4},
             };
 
+            check_cache!(fw, 100, p => None);
+            check_cache!(fw, 1, p => None);
+            check_cache!(fw, 2, p => None);
+            check_cache!(fw, 3, p => None);
+            check_cache!(fw, 4, p => None);
+            check_cache!(fw, 5, p => None);
+
             check_route!(fw, 100, p => ((100)));
+            check_cache!(fw, 100, p => ((100)));
+            check_cache!(fw, 1, p => None);
+            check_cache!(fw, 2, p => None);
+            check_cache!(fw, 3, p => None);
+            check_cache!(fw, 4, p => None);
+            check_cache!(fw, 5, p => None);
+
             check_route!(fw, 1, p => ((1, 100)));
-            check_route!(fw, 2, p => ((2, 1, 100)));
+            check_cache!(fw, 100, p => ((100)));
+            check_cache!(fw, 1, p => ((1, 100)));
+            check_cache!(fw, 2, p => None);
+            check_cache!(fw, 3, p => None);
+            check_cache!(fw, 4, p => None);
+            check_cache!(fw, 5, p => None);
+
             check_route!(fw, 3, p => ((3, 2, 1, 100)));
+            check_cache!(fw, 100, p => ((100)));
+            check_cache!(fw, 1, p => ((1, 100)));
+            check_cache!(fw, 2, p => ((2, 1, 100)));
+            check_cache!(fw, 3, p => ((3, 2, 1, 100)));
+            check_cache!(fw, 4, p => None);
+            check_cache!(fw, 5, p => None);
+
+            check_route!(fw, 2, p => ((2, 1, 100)));
+            check_cache!(fw, 100, p => ((100)));
+            check_cache!(fw, 1, p => ((1, 100)));
+            check_cache!(fw, 2, p => ((2, 1, 100)));
+            check_cache!(fw, 3, p => ((3, 2, 1, 100)));
+            check_cache!(fw, 4, p => None);
+            check_cache!(fw, 5, p => None);
+
             check_route!(fw, 4, p => ((4, 1, 100)));
+            check_cache!(fw, 100, p => ((100)));
+            check_cache!(fw, 1, p => ((1, 100)));
+            check_cache!(fw, 2, p => ((2, 1, 100)));
+            check_cache!(fw, 3, p => ((3, 2, 1, 100)));
+            check_cache!(fw, 4, p => ((4, 1, 100)));
+            check_cache!(fw, 5, p => None);
+
             check_route!(fw, 5, p => ((5, 4, 1, 100)));
+            check_cache!(fw, 100, p => ((100)));
+            check_cache!(fw, 1, p => ((1, 100)));
+            check_cache!(fw, 2, p => ((2, 1, 100)));
+            check_cache!(fw, 3, p => ((3, 2, 1, 100)));
+            check_cache!(fw, 4, p => ((4, 1, 100)));
+            check_cache!(fw, 5, p => ((5, 4, 1, 100)));
         }
 
         #[test]
