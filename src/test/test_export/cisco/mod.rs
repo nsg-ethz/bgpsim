@@ -23,7 +23,7 @@ use crate::{
         cisco_frr_generators::Target::CiscoNexus7000 as Target, CiscoFrrCfgGen, InternalCfgGen,
     },
     route_map::{RouteMapBuilder, RouteMapDirection::Incoming},
-    types::{Prefix, SimplePrefix, SinglePrefix},
+    types::{NonOverlappingPrefix, Prefix, SimplePrefix, SinglePrefix},
 };
 
 #[generic_tests::define]
@@ -43,6 +43,14 @@ mod t {
         assert_str_eq!(
             super::super::generate_external_config::<P>(Target),
             include_str!("external_config")
+        );
+    }
+
+    #[test]
+    fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>() {
+        assert_str_eq!(
+            super::super::generate_external_config_pec::<P>(Target),
+            include_str!("external_config_pec")
         );
     }
 

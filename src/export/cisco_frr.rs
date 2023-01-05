@@ -946,9 +946,6 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
         config.push_str("!\n");
         config.push_str(enable_bgp(self.target));
 
-        // configure all pecs
-        config.push_str(&self.pec_config(addressor));
-
         // create the interfaces to the neighbors
         config.push_str(&self.iface_config(net, addressor)?);
 

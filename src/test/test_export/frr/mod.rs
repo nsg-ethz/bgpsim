@@ -18,7 +18,7 @@
 use pretty_assertions::assert_str_eq;
 
 use crate::export::cisco_frr_generators::Target::Frr as Target;
-use crate::types::{Prefix, SimplePrefix, SinglePrefix};
+use crate::types::{NonOverlappingPrefix, Prefix, SimplePrefix, SinglePrefix};
 
 #[generic_tests::define]
 mod t {
@@ -37,6 +37,14 @@ mod t {
         assert_str_eq!(
             super::super::generate_external_config::<P>(Target),
             include_str!("external_config")
+        );
+    }
+
+    #[test]
+    fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>() {
+        assert_str_eq!(
+            super::super::generate_external_config_pec::<P>(Target),
+            include_str!("external_config_pec")
         );
     }
 
