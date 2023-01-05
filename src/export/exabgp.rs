@@ -266,14 +266,12 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
         for (time, routes) in times_routes {
             let mut ads: Vec<String> = Vec::new();
             for (p, r) in routes {
-                let prefix_net = vec![addressor.prefix(p)?];
-                let nets = addressor.get_pecs().get(&p).unwrap_or(&prefix_net);
-                for net in nets {
+                for net in addressor.prefix(p)? {
                     if let Some(r) = r {
                         ads.push(format!(
                             "sys.stdout.write(\"{} {}\\n\")",
                             neighbors,
-                            route_text(r, *net)?
+                            route_text(r, net)?
                         ))
                     } else {
                         ads.push(format!(

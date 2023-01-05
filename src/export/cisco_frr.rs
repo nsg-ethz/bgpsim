@@ -293,7 +293,10 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         prefix: P,
         sr: StaticRoute,
     ) -> Result<Vec<StaticRouteGen>, ExportError> {
-        std::iter::once(addressor.prefix(prefix)?)
+        addressor
+            .prefix(prefix)?
+            .to_vec()
+            .into_iter()
             .map(|p| {
                 let mut static_route = StaticRouteGen::new(p);
                 match sr {
@@ -524,15 +527,8 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
             } else {
                 let mut pl = PrefixList::new(format!("{}-{}-pl", name, ord));
                 for p in prefixes.into_iter() {
-                    // check if the prefix is part of a prefix equivalence class
-                    if let Some(networks) = addressor.get_pecs().get(&p) {
-                        // add all prefixes of that equivalence class
-                        for net in networks {
-                            pl.prefix(*net);
-                        }
-                    } else {
-                        // only add that prefix, as it does not represent an equivalence class.
-                        pl.prefix(addressor.prefix(p)?);
+                    for net in addressor.prefix(p)? {
+                        pl.prefix(net);
                     }
                 }
                 route_map_item.match_prefix_list(pl);
@@ -1017,22 +1013,25 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
 
         // add all loopback ip addresses. This is special if we can store multiple IP addresses on
         // the same loopback interface
-        if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
-            let mut iface = Interface::new(loopback_iface(self.target, 0));
-            iface.ip_address(addressor.prefix_address(route.prefix)?);
-            config.push_str(&iface.build(self.target))
-        } else {
-            config.push_str(
-                &Interface::new(self.get_loopback_iface(addressor.prefix_address(route.prefix)?)?)
-                    .ip_address(addressor.prefix_address(route.prefix)?)
-                    .build(self.target),
-            );
+        for address in addressor.prefix_address(route.prefix)? {
+            if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
+                let mut iface = Interface::new(loopback_iface(self.target, 0));
+                iface.ip_address(address);
+                config.push_str(&iface.build(self.target))
+            } else {
+                config.push_str(
+                    &Interface::new(self.get_loopback_iface(address)?)
+                        .ip_address(address)
+                        .build(self.target),
+                );
+            }
         }
 
         // add all networks to the bgp config and prefix list
-        let prefix_net = addressor.prefix(route.prefix)?;
-        bgp_config.network(prefix_net);
-        prefix_list.prefix(prefix_net);
+        for prefix_net in addressor.prefix(route.prefix)? {
+            bgp_config.network(prefix_net);
+            prefix_list.prefix(prefix_net);
+        }
 
         // write the bgp config
         config.push_str(&bgp_config.build(self.target));
@@ -1063,23 +1062,27 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
 
         // add all loopback ip addresses. This is special if we can store multiple IP addresses on
         // the same loopback interface
-        if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
-            let mut iface = Interface::new(loopback_iface(self.target, 0));
-            iface.no_ip_address(addressor.prefix_address(prefix)?);
-            config.push_str(&iface.build(self.target))
-        } else {
-            config.push_str(
-                &Interface::new(
-                    self.remove_loopback_iface(addressor.prefix_address(prefix)?)
-                        .ok_or(ExportError::WithdrawUnadvertisedRoute)?,
-                )
-                .no(),
-            );
+        for network in addressor.prefix_address(prefix)? {
+            if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
+                let mut iface = Interface::new(loopback_iface(self.target, 0));
+                iface.no_ip_address(network);
+                config.push_str(&iface.build(self.target))
+            } else {
+                config.push_str(
+                    &Interface::new(
+                        self.remove_loopback_iface(network)
+                            .ok_or(ExportError::WithdrawUnadvertisedRoute)?,
+                    )
+                    .no(),
+                );
+            }
         }
 
         // remove all advertisements in BGP
         let mut bgp_config = RouterBgp::new(self.as_id);
-        bgp_config.no_network(addressor.prefix(prefix)?);
+        for net in addressor.prefix(prefix)? {
+            bgp_config.no_network(net);
+        }
         config.push_str(&bgp_config.build(self.target));
 
         // remote the route-map

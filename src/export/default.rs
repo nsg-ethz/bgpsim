@@ -24,7 +24,7 @@ use std::{
 
 use ipnet::{Ipv4Net, Ipv4Subnets};
 
-use super::{ip_err, Addressor, ExportError, LinkId};
+use super::{ip_err, Addressor, ExportError, LinkId, MaybePec};
 use crate::{
     network::Network,
     types::{AsId, NonOverlappingPrefix, Prefix, PrefixMap, RouterId},
@@ -271,16 +271,6 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
         })
     }
 
-    fn prefix(&mut self, prefix: P) -> Result<Ipv4Net, ExportError> {
-        // check if P is part of either the internal or the external network
-        let p: Ipv4Net = prefix.into();
-        if self.internal_ip_range.contains(&p) || self.external_ip_range.contains(&p) {
-            Err(ExportError::PrefixWithinReservedIpRange(p))
-        } else {
-            Ok(p)
-        }
-    }
-
     fn register_pec(&mut self, pec: P, prefixes: Vec<Ipv4Net>)
     where
         P: NonOverlappingPrefix,
@@ -290,6 +280,27 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
 
     fn get_pecs(&self) -> &P::Map<Vec<Ipv4Net>> {
         &self.pecs
+    }
+
+    fn prefix(&mut self, prefix: P) -> Result<MaybePec<Ipv4Net>, ExportError> {
+        let get_net = |net: Ipv4Net| {
+            if self.internal_ip_range.contains(&net) || self.external_ip_range.contains(&net) {
+                Err(ExportError::PrefixWithinReservedIpRange(net))
+            } else {
+                Ok(net)
+            }
+        };
+
+        if let Some(nets) = self.pecs.get(&prefix) {
+            Ok(MaybePec::Pec(
+                nets.iter()
+                    .copied()
+                    .map(get_net)
+                    .collect::<Result<_, ExportError>>()?,
+            ))
+        } else {
+            Ok(MaybePec::Single(get_net(prefix.into())?))
+        }
     }
 
     fn iface(

@@ -150,9 +150,6 @@ pub trait Addressor<P: Prefix> {
     /// Get both the network and the IP address of a router.
     fn router(&mut self, router: RouterId) -> Result<(Ipv4Net, Ipv4Addr), ExportError>;
 
-    /// Get the set of networks that are associated with that prefix
-    fn prefix(&mut self, prefix: P) -> Result<Ipv4Net, ExportError>;
-
     /// Register a prefix equivalence class. That is, an assignment of a prefix to a prefix list.
     ///
     /// **Warning**: This function must be called before you generate any configuration! It will not
@@ -165,15 +162,29 @@ pub trait Addressor<P: Prefix> {
     /// Get all prefix equivalence classes
     fn get_pecs(&self) -> &P::Map<Vec<Ipv4Net>>;
 
+    /// Get the network that are associated with that prefix. This function will ignore any prefix
+    /// equivalence classes.
+    fn prefix(&mut self, prefix: P) -> Result<MaybePec<Ipv4Net>, ExportError>;
+
     /// For each network associated with that prefix, get the first host IP in the prefix range,
-    /// including the prefix length.
-    fn prefix_address(&mut self, prefix: P) -> Result<Ipv4Net, ExportError> {
-        let net = self.prefix(prefix)?;
-        Ok(Ipv4Net::new(
-            net.hosts().next().ok_or(ExportError::NotEnoughAddresses)?,
-            net.prefix_len(),
-        )
-        .unwrap())
+    /// including the prefix length. This function will ignore any prefix equivalence classes.
+    fn prefix_address(&mut self, prefix: P) -> Result<MaybePec<Ipv4Net>, ExportError> {
+        fn get_net(net: Ipv4Net) -> Result<Ipv4Net, ExportError> {
+            Ok(Ipv4Net::new(
+                net.hosts().next().ok_or(ExportError::NotEnoughAddresses)?,
+                net.prefix_len(),
+            )
+            .unwrap())
+        }
+
+        Ok(match self.prefix(prefix)? {
+            MaybePec::Single(net) => MaybePec::Single(get_net(net)?),
+            MaybePec::Pec(nets) => MaybePec::Pec(
+                nets.into_iter()
+                    .map(get_net)
+                    .collect::<Result<_, ExportError>>()?,
+            ),
+        })
     }
 
     /// Get the interface address of a specific link in the network
@@ -291,9 +302,88 @@ pub enum ExportError {
     /// A prefix IP network is within a reserved IP range.
     #[error("The network {0} or the prefix lies within a reserved IP range.")]
     PrefixWithinReservedIpRange(Ipv4Net),
+    /// Did not expect a prefix equivalence class at this point.
+    #[error("Did not expect a prefix equivalence class!")]
+    UnexpectedPec,
 }
 
 /// Return `ExportError::NotEnoughAddresses` if the option is `None`.
 pub(self) fn ip_err<T>(option: Option<T>) -> Result<T, ExportError> {
     option.ok_or(ExportError::NotEnoughAddresses)
+}
+
+/// A datastructure that contains a single value if it corresponds to a single network, or a vector
+/// ov values if it corresponds to a prefix equivalence class.
+#[derive(Debug, Clone, PartialEq, Eq, Hash)]
+pub enum MaybePec<T> {
+    /// A single value
+    Single(T),
+    /// A vector of alues that correspond to a previx equivalence class
+    Pec(Vec<T>),
+}
+
+impl<T> MaybePec<T> {
+    /// Get a vector containing all elements. If `self` is a single value, then this function
+    /// returns a vector containing a single value. Otherwise, it will return a vector containing
+    /// multiple values.
+    pub fn to_vec(self) -> Vec<T> {
+        match self {
+            MaybePec::Single(v) => vec![v],
+            MaybePec::Pec(v) => v,
+        }
+    }
+
+    /// Expect that the prefix is a single value, and return it. If the prefix belongs to a prefix
+    /// equivalence class, this function panics.
+    pub fn unwrap_single(self) -> T {
+        match self {
+            MaybePec::Single(x) => x,
+            MaybePec::Pec(_) => {
+                panic!("Attempted to unwrap a `MaybePec::Pec` as a `MaybePec::Single`")
+            }
+        }
+    }
+
+    /// Get the single value or `None`.
+    pub fn single(self) -> Option<T> {
+        match self {
+            MaybePec::Single(t) => Some(t),
+            MaybePec::Pec(_) => None,
+        }
+    }
+
+    /// Get the single value, or return `ExportError::UnexpectedPec`.
+    pub fn single_or(self) -> Result<T, ExportError> {
+        match self {
+            MaybePec::Single(t) => Ok(t),
+            MaybePec::Pec(_) => Err(ExportError::UnexpectedPec),
+        }
+    }
+
+    /// Get the single value, or return `Err(err)`.
+    pub fn single_or_err<E>(self, err: E) -> Result<T, E> {
+        match self {
+            MaybePec::Single(t) => Ok(t),
+            MaybePec::Pec(_) => Err(err),
+        }
+    }
+
+    /// Get the single value, or return `Error(err(v))`, where `v` is the vector of elements
+    /// contained within `self`.
+    pub fn single_or_else<E, F: FnOnce(Vec<T>) -> E>(self, err: F) -> Result<T, E> {
+        match self {
+            MaybePec::Single(t) => Ok(t),
+            MaybePec::Pec(v) => Err(err(v)),
+        }
+    }
+}
+
+impl<T> IntoIterator for MaybePec<T> {
+    type Item = T;
+
+    type IntoIter = std::vec::IntoIter<T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        self.to_vec().into_iter()
+    }
 }
