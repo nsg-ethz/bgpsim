@@ -15,15 +15,16 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::time::Duration;
-
 use crate::{
     builder::NetworkBuilder,
     event::BasicEventQueue,
-    export::{ExaBgpCfgGen, ExternalCfgGen},
+    export::{Addressor, ExaBgpCfgGen, ExternalCfgGen},
     network::Network,
+    prefix,
     types::{AsId, Ipv4Prefix, Prefix, RouterId, SimplePrefix, SinglePrefix},
 };
+use pretty_assertions::assert_eq;
+use std::time::Duration;
 
 use super::addressor;
 
@@ -168,4 +169,32 @@ mod t2 {
 
     #[instantiate_tests(<Ipv4Prefix>)]
     mod ipv4 {}
+}
+
+#[test]
+fn script_2n_2p_withdraw_pec() {
+    let num_neighbors = 2;
+    let mut net = get_test_net::<SimplePrefix>(num_neighbors);
+    let ext: RouterId = (num_neighbors as u32).into();
+    net.advertise_external_route(ext, 0, [100, 60], None, None)
+        .unwrap();
+    net.advertise_external_route(ext, 1, [100, 40, 10], None, None)
+        .unwrap();
+    let mut ip = addressor(&net);
+    ip.register_pec(
+        0.into(),
+        vec![
+            prefix!("200.0.1.0/24"),
+            prefix!("200.0.2.0/24"),
+            prefix!("200.0.3.0/24"),
+            prefix!("200.0.4.0/24"),
+            prefix!("200.0.5.0/24"),
+        ],
+    );
+    let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
+    let cfg = gen.generate_config(&net, &mut ip).unwrap();
+    assert_eq!(cfg, include_str!("config_2n.ini"));
+    gen.step_time(Duration::from_secs(10));
+    let script = gen.withdraw_route(&net, &mut ip, 0.into()).unwrap();
+    assert_eq!(script, include_str!("config_2n_2p_withdraw_pec.py"));
 }
