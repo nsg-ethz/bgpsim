@@ -70,6 +70,14 @@ fn generate_internal_config_route_reflector() {
 }
 
 #[test]
+fn generate_internal_config_route_maps_with_pec() {
+    assert_str_eq!(
+        super::generate_internal_config_route_maps_with_pec::<SimplePrefix>(Target),
+        include_str!("internal_config_route_maps_pec")
+    );
+}
+
+#[test]
 fn generate_internal_config_route_maps_edit() {
     let net = super::net_for_route_maps::<SimplePrefix>();
     let mut ip = super::addressor(&net);

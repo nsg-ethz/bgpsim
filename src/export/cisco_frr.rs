@@ -518,7 +518,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         // contains that equivalence class, directly match it. Otherwise, if it contains the
         // equivalence class among others, add all netowrks of that equivalence class to the list.
         if let Some(prefixes) = rm_match_prefix_list(rm) {
-            let prefixes = prefixes.iter().copied().collect_vec();
+            let prefixes = prefixes.iter().copied().sorted().collect_vec();
             if prefixes.len() == 1 && addressor.get_pecs().contains_key(&prefixes[0]) {
                 route_map_item.match_global_prefix_list(pec_pl_name(prefixes[0]));
             } else {

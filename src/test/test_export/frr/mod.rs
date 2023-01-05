@@ -56,6 +56,14 @@ fn generate_internal_config_full_mesh() {
 }
 
 #[test]
+fn generate_internal_config_route_maps_with_pec() {
+    assert_str_eq!(
+        super::generate_internal_config_route_maps_with_pec::<SimplePrefix>(Target),
+        include_str!("internal_config_route_maps_pec")
+    );
+}
+
+#[test]
 fn generate_internal_config_route_reflector() {
     assert_str_eq!(
         super::generate_internal_config_route_reflector(Target),

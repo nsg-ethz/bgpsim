@@ -15,16 +15,18 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use bgpsim_macros::prefix;
+
 use crate::{
     builder::{constant_link_weight, NetworkBuilder},
     event::BasicEventQueue,
     export::{
-        cisco_frr_generators::Target, CiscoFrrCfgGen, DefaultAddressor, DefaultAddressorBuilder,
-        ExternalCfgGen, InternalCfgGen,
+        cisco_frr_generators::Target, Addressor, CiscoFrrCfgGen, DefaultAddressor,
+        DefaultAddressorBuilder, ExternalCfgGen, InternalCfgGen,
     },
     network::Network,
     route_map::{RouteMapBuilder, RouteMapDirection},
-    types::{Prefix, SimplePrefix},
+    types::{prefix::NonOverlappingPrefix, Prefix, SimplePrefix},
 };
 
 mod cisco;
@@ -162,6 +164,79 @@ pub(self) fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
 pub(self) fn generate_internal_config_route_maps<P: Prefix>(target: Target) -> String {
     let net = net_for_route_maps::<P>();
     let mut ip = addressor(&net);
+    let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
+    InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
+}
+
+pub(self) fn net_for_route_maps_pec<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
+    let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+        .unwrap();
+    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_ibgp_full_mesh().unwrap();
+    net.build_ebgp_sessions().unwrap();
+
+    net.set_bgp_route_map(
+        0.into(),
+        4.into(),
+        RouteMapDirection::Incoming,
+        RouteMapBuilder::new()
+            .allow()
+            .order(10)
+            .match_prefix(0.into())
+            .set_weight(10)
+            .exit()
+            .build(),
+    )
+    .unwrap();
+
+    net.set_bgp_route_map(
+        0.into(),
+        4.into(),
+        RouteMapDirection::Incoming,
+        RouteMapBuilder::new()
+            .allow()
+            .order(20)
+            .match_prefix(1.into())
+            .set_weight(20)
+            .exit()
+            .build(),
+    )
+    .unwrap();
+
+    net.set_bgp_route_map(
+        0.into(),
+        4.into(),
+        RouteMapDirection::Incoming,
+        RouteMapBuilder::new()
+            .allow()
+            .order(30)
+            .match_prefix(0.into())
+            .match_prefix(1.into())
+            .set_weight(30)
+            .exit()
+            .build(),
+    )
+    .unwrap();
+
+    net
+}
+
+pub(self) fn generate_internal_config_route_maps_with_pec<P: Prefix + NonOverlappingPrefix>(
+    target: Target,
+) -> String {
+    let net = net_for_route_maps_pec::<P>();
+    let mut ip = addressor(&net);
+    ip.register_pec(
+        0.into(),
+        vec![
+            prefix!("200.0.1.0/24"),
+            prefix!("200.0.2.0/24"),
+            prefix!("200.0.3.0/24"),
+            prefix!("200.0.4.0/24"),
+            prefix!("200.0.5.0/24"),
+        ],
+    );
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
