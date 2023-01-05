@@ -32,7 +32,7 @@ export = ["dep:bimap"]
 
 [dependencies]
 bgpsim-macros = {path = "../bgpsim-macros"}
-prefix-trie = { version = "0.2", features = [ "serde" ]}
+prefix-trie = { version = "0.2.2", features = [ "serde" ]}
 thiserror = "1"
 petgraph = { version = "0.6", features = [ "serde-1" ]}
 log = "0.4"
