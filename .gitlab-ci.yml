@@ -8,9 +8,8 @@ rust-latest-build:
   script:
     - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
-    - cargo build
-    - cargo build
-    - cargo build --all-features
+    - cargo build --verbose
+    - cargo build --verbose --all-features
 
 rust-nightly-build:
   stage: build
@@ -18,8 +17,8 @@ rust-nightly-build:
   script:
     - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
-    - cargo build
-    - cargo build --all-features
+    - cargo build --verbose
+    - cargo build --verbose --all-features
   allow_failure: true
 
 rust-latest-test:
@@ -28,9 +27,9 @@ rust-latest-test:
   script:
     - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
-    - cargo test --tests --release
-    - cargo test --tests --all-features --release
-    - cargo test --doc --all-features
+    - cargo test --verbose --tests --release
+    - cargo test --verbose --tests --all-features --release
+    - cargo test --verbose --doc --all-features
 
 rust-nightly-test:
   stage: test
@@ -38,7 +37,7 @@ rust-nightly-test:
   script:
     - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
-    - cargo test --tests --release
-    - cargo test --tests --all-features --release
-    - cargo test --doc --all-features
+    - cargo test --verbose --tests --release
+    - cargo test --verbose --tests --all-features --release
+    - cargo test --verbose --doc --all-features
   allow_failure: true
