@@ -27,7 +27,7 @@ use ipnet::{Ipv4Net, Ipv4Subnets};
 use super::{ip_err, Addressor, ExportError, LinkId};
 use crate::{
     network::Network,
-    types::{prefix::NonOverlappingPrefix, AsId, Prefix, PrefixMap, RouterId},
+    types::{AsId, NonOverlappingPrefix, Prefix, PrefixMap, RouterId},
 };
 
 /// Builder for the default addressor. The following are the default arguments:

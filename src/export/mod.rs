@@ -29,7 +29,7 @@ use crate::{
     bgp::BgpRoute,
     config::ConfigModifier,
     network::Network,
-    types::{prefix::NonOverlappingPrefix, AsId, Prefix, RouterId},
+    types::{AsId, NonOverlappingPrefix, Prefix, RouterId},
 };
 
 mod cisco_frr;

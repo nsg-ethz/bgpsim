@@ -26,7 +26,7 @@ use crate::{
     },
     network::Network,
     route_map::{RouteMapBuilder, RouteMapDirection},
-    types::{prefix::NonOverlappingPrefix, Prefix, SimplePrefix},
+    types::{NonOverlappingPrefix, Prefix, SimplePrefix},
 };
 
 mod cisco;

@@ -30,8 +30,11 @@ use serde::{Deserialize, Serialize};
 use thiserror::Error;
 
 // pub(crate) mod collections;
-pub mod prefix;
-pub use prefix::{Ipv4Prefix, Prefix, PrefixMap, PrefixSet, SimplePrefix, SinglePrefix};
+mod prefix;
+pub use prefix::{
+    Ipv4Prefix, NonOverlappingPrefix, Prefix, PrefixMap, PrefixSet, SimplePrefix, SinglePrefix,
+    SinglePrefixMap, SinglePrefixSet,
+};
 
 pub(crate) type IndexType = u32;
 /// Router Identification (and index into the graph)
