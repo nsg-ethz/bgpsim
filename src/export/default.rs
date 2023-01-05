@@ -27,7 +27,7 @@ use ipnet::{Ipv4Net, Ipv4Subnets};
 use super::{ip_err, Addressor, ExportError, LinkId};
 use crate::{
     network::Network,
-    types::{AsId, Prefix, RouterId},
+    types::{prefix::NonOverlappingPrefix, AsId, Prefix, PrefixMap, RouterId},
 };
 
 /// Builder for the default addressor. The following are the default arguments:
@@ -170,6 +170,8 @@ pub struct DefaultAddressor<'a, P: Prefix, Q> {
     link_addrs: HashMap<LinkId, Ipv4Net>,
     /// Assigned interfaces of routers
     interfaces: HashMap<RouterId, HashMap<RouterId, (usize, Ipv4Addr)>>,
+    /// Prefix equivalence classes
+    pecs: P::Map<Vec<Ipv4Net>>,
 }
 
 impl<'a, P: Prefix, Q> DefaultAddressor<'a, P, Q> {
@@ -200,6 +202,7 @@ impl<'a, P: Prefix, Q> DefaultAddressor<'a, P, Q> {
             router_addrs: HashMap::new(),
             link_addrs: HashMap::new(),
             interfaces: HashMap::new(),
+            pecs: Default::default(),
         })
     }
 }
@@ -278,6 +281,17 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
         }
     }
 
+    fn register_pec(&mut self, pec: P, prefixes: Vec<Ipv4Net>)
+    where
+        P: NonOverlappingPrefix,
+    {
+        self.pecs.insert(pec, prefixes);
+    }
+
+    fn get_pecs(&self) -> &P::Map<Vec<Ipv4Net>> {
+        &self.pecs
+    }
+
     fn iface(
         &mut self,
         router: RouterId,
@@ -334,6 +348,26 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
                 ))
             })
             .collect()
+    }
+
+    fn list_links(&self) -> Vec<((RouterId, usize), (RouterId, usize))> {
+        let mut added_links = HashSet::new();
+        let mut links = Vec::new();
+        for (src, ifaces) in self.interfaces.iter() {
+            for (dst, (src_idx, _)) in ifaces.iter() {
+                if let Some((dst_idx, _)) = self.interfaces.get(dst).and_then(|x| x.get(src)) {
+                    // check if the link was already added
+                    if !added_links.contains(&((*src, *src_idx), (*dst, *dst_idx))) {
+                        // add the link
+                        links.push(((*src, *src_idx), (*dst, *dst_idx)));
+                        added_links.insert(((*src, *src_idx), (*dst, *dst_idx)));
+                        added_links.insert(((*dst, *dst_idx), (*src, *src_idx)));
+                    }
+                }
+            }
+        }
+
+        links
     }
 
     fn find_address(&self, address: impl Into<Ipv4Net>) -> Result<RouterId, ExportError> {
@@ -427,26 +461,6 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
             .find(|(_, (x, _))| *x == iface_idx)
             .map(|(x, _)| *x)
             .ok_or_else(|| ExportError::InterfaceNotFound(router, format!("at {}", iface_idx)))
-    }
-
-    fn list_links(&self) -> Vec<((RouterId, usize), (RouterId, usize))> {
-        let mut added_links = HashSet::new();
-        let mut links = Vec::new();
-        for (src, ifaces) in self.interfaces.iter() {
-            for (dst, (src_idx, _)) in ifaces.iter() {
-                if let Some((dst_idx, _)) = self.interfaces.get(dst).and_then(|x| x.get(src)) {
-                    // check if the link was already added
-                    if !added_links.contains(&((*src, *src_idx), (*dst, *dst_idx))) {
-                        // add the link
-                        links.push(((*src, *src_idx), (*dst, *dst_idx)));
-                        added_links.insert(((*src, *src_idx), (*dst, *dst_idx)));
-                        added_links.insert(((*dst, *dst_idx), (*src, *src_idx)));
-                    }
-                }
-            }
-        }
-
-        links
     }
 }
 

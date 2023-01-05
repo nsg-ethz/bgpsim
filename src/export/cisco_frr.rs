@@ -192,6 +192,26 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         }
     }
 
+    /// Generate the prefix-lists for all equivalence classes
+    fn pec_config<A: Addressor<P>>(&mut self, addressor: &mut A) -> String {
+        // early exit if there are no pecs
+        if addressor.get_pecs().iter().next().is_none() {
+            return String::new();
+        }
+
+        let mut config = String::from("!\n! Prefix Equivalence Classes\n!\n");
+        for (prefix, networks) in addressor.get_pecs().iter() {
+            let mut pl = PrefixList::new(pec_pl_name(*prefix));
+            for net in networks {
+                pl.prefix(*net);
+            }
+            config.push_str(&pl.build());
+            config.push_str("!\n");
+        }
+
+        config
+    }
+
     /// Create all the interface configuration
     fn iface_config<A: Addressor<P>, Q>(
         &mut self,
@@ -494,12 +514,29 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         let mut route_map_item = RouteMapItem::new(name, ord, rm.state().is_allow());
 
         // prefix-list
+        // Here, we make sure that we use the prefix equivalence classes. If the prefix list only
+        // contains that equivalence class, directly match it. Otherwise, if it contains the
+        // equivalence class among others, add all netowrks of that equivalence class to the list.
         if let Some(prefixes) = rm_match_prefix_list(rm) {
-            let mut pl = PrefixList::new(format!("{}-{}-pl", name, ord));
-            for p in prefixes.into_iter() {
-                pl.prefix(addressor.prefix(p)?);
+            let prefixes = prefixes.iter().copied().collect_vec();
+            if prefixes.len() == 1 && addressor.get_pecs().contains_key(&prefixes[0]) {
+                route_map_item.match_global_prefix_list(pec_pl_name(prefixes[0]));
+            } else {
+                let mut pl = PrefixList::new(format!("{}-{}-pl", name, ord));
+                for p in prefixes.into_iter() {
+                    // check if the prefix is part of a prefix equivalence class
+                    if let Some(networks) = addressor.get_pecs().get(&p) {
+                        // add all prefixes of that equivalence class
+                        for net in networks {
+                            pl.prefix(*net);
+                        }
+                    } else {
+                        // only add that prefix, as it does not represent an equivalence class.
+                        pl.prefix(addressor.prefix(p)?);
+                    }
+                }
+                route_map_item.match_prefix_list(pl);
             }
-            route_map_item.match_prefix_list(pl);
         }
 
         // community-list
@@ -665,6 +702,7 @@ impl<P: Prefix, A: Addressor<P>, Q> InternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
         config.push_str(enable_bgp(self.target));
         config.push_str(enable_ospf(self.target));
 
+        config.push_str(&self.pec_config(addressor));
         config.push_str(&self.iface_config(net, addressor)?);
         config.push_str(&self.static_route_config(net, router, addressor)?);
         config.push_str(&self.ospf_config(router, addressor)?);
@@ -911,6 +949,9 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
         // if we are on cisco, enable the ospf and bgp feature
         config.push_str("!\n");
         config.push_str(enable_bgp(self.target));
+
+        // configure all pecs
+        config.push_str(&self.pec_config(addressor));
 
         // create the interfaces to the neighbors
         config.push_str(&self.iface_config(net, addressor)?);
@@ -1173,4 +1214,10 @@ fn rm_delete_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<HashSet<u32>>
     } else {
         Some(communities)
     }
+}
+
+/// Get the prefix-list name for the prefix equivalence class.
+fn pec_pl_name<P: Prefix>(prefix: P) -> String {
+    let id: u32 = prefix.into();
+    format!("prefix-{id}-equivalence-class-pl")
 }

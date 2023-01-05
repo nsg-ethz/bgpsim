@@ -29,7 +29,7 @@ use crate::{
     bgp::BgpRoute,
     config::ConfigModifier,
     network::Network,
-    types::{AsId, Prefix, RouterId},
+    types::{prefix::NonOverlappingPrefix, AsId, Prefix, RouterId},
 };
 
 mod cisco_frr;
@@ -127,7 +127,7 @@ pub trait ExternalCfgGen<P: Prefix, Q, A> {
 
 /// A trait for generating IP address ranges and AS numbers. For this addressor, a single [`Prefix`]
 /// represents an equivalence class, and is thus associated with multiple addresses.
-pub trait Addressor<P> {
+pub trait Addressor<P: Prefix> {
     /// Get the internal network
     fn internal_network(&mut self) -> Ipv4Net;
 
@@ -152,6 +152,18 @@ pub trait Addressor<P> {
 
     /// Get the set of networks that are associated with that prefix
     fn prefix(&mut self, prefix: P) -> Result<Ipv4Net, ExportError>;
+
+    /// Register a prefix equivalence class. That is, an assignment of a prefix to a prefix list.
+    ///
+    /// **Warning**: This function must be called before you generate any configuration! It will not
+    /// affect the configuration that was generated before registering new prefix equivalence
+    /// classes.
+    fn register_pec(&mut self, pec: P, prefixes: Vec<Ipv4Net>)
+    where
+        P: NonOverlappingPrefix;
+
+    /// Get all prefix equivalence classes
+    fn get_pecs(&self) -> &P::Map<Vec<Ipv4Net>>;
 
     /// For each network associated with that prefix, get the first host IP in the prefix range,
     /// including the prefix length.

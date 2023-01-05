@@ -1902,7 +1902,6 @@ impl StaticRoute {
 /// regexes. When matching on prefix-lists, community-lists or as-path-lists, removing the route-map
 /// will also remove all these community lists, assuming they were added to the command before.
 ///
-///
 /// ```
 /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, PrefixList, Target};
 /// let nh: ipnet::Ipv4Net = "10.0.1.1/32".parse().unwrap();
@@ -1933,6 +1932,7 @@ pub struct RouteMapItem {
     order: u16,
     mode: &'static str,
     match_prefix_list: Vec<(PrefixList, bool)>,
+    match_global_prefix_list: Vec<(String, bool)>,
     match_community_list: Vec<(CommunityList, bool)>,
     match_as_path_list: Vec<(AsPathList, bool)>,
     match_next_hop_pl: Vec<(PrefixList, bool)>,
@@ -1954,6 +1954,7 @@ impl RouteMapItem {
             order,
             mode: if permit { "permit" } else { "deny" },
             match_prefix_list: Default::default(),
+            match_global_prefix_list: Default::default(),
             match_community_list: Default::default(),
             match_as_path_list: Default::default(),
             match_next_hop_pl: Default::default(),
@@ -2034,6 +2035,50 @@ impl RouteMapItem {
     /// ```
     pub fn no_match_prefix_list(&mut self, prefix_list: impl Into<PrefixList>) -> &mut Self {
         self.match_prefix_list.push((prefix_list.into(), false));
+        self
+    }
+
+    /// Match on a prefix-list that is defined somewhere else.
+    ///
+    /// ```
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
+    /// use ipnet::Ipv4Net;
+    ///
+    /// assert_eq!(
+    ///     RouteMapItem::new("test", 10, true)
+    ///         .match_global_prefix_list("global-pl")
+    ///         .build(Target::Frr),
+    ///     "\
+    /// route-map test permit 10
+    ///   match ip address prefix-list global-pl
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn match_global_prefix_list(&mut self, prefix_list: impl Into<String>) -> &mut Self {
+        self.match_global_prefix_list
+            .push((prefix_list.into(), true));
+        self
+    }
+
+    /// Remove the match on a prefix-list, and delete that prefix-list
+    ///
+    /// ```
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, PrefixList, Target};
+    /// assert_eq!(
+    ///     RouteMapItem::new("test", 10, true)
+    ///         .no_match_global_prefix_list("global-pl")
+    ///         .build(Target::Frr),
+    ///     "\
+    /// route-map test permit 10
+    ///   no match ip address prefix-list global-pl
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn no_match_global_prefix_list(&mut self, prefix_list: impl Into<String>) -> &mut Self {
+        self.match_global_prefix_list
+            .push((prefix_list.into(), false));
         self
     }
 
@@ -2680,6 +2725,10 @@ impl RouteMapItem {
         for (pl, mode) in self.match_prefix_list.iter() {
             cfg.push_str(if *mode { "  " } else { "  no " });
             cfg.push_str(&format!("match ip address prefix-list {}\n", pl.name));
+        }
+        for (pl, mode) in self.match_global_prefix_list.iter() {
+            cfg.push_str(if *mode { "  " } else { "  no " });
+            cfg.push_str(&format!("match ip address prefix-list {}\n", pl));
         }
         // match_community_list: Vec<(CommunityList, bool)>,
         for (cl, mode) in self.match_community_list.iter() {

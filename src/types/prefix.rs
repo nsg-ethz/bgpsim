@@ -1053,3 +1053,10 @@ where
         self.remove(k)
     }
 }
+
+/// Marker trait that describes prefix types which are non-overlapping. Only non-overlapping prefix
+/// types allow the creation of prefix equivalence classes.
+pub trait NonOverlappingPrefix {}
+
+impl NonOverlappingPrefix for SinglePrefix {}
+impl NonOverlappingPrefix for SimplePrefix {}

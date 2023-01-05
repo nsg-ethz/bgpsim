@@ -264,24 +264,25 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
         }
 
         for (time, routes) in times_routes {
-            let ads = routes
-                .into_iter()
-                .filter_map(|(p, r)| Some((addressor.prefix(p).ok()?, r)))
-                .map(|(p, r)| {
-                    Ok(if let Some(r) = r {
-                        format!(
+            let mut ads: Vec<String> = Vec::new();
+            for (p, r) in routes {
+                let prefix_net = vec![addressor.prefix(p)?];
+                let nets = addressor.get_pecs().get(&p).unwrap_or(&prefix_net);
+                for net in nets {
+                    if let Some(r) = r {
+                        ads.push(format!(
                             "sys.stdout.write(\"{} {}\\n\")",
                             neighbors,
-                            route_text(r, p)?
-                        )
+                            route_text(r, *net)?
+                        ))
                     } else {
-                        format!(
+                        ads.push(format!(
                             "sys.stdout.write(\"{} withdraw route {}\\n\")",
-                            neighbors, p,
-                        )
-                    })
-                })
-                .collect::<Result<Vec<String>, ExportError>>()?;
+                            neighbors, net,
+                        ))
+                    }
+                }
+            }
             result.push((ads, time));
         }
 
