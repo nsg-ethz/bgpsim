@@ -122,8 +122,7 @@ impl Parse for Net {
                 _ => return Err(Error::new(
                     block.span(),
                     format!(
-                        "Unexpected identifier! Expected `links`, `sessions`, `routes`, `queue`, `Queue`, `Prefix`, `Type`, or `return`, but found `{}`",
-                        block
+                        "Unexpected identifier! Expected `links`, `sessions`, `routes`, `queue`, `Queue`, `Prefix`, `Type`, or `return`, but found `{block}`"
                     )
                 )),
             }
@@ -413,8 +412,7 @@ impl Net {
             return Err(Error::new(
                 src.span(),
                 format!(
-                    "Only external routers are allowed to advertise a route! Maybe use `{}!(1)`?",
-                    src
+                    "Only external routers are allowed to advertise a route! Maybe use `{src}!(1)`?"
                 ),
             ));
         }
@@ -762,8 +760,7 @@ impl SessionType {
                 _ => Err(Error::new(
                     value.span(),
                     format!(
-                        "Unknown BGP session type! Expected either `ebgp`, `peer`, or `client`, but got `{}`!",
-                        value
+                        "Unknown BGP session type! Expected either `ebgp`, `peer`, or `client`, but got `{value}`!"
                     )
                 ))
             }
