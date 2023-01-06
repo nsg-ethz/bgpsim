@@ -335,11 +335,12 @@ impl<T> MaybePec<T> {
 
     /// Expect that the prefix is a single value, and return it. If the prefix belongs to a prefix
     /// equivalence class, this function panics.
+    #[track_caller]
     pub fn unwrap_single(self) -> T {
         match self {
             MaybePec::Single(x) => x,
             MaybePec::Pec(_) => {
-                panic!("Attempted to unwrap a `MaybePec::Pec` as a `MaybePec::Single`")
+                panic!("called `MaybePec::unwrap_single()` on a `MaybePec::Pec(_)` value.")
             }
         }
     }
