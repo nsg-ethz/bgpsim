@@ -396,6 +396,11 @@ impl<T> MaybePec<T> {
             MaybePec::Pec(p, vs) => MaybePec::Pec(p, vs.into_iter().map(f).collect()),
         }
     }
+
+    /// Iterate over all values stored in `self` as references.
+    pub fn iter(&self) -> MaybePecIter<'_, T> {
+        self.into_iter()
+    }
 }
 
 impl<T> IntoIterator for MaybePec<T> {
@@ -414,5 +419,41 @@ impl<T: Display> Display for MaybePec<T> {
             MaybePec::Single(x) => x.fmt(f),
             MaybePec::Pec(p, v) => write!(f, "{} ({} prefixes)", p, v.len()),
         }
+    }
+}
+
+/// Iterator over references of `MaybePec`.
+#[derive(Debug, Clone)]
+pub struct MaybePecIter<'a, T> {
+    x: &'a MaybePec<T>,
+    idx: usize,
+}
+
+impl<'a, T> Iterator for MaybePecIter<'a, T> {
+    type Item = &'a T;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        match self.x {
+            MaybePec::Single(x) if self.idx == 0 => {
+                self.idx = 1;
+                Some(x)
+            }
+            MaybePec::Single(_) => None,
+            MaybePec::Pec(_, xs) => {
+                let elem = xs.get(self.idx);
+                self.idx += 1;
+                elem
+            }
+        }
+    }
+}
+
+impl<'a, T> IntoIterator for &'a MaybePec<T> {
+    type Item = &'a T;
+
+    type IntoIter = MaybePecIter<'a, T>;
+
+    fn into_iter(self) -> Self::IntoIter {
+        MaybePecIter { x: self, idx: 0 }
     }
 }
