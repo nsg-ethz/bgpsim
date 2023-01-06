@@ -9,6 +9,7 @@ rust-latest-build:
   stage: build
   image: rust:latest
   script:
+    - rustup component add clipp  y
     - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
     - cargo check --verbose
@@ -24,6 +25,7 @@ rust-nightly-build:
   stage: build
   image: rustlang/rust:nightly
   script:
+    - rustup component add clipp  y
     - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
     - cargo check --verbose
