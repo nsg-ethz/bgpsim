@@ -293,6 +293,7 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
 
         if let Some(nets) = self.pecs.get(&prefix) {
             Ok(MaybePec::Pec(
+                prefix.into(),
                 nets.iter()
                     .copied()
                     .map(get_net)

@@ -20,7 +20,7 @@
 //! orchestrate the export. Further, the trait `InternalCfgGen` and `ExternalCfgGen` are used to
 //! create the actual configuration, and can be implemented for any arbitrary target.
 
-use std::net::Ipv4Addr;
+use std::{fmt::Display, net::Ipv4Addr};
 
 use ipnet::Ipv4Net;
 use thiserror::Error;
@@ -179,7 +179,8 @@ pub trait Addressor<P: Prefix> {
 
         Ok(match self.prefix(prefix)? {
             MaybePec::Single(net) => MaybePec::Single(get_net(net)?),
-            MaybePec::Pec(nets) => MaybePec::Pec(
+            MaybePec::Pec(p, nets) => MaybePec::Pec(
+                p,
                 nets.into_iter()
                     .map(get_net)
                     .collect::<Result<_, ExportError>>()?,
@@ -303,8 +304,8 @@ pub enum ExportError {
     #[error("The network {0} or the prefix lies within a reserved IP range.")]
     PrefixWithinReservedIpRange(Ipv4Net),
     /// Did not expect a prefix equivalence class at this point.
-    #[error("Did not expect a prefix equivalence class!")]
-    UnexpectedPec,
+    #[error("Did not expect a prefix equivalence class of {0}!")]
+    UnexpectedPec(Ipv4Net),
 }
 
 /// Return `ExportError::NotEnoughAddresses` if the option is `None`.
@@ -319,7 +320,7 @@ pub enum MaybePec<T> {
     /// A single value
     Single(T),
     /// A vector of alues that correspond to a previx equivalence class
-    Pec(Vec<T>),
+    Pec(Ipv4Net, Vec<T>),
 }
 
 impl<T> MaybePec<T> {
@@ -329,7 +330,7 @@ impl<T> MaybePec<T> {
     pub fn to_vec(self) -> Vec<T> {
         match self {
             MaybePec::Single(v) => vec![v],
-            MaybePec::Pec(v) => v,
+            MaybePec::Pec(_, v) => v,
         }
     }
 
@@ -339,8 +340,8 @@ impl<T> MaybePec<T> {
     pub fn unwrap_single(self) -> T {
         match self {
             MaybePec::Single(x) => x,
-            MaybePec::Pec(_) => {
-                panic!("called `MaybePec::unwrap_single()` on a `MaybePec::Pec(_)` value.")
+            MaybePec::Pec(p, _) => {
+                panic!("called `MaybePec::unwrap_single()` on a `MaybePec::Pec({p})` value.")
             }
         }
     }
@@ -349,7 +350,7 @@ impl<T> MaybePec<T> {
     pub fn single(self) -> Option<T> {
         match self {
             MaybePec::Single(t) => Some(t),
-            MaybePec::Pec(_) => None,
+            MaybePec::Pec(_, _) => None,
         }
     }
 
@@ -357,7 +358,7 @@ impl<T> MaybePec<T> {
     pub fn single_or(self) -> Result<T, ExportError> {
         match self {
             MaybePec::Single(t) => Ok(t),
-            MaybePec::Pec(_) => Err(ExportError::UnexpectedPec),
+            MaybePec::Pec(p, _) => Err(ExportError::UnexpectedPec(p)),
         }
     }
 
@@ -365,7 +366,7 @@ impl<T> MaybePec<T> {
     pub fn single_or_err<E>(self, err: E) -> Result<T, E> {
         match self {
             MaybePec::Single(t) => Ok(t),
-            MaybePec::Pec(_) => Err(err),
+            MaybePec::Pec(_, _) => Err(err),
         }
     }
 
@@ -374,7 +375,7 @@ impl<T> MaybePec<T> {
     pub fn single_or_else<E, F: FnOnce(Vec<T>) -> E>(self, err: F) -> Result<T, E> {
         match self {
             MaybePec::Single(t) => Ok(t),
-            MaybePec::Pec(v) => Err(err(v)),
+            MaybePec::Pec(_, v) => Err(err(v)),
         }
     }
 
@@ -382,7 +383,7 @@ impl<T> MaybePec<T> {
     pub fn map<R, F: FnMut(T) -> R>(self, mut f: F) -> MaybePec<R> {
         match self {
             MaybePec::Single(v) => MaybePec::Single(f(v)),
-            MaybePec::Pec(vs) => MaybePec::Pec(vs.into_iter().map(f).collect()),
+            MaybePec::Pec(p, vs) => MaybePec::Pec(p, vs.into_iter().map(f).collect()),
         }
     }
 }
@@ -394,5 +395,14 @@ impl<T> IntoIterator for MaybePec<T> {
 
     fn into_iter(self) -> Self::IntoIter {
         self.to_vec().into_iter()
+    }
+}
+
+impl<T: Display> Display for MaybePec<T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            MaybePec::Single(x) => x.fmt(f),
+            MaybePec::Pec(p, v) => write!(f, "{} ({} prefixes)", p, v.len()),
+        }
     }
 }
