@@ -324,6 +324,16 @@ pub enum MaybePec<T> {
 }
 
 impl<T> MaybePec<T> {
+    /// Get the first element in the structure. For `Self::Single`, this simply returns a reference
+    /// to the value. For `Self::Pec`, this returns the reference to the first value. This function
+    /// panics if the PEC was registered without any associated prefix.
+    pub fn first(&self) -> &T {
+        match self {
+            MaybePec::Single(v) => v,
+            MaybePec::Pec(_, vs) => vs.first().unwrap(),
+        }
+    }
+
     /// Get a vector containing all elements. If `self` is a single value, then this function
     /// returns a vector containing a single value. Otherwise, it will return a vector containing
     /// multiple values.
