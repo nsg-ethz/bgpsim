@@ -376,6 +376,14 @@ impl<T> MaybePec<T> {
             MaybePec::Pec(v) => Err(err(v)),
         }
     }
+
+    /// Apply a function to every element, returning a `MaybePec` with the mapped values.
+    pub fn map<R, F: FnMut(T) -> R>(self, mut f: F) -> MaybePec<R> {
+        match self {
+            MaybePec::Single(v) => MaybePec::Single(f(v)),
+            MaybePec::Pec(vs) => MaybePec::Pec(vs.into_iter().map(f).collect()),
+        }
+    }
 }
 
 impl<T> IntoIterator for MaybePec<T> {

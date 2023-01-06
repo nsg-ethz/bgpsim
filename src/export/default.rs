@@ -145,7 +145,7 @@ impl DefaultAddressorBuilder {
 }
 
 /// The default IP addressor uses.
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct DefaultAddressor<'a, P: Prefix, Q> {
     net: &'a Network<P, Q>,
     /// The internal netowrk
