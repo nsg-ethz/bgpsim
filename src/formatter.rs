@@ -237,7 +237,7 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BgpEvent<P> {
 
     fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
         match self {
-            BgpEvent::Withdraw(prefix) => format!("Withdraw {}", prefix),
+            BgpEvent::Withdraw(prefix) => format!("Withdraw {prefix}"),
             BgpEvent::Update(route) => format!("Update {}", route.fmt(net)),
         }
     }
@@ -257,12 +257,12 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BgpRoute<P> {
             self.as_path.iter().join(", "),
             self.next_hop.fmt(net),
             if let Some(local_pref) = self.local_pref {
-                format!(", local pref: {}", local_pref)
+                format!(", local pref: {local_pref}")
             } else {
                 String::new()
             },
             if let Some(med) = self.med {
-                format!(", MED: {}", med)
+                format!(", MED: {med}")
             } else {
                 String::new()
             },
@@ -321,9 +321,9 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapMatch<P> {
                     String::from("Prefix in {{}}")
                 }
             }
-            RouteMapMatch::AsPath(c) => format!("{}", c),
+            RouteMapMatch::AsPath(c) => format!("{c}"),
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),
-            RouteMapMatch::Community(c) => format!("Community {}", c),
+            RouteMapMatch::Community(c) => format!("Community {c}"),
         }
     }
 }
@@ -334,15 +334,15 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapSet {
     fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
         match self {
             RouteMapSet::NextHop(nh) => format!("NextHop = {}", nh.fmt(net)),
-            RouteMapSet::Weight(Some(w)) => format!("Weight = {}", w),
+            RouteMapSet::Weight(Some(w)) => format!("Weight = {w}"),
             RouteMapSet::Weight(None) => "clear Weight".to_string(),
-            RouteMapSet::LocalPref(Some(lp)) => format!("LocalPref = {}", lp),
+            RouteMapSet::LocalPref(Some(lp)) => format!("LocalPref = {lp}"),
             RouteMapSet::LocalPref(None) => "clear LocalPref".to_string(),
-            RouteMapSet::Med(Some(med)) => format!("MED = {}", med),
+            RouteMapSet::Med(Some(med)) => format!("MED = {med}"),
             RouteMapSet::Med(None) => "clear MED".to_string(),
-            RouteMapSet::IgpCost(w) => format!("IgpCost = {:.2}", w),
-            RouteMapSet::SetCommunity(c) => format!("Set community {}", c),
-            RouteMapSet::DelCommunity(c) => format!("Remove community {}", c),
+            RouteMapSet::IgpCost(w) => format!("IgpCost = {w:.2}"),
+            RouteMapSet::SetCommunity(c) => format!("Set community {c}"),
+            RouteMapSet::DelCommunity(c) => format!("Remove community {c}"),
         }
     }
 }
@@ -572,7 +572,7 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConvergenceTrace {
                     "step {}{}: {}",
                     i,
                     time.as_ref()
-                        .map(|t| format!("at time {}", t))
+                        .map(|t| format!("at time {t}"))
                         .unwrap_or_default(),
                     deltas.fmt(net)
                 )
@@ -721,7 +721,7 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for NetworkError {
             NetworkError::DeviceError(e) => e.fmt(net),
             NetworkError::ConfigError(e) => e.fmt(net).to_string(),
             NetworkError::DeviceNotFound(r) => format!("Device with id={} not found!", r.index()),
-            NetworkError::DeviceNameNotFound(n) => format!("Device with name={} not found!", n),
+            NetworkError::DeviceNameNotFound(n) => format!("Device with name={n} not found!"),
             NetworkError::DeviceIsExternalRouter(r) => {
                 format!("{} is an external router!", r.fmt(net))
             }
@@ -751,8 +751,8 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for NetworkError {
                 format!("Router {} has an invalid BGP table!", r.fmt(net))
             }
             NetworkError::EmptyUndoStack => String::from("Undo stack is empty!"),
-            NetworkError::UndoError(s) => format!("Undo error occurred: {}", s),
-            NetworkError::JsonError(e) => format!("Json error occurred: {}", e),
+            NetworkError::UndoError(s) => format!("Undo error occurred: {s}"),
+            NetworkError::JsonError(e) => format!("Json error occurred: {e}"),
         }
     }
 }

@@ -140,7 +140,7 @@ pub trait FmtPriority {
 
 impl FmtPriority for f64 {
     fn fmt(&self) -> String {
-        format!("(time: {})", self)
+        format!("(time: {self})")
     }
 }
 
@@ -152,7 +152,7 @@ impl FmtPriority for NotNan<f64> {
 
 impl FmtPriority for usize {
     fn fmt(&self) -> String {
-        format!("(priority: {})", self)
+        format!("(priority: {self})")
     }
 }
 

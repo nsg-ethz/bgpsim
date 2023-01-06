@@ -248,7 +248,7 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
             .map(|x| addressor.iface_address(*x, self.router))
             .collect::<Result<Vec<Ipv4Addr>, ExportError>>()?
             .into_iter()
-            .map(|x| format!("neighbor {}", x))
+            .map(|x| format!("neighbor {x}"))
             .join(", ");
 
         let mut result = Vec::new();
@@ -275,8 +275,7 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
                         ))
                     } else {
                         ads.push(format!(
-                            "sys.stdout.write(\"{} withdraw route {}\\n\")",
-                            neighbors, net,
+                            "sys.stdout.write(\"{neighbors} withdraw route {net}\\n\")",
                         ))
                     }
                 }
@@ -356,7 +355,7 @@ fn route_text<P: Prefix>(route: &BgpRoute<P>, address: Ipv4Net) -> Result<String
         address,
         route.as_path.iter().map(|x| x.0).join(", "),
         if let Some(med) = route.med {
-            format!(" metric {}", med)
+            format!(" metric {med}")
         } else {
             String::new()
         },

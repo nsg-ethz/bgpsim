@@ -35,8 +35,8 @@ mod frr;
 
 pub(self) fn iface_names(target: Target) -> Vec<String> {
     match target {
-        Target::CiscoNexus7000 => (1..=48).map(|i| format!("Ethernet8/{}", i)).collect(),
-        Target::Frr => (1..=8).map(|i| format!("eth{}", i)).collect(),
+        Target::CiscoNexus7000 => (1..=48).map(|i| format!("Ethernet8/{i}")).collect(),
+        Target::Frr => (1..=8).map(|i| format!("eth{i}")).collect(),
     }
 }
 

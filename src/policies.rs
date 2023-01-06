@@ -117,12 +117,12 @@ impl<P: Prefix> Policy<P> for FwPolicy<P> {
                     router: *path.last().unwrap(),
                     prefix: *p,
                 }),
-                Err(e) => panic!("Unrecoverable error detected: {}", e),
+                Err(e) => panic!("Unrecoverable error detected: {e}"),
             },
             Self::NotReachable(r, p) => match fw_state.get_route(*r, *p) {
                 Err(NetworkError::ForwardingBlackHole(_)) => Ok(()),
                 Err(NetworkError::ForwardingLoop(_)) => Ok(()),
-                Err(e) => panic!("Unrecoverable error detected: {}", e),
+                Err(e) => panic!("Unrecoverable error detected: {e}"),
                 Ok(paths) => Err(PolicyError::UnallowedPathExists {
                     router: *r,
                     prefix: *p,
@@ -523,7 +523,7 @@ fn prepare_loop_path(path: Vec<RouterId>) -> Vec<RouterId> {
         }
     }
     let first_loop_router =
-        first_loop_router.unwrap_or_else(|| panic!("Loop-Free path given: {:?}", path));
+        first_loop_router.unwrap_or_else(|| panic!("Loop-Free path given: {path:?}"));
     let mut loop_unordered: VecDeque<RouterId> =
         path.into_iter().skip(first_loop_router + 1).collect();
 

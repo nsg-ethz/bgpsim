@@ -310,7 +310,7 @@ impl<'de> Deserialize<'de> for SinglePrefix {
     {
         let s = String::deserialize(deserializer)?;
         Ipv4Net::from_str(&s)
-            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {}", s)))
+            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {s}")))
             .map(Self::from)
     }
 }
@@ -583,7 +583,7 @@ impl<'de> Deserialize<'de> for SimplePrefix {
     {
         let s = String::deserialize(deserializer)?;
         Ipv4Net::from_str(&s)
-            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {}", s)))
+            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {s}")))
             .map(Self::from)
     }
 }
@@ -842,7 +842,7 @@ impl<'de> Deserialize<'de> for Ipv4Prefix {
     {
         let s = String::deserialize(deserializer)?;
         Ipv4Net::from_str(&s)
-            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {}", s)))
+            .map_err(|s| D::Error::custom(format!("Expected IP Network, found {s}")))
             .map(Self)
     }
 }

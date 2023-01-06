@@ -466,7 +466,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         let mut net = Network::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{}", i));
+            net.add_router(format!("R{i}"));
         });
         for j in 1..n {
             for i in 0..j {
@@ -487,7 +487,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         let mut net = Network::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{}", i));
+            net.add_router(format!("R{i}"));
         });
         // iterate over all pairs of nodes
         for j in 1..n {
@@ -513,7 +513,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         let mut net = Network::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{}", i));
+            net.add_router(format!("R{i}"));
         });
 
         // early exit condition
@@ -540,7 +540,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         let mut net = Network::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{}", i));
+            net.add_router(format!("R{i}"));
         });
         let positions = Vec::from_iter(
             (0..n).map(|_| Vec::from_iter((0..dim).map(|_| rng.gen_range(0.0..1.0)))),
@@ -568,7 +568,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         let mut net = Network::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{}", i));
+            net.add_router(format!("R{i}"));
         });
 
         // first, create a complete graph with min(n, m + 1) nodes

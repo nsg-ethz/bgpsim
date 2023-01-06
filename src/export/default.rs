@@ -472,7 +472,7 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
             .flatten()
             .find(|(_, (x, _))| *x == iface_idx)
             .map(|(x, _)| *x)
-            .ok_or_else(|| ExportError::InterfaceNotFound(router, format!("at {}", iface_idx)))
+            .ok_or_else(|| ExportError::InterfaceNotFound(router, format!("at {iface_idx}")))
     }
 }
 

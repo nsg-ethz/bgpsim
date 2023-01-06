@@ -148,7 +148,7 @@ fn roland_pacificwave_manual() {
 
     // record the event 1_000 times
     for i in 0..1_000 {
-        println!("iteration {}", i);
+        println!("iteration {i}");
         assert_eq!(fw_state, fw_state_ref);
         // clone the network
         let mut t = t.clone();
@@ -298,7 +298,7 @@ fn roland_arpanet_manual() {
 
     // record the event 1_000 times
     for i in 0..1_000 {
-        println!("iteration {}", i);
+        println!("iteration {i}");
         assert_eq!(fw_state, fw_state_ref);
         // clone the network
         let mut t = t.clone();

@@ -66,7 +66,7 @@ fn main() {
             Ok(c) => c,
             Err(_) => continue,
         };
-        println!("Generating {}", topo_name);
+        println!("Generating {topo_name}");
         // generate the network
         let net = match TopologyZooParser::new(&content)
             .and_then(|p| p.get_network(BasicEventQueue::<SimplePrefix>::new()))
@@ -169,7 +169,7 @@ fn main() {
         .create(true)
         .open("src/topology_zoo/topos.rs")
     {
-        write!(fp, "{}", topos_file).unwrap();
+        write!(fp, "{topos_file}").unwrap();
     }
 }
 

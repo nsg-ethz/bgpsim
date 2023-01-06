@@ -353,10 +353,10 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
 
             // build the default route-map to permit everything
             default_rm.push_str(
-                &RouteMapItem::new(format!("{}-in", rm_name), u16::MAX, true).build(self.target),
+                &RouteMapItem::new(format!("{rm_name}-in"), u16::MAX, true).build(self.target),
             );
             default_rm.push_str(
-                &RouteMapItem::new(format!("{}-out", rm_name), u16::MAX, true).build(self.target),
+                &RouteMapItem::new(format!("{rm_name}-out"), u16::MAX, true).build(self.target),
             );
         }
 
@@ -398,8 +398,8 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         }
 
         bgp_neighbor.weight(100);
-        bgp_neighbor.route_map_in(format!("{}-in", rm_name));
-        bgp_neighbor.route_map_out(format!("{}-out", rm_name));
+        bgp_neighbor.route_map_in(format!("{rm_name}-in"));
+        bgp_neighbor.route_map_out(format!("{rm_name}-out"));
         bgp_neighbor.next_hop_self();
         bgp_neighbor.soft_reconfiguration_inbound();
         match ty {
@@ -525,7 +525,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
             if prefixes.len() == 1 && addressor.get_pecs().contains_key(&prefixes[0]) {
                 route_map_item.match_global_prefix_list(pec_pl_name(prefixes[0]));
             } else {
-                let mut pl = PrefixList::new(format!("{}-{}-pl", name, ord));
+                let mut pl = PrefixList::new(format!("{name}-{ord}-pl"));
                 for p in prefixes.into_iter() {
                     for net in addressor.prefix(p)? {
                         pl.prefix(net);
@@ -537,7 +537,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
 
         // community-list
         if let Some(communities) = rm_match_community_list(rm) {
-            let mut cl = CommunityList::new(format!("{}-{}-cl", name, ord));
+            let mut cl = CommunityList::new(format!("{name}-{ord}-cl"));
             for c in communities {
                 cl.community(INTERNAL_AS, c);
             }
@@ -547,21 +547,21 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         // AsPath match
         if let Some(as_id) = rm_match_as_path_list(rm) {
             route_map_item.match_as_path_list(
-                AsPathList::new(format!("{}-{}-asl", name, ord)).contains_as(as_id),
+                AsPathList::new(format!("{name}-{ord}-asl")).contains_as(as_id),
             );
         }
 
         // match on the next-hop
         if let Some(nh) = rm_match_next_hop(rm) {
             route_map_item.match_next_hop(
-                PrefixList::new(format!("{}-{}-nh", name, ord))
+                PrefixList::new(format!("{name}-{ord}-nh"))
                     .prefix(Ipv4Net::new(self.router_id_to_ip(nh, net, addressor)?, 32)?),
             );
         }
 
         // unset all communities using a single community list
         if let Some(communities) = rm_delete_community_list(rm) {
-            let mut cl = CommunityList::new(format!("{}-{}-del-cl", name, ord));
+            let mut cl = CommunityList::new(format!("{name}-{ord}-del-cl"));
             for c in communities {
                 cl.community(INTERNAL_AS, c);
             }
@@ -668,7 +668,7 @@ fn full_rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId, direction: 
         RmDir::Outgoing => "out",
     };
     if let Ok(name) = net.get_router_name(router) {
-        format!("neighbor-{}-{}", name, dir)
+        format!("neighbor-{name}-{dir}")
     } else {
         format!("neighbor-id-{}-{}", router.index(), dir)
     }
@@ -676,7 +676,7 @@ fn full_rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId, direction: 
 
 fn rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId) -> String {
     if let Ok(name) = net.get_router_name(router) {
-        format!("neighbor-{}", name)
+        format!("neighbor-{name}")
     } else {
         format!("neighbor-id-{}", router.index())
     }
@@ -760,9 +760,9 @@ impl<P: Prefix, A: Addressor<P>, Q> InternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
                                 self.bgp_neigbor_config(net, addressor, neighbor, ty, &rm_name)?
                             )
                             .build(self.target),
-                        RouteMapItem::new(format!("{}-in", rm_name), u16::MAX, true)
+                        RouteMapItem::new(format!("{rm_name}-in"), u16::MAX, true)
                             .build(self.target),
-                        RouteMapItem::new(format!("{}-out", rm_name), u16::MAX, true)
+                        RouteMapItem::new(format!("{rm_name}-out"), u16::MAX, true)
                             .build(self.target),
                     ))
                 }

@@ -524,11 +524,11 @@ where
 {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            RouteMapMatchClause::Range(a, b) => f.write_fmt(format_args!("in ({}..{})", a, b)),
+            RouteMapMatchClause::Range(a, b) => f.write_fmt(format_args!("in ({a}..{b})")),
             RouteMapMatchClause::RangeExclusive(a, b) => {
-                f.write_fmt(format_args!("in ({}..{}])", a, b))
+                f.write_fmt(format_args!("in ({a}..{b}])"))
             }
-            RouteMapMatchClause::Equal(a) => f.write_fmt(format_args!("== {}", a)),
+            RouteMapMatchClause::Equal(a) => f.write_fmt(format_args!("== {a}")),
         }
     }
 }
@@ -558,7 +558,7 @@ impl fmt::Display for RouteMapMatchAsPath {
             RouteMapMatchAsPath::Contains(as_id) => {
                 f.write_fmt(format_args!("{} in AsPath", as_id.0))
             }
-            RouteMapMatchAsPath::Length(c) => f.write_fmt(format_args!("len(AsPath) {}", c)),
+            RouteMapMatchAsPath::Length(c) => f.write_fmt(format_args!("len(AsPath) {c}")),
         }
     }
 }
@@ -649,7 +649,7 @@ impl fmt::Display for RouteMapFlow {
         match self {
             RouteMapFlow::Exit => write!(f, "break"),
             RouteMapFlow::Continue => write!(f, "continue"),
-            RouteMapFlow::ContinueAt(c) => write!(f, "continue at {}", c),
+            RouteMapFlow::ContinueAt(c) => write!(f, "continue at {c}"),
         }
     }
 }

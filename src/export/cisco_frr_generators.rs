@@ -452,7 +452,7 @@ impl Interface {
     /// ```
     pub fn build(&self, target: Target) -> String {
         let ospf_area_cmd = match target {
-            Target::CiscoNexus7000 => format!("ip router ospf {} area", ROUTER_OSPF_INSTANCE),
+            Target::CiscoNexus7000 => format!("ip router ospf {ROUTER_OSPF_INSTANCE} area"),
             Target::Frr => String::from("ip ospf area"),
         };
 
@@ -473,22 +473,22 @@ exit
                 ))
                 .collect::<String>(),
             cost = match (self.cost, self.no_cost) {
-                (Some(cost), false) => format!("\n  ip ospf cost {}", cost),
+                (Some(cost), false) => format!("\n  ip ospf cost {cost}"),
                 (_, true) => String::from("\n  no ip ospf cost"),
                 (None, false) => String::new(),
             },
             area = match (self.area, self.no_area) {
                 (Some(area), false) => format!("\n  {} {}", ospf_area_cmd, area.0),
-                (_, true) => format!("\n  no {}", ospf_area_cmd),
+                (_, true) => format!("\n  no {ospf_area_cmd}"),
                 (None, false) => String::new(),
             },
             dead = match (self.dead_interval, self.no_dead_interval) {
-                (Some(seconds), false) => format!("\n  ip ospf dead-interval {}", seconds),
+                (Some(seconds), false) => format!("\n  ip ospf dead-interval {seconds}"),
                 (_, true) => String::from("\n  no ip ospf dead-interval"),
                 (None, false) => String::new(),
             },
             hello = match (self.hello_interval, self.no_hello_interval) {
-                (Some(seconds), false) => format!("\n  ip ospf hello-interval {}", seconds),
+                (Some(seconds), false) => format!("\n  ip ospf hello-interval {seconds}"),
                 (_, true) => String::from("\n  no ip ospf hello-interval"),
                 (None, false) => String::new(),
             },
@@ -540,7 +540,7 @@ impl RouterOspf {
     /// ```
     pub fn no(&self, target: Target) -> String {
         match target {
-            Target::CiscoNexus7000 => format!("no router ospf {}\n", ROUTER_OSPF_INSTANCE),
+            Target::CiscoNexus7000 => format!("no router ospf {ROUTER_OSPF_INSTANCE}\n"),
             Target::Frr => String::from("no router ospf\n"),
         }
     }
@@ -638,7 +638,7 @@ impl RouterOspf {
     /// ```
     pub fn build(&self, target: Target) -> String {
         let instance_str = match target {
-            Target::CiscoNexus7000 => format!(" {}", ROUTER_OSPF_INSTANCE),
+            Target::CiscoNexus7000 => format!(" {ROUTER_OSPF_INSTANCE}"),
             Target::Frr => String::new(),
         };
 
@@ -650,12 +650,12 @@ exit
 ",
             instance_str,
             match (self.router_id, self.no_router_id) {
-                (Some(id), false) => format!("\n  router-id {}", id),
+                (Some(id), false) => format!("\n  router-id {id}"),
                 (_, true) => String::from("\n  no router-id"),
                 (None, false) => String::new(),
             },
             match (self.maximum_paths, self.no_maximum_paths) {
-                (Some(k), false) => format!("\n  maximum-paths {}", k),
+                (Some(k), false) => format!("\n  maximum-paths {k}"),
                 (_, true) => String::from("\n  no maximum-paths"),
                 (None, false) => String::new(),
             }
@@ -922,8 +922,8 @@ impl RouterBgp {
             Target::Frr => "bgp ",
         };
         let router_id = match (self.router_id, self.no_router_id) {
-            (Some(id), false) => format!("  {}router-id {}\n", router_id_pfx, id),
-            (_, true) => format!("  no {}router-id\n", router_id_pfx),
+            (Some(id), false) => format!("  {router_id_pfx}router-id {id}\n"),
+            (_, true) => format!("  no {router_id_pfx}router-id\n"),
             (None, false) => String::new(),
         };
 
@@ -966,9 +966,9 @@ impl RouterBgp {
             .iter()
             .map(|(n, mode)| {
                 if *mode {
-                    format!("    network {}\n", n)
+                    format!("    network {n}\n")
                 } else {
-                    format!("    no network {}\n", n)
+                    format!("    no network {n}\n")
                 }
             })
             .fold(String::new(), |acc, s| acc + &s);
@@ -981,8 +981,7 @@ impl RouterBgp {
                 Target::Frr => "-address-family",
             };
             format!(
-                "  address-family ipv4 unicast\n{}{}  exit{}\n",
-                network_code, af_neighbor_code, exit_af
+                "  address-family ipv4 unicast\n{network_code}{af_neighbor_code}  exit{exit_af}\n"
             )
         };
 
@@ -1682,78 +1681,65 @@ impl RouterBgpNeighbor {
 
         // weight
         match (self.weight, self.no_weight) {
-            (Some(w), false) => af.push_str(&format!("\n    {}{}weight {}", tab, pre, w)),
-            (_, true) => af.push_str(&format!("\n    {}no {}weight", tab, pre)),
+            (Some(w), false) => af.push_str(&format!("\n    {tab}{pre}weight {w}")),
+            (_, true) => af.push_str(&format!("\n    {tab}no {pre}weight")),
             (None, false) => {}
         }
 
         // next-hop self
         match self.next_hop_self {
-            Some(true) => af.push_str(&format!("\n    {}{}next-hop-self", tab, pre)),
-            Some(false) => af.push_str(&format!("\n    {}no {}next-hop-self", tab, pre)),
+            Some(true) => af.push_str(&format!("\n    {tab}{pre}next-hop-self")),
+            Some(false) => af.push_str(&format!("\n    {tab}no {pre}next-hop-self")),
             None => {}
         }
 
         // route-reflector-client
         match self.route_reflector_client {
-            Some(true) => af.push_str(&format!("\n    {}{}route-reflector-client", tab, pre)),
-            Some(false) => af.push_str(&format!("\n    {}no {}route-reflector-client", tab, pre)),
+            Some(true) => af.push_str(&format!("\n    {tab}{pre}route-reflector-client")),
+            Some(false) => af.push_str(&format!("\n    {tab}no {pre}route-reflector-client")),
             None => {}
         }
 
         // route-map-in
         match (self.route_map_in.as_ref(), self.no_route_map_in) {
-            (Some(name), false) => {
-                af.push_str(&format!("\n    {}{}route-map {} in", tab, pre, name))
-            }
-            (Some(name), true) => {
-                af.push_str(&format!("\n    {}no {}route-map {} in", tab, pre, name))
-            }
+            (Some(name), false) => af.push_str(&format!("\n    {tab}{pre}route-map {name} in")),
+            (Some(name), true) => af.push_str(&format!("\n    {tab}no {pre}route-map {name} in")),
             (None, _) => {}
         }
 
         // route-map-out
         match (self.route_map_out.as_ref(), self.no_route_map_out) {
-            (Some(name), false) => {
-                af.push_str(&format!("\n    {}{}route-map {} out", tab, pre, name))
-            }
-            (Some(name), true) => {
-                af.push_str(&format!("\n    {}no {}route-map {} out", tab, pre, name))
-            }
+            (Some(name), false) => af.push_str(&format!("\n    {tab}{pre}route-map {name} out")),
+            (Some(name), true) => af.push_str(&format!("\n    {tab}no {pre}route-map {name} out")),
             (None, _) => {}
         }
 
         // update source
         match (self.update_source.as_ref(), self.no_update_source) {
-            (Some(iface), false) => {
-                cfg.push_str(&format!("\n  {}{}update-source {}", tab, pre, iface))
-            }
-            (_, true) => cfg.push_str(&format!("\n  {}no {}update-source", tab, pre,)),
+            (Some(iface), false) => cfg.push_str(&format!("\n  {tab}{pre}update-source {iface}")),
+            (_, true) => cfg.push_str(&format!("\n  {tab}no {pre}update-source",)),
             (None, false) => {}
         }
 
         // send-community
         match self.send_community.as_ref() {
-            Some(true) => af.push_str(&format!("\n    {}{}send-community", tab, pre)),
-            Some(false) => af.push_str(&format!("\n    {}no {}send-community", tab, pre)),
+            Some(true) => af.push_str(&format!("\n    {tab}{pre}send-community")),
+            Some(false) => af.push_str(&format!("\n    {tab}no {pre}send-community")),
             _ => {}
         }
 
         // soft-reconfiguration inbound
         match self.soft_reconfiguration.as_ref() {
-            Some(true) => af.push_str(&format!("\n    {}{}soft-reconfiguration inbound", tab, pre)),
-            Some(false) => af.push_str(&format!(
-                "\n    {}no {}soft-reconfiguration inbound",
-                tab, pre
-            )),
+            Some(true) => af.push_str(&format!("\n    {tab}{pre}soft-reconfiguration inbound")),
+            Some(false) => af.push_str(&format!("\n    {tab}no {pre}soft-reconfiguration inbound")),
             _ => {}
         }
 
         // address family
         if !af.is_empty() {
-            cfg.push_str(&format!("\n  {}address-family ipv4 unicast", tab));
+            cfg.push_str(&format!("\n  {tab}address-family ipv4 unicast"));
             cfg.push_str(&af);
-            cfg.push_str(&format!("\n  {}exit", tab));
+            cfg.push_str(&format!("\n  {tab}exit"));
         }
 
         cfg.push_str(finish);
@@ -1888,7 +1874,7 @@ impl StaticRoute {
             Target::CiscoNexus7000 => "null 0",
             Target::Frr => "Null0",
         };
-        let pref = self.pref.map(|p| format!(" {}", p)).unwrap_or_default();
+        let pref = self.pref.map(|p| format!(" {p}")).unwrap_or_default();
         format!(
             "ip route {} {}{}\n",
             self.destination,
@@ -2728,7 +2714,7 @@ impl RouteMapItem {
         }
         for (pl, mode) in self.match_global_prefix_list.iter() {
             cfg.push_str(if *mode { "  " } else { "  no " });
-            cfg.push_str(&format!("match ip address prefix-list {}\n", pl));
+            cfg.push_str(&format!("match ip address prefix-list {pl}\n"));
         }
         // match_community_list: Vec<(CommunityList, bool)>,
         for (cl, mode) in self.match_community_list.iter() {
@@ -2747,25 +2733,25 @@ impl RouteMapItem {
         }
         // set_next_hop: Option<(Ipv4Addr, bool)>,
         match self.set_next_hop {
-            Some((x, true)) => cfg.push_str(&format!("  set ip next-hop {}\n", x)),
+            Some((x, true)) => cfg.push_str(&format!("  set ip next-hop {x}\n")),
             Some((_, false)) => cfg.push_str("  no set ip next-hop\n"),
             None => {}
         }
         // set_weight: Option<(u16, bool)>,
         match self.set_weight {
-            Some((x, true)) => cfg.push_str(&format!("  set weight {}\n", x)),
+            Some((x, true)) => cfg.push_str(&format!("  set weight {x}\n")),
             Some((_, false)) => cfg.push_str("  no set weight\n"),
             None => {}
         }
         // set_local_pref: Option<(u32, bool)>,
         match self.set_local_pref {
-            Some((x, true)) => cfg.push_str(&format!("  set local-preference {}\n", x)),
+            Some((x, true)) => cfg.push_str(&format!("  set local-preference {x}\n")),
             Some((_, false)) => cfg.push_str("  no set local-preference\n"),
             None => {}
         }
         // set_med: Option<(u32, bool)>,
         match self.set_med {
-            Some((x, true)) => cfg.push_str(&format!("  set metric {}\n", x)),
+            Some((x, true)) => cfg.push_str(&format!("  set metric {x}\n")),
             Some((_, false)) => cfg.push_str("  no set metric\n"),
             None => {}
         }
@@ -2777,7 +2763,7 @@ impl RouteMapItem {
         // set_community: Vec<(String, bool)>,
         for (c, mode) in self.set_community.iter() {
             cfg.push_str(if *mode { "  " } else { "  no " });
-            cfg.push_str(&format!("set community {}{}\n", additive, c));
+            cfg.push_str(&format!("set community {additive}{c}\n"));
         }
         // remove_community: Vec<(CommunityList, bool)>,
         for (c, mode) in self.delete_community.iter() {
@@ -2795,7 +2781,7 @@ impl RouteMapItem {
         }
         // cont: Option<(u16, bool)>,
         match self.cont {
-            Some((x, true)) => cfg.push_str(&format!("  continue {}\n", x)),
+            Some((x, true)) => cfg.push_str(&format!("  continue {x}\n")),
             Some((_, false)) => cfg.push_str("  no continue\n"),
             None => {}
         }
@@ -3022,7 +3008,7 @@ pub fn enable_ospf(target: Target) -> &'static str {
 /// Get the interface name for the given loopback.
 pub fn loopback_iface(target: Target, idx: u8) -> String {
     match target {
-        Target::CiscoNexus7000 => format!("Loopback{}", idx),
+        Target::CiscoNexus7000 => format!("Loopback{idx}"),
         Target::Frr => String::from("lo"),
     }
 }

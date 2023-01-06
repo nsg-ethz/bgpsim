@@ -644,7 +644,7 @@ mod t {
         let mut patch = ConfigPatch::new();
         patch.add(Remove(bgp_session!(r3, e2, IBgpClient)));
         let patch_result = net.apply_patch(&patch);
-        println!("{:#?}", patch_result);
+        println!("{patch_result:#?}");
         assert!(patch_result == Err(NetworkError::NoConvergence));
     }
 
