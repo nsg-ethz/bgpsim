@@ -2,6 +2,9 @@ stages:
   - build
   - test
 
+variables:
+  RUSTFLAGS: -D warnings
+
 rust-latest-build:
   stage: build
   image: rust:latest
