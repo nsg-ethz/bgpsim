@@ -8,8 +8,14 @@ rust-latest-build:
   script:
     - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
-    - cargo build --verbose
-    - cargo build --verbose --all-features
+    - cargo check --verbose
+    - cargo check --verbose --all-features
+    - cargo check --verbose --tests
+    - cargo check --verbose --all-features --tests
+    - cargo clippy --verbose
+    - cargo clippy --verbose --all-features
+    - cargo clippy --verbose --tests
+    - cargo clippy --verbose --all-features --tests
 
 rust-nightly-build:
   stage: build
@@ -17,8 +23,14 @@ rust-nightly-build:
   script:
     - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
     - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
-    - cargo build --verbose
-    - cargo build --verbose --all-features
+    - cargo check --verbose
+    - cargo check --verbose --all-features
+    - cargo check --verbose --tests
+    - cargo check --verbose --all-features --tests
+    - cargo clippy --verbose
+    - cargo clippy --verbose --all-features
+    - cargo clippy --verbose --tests
+    - cargo clippy --verbose --all-features --tests
   allow_failure: true
 
 rust-latest-test:
