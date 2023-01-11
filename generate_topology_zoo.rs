@@ -126,6 +126,7 @@ fn main() {
             )
         })
         .join("\n");
+
     let variant_slug = include_str!("build/variant_slug.rs");
     let variants = metadata
         .iter()
@@ -152,6 +153,26 @@ fn main() {
         .map(|m| format!("{}Self::{},", tab, m.name))
         .join("\n");
 
+    let display_cases = metadata
+        .iter()
+        .map(|m| {
+            format!(
+                "{tab}Self::{name} => f.write_str(\"{name}\"),",
+                name = m.name
+            )
+        })
+        .join("\n");
+    let from_str_cases = metadata
+        .iter()
+        .map(|m| {
+            format!(
+                "{tab}\"{}\" => Ok(Self::{}),",
+                m.name.to_lowercase(),
+                m.name
+            )
+        })
+        .join("\n");
+
     let topos_file = include_str!("build/enum_slug.rs")
         .replace("{{VARIANTS}}", &variants)
         .replace("{{NUM_INTERNALS_CASES}}", &num_internals_cases)
@@ -160,7 +181,9 @@ fn main() {
         .replace("{{NUM_INTERNAL_EDGES_CASES}}", &num_internal_edges_cases)
         .replace("{{GRAPHML_CASES}}", &graphml_cases)
         .replace("{{ORDER_INCREASING_NODES}}", &order_increasing_nodes)
-        .replace("{{ORDER_INCREASING_EDGES}}", &order_increasing_edges);
+        .replace("{{ORDER_INCREASING_EDGES}}", &order_increasing_edges)
+        .replace("{{DISPLAY_CASES}}", &display_cases)
+        .replace("{{FROM_STR_CASES}}", &from_str_cases);
 
     // replace the current topos file
     let _ = remove_file("src/topology_zoo/topos.rs");

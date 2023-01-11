@@ -167,3 +167,37 @@ impl TopologyZoo {
         ]
     }
 }
+
+impl std::fmt::Display for TopologyZoo {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+{{DISPLAY_CASES}}
+        }
+    }
+}
+
+impl std::str::FromStr for TopologyZoo {
+    type Err = String;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        match s.to_lowercase().as_str() {
+{{FROM_STR_CASES}}
+            _ => Err(s.to_string())
+        }
+    }
+}
+
+impl<'a> From<&'a str> for TopologyZoo {
+    fn from(value: &'a str) -> Self {
+        match value.parse() {
+            Ok(s) => s,
+            Err(s) => panic!("Cannot parse `TopologyZoo`: {s} is not a valid topology name!"),
+        }
+    }
+}
+
+impl From<String> for TopologyZoo {
+    fn from(value: String) -> Self {
+        value.as_str().into()
+    }
+}
