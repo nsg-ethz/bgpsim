@@ -68,8 +68,9 @@ where
     fn simulate(&mut self) -> Result<(), NetworkError>;
 
     /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
-    /// will not execute any subsequent event. This function will return the number of events left
-    /// in the queue.
+    /// will not execute any subsequent event. This function returns the change in forwarding
+    /// behavior caused by this step, as well as the event that was processed. If this function
+    /// returns `Ok(None)`, then no event was enqueued.
     #[allow(clippy::type_complexity)]
     fn simulate_step(
         &mut self,
