@@ -430,7 +430,7 @@ impl<T> MaybePec<T> {
 
     /// Get `n` samples from the prefix equivalence class that are equally spaced. This function may
     /// panic if `n < 2`. If `n == 2`, then return the smallest and largest element.
-    pub fn sample_uniform_n<R: rand::Rng>(&self, n: usize) -> Vec<&T>
+    pub fn sample_uniform_n(&self, n: usize) -> Vec<&T>
     where
         T: Ord,
     {
