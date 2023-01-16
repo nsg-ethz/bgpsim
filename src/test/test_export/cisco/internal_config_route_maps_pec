@@ -5,10 +5,8 @@ feature ospf
 ! Prefix Equivalence Classes
 !
 ip prefix-list prefix-0-equivalence-class-pl seq 1 permit 200.0.1.0/24
-ip prefix-list prefix-0-equivalence-class-pl seq 2 permit 200.0.2.0/24
-ip prefix-list prefix-0-equivalence-class-pl seq 3 permit 200.0.3.0/24
-ip prefix-list prefix-0-equivalence-class-pl seq 4 permit 200.0.4.0/24
-ip prefix-list prefix-0-equivalence-class-pl seq 5 permit 200.0.5.0/24
+ip prefix-list prefix-0-equivalence-class-pl seq 2 permit 200.0.2.0/23 eq 24
+ip prefix-list prefix-0-equivalence-class-pl seq 3 permit 200.0.4.0/23 eq 24
 !
 !
 ! Interfaces
@@ -150,12 +148,10 @@ route-map neighbor-R0_ext_4-in permit 32788
   set weight 20
 exit
 !
-ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 1 permit 200.0.1.0/24
-ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 2 permit 200.0.2.0/24
-ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 3 permit 200.0.3.0/24
-ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 4 permit 200.0.4.0/24
-ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 5 permit 200.0.5.0/24
-ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 6 permit 100.0.1.0/24
+ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 1 permit 100.0.1.0/24
+ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 2 permit 200.0.1.0/24
+ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 3 permit 200.0.2.0/23 eq 24
+ip prefix-list neighbor-R0_ext_4-in-32798-pl seq 4 permit 200.0.4.0/23 eq 24
 route-map neighbor-R0_ext_4-in permit 32798
   match ip address prefix-list neighbor-R0_ext_4-in-32798-pl
   set weight 30

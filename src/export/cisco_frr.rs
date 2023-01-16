@@ -202,8 +202,14 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         let mut config = String::from("!\n! Prefix Equivalence Classes\n!\n");
         for (prefix, networks) in addressor.get_pecs().iter() {
             let mut pl = PrefixList::new(pec_pl_name(*prefix));
-            for net in networks {
-                pl.prefix(*net);
+            if let Some((aggregates, prefix_len)) = aggregate_pec(networks) {
+                for net in aggregates {
+                    pl.prefix_eq(net, prefix_len);
+                }
+            } else {
+                for net in networks {
+                    pl.prefix(*net);
+                }
             }
             config.push_str(&pl.build());
             config.push_str("!\n");
@@ -526,8 +532,16 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
                 route_map_item.match_global_prefix_list(pec_pl_name(prefixes[0]));
             } else {
                 let mut pl = PrefixList::new(format!("{name}-{ord}-pl"));
-                for p in prefixes.into_iter() {
-                    for net in addressor.prefix(p)? {
+                let networks = prefixes
+                    .into_iter()
+                    .flat_map(|n| addressor.prefix(n).unwrap())
+                    .collect();
+                if let Some((aggregates, prefix_len)) = aggregate_pec(&networks) {
+                    for net in aggregates {
+                        pl.prefix_eq(net, prefix_len);
+                    }
+                } else {
+                    for net in networks {
                         pl.prefix(net);
                     }
                 }
@@ -1220,4 +1234,19 @@ fn rm_delete_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<HashSet<u32>>
 fn pec_pl_name<P: Prefix>(prefix: P) -> String {
     let id: u32 = prefix.into();
     format!("prefix-{id}-equivalence-class-pl")
+}
+
+/// Aggregate all prefixes and return the aggregates. This function requires that all addresses have
+/// the same length. If not, this function will return None.
+fn aggregate_pec(networks: &Vec<Ipv4Net>) -> Option<(Vec<Ipv4Net>, u8)> {
+    if networks.is_empty() {
+        return None;
+    }
+    let prefix_len = networks.first().unwrap().prefix_len();
+    if networks.iter().any(|p| p.prefix_len() != prefix_len) {
+        return None;
+    }
+    let mut aggregates = Ipv4Net::aggregate(networks);
+    aggregates.sort();
+    Some((aggregates, prefix_len))
 }

@@ -2795,7 +2795,7 @@ impl RouteMapItem {
 #[derive(Debug, Clone)]
 pub struct PrefixList {
     name: String,
-    prefixes: Vec<Ipv4Net>,
+    prefixes: Vec<(Ipv4Net, Option<(&'static str, u8)>)>,
 }
 
 impl PrefixList {
@@ -2835,7 +2835,74 @@ impl PrefixList {
     /// );
     /// ```
     pub fn prefix(&mut self, prefix: Ipv4Net) -> &mut Self {
-        self.prefixes.push(prefix);
+        self.prefixes.push((prefix, None));
+        self
+    }
+
+    /// Permit all subnets of the given network that have exactly the given prefix lenght. Make sure
+    /// that `len >= prefix.prefix_len()`. In case `len == prefix.prefix_len()`, this function will
+    /// result in the same configuration as calling `prefix(prefix)`.
+    ///
+    /// The following prefix-list will match all networks `10.X.0.0/16`:
+    ///
+    /// ```
+    /// # use bgpsim::export::cisco_frr_generators::PrefixList;
+    /// use ipnet::Ipv4Net;
+    ///
+    /// let n1 = "10.0.0.0/8".parse().unwrap();
+    /// let n2 = "20.0.0.0/8".parse().unwrap();
+    /// assert_eq!(
+    ///     PrefixList::new("test").prefix_eq(n1, 16).prefix_eq(n2, 8).build(),
+    ///     "ip prefix-list test seq 1 permit 10.0.0.0/8 eq 16\n".to_string() +
+    ///     "ip prefix-list test seq 2 permit 20.0.0.0/8\n"
+    /// );
+    /// ```
+    pub fn prefix_eq(&mut self, prefix: Ipv4Net, len: u8) -> &mut Self {
+        let plen = prefix.prefix_len();
+        if len == plen {
+            self.prefixes.push((prefix, None))
+        } else {
+            assert!(len > plen, "{len} > {plen}");
+            self.prefixes.push((prefix, Some(("eq", len))));
+        }
+        self
+    }
+
+    /// Permit all subnets of the given network that have a prefix length less than or equal to the
+    /// provided argument `len`. Make sure that `len > prefix.prefix_len()`.
+    ///
+    /// ```
+    /// # use bgpsim::export::cisco_frr_generators::PrefixList;
+    /// use ipnet::Ipv4Net;
+    ///
+    /// let n = "10.0.0.0/8".parse().unwrap();
+    /// assert_eq!(
+    ///     PrefixList::new("test").prefix_le(n, 10).build(),
+    ///     "ip prefix-list test seq 1 permit 10.0.0.0/8 le 10\n"
+    /// );
+    /// ```
+    pub fn prefix_le(&mut self, prefix: Ipv4Net, len: u8) -> &mut Self {
+        assert!(len > prefix.prefix_len());
+        self.prefixes.push((prefix, Some(("le", len))));
+        self
+    }
+
+    /// Permit all subnets of the given network that have a prefix length greater or equal to the
+    /// provided argument `len`. Make sure that `len > prefix.prefix_len()`.
+    ///
+    /// ```
+    /// # use bgpsim::export::cisco_frr_generators::PrefixList;
+    /// use ipnet::Ipv4Net;
+    ///
+    /// let n = "10.0.0.0/8".parse().unwrap();
+    /// assert_eq!(
+    ///     PrefixList::new("test").prefix_ge(n, 16).build(),
+    ///     "ip prefix-list test seq 1 permit 10.0.0.0/8 ge 16\n"
+    /// );
+    /// ```
+    pub fn prefix_ge(&mut self, prefix: Ipv4Net, len: u8) -> &mut Self {
+        assert!(len > prefix.prefix_len());
+        self.prefixes.push((prefix, Some(("ge", len))));
         self
     }
 
@@ -2844,7 +2911,14 @@ impl PrefixList {
         self.prefixes
             .iter()
             .enumerate()
-            .map(|(i, x)| format!("ip prefix-list {} seq {} permit {}\n", self.name, i + 1, x))
+            .map(|(i, (net, opt))| match opt {
+                None => format!("ip prefix-list {} seq {} permit {net}\n", self.name, i + 1),
+                Some((dir, len)) => format!(
+                    "ip prefix-list {} seq {} permit {net} {dir} {len}\n",
+                    self.name,
+                    i + 1
+                ),
+            })
             .join("")
     }
 }
