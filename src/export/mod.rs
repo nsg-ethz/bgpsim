@@ -401,6 +401,61 @@ impl<T> MaybePec<T> {
     pub fn iter(&self) -> MaybePecIter<'_, T> {
         self.into_iter()
     }
+
+    /// Get random samples from the prefix equivalence class. If `n` is smaller or equal to the size
+    /// of the equivalence class, then simply return all elements. Otherwise, return the first, the
+    /// last, and some random elements in between.
+    #[cfg(feature = "rand")]
+    pub fn sample_random_n<R: rand::Rng>(&self, rng: &mut R, n: usize) -> Vec<&T>
+    where
+        T: Ord,
+    {
+        use rand::prelude::IteratorRandom;
+        match self {
+            MaybePec::Single(v) => vec![v],
+            MaybePec::Pec(_, vs) if vs.len() <= n => vs.iter().collect(),
+            MaybePec::Pec(_, vs) => {
+                let mut vs: Vec<&T> = vs.iter().collect();
+                vs.sort();
+                let mut samples = vs[1..(vs.len() - 1)]
+                    .iter()
+                    .copied()
+                    .choose_multiple(rng, n - 2);
+                samples.insert(0, vs[0]);
+                samples.push(vs.pop().unwrap());
+                samples
+            }
+        }
+    }
+
+    /// Get `n` samples from the prefix equivalence class that are equally spaced. This function may
+    /// panic if `n < 2`. If `n == 2`, then return the smallest and largest element.
+    pub fn sample_uniform_n<R: rand::Rng>(&self, n: usize) -> Vec<&T>
+    where
+        T: Ord,
+    {
+        match self {
+            MaybePec::Single(v) => vec![v],
+            MaybePec::Pec(_, vs) if vs.len() <= n => vs.iter().collect(),
+            MaybePec::Pec(_, vs) => {
+                assert!(n >= 2);
+                let mut vs: Vec<&T> = vs.iter().collect();
+                vs.sort();
+                if n > 2 {
+                    let n_steps = n - 1;
+                    let step_size = vs.len() / n_steps;
+                    let last = vs.pop();
+                    vs.into_iter()
+                        .step_by(step_size)
+                        .take(n_steps)
+                        .chain(last)
+                        .collect()
+                } else {
+                    vec![vs.first().unwrap(), vs.last().unwrap()]
+                }
+            }
+        }
+    }
 }
 
 impl<T> IntoIterator for MaybePec<T> {

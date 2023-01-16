@@ -26,7 +26,7 @@ required-features = ["topology_zoo", "rand_queue", "rand"]
 [features]
 undo = []
 rand = ["dep:rand"]
-rand_queue = ["dep:rand", "dep:rand_distr", "dep:priority-queue", "dep:geoutils"]
+rand_queue = ["rand", "dep:rand_distr", "dep:priority-queue", "dep:geoutils"]
 topology_zoo = ["dep:xmltree", "dep:geoutils"]
 export = ["dep:bimap"]
 
