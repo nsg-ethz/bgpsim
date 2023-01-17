@@ -34,7 +34,7 @@ use crate::{
     record::{ConvergenceRecording, ConvergenceTrace, FwDelta},
     route_map::{RouteMap, RouteMapDirection, RouteMapMatch, RouteMapSet, RouteMapState},
     router::StaticRoute,
-    types::{ConfigError, DeviceError, NetworkError, Prefix, PrefixMap, RouterId},
+    types::{ConfigError, DeviceError, NetworkError, Prefix, PrefixMap, PrefixSet, RouterId},
 };
 
 /// Trait to format a type that contains RouterIds
@@ -312,14 +312,7 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapMatch<P> {
     fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
         match self {
             RouteMapMatch::Prefix(_pl) => {
-                #[cfg(feature = "multi_prefix")]
-                {
-                    format!("Prefix in {{{}}}", _pl.iter().map(|x| x.get()).join(", "))
-                }
-                #[cfg(not(feature = "multi_prefix"))]
-                {
-                    String::from("Prefix in {{}}")
-                }
+                format!("Prefix in {{{}}}", _pl.iter().join(", "))
             }
             RouteMapMatch::AsPath(c) => format!("{c}"),
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),
