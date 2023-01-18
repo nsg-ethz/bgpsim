@@ -274,8 +274,8 @@ mod t {
             for router in routers.iter() {
                 for prefix in net.get_known_prefixes() {
                     assert_eq!(
-                        net.get_forwarding_state().get_route(*router, *prefix),
-                        state.get_route(*router, *prefix)
+                        net.get_forwarding_state().get_paths(*router, *prefix),
+                        state.get_paths(*router, *prefix)
                     );
                 }
             }
@@ -285,8 +285,8 @@ mod t {
             for router in routers.iter().rev() {
                 for prefix in net.get_known_prefixes() {
                     assert_eq!(
-                        net.get_forwarding_state().get_route(*router, *prefix),
-                        state.get_route(*router, *prefix)
+                        net.get_forwarding_state().get_paths(*router, *prefix),
+                        state.get_paths(*router, *prefix)
                     );
                 }
             }
@@ -375,38 +375,38 @@ mod ipv4 {
         let mut fw_state = net.get_forwarding_state();
 
         assert_eq!(
-            fw_state.get_route(r2, prefix!("100.0.0.0/16" as)).unwrap(),
+            fw_state.get_paths(r2, prefix!("100.0.0.0/16" as)).unwrap(),
             vec![vec![r2, r1, e1]]
         );
 
         assert_eq!(
-            fw_state.get_route(r2, prefix!("100.0.2.0/23" as)).unwrap(),
+            fw_state.get_paths(r2, prefix!("100.0.2.0/23" as)).unwrap(),
             vec![vec![r2, r3, r1, e1]]
         );
 
         assert_eq!(
-            fw_state.get_route(r2, prefix!("100.0.3.1/32" as)).unwrap(),
+            fw_state.get_paths(r2, prefix!("100.0.3.1/32" as)).unwrap(),
             vec![vec![r2, r3, r1, e1]]
         );
 
         assert_eq!(
-            fw_state.get_route(r2, prefix!("100.0.2.0/24" as)).unwrap(),
+            fw_state.get_paths(r2, prefix!("100.0.2.0/24" as)).unwrap(),
             vec![vec![r2, r4, e4]]
         );
 
         assert_eq!(
-            fw_state.get_route(r2, prefix!("100.0.0.1/32" as)).unwrap(),
+            fw_state.get_paths(r2, prefix!("100.0.0.1/32" as)).unwrap(),
             vec![vec![r2, r1, e1]]
         );
 
         assert_eq!(
-            fw_state.get_route(r2, prefix!("100.0.2.1/32" as)).unwrap(),
+            fw_state.get_paths(r2, prefix!("100.0.2.1/32" as)).unwrap(),
             vec![vec![r2, r4, e4]]
         );
 
         assert_eq!(
             fw_state
-                .get_route(r2, prefix!("100.0.2.129/32" as))
+                .get_paths(r2, prefix!("100.0.2.129/32" as))
                 .unwrap(),
             vec![vec![r2, r3, r4, e4]]
         );

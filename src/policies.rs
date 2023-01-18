@@ -107,7 +107,7 @@ impl<P: Prefix> Policy<P> for FwPolicy<P> {
 
     fn check(&self, fw_state: &mut ForwardingState<P>) -> Result<(), Self::Err> {
         match self {
-            Self::Reachable(r, p) => match fw_state.get_route(*r, *p) {
+            Self::Reachable(r, p) => match fw_state.get_paths(*r, *p) {
                 Ok(_) => Ok(()),
                 Err(NetworkError::ForwardingLoop(path)) => Err(PolicyError::ForwardingLoop {
                     path: prepare_loop_path(path),
@@ -119,7 +119,7 @@ impl<P: Prefix> Policy<P> for FwPolicy<P> {
                 }),
                 Err(e) => panic!("Unrecoverable error detected: {e}"),
             },
-            Self::NotReachable(r, p) => match fw_state.get_route(*r, *p) {
+            Self::NotReachable(r, p) => match fw_state.get_paths(*r, *p) {
                 Err(NetworkError::ForwardingBlackHole(_)) => Ok(()),
                 Err(NetworkError::ForwardingLoop(_)) => Ok(()),
                 Err(e) => panic!("Unrecoverable error detected: {e}"),
@@ -129,18 +129,18 @@ impl<P: Prefix> Policy<P> for FwPolicy<P> {
                     paths,
                 }),
             },
-            Self::PathCondition(r, p, c) => match fw_state.get_route(*r, *p) {
+            Self::PathCondition(r, p, c) => match fw_state.get_paths(*r, *p) {
                 Ok(paths) => paths.iter().try_for_each(|path| c.check(path, *p)),
                 _ => Ok(()),
             },
-            Self::LoopFree(r, p) => match fw_state.get_route(*r, *p) {
+            Self::LoopFree(r, p) => match fw_state.get_paths(*r, *p) {
                 Err(NetworkError::ForwardingLoop(path)) => Err(PolicyError::ForwardingLoop {
                     path: prepare_loop_path(path),
                     prefix: *p,
                 }),
                 _ => Ok(()),
             },
-            Self::LoadBalancing(r, p, k) => match fw_state.get_route(*r, *p) {
+            Self::LoadBalancing(r, p, k) => match fw_state.get_paths(*r, *p) {
                 Ok(paths) if paths.len() >= *k => Ok(()),
                 _ => Err(PolicyError::InsufficientPathsExist {
                     router: *r,

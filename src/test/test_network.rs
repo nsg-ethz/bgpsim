@@ -320,7 +320,7 @@ mod t {
         // check that all routes have a black hole
         for router in net.get_routers().iter() {
             assert_eq!(
-                net.get_forwarding_state().get_route(*router, p),
+                net.get_forwarding_state().get_paths(*router, p),
                 Err(NetworkError::ForwardingBlackHole(vec![*router]))
             );
         }
@@ -472,7 +472,7 @@ mod t {
         // check that all routes have a black hole
         for router in net.get_routers().iter() {
             assert_eq!(
-                net.get_forwarding_state().get_route(*router, p),
+                net.get_forwarding_state().get_paths(*router, p),
                 Err(NetworkError::ForwardingBlackHole(vec![*router]))
             );
         }
@@ -507,7 +507,7 @@ mod t {
         // Add an invalid static route and expect to fail
         net.set_static_route(*R1, p, Some(Direct(*R4))).unwrap();
         assert_eq!(
-            net.get_forwarding_state().get_route(*R1, p),
+            net.get_forwarding_state().get_paths(*R1, p),
             Err(NetworkError::ForwardingBlackHole(vec![*R1]))
         );
         net.set_static_route(*R1, p, Some(Indirect(*R4))).unwrap();
@@ -693,11 +693,11 @@ mod t {
         // we expect the following state:
         test_route!(original_net, *R1, p, [*R1, *E1]);
         assert_eq!(
-            original_net.get_forwarding_state().get_route(*R2, p),
+            original_net.get_forwarding_state().get_paths(*R2, p),
             Ok(vec![vec![*R2, *R4, *E4]]),
         );
         assert_eq!(
-            original_net.get_forwarding_state().get_route(*R3, p),
+            original_net.get_forwarding_state().get_paths(*R3, p),
             Ok(vec![vec![*R3, *R1, *E1]])
         );
         test_route!(original_net, *R4, p, [*R4, *E4]);
@@ -1253,9 +1253,9 @@ mod t {
 
         let mut fw_state = net.get_forwarding_state();
 
-        assert_eq!(fw_state.get_route(r3, p), Ok(vec![vec![r3, e3]]));
-        assert_eq!(fw_state.get_route(r1, p), Ok(vec![vec![r1, r3, e3]]));
-        assert_eq!(fw_state.get_route(r2, p), Ok(vec![vec![r2, r1, r3, e3]]));
+        assert_eq!(fw_state.get_paths(r3, p), Ok(vec![vec![r3, e3]]));
+        assert_eq!(fw_state.get_paths(r1, p), Ok(vec![vec![r1, r3, e3]]));
+        assert_eq!(fw_state.get_paths(r2, p), Ok(vec![vec![r2, r1, r3, e3]]));
     }
 
     #[cfg(feature = "multi_prefix")]

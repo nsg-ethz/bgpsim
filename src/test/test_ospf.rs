@@ -31,15 +31,15 @@ fn only_backbone() {
 
     let mut state = net.get_forwarding_state();
     assert_eq!(
-        state.get_route(r.0, p8).unwrap(),
+        state.get_paths(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
     );
     assert_eq!(
-        state.get_route(r.0, p9).unwrap(),
+        state.get_paths(r.0, p9).unwrap(),
         vec![vec![r.0, r.1, r.2, r.6, r.9],]
     );
     assert_eq!(
-        state.get_route(r.0, p10).unwrap(),
+        state.get_paths(r.0, p10).unwrap(),
         vec![vec![r.0, r.3, r.7, r.10]]
     );
 
@@ -55,11 +55,11 @@ fn only_backbone() {
 
     let mut state = net.get_forwarding_state();
     assert_eq!(
-        state.get_route(r.0, p8).unwrap(),
+        state.get_paths(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8], vec![r.0, r.4, r.5, r.8]]
     );
     assert_eq!(
-        state.get_route(r.0, p9).unwrap(),
+        state.get_paths(r.0, p9).unwrap(),
         vec![
             vec![r.0, r.1, r.2, r.6, r.9],
             vec![r.0, r.1, r.5, r.6, r.9],
@@ -70,7 +70,7 @@ fn only_backbone() {
         ]
     );
     assert_eq!(
-        state.get_route(r.0, p10).unwrap(),
+        state.get_paths(r.0, p10).unwrap(),
         vec![vec![r.0, r.3, r.7, r.10], vec![r.0, r.4, r.7, r.10]]
     );
 }
@@ -88,15 +88,15 @@ fn left_right() {
 
     let mut state = net.get_forwarding_state();
     assert_eq!(
-        state.get_route(r.0, p8).unwrap(),
+        state.get_paths(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
     );
     assert_eq!(
-        state.get_route(r.0, p9).unwrap(),
+        state.get_paths(r.0, p9).unwrap(),
         vec![vec![r.0, r.3, r.7, r.6, r.9],]
     );
     assert_eq!(
-        state.get_route(r.0, p10).unwrap(),
+        state.get_paths(r.0, p10).unwrap(),
         vec![vec![r.0, r.3, r.7, r.10]]
     );
 
@@ -112,15 +112,15 @@ fn left_right() {
 
     let mut state = net.get_forwarding_state();
     assert_eq!(
-        state.get_route(r.0, p8).unwrap(),
+        state.get_paths(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
     );
     assert_eq!(
-        state.get_route(r.0, p9).unwrap(),
+        state.get_paths(r.0, p9).unwrap(),
         vec![vec![r.0, r.3, r.7, r.6, r.9], vec![r.0, r.4, r.7, r.6, r.9],]
     );
     assert_eq!(
-        state.get_route(r.0, p10).unwrap(),
+        state.get_paths(r.0, p10).unwrap(),
         vec![vec![r.0, r.3, r.7, r.10], vec![r.0, r.4, r.7, r.10]]
     );
 
@@ -135,11 +135,11 @@ fn left_right() {
     // check that the network state is as it was originally.
     let mut state = net.get_forwarding_state();
     assert_eq!(
-        state.get_route(r.0, p8).unwrap(),
+        state.get_paths(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8], vec![r.0, r.4, r.5, r.8]]
     );
     assert_eq!(
-        state.get_route(r.0, p9).unwrap(),
+        state.get_paths(r.0, p9).unwrap(),
         vec![
             vec![r.0, r.1, r.2, r.6, r.9],
             vec![r.0, r.1, r.5, r.6, r.9],
@@ -150,7 +150,7 @@ fn left_right() {
         ]
     );
     assert_eq!(
-        state.get_route(r.0, p10).unwrap(),
+        state.get_paths(r.0, p10).unwrap(),
         vec![vec![r.0, r.3, r.7, r.10], vec![r.0, r.4, r.7, r.10]]
     );
 }
@@ -168,24 +168,24 @@ fn left_mid_right() {
 
     let mut state = net.get_forwarding_state();
     assert_eq!(
-        state.get_route(r.0, p8).unwrap(),
+        state.get_paths(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
     );
     assert_eq!(
-        state.get_route(r.0, p9).unwrap(),
+        state.get_paths(r.0, p9).unwrap(),
         vec![vec![r.0, r.1, r.2, r.6, r.9],]
     );
     assert_eq!(
-        state.get_route(r.0, p10).unwrap(),
+        state.get_paths(r.0, p10).unwrap(),
         vec![vec![r.0, r.3, r.7, r.10]]
     );
-    assert_eq!(state.get_route(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
+    assert_eq!(state.get_paths(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
-        state.get_route(r.4, p9).unwrap(),
+        state.get_paths(r.4, p9).unwrap(),
         vec![vec![r.4, r.5, r.6, r.9],]
     );
     assert_eq!(
-        state.get_route(r.4, p10).unwrap(),
+        state.get_paths(r.4, p10).unwrap(),
         vec![vec![r.4, r.7, r.10]]
     );
 
@@ -201,11 +201,11 @@ fn left_mid_right() {
 
     let mut state = net.get_forwarding_state();
     assert_eq!(
-        state.get_route(r.0, p8).unwrap(),
+        state.get_paths(r.0, p8).unwrap(),
         vec![vec![r.0, r.1, r.5, r.8]]
     );
     assert_eq!(
-        state.get_route(r.0, p9).unwrap(),
+        state.get_paths(r.0, p9).unwrap(),
         vec![
             vec![r.0, r.1, r.2, r.6, r.9],
             vec![r.0, r.1, r.5, r.6, r.9],
@@ -214,16 +214,16 @@ fn left_mid_right() {
         ]
     );
     assert_eq!(
-        state.get_route(r.0, p10).unwrap(),
+        state.get_paths(r.0, p10).unwrap(),
         vec![vec![r.0, r.3, r.7, r.10]]
     );
-    assert_eq!(state.get_route(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
+    assert_eq!(state.get_paths(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
-        state.get_route(r.4, p9).unwrap(),
+        state.get_paths(r.4, p9).unwrap(),
         vec![vec![r.4, r.5, r.6, r.9], vec![r.4, r.7, r.6, r.9],]
     );
     assert_eq!(
-        state.get_route(r.4, p10).unwrap(),
+        state.get_paths(r.4, p10).unwrap(),
         vec![vec![r.4, r.7, r.10]]
     );
 }
@@ -240,24 +240,24 @@ fn left_right_bottom() {
 
     let mut state = net.get_forwarding_state();
     assert_eq!(
-        state.get_route(r.0, p8).unwrap(),
+        state.get_paths(r.0, p8).unwrap(),
         vec![vec![r.0, r.4, r.5, r.8]]
     );
     assert_eq!(
-        state.get_route(r.0, p9).unwrap(),
+        state.get_paths(r.0, p9).unwrap(),
         vec![vec![r.0, r.1, r.2, r.6, r.9],]
     );
     assert_eq!(
-        state.get_route(r.0, p10).unwrap(),
+        state.get_paths(r.0, p10).unwrap(),
         vec![vec![r.0, r.3, r.7, r.10]]
     );
-    assert_eq!(state.get_route(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
+    assert_eq!(state.get_paths(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
-        state.get_route(r.4, p9).unwrap(),
+        state.get_paths(r.4, p9).unwrap(),
         vec![vec![r.4, r.7, r.6, r.9],]
     );
     assert_eq!(
-        state.get_route(r.4, p10).unwrap(),
+        state.get_paths(r.4, p10).unwrap(),
         vec![vec![r.4, r.7, r.10]]
     );
 
@@ -273,11 +273,11 @@ fn left_right_bottom() {
 
     let mut state = net.get_forwarding_state();
     assert_eq!(
-        state.get_route(r.0, p8).unwrap(),
+        state.get_paths(r.0, p8).unwrap(),
         vec![vec![r.0, r.4, r.5, r.8]]
     );
     assert_eq!(
-        state.get_route(r.0, p9).unwrap(),
+        state.get_paths(r.0, p9).unwrap(),
         vec![
             vec![r.0, r.1, r.2, r.6, r.9],
             vec![r.0, r.3, r.2, r.6, r.9],
@@ -285,16 +285,16 @@ fn left_right_bottom() {
         ]
     );
     assert_eq!(
-        state.get_route(r.0, p10).unwrap(),
+        state.get_paths(r.0, p10).unwrap(),
         vec![vec![r.0, r.3, r.7, r.10]]
     );
-    assert_eq!(state.get_route(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
+    assert_eq!(state.get_paths(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
-        state.get_route(r.4, p9).unwrap(),
+        state.get_paths(r.4, p9).unwrap(),
         vec![vec![r.4, r.7, r.6, r.9],]
     );
     assert_eq!(
-        state.get_route(r.4, p10).unwrap(),
+        state.get_paths(r.4, p10).unwrap(),
         vec![vec![r.4, r.7, r.10]]
     );
 }
@@ -309,17 +309,17 @@ fn disconnected() {
     net.set_ospf_area(r.6, r.7, 1).unwrap();
 
     let mut state = net.get_forwarding_state();
-    assert_eq!(state.get_route(r.0, p9), Ok(vec![vec![r.0, r.4, r.8, r.9]]));
+    assert_eq!(state.get_paths(r.0, p9), Ok(vec![vec![r.0, r.4, r.8, r.9]]));
     assert_eq!(
-        state.get_route(r.0, p10),
+        state.get_paths(r.0, p10),
         Ok(vec![vec![r.0, r.1, r.2, r.6, r.10]])
     );
     assert_eq!(
-        state.get_route(r.6, p9),
+        state.get_paths(r.6, p9),
         Ok(vec![vec![r.6, r.5, r.4, r.8, r.9]])
     );
     assert_eq!(
-        state.get_route(r.8, p10),
+        state.get_paths(r.8, p10),
         Ok(vec![vec![r.8, r.4, r.5, r.6, r.10]])
     );
 }
@@ -339,17 +339,17 @@ fn disconnected_backbone() {
     net.set_ospf_area(r.4, r.7, 1).unwrap();
 
     let mut state = net.get_forwarding_state();
-    assert_eq!(state.get_route(r.0, p9), Ok(vec![vec![r.0, r.4, r.8, r.9]]));
+    assert_eq!(state.get_paths(r.0, p9), Ok(vec![vec![r.0, r.4, r.8, r.9]]));
     assert_eq!(
-        state.get_route(r.0, p10),
+        state.get_paths(r.0, p10),
         Ok(vec![vec![r.0, r.1, r.2, r.6, r.10]])
     );
     assert_eq!(
-        state.get_route(r.6, p9),
+        state.get_paths(r.6, p9),
         Err(NetworkError::ForwardingBlackHole(vec![r.6]))
     );
     assert_eq!(
-        state.get_route(r.8, p10),
+        state.get_paths(r.8, p10),
         Err(NetworkError::ForwardingBlackHole(vec![r.8]))
     );
 }

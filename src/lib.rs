@@ -123,10 +123,10 @@
 //!     let mut fw_state = t.get_forwarding_state();
 //!
 //!     // check that all routes are correct
-//!     assert_eq!(fw_state.get_route(b0, prefix)?, vec![vec![b0, r0, r1, b1, e1]]);
-//!     assert_eq!(fw_state.get_route(r0, prefix)?, vec![vec![r0, r1, b1, e1]]);
-//!     assert_eq!(fw_state.get_route(r1, prefix)?, vec![vec![r1, b1, e1]]);
-//!     assert_eq!(fw_state.get_route(b1, prefix)?, vec![vec![b1, e1]]);
+//!     assert_eq!(fw_state.get_paths(b0, prefix)?, vec![vec![b0, r0, r1, b1, e1]]);
+//!     assert_eq!(fw_state.get_paths(r0, prefix)?, vec![vec![r0, r1, b1, e1]]);
+//!     assert_eq!(fw_state.get_paths(r1, prefix)?, vec![vec![r1, b1, e1]]);
+//!     assert_eq!(fw_state.get_paths(b1, prefix)?, vec![vec![b1, e1]]);
 //!
 //!     Ok(())
 //! }
@@ -163,10 +163,10 @@
 //!     let mut fw_state = t.get_forwarding_state();
 //!
 //!     // check that all routes are correct
-//!     assert_eq!(fw_state.get_route(b0, prefix!("100.0.0.0/8" as))?, vec![vec![b0, r0, r1, b1, e1]]);
-//!     assert_eq!(fw_state.get_route(r0, prefix!("100.20.1.3/32" as))?, vec![vec![r0, r1, b1, e1]]);
-//!     assert_eq!(fw_state.get_route(r1, prefix!("100.2.0.0/16" as))?, vec![vec![r1, b1, e1]]);
-//!     assert_eq!(fw_state.get_route(b1, prefix!("100.0.0.0/24" as))?, vec![vec![b1, e1]]);
+//!     assert_eq!(fw_state.get_paths(b0, prefix!("100.0.0.0/8" as))?, vec![vec![b0, r0, r1, b1, e1]]);
+//!     assert_eq!(fw_state.get_paths(r0, prefix!("100.20.1.3/32" as))?, vec![vec![r0, r1, b1, e1]]);
+//!     assert_eq!(fw_state.get_paths(r1, prefix!("100.2.0.0/16" as))?, vec![vec![r1, b1, e1]]);
+//!     assert_eq!(fw_state.get_paths(b1, prefix!("100.0.0.0/24" as))?, vec![vec![b1, e1]]);
 //!
 //!     Ok(())
 //! }

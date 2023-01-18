@@ -268,7 +268,7 @@ mod t {
         let mut fw_state = net.get_forwarding_state();
         for src in net.get_routers() {
             assert!(fw_state
-                .get_route(src, p)
+                .get_paths(src, p)
                 .unwrap()
                 .into_iter()
                 .all(|path| path.ends_with(&[e1])))
@@ -280,7 +280,7 @@ mod t {
         let mut fw_state = net.get_forwarding_state();
         for src in net.get_routers() {
             assert!(fw_state
-                .get_route(src, p)
+                .get_paths(src, p)
                 .unwrap()
                 .into_iter()
                 .all(|path| path.ends_with(&[e2])))
@@ -292,7 +292,7 @@ mod t {
         let mut fw_state = net.get_forwarding_state();
         for src in net.get_routers() {
             assert!(fw_state
-                .get_route(src, p)
+                .get_paths(src, p)
                 .unwrap()
                 .into_iter()
                 .all(|path| path.ends_with(&[e3])))
@@ -304,7 +304,7 @@ mod t {
         let mut fw_state = net.get_forwarding_state();
         for src in net.get_routers() {
             assert_eq!(
-                fw_state.get_route(src, p),
+                fw_state.get_paths(src, p),
                 Err(NetworkError::ForwardingBlackHole(vec![src]))
             )
         }

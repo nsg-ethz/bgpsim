@@ -64,7 +64,7 @@ macro_rules! test_route {
     ($n: expr, $source: expr, $prefix: expr, $($exp:expr),+) => {
         let v = vec![$($exp.to_vec()),+];
         let exp = crate::test::path_result_str(Ok(v), &$n);
-        let acq = crate::test::path_result_str($n.get_forwarding_state().get_route($source, $prefix), &$n);
+        let acq = crate::test::path_result_str($n.get_forwarding_state().get_paths($source, $prefix), &$n);
         pretty_assertions::assert_eq!(acq, exp)
     };
 }
@@ -76,7 +76,7 @@ macro_rules! test_bad_route {
             &$n,
         );
         let acq = crate::test::path_result_str(
-            $n.get_forwarding_state().get_route($source, $prefix),
+            $n.get_forwarding_state().get_paths($source, $prefix),
             &$n,
         );
         pretty_assertions::assert_eq!(acq, exp)
@@ -89,7 +89,7 @@ macro_rules! test_bad_route {
             &$n,
         );
         let acq = crate::test::path_result_str(
-            $n.get_forwarding_state().get_route($source, $prefix),
+            $n.get_forwarding_state().get_paths($source, $prefix),
             &$n,
         );
         pretty_assertions::assert_eq!(acq, exp)

@@ -103,11 +103,11 @@ fn test_simple_deterministic() {
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
     assert_eq!(
-        s.get_route(b1, prefix).unwrap(),
+        s.get_paths(b1, prefix).unwrap(),
         vec![vec![b1, r1, r0, b0, e0]]
     );
 
@@ -115,11 +115,11 @@ fn test_simple_deterministic() {
     rec.step().unwrap();
 
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
     assert_eq!(
-        s.get_route(b1, prefix).unwrap(),
+        s.get_paths(b1, prefix).unwrap(),
         vec![vec![b1, r1, r0, b0, e0]]
     );
 
@@ -128,30 +128,30 @@ fn test_simple_deterministic() {
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(s.get_paths(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.step().unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_paths(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.step().unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, r1, b1, e1]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, r1, b1, e1]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_paths(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.step().unwrap();
@@ -159,52 +159,52 @@ fn test_simple_deterministic() {
     // test all paths
     let s = rec.state();
     assert_eq!(
-        s.get_route(b0, prefix).unwrap(),
+        s.get_paths(b0, prefix).unwrap(),
         vec![vec![b0, r0, r1, b1, e1]]
     );
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, r1, b1, e1]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, r1, b1, e1]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_paths(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // go back and test the same thing again.
     rec.back().unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, r1, b1, e1]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, r1, b1, e1]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_paths(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.back().unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, b1, e1]]);
+    assert_eq!(s.get_paths(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.back().unwrap();
 
     // test all paths
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
-    assert_eq!(s.get_route(b1, prefix).unwrap(), vec![vec![b1, e1]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(s.get_paths(b1, prefix).unwrap(), vec![vec![b1, e1]]);
 
     // perform one step
     rec.back().unwrap();
 
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
     assert_eq!(
-        s.get_route(b1, prefix).unwrap(),
+        s.get_paths(b1, prefix).unwrap(),
         vec![vec![b1, r1, r0, b0, e0]]
     );
 
@@ -212,11 +212,11 @@ fn test_simple_deterministic() {
     rec.back().unwrap();
 
     let s = rec.state();
-    assert_eq!(s.get_route(b0, prefix).unwrap(), vec![vec![b0, e0]]);
-    assert_eq!(s.get_route(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
-    assert_eq!(s.get_route(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
+    assert_eq!(s.get_paths(b0, prefix).unwrap(), vec![vec![b0, e0]]);
+    assert_eq!(s.get_paths(r0, prefix).unwrap(), vec![vec![r0, b0, e0]]);
+    assert_eq!(s.get_paths(r1, prefix).unwrap(), vec![vec![r1, r0, b0, e0]]);
     assert_eq!(
-        s.get_route(b1, prefix).unwrap(),
+        s.get_paths(b1, prefix).unwrap(),
         vec![vec![b1, r1, r0, b0, e0]]
     );
 }

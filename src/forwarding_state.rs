@@ -128,8 +128,8 @@ impl<P: Prefix> ForwardingState<P> {
         }
     }
 
-    /// Returns the route from the source router to a specific prefix.
-    pub fn get_route(
+    /// Returns the set of forwarding paths from the source router to a specific prefix.
+    pub fn get_paths(
         &mut self,
         source: RouterId,
         prefix: P,
@@ -137,11 +137,22 @@ impl<P: Prefix> ForwardingState<P> {
         let mut visited = HashSet::new();
         visited.insert(source);
         let mut path = vec![source];
-        self.get_route_recursive(prefix, source, &mut visited, &mut path)
+        self.get_paths_recursive(prefix, source, &mut visited, &mut path)
+    }
+
+    /// Returns the set of forwarding paths from the source router to a specific prefix.
+    #[inline(always)]
+    #[deprecated(note = "use get_paths instead!")]
+    pub fn get_route(
+        &mut self,
+        source: RouterId,
+        prefix: P,
+    ) -> Result<Vec<Vec<RouterId>>, NetworkError> {
+        self.get_paths(source, prefix)
     }
 
     /// Recursive function to build the paths recursively.
-    fn get_route_recursive(
+    fn get_paths_recursive(
         &mut self,
         prefix: P,
         cur_node: RouterId,
@@ -232,7 +243,7 @@ impl<P: Prefix> ForwardingState<P> {
 
             visited.insert(nh);
             path.push(nh);
-            let mut paths = match self.get_route_recursive(prefix, nh, visited, path) {
+            let mut paths = match self.get_paths_recursive(prefix, nh, visited, path) {
                 Ok(p) => p,
                 Err(NetworkError::ForwardingBlackHole(mut p)) => {
                     p.insert(0, cur_node);
@@ -515,17 +526,17 @@ mod test {
 
     macro_rules! check_route {
         ($acq:expr, $src:literal, $pfx:expr => ($($path:tt),*)) => {
-            check_route!($acq.get_route($src.into(), $pfx), Ok(vec!($(_path!($path)),*)))
+            check_route!($acq.get_paths($src.into(), $pfx), Ok(vec!($(_path!($path)),*)))
         };
         ($acq:expr, $src:literal, $pfx:expr => fwloop $path:tt) => {
             check_route!(
-                $acq.get_route($src.into(), $pfx),
+                $acq.get_paths($src.into(), $pfx),
                 Err(NetworkError::ForwardingLoop(_path!($path)))
             )
         };
         ($acq:expr, $src:literal, $pfx:expr => blackhole $path:tt) => {
             check_route!(
-                $acq.get_route($src.into(), $pfx),
+                $acq.get_paths($src.into(), $pfx),
                 Err(NetworkError::ForwardingBlackHole(_path!($path)))
             )
         };
