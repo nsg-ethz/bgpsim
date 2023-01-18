@@ -137,7 +137,7 @@ impl Component for ForwardingPath {
 
 fn get_paths(net: &Net, dim: &Dim, router: RouterId, prefix: Pfx) -> Vec<Vec<Point>> {
     if net.net().get_device(router).is_internal() {
-        match net.net().get_forwarding_state().get_route(router, prefix) {
+        match net.net().get_forwarding_state().get_paths(router, prefix) {
             Ok(paths) => paths,
             Err(NetworkError::ForwardingBlackHole(p)) | Err(NetworkError::ForwardingLoop(p)) => {
                 vec![p]
