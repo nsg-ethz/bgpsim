@@ -17,6 +17,7 @@
 
 #![deny(missing_docs, missing_debug_implementations)]
 #![cfg_attr(docsrs, feature(doc_cfg))]
+#![doc(html_logo_url = "https://iospf.tibors.ch/images/bgpsim/dark_only.svg")]
 
 //! # BgpSim
 //!
