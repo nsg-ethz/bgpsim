@@ -106,6 +106,16 @@ impl Component for MainMenu {
             html! {<yew_lucide::Moon />}
         };
 
+        let logo = if self.state.is_dark_mode() {
+            html! {
+                <img class="pb-4" src="https://iospf.tibors.ch/images/bgpsim/dark_text.svg" alt="BGP-Sim" />
+            }
+        } else {
+            html! {
+                <img class="pb-4" src="https://iospf.tibors.ch/images/bgpsim/light_text.svg" alt="BGP-Sim" />
+            }
+        };
+
         html! {
             <>
                 <input type="checkbox" value="" class="sr-only peer" checked={self.shown}/>
@@ -116,7 +126,8 @@ impl Component for MainMenu {
                         <div class="cursor-pointer m-2" onclick={on_dark_mode_toggle}>{ dark_mode_symbol }</div>
                     </div>
                     <div class="flex-1 flex flex-col items-center justify-center pt-2 pb-10">
-                        <p class="text-2xl font-bold text-main"> {"BGP-Sim"} </p>
+                        {logo}
+                        // <p class="text-2xl font-bold text-main"> {"BGP-Sim"} </p>
                         <p class="text"> {"By "} <a class={link_class} href="https://tibors.ch" {target}>{"Tibor Schneider"}</a> {" @ "} <a class={link_class} href="https://nsg.ee.ethz.ch" {target}>{"NSG"}</a> </p>
                     </div>
                     <div class="p-2 flex flex-col space-y-2">
