@@ -15,6 +15,8 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+#![doc(html_logo_url = "https://iospf.tibors.ch/images/bgpsim/dark_only.svg")]
+
 use proc_macro::TokenStream;
 
 mod ip;
