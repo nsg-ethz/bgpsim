@@ -23,7 +23,12 @@ use web_sys::{Blob, FileReader, HtmlElement, HtmlInputElement};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{net::Net, sidebar::Toggle, state::State};
+use crate::{
+    http_serde::{export_url, import_json_str},
+    net::Net,
+    sidebar::Toggle,
+    state::State,
+};
 
 pub struct MainMenu {
     shown: bool,
@@ -216,7 +221,7 @@ impl Component for MainMenu {
                 true
             }
             Msg::ExportCopyUrl => {
-                self.url_network = Some(self.net.export_url());
+                self.url_network = Some(export_url());
                 true
             }
             Msg::ImportClick => {
@@ -244,9 +249,7 @@ impl Component for MainMenu {
                     return false;
                 }
 
-                let update_net = self
-                    .net_dispatch
-                    .reduce_mut_callback_with(|net, file: String| net.import(&file));
+                let update_net = Callback::once(import_json_str);
                 let listener = {
                     let reader = reader.clone();
                     Closure::<dyn Fn(ProgressEvent)>::wrap(Box::new(move |_| {

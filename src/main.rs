@@ -20,6 +20,7 @@
 mod dim;
 mod draw;
 mod header;
+mod http_serde;
 mod latex_export;
 mod net;
 mod point;
@@ -29,6 +30,7 @@ mod tooltip;
 use draw::canvas::Canvas;
 use gloo_utils::window;
 use header::Header;
+use http_serde::import_url;
 use sidebar::Sidebar;
 use state::State;
 use tooltip::Tooltip;
@@ -36,8 +38,6 @@ use tooltip::Tooltip;
 use yew::prelude::*;
 use yew_router::prelude::*;
 use yewdux::prelude::*;
-
-use crate::net::Net;
 
 #[function_component(App)]
 fn app() -> Html {
@@ -83,8 +83,7 @@ fn switch(route: &Route) -> Html {
     match route {
         Route::Home => html! {<App />},
         Route::ImportNet { d } => {
-            let net_dispatch = Dispatch::<Net>::new();
-            net_dispatch.reduce_mut(|n| n.import_url(d));
+            import_url(d);
             html! { <Redirect<Route> to={Route::Home} /> }
         }
     }

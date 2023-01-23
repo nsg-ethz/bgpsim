@@ -30,20 +30,19 @@ use bgpsim::{
     types::{IgpNetwork, NetworkDevice, RouterId},
 };
 use forceatlas2::{Layout, Nodes, Settings};
-use getrandom::getrandom;
 #[cfg(feature = "atomic_bgp")]
 use itertools::Itertools;
-use miniz_oxide::{deflate::compress_to_vec, inflate::decompress_to_vec};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
-use wasm_bindgen::JsCast;
-use web_sys::{window, HtmlElement};
 use yewdux::{mrc::Mrc, prelude::*};
 
 #[cfg(feature = "atomic_bgp")]
 use atomic_command::AtomicCommand;
 
-use crate::{latex_export, point::Point};
+use crate::{
+    http_serde::{export_json_str, trigger_download},
+    latex_export,
+    point::Point,
+};
 
 /// Basic event queue
 #[derive(PartialEq, Eq, Clone, Debug, Default, Serialize, Deserialize)]
@@ -362,219 +361,25 @@ impl Net {
 
     /// export the current file and download it.
     pub fn export(&self) {
-        self.trigger_download(net_to_string(self, false), "bgpsim.json");
+        trigger_download(export_json_str(false), "bgpsim_json");
     }
 
     /// export to latex
     pub fn export_latex(&self) {
-        self.trigger_download(latex_export::generate_latex(self), "bgpsim.tex");
+        trigger_download(latex_export::generate_latex(self), "bgpsim.tex");
     }
 
-    /// download a textfile
-    pub fn trigger_download(&self, content: String, filename: &str) {
-        let document = gloo_utils::document();
-        // create the a link
-        let element: HtmlElement = match document.create_element("a") {
-            Ok(e) => e.dyn_into().unwrap(),
-            Err(e) => {
-                log::error!("Could not create an \"a\" element! {:?}", e);
-                return;
-            }
-        };
-        // set the file destination
-        if let Err(e) = element.set_attribute(
-            "href",
-            &format!(
-                "data:text/json;charset=utf-8,{}",
-                js_sys::encode_uri_component(&content)
-            ),
-        ) {
-            log::error!("Could not set the \"href\" attribute! {:?}", e);
-            return;
-        }
-        // set the filename
-        if let Err(e) = element.set_attribute("download", filename) {
-            log::error!("Could not set the \"download\" attribute! {:?}", e);
-            return;
-        }
-        // hide the link
-        if let Err(e) = element.set_attribute("class", "hidden") {
-            log::error!("Could not set the \"class\" attribute! {:?}", e);
-            return;
-        }
-
-        element.click();
-
-        let _ = document.body().map(|b| {
-            let _ = b.remove_child(&element);
-        });
-    }
-
-    pub fn import(&mut self, file: &str) {
+    pub fn import_net(&mut self, n: Net) {
         log::debug!("Import a network");
-        match net_from_str(file) {
-            Ok(n) => {
-                self.net = n.net;
-                self.pos = n.pos;
-                self.spec = n.spec;
-                #[cfg(feature = "atomic_bgp")]
-                {
-                    self.migration = n.migration;
-                    self.migration_state = n.migration_state;
-                }
-            }
-            Err(e) => log::error!("Could not import the network! {}", e),
+        self.net = n.net;
+        self.pos = n.pos;
+        self.spec = n.spec;
+        #[cfg(feature = "atomic_bgp")]
+        {
+            self.migration = n.migration;
+            self.migration_state = n.migration_state;
         }
     }
-
-    pub fn import_url(&mut self, data: impl AsRef<str>) {
-        let data = data.as_ref();
-        let decoded_compressed = match base64::decode_config(data.as_bytes(), base64_config()) {
-            Ok(d) => d,
-            Err(e) => {
-                log::error!("Could not decode base64 data: {}", e);
-                return;
-            }
-        };
-        let decoded = match decompress_to_vec(&decoded_compressed) {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("Could not decompress the data: {:?}", e);
-                return;
-            }
-        };
-        let json_data = match String::from_utf8(decoded) {
-            Ok(s) => s,
-            Err(e) => {
-                log::error!("Could not interpret data as utf-8: {}", e);
-                return;
-            }
-        };
-        self.import(&json_data);
-    }
-
-    pub fn export_url(&self) -> String {
-        let json_data = net_to_string(self, true);
-        let compressed_data = compress_to_vec(json_data.as_bytes(), 8);
-        let encoded_data = base64::encode_config(compressed_data, base64_config());
-        let url = window()
-            .and_then(|w| w.location().href().ok())
-            .unwrap_or_else(|| String::from("bgpsim.ethz.ch/"));
-        format!("{}i/{}", url, encoded_data)
-    }
-}
-
-fn base64_config() -> base64::Config {
-    base64::Config::new(base64::CharacterSet::UrlSafe, false)
-}
-
-fn rand_uniform() -> f64 {
-    let mut bytes = [0, 0, 0, 0];
-    getrandom(&mut bytes).unwrap();
-    let x = ((((((bytes[0] as u32) << 8) + bytes[1] as u32) << 8) + bytes[2] as u32) << 8)
-        + bytes[3] as u32;
-    x as f64 / (u32::MAX as f64)
-}
-
-fn net_to_string(net: &Net, compact: bool) -> String {
-    let net_borrow = net.net();
-    let n = net_borrow.deref();
-    let pos_borrow = net.pos();
-    let p = pos_borrow.deref();
-    let spec_borrow = net.spec();
-    let spec = spec_borrow.deref();
-
-    let mut network = if compact {
-        serde_json::from_str::<Value>(&n.as_json_str_compact())
-    } else {
-        serde_json::from_str::<Value>(&n.as_json_str())
-    }
-    .unwrap();
-
-    let obj = network.as_object_mut().unwrap();
-    obj.insert("pos".to_string(), serde_json::to_value(p).unwrap());
-    obj.insert("spec".to_string(), serde_json::to_value(spec).unwrap());
-
-    #[cfg(feature = "atomic_bgp")]
-    {
-        let migration_borrow = net.migration();
-        let migration = migration_borrow.deref();
-        obj.insert(
-            "migration".to_string(),
-            serde_json::to_value(migration).unwrap(),
-        );
-        let migration_state_borrow = net.migration_state();
-        let migration_state = migration_state_borrow.deref();
-        obj.insert(
-            "migration_state".to_string(),
-            serde_json::to_value(migration_state).unwrap(),
-        );
-    }
-
-    serde_json::to_string(&network).unwrap()
-}
-
-fn net_from_str(s: &str) -> Result<Net, String> {
-    // first, try to deserialize the network. If that works, ignore the config
-    let net = Network::from_json_str(s, Queue::default).map_err(|x| x.to_string())?;
-    let content: Value =
-        serde_json::from_str(s).map_err(|e| format!("cannot parse json file! {}", e))?;
-    let spec = content
-        .get("spec")
-        .and_then(|v| {
-            serde_json::from_value::<
-                HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>,
-            >(v.clone())
-            .ok()
-        })
-        .unwrap_or_default();
-    let (pos, rerun_layout) = if let Some(pos) = content
-        .get("pos")
-        .and_then(|v| serde_json::from_value::<HashMap<RouterId, Point>>(v.clone()).ok())
-    {
-        (pos, false)
-    } else {
-        (
-            net.get_topology()
-                .node_indices()
-                .map(|id| {
-                    (
-                        id,
-                        Point {
-                            x: rand_uniform(),
-                            y: rand_uniform(),
-                        },
-                    )
-                })
-                .collect(),
-            true,
-        )
-    };
-    let mut result = Net {
-        net: Mrc::new(net),
-        pos: Mrc::new(pos),
-        spec: Mrc::new(spec),
-        #[cfg(feature = "atomic_bgp")]
-        migration: Mrc::new(
-            content
-                .get("migration")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default(),
-        ),
-        #[cfg(feature = "atomic_bgp")]
-        migration_state: Mrc::new(
-            content
-                .get("migration_state")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default(),
-        ),
-        speed: Default::default(),
-        recorder: None,
-    };
-    if rerun_layout {
-        result.spring_layout();
-    }
-    Ok(result)
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]
