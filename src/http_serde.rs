@@ -32,6 +32,7 @@ use yewdux::{mrc::Mrc, prelude::Dispatch};
 use crate::{
     net::{Net, Pfx, Queue},
     point::Point,
+    state::{Features, Layer, State},
 };
 
 /// Import a url data and update the network and settings
@@ -84,6 +85,14 @@ pub fn import_json_str(json_data: impl AsRef<str>) {
     // set the network and update the manual simulation mode
     let net_dispatch = Dispatch::<Net>::new();
     net_dispatch.reduce_mut(|n| n.import_net(net));
+
+    // apply the state settings
+    let state_dispatch = Dispatch::<State>::new();
+    state_dispatch.reduce_mut(|s| {
+        s.set_layer(settings.layer);
+        s.set_prefix(settings.prefix);
+        *s.features_mut() = settings.features;
+    });
 }
 
 /// Generate an url string to export
@@ -94,16 +103,21 @@ pub fn export_url() -> String {
     let url = window()
         .and_then(|w| w.location().href().ok())
         .unwrap_or_else(|| String::from("bgpsim.org/"));
-    format!("{}i/{}", url, encoded_data)
+    format!("{url}i/{encoded_data}")
 }
 
 #[derive(Default, Deserialize, Serialize)]
 struct Settings {
     manual_simulation: bool,
+    layer: Layer,
+    prefix: Option<Pfx>,
+    features: Features,
 }
 
 pub fn export_json_str(compact: bool) -> String {
     let net = Dispatch::<Net>::new().get();
+    let state = Dispatch::<State>::new().get();
+
     let net_borrow = net.net();
     let n = net_borrow.deref();
     let pos_borrow = net.pos();
@@ -113,6 +127,9 @@ pub fn export_json_str(compact: bool) -> String {
 
     let settings = Settings {
         manual_simulation: !n.auto_simulation_enabled(),
+        layer: state.layer(),
+        prefix: state.prefix(),
+        features: state.features().clone(),
     };
 
     let mut network = if compact {

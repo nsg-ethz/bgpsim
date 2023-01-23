@@ -147,6 +147,7 @@ impl Component for MainMenu {
                             <yew_lucide::Wand class="h-6 mr-4" />
                             {"Automatic Layout"}
                         </button>
+                        <FeatureSettings main_class={element_class} />
                         <button class={element_class} onclick={export}>
                             <yew_lucide::Save class="h-6 mr-4" />
                             {"Export Network"}
@@ -272,5 +273,95 @@ impl Component for MainMenu {
                 true
             }
         }
+    }
+}
+
+#[derive(Clone, PartialEq, Properties)]
+struct FeatureSettingsProps {
+    main_class: &'static str,
+}
+
+#[function_component(FeatureSettings)]
+fn feature_settings(props: &FeatureSettingsProps) -> Html {
+    let visible = use_state(|| false);
+    let toggle_show = {
+        let visible = visible.clone();
+        Callback::from(move |_| visible.set(!*visible))
+    };
+    let element_class = "w-full flex items-center py-4 px-6 h-8 overflow-hidden text-main text-ellipsis whitespace-nowrap rounded hover:text-blue hover:bg-base-3 transition duration-200 ease-in-out cursor-pointer active:ring-none";
+
+    let (state, dispatch) = use_store::<State>();
+
+    let toggle_load_balancing = dispatch.reduce_mut_callback(|s| {
+        let old_val = s.features().load_balancing;
+        s.features_mut().load_balancing = !old_val;
+    });
+
+    let toggle_ospf = dispatch.reduce_mut_callback(|s| {
+        let old_val = s.features().ospf;
+        s.features_mut().ospf = !old_val;
+    });
+
+    let toggle_static_routes = dispatch.reduce_mut_callback(|s| {
+        let old_val = s.features().static_routes;
+        s.features_mut().static_routes = !old_val;
+    });
+
+    let toggle_bgp = dispatch.reduce_mut_callback(|s| {
+        let old_val = s.features().bgp;
+        s.features_mut().bgp = !old_val;
+    });
+
+    let toggle_specification = dispatch.reduce_mut_callback(|s| {
+        let old_val = s.features().specification;
+        s.features_mut().specification = !old_val;
+    });
+
+    html! {
+        <>
+            <button class={props.main_class} onclick={toggle_show}>
+                if *visible {
+                    <yew_lucide::ChevronDown class="h-6 mr-4" />
+                } else {
+                    <yew_lucide::ChevronRight class="h-6 mr-4" />
+                }
+                {"Settings"}
+            </button>
+            if *visible {
+                <div class= "w-full flex flex-col py-2 px-2 rounded bg-base-2">
+                    <button class={element_class} onclick={toggle_static_routes}>
+                        <p class="flex-1 text-left ml-8">{"Static Routes"}</p>
+                        <div class="pointer-events-none flex flex-row-reverse mt-2">
+                            <Toggle text={""} on_click={Callback::from(|_| ())} checked={state.features().static_routes}/>
+                        </div>
+                    </button>
+                    <button class={element_class} onclick={toggle_ospf}>
+                        <p class="flex-1 text-left ml-8">{"OSPF"}</p>
+                        <div class="pointer-events-none flex flex-row-reverse mt-2">
+                            <Toggle text={""} on_click={Callback::from(|_| ())} checked={state.features().ospf}/>
+                        </div>
+                    </button>
+                    <button class={element_class} onclick={toggle_bgp}>
+                        <p class="flex-1 text-left ml-8">{"BGP"}</p>
+                        <div class="pointer-events-none flex flex-row-reverse mt-2">
+                            <Toggle text={""} on_click={Callback::from(|_| ())} checked={state.features().ospf}/>
+                        </div>
+                    </button>
+                    <button class={element_class} onclick={toggle_load_balancing}>
+                        <p class="flex-1 text-left ml-8">{"Load Balancing"}</p>
+                        <div class="pointer-events-none flex flex-row-reverse mt-2">
+                            <Toggle text={""} on_click={Callback::from(|_| ())} checked={state.features().load_balancing}/>
+                        </div>
+                    </button>
+                    <button class={element_class} onclick={toggle_specification}>
+                        <p class="flex-1 text-left ml-8">{"Specifications"}</p>
+                        <div class="pointer-events-none flex flex-row-reverse mt-2">
+                            <Toggle text={""} on_click={Callback::from(|_| ())} checked={state.features().specification}/>
+                        </div>
+                    </button>
+                </div>
+            }
+        </>
+
     }
 }

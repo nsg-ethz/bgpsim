@@ -31,7 +31,7 @@ use bgpsim::{formatter::NetworkFormatter, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{draw::SvgColor, net::Net};
+use crate::{draw::SvgColor, net::Net, state::State};
 
 use super::{topology_cfg::TopologyCfg, Divider, Element, Select, TextField, Toggle};
 use bgp_cfg::BgpCfg;
@@ -41,11 +41,14 @@ use static_routes_cfg::StaticRoutesCfg;
 pub struct RouterCfg {
     net: Rc<Net>,
     net_dispatch: Dispatch<Net>,
+    state: Rc<State>,
+    _state_dispatch: Dispatch<State>,
     name_input_correct: bool,
 }
 
 pub enum Msg {
     StateNet(Rc<Net>),
+    State(Rc<State>),
     OnNameChange(String),
     OnNameSet(String),
     ChangeLoadBalancing(bool),
@@ -62,9 +65,12 @@ impl Component for RouterCfg {
 
     fn create(ctx: &Context<Self>) -> Self {
         let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         RouterCfg {
             net: Default::default(),
             net_dispatch,
+            state: Default::default(),
+            _state_dispatch,
             name_input_correct: true,
         }
     }
@@ -88,18 +94,28 @@ impl Component for RouterCfg {
 
         html! {
             <div class="w-full space-y-2">
-                <Divider text={format!("Router {}", name_text)} />
+                <Divider text={format!("Router {name_text}")} />
                 <Element text={"Name"}>
                     <TextField text={name_text} on_change={on_name_change} on_set={on_name_set} correct={self.name_input_correct}/>
                 </Element>
-                <Element text={"load balancing"}>
-                    <Toggle text={lb_text} checked={lb_enabled} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} on_click={change_lb} />
-                </Element>
-                <TopologyCfg {router} only_internal={false}/>
-                <StaticRoutesCfg {router}/>
-                <BgpCfg {router}/>
+                if self.state.features().load_balancing {
+                    <Element text={"load balancing"}>
+                        <Toggle text={lb_text} checked={lb_enabled} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} on_click={change_lb} />
+                    </Element>
+                }
+                if self.state.features().ospf {
+                    <TopologyCfg {router} only_internal={false}/>
+                }
+                if self.state.features().static_routes {
+                    <StaticRoutesCfg {router}/>
+                }
+                if self.state.features().bgp {
+                    <BgpCfg {router}/>
+                }
                 <div></div>
-                <SpecificationCfg {router} />
+                if self.state.features().specification {
+                    <SpecificationCfg {router} />
+                }
                 <Divider />
             </div>
         }
@@ -108,6 +124,11 @@ impl Component for RouterCfg {
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         let router = ctx.props().router;
         match msg {
+            Msg::State(s) => {
+                let changed = self.state.features() != s.features();
+                self.state = s;
+                changed
+            }
             Msg::OnNameChange(new_name) => {
                 self.name_input_correct = match self.net.net().get_router_id(new_name) {
                     Err(_) => true,

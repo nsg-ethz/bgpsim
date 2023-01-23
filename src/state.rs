@@ -17,6 +17,7 @@
 
 use bgpsim::{bgp::BgpRoute, types::RouterId};
 use gloo_utils::document;
+use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 use yew::prelude::Html;
 use yewdux::prelude::Store;
@@ -30,6 +31,7 @@ pub struct State {
     layer: Layer,
     prefix: Option<Pfx>,
     dark_mode: bool,
+    features: Features,
 }
 
 impl Default for State {
@@ -40,6 +42,28 @@ impl Default for State {
             layer: Layer::FwState,
             prefix: Default::default(),
             dark_mode: false,
+            features: Default::default(),
+        }
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct Features {
+    pub load_balancing: bool,
+    pub ospf: bool,
+    pub static_routes: bool,
+    pub bgp: bool,
+    pub specification: bool,
+}
+
+impl Default for Features {
+    fn default() -> Self {
+        Self {
+            load_balancing: true,
+            ospf: true,
+            static_routes: true,
+            bgp: true,
+            specification: true,
         }
     }
 }
@@ -47,6 +71,14 @@ impl Default for State {
 impl Eq for State {}
 
 impl State {
+    pub fn features(&self) -> &Features {
+        &self.features
+    }
+
+    pub fn features_mut(&mut self) -> &mut Features {
+        &mut self.features
+    }
+
     pub fn selected(&self) -> Selected {
         self.selected
     }
@@ -156,7 +188,7 @@ impl Hover {
     }
 }
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, Deserialize, Serialize)]
 pub enum Layer {
     FwState,
     RouteProp,
