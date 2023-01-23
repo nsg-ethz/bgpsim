@@ -159,7 +159,7 @@ fn add_router() -> Html {
 fn add_new_router(net: &mut Net, internal: bool) {
     let prefix = if internal { "R" } else { "E" };
     let name = (1..)
-        .map(|x| format!("{}{}", prefix, x))
+        .map(|x| format!("{prefix}{x}"))
         .find(|n| net.net().get_router_id(n).is_err())
         .unwrap(); // safety: This unwrap is ok because of the infinite iterator!
     let router_id = if internal {

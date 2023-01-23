@@ -208,7 +208,7 @@ impl MatchValue {
             MatchValue::Router(r) => r.fmt(&net.net()).to_string(),
             MatchValue::List(x) => x.iter().join("; "),
             MatchValue::PrefixList(x) => x.iter().join("; "),
-            MatchValue::Range(x, y) => format!("{} - {}", x, y),
+            MatchValue::Range(x, y) => format!("{x} - {y}"),
         }
     }
 }

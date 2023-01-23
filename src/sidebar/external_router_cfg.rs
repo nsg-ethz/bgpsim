@@ -143,7 +143,7 @@ impl Component for ExternalRouterCfg {
 
         html! {
             <div class="w-full space-y-2">
-                <Divider text={format!("External Router {}", name_text)} />
+                <Divider text={format!("External Router {name_text}")} />
                 <Element text={"Name"}>
                     <TextField text={name_text} on_change={on_name_change} on_set={on_name_set} correct={self.name_input_correct}/>
                 </Element>

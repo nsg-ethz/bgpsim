@@ -67,7 +67,7 @@ impl Component for StaticRouteEntryCfg {
         let target = ctx.props().target;
         let prefix = ctx.props().prefix;
 
-        let section_text = format!("Static route for {}", prefix);
+        let section_text = format!("Static route for {prefix}");
 
         let (state_text, state_checked) = match target {
             StaticRoute::Direct(_) | StaticRoute::Indirect(_) => ("Permit", true),

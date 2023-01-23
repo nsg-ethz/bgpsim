@@ -170,7 +170,7 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
     // first, try to deserialize the network. If that works, ignore the config
     let net = Network::from_json_str(s, Queue::default).map_err(|x| x.to_string())?;
     let content: Value =
-        serde_json::from_str(s).map_err(|e| format!("cannot parse json file! {}", e))?;
+        serde_json::from_str(s).map_err(|e| format!("cannot parse json file! {e}"))?;
     let spec = content
         .get("spec")
         .and_then(|v| {

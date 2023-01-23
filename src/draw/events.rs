@@ -144,17 +144,15 @@ fn bgp_event(props: &BgpEventProps) -> Html {
     let y = props.p.y();
 
     let d_frame = format!(
-        "M {} {} m 22 13 v -7 a 2 2 0 0 0 -2 -2 h -16 a 2 2 0 0 0 -2 2 v 12 c 0 1.1 0.9 2 2 2 h 8",
-        x, y
+        "M {x} {y} m 22 13 v -7 a 2 2 0 0 0 -2 -2 h -16 a 2 2 0 0 0 -2 2 v 12 c 0 1.1 0.9 2 2 2 h 8"
     );
     let d_lid = format!(
-        "M {} {} m 22 7 l -8.97 5.7 a 1.94 1.94 0 0 1 -2.06 0 l -8.97 -5.7",
-        x, y
+        "M {x} {y} m 22 7 l -8.97 5.7 a 1.94 1.94 0 0 1 -2.06 0 l -8.97 -5.7"
     );
 
     if is_update {
-        let d_plus_1 = format!("M {} {} m 19 16 v 6", x, y);
-        let d_plus_2 = format!("M {} {} m 16 19 h 6", x, y);
+        let d_plus_1 = format!("M {x} {y} m 19 16 v 6");
+        let d_plus_2 = format!("M {x} {y} m 16 19 h 6");
         html! {
             <g>
                 <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave}></path>
@@ -164,8 +162,8 @@ fn bgp_event(props: &BgpEventProps) -> Html {
             </g>
         }
     } else {
-        let d_x_1 = format!("M {} {} m 17 17 4 4", x, y);
-        let d_x_2 = format!("M {} {} m 21 17 -4 4", x, y);
+        let d_x_1 = format!("M {x} {y} m 17 17 4 4");
+        let d_x_2 = format!("M {x} {y} m 21 17 -4 4");
         html! {
             <g>
                 <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave}></path>

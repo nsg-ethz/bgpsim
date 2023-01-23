@@ -308,6 +308,7 @@ pub fn route_table(props: &RouteTableProps) -> Html {
 }
 
 #[derive(Properties, PartialEq, Eq)]
+#[allow(clippy::type_complexity)]
 pub struct RibTableProps {
     pub rib: Vec<(Pfx, Vec<(BgpRibEntry<Pfx>, bool)>)>,
 }
