@@ -344,7 +344,7 @@ fn feature_settings(props: &FeatureSettingsProps) -> Html {
                     <button class={element_class} onclick={toggle_bgp}>
                         <p class="flex-1 text-left ml-8">{"BGP"}</p>
                         <div class="pointer-events-none flex flex-row-reverse mt-2">
-                            <Toggle text={""} on_click={Callback::from(|_| ())} checked={state.features().ospf}/>
+                            <Toggle text={""} on_click={Callback::from(|_| ())} checked={state.features().bgp}/>
                         </div>
                     </button>
                     <button class={element_class} onclick={toggle_load_balancing}>
