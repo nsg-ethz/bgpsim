@@ -103,7 +103,7 @@ pub fn export_url() -> String {
     let url = window()
         .and_then(|w| w.location().href().ok())
         .unwrap_or_else(|| String::from("bgpsim.org/"));
-    format!("{url}i/{encoded_data}")
+    format!("{url}?data={encoded_data}")
 }
 
 #[derive(Default, Deserialize, Serialize)]

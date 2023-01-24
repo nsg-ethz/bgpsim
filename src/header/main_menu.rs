@@ -113,11 +113,11 @@ impl Component for MainMenu {
 
         let logo = if self.state.is_dark_mode() {
             html! {
-                <img class="pb-4" src="https://iospf.tibors.ch/images/bgpsim/dark_text.svg" alt="BGP-Sim" />
+                <img class="pb-4" src="./dark_text.svg" alt="BGP-Sim" />
             }
         } else {
             html! {
-                <img class="pb-4" src="https://iospf.tibors.ch/images/bgpsim/light_text.svg" alt="BGP-Sim" />
+                <img class="pb-4" src="./light_text.svg" alt="BGP-Sim" />
             }
         };
 
@@ -132,8 +132,11 @@ impl Component for MainMenu {
                     </div>
                     <div class="flex-1 flex flex-col items-center justify-center pt-2 pb-10">
                         {logo}
-                        // <p class="text-2xl font-bold text-main"> {"BGP-Sim"} </p>
-                        <p class="text"> {"By "} <a class={link_class} href="https://tibors.ch" {target}>{"Tibor Schneider"}</a> {" @ "} <a class={link_class} href="https://nsg.ee.ethz.ch" {target}>{"NSG"}</a> </p>
+                        if cfg!(feature = "anonymous") {
+                            <p class="text"> {"SIGCOMM anonymous review process"} </p>
+                        } else {
+                            <p class="text"> {"By "} <a class={link_class} href="https://tibors.ch" {target}>{"Tibor Schneider"}</a> {" @ "} <a class={link_class} href="https://nsg.ee.ethz.ch" {target}>{"NSG"}</a> </p>
+                        }
                     </div>
                     <div class="p-2 flex flex-col space-y-2">
                         <button class={element_class} onclick={toggle_auto_simulate}>

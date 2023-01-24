@@ -34,10 +34,8 @@ use http_serde::import_url;
 use sidebar::Sidebar;
 use state::State;
 use tooltip::Tooltip;
-
+use web_sys::UrlSearchParams;
 use yew::prelude::*;
-use yew_router::prelude::*;
-use yewdux::prelude::*;
 
 #[function_component(App)]
 fn app() -> Html {
@@ -70,33 +68,55 @@ fn app() -> Html {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Routable)]
-enum Route {
-    #[not_found]
-    #[at("/")]
-    Home,
-    #[at("/i/:d")]
-    ImportNet { d: String },
-}
-
-fn switch(route: &Route) -> Html {
-    match route {
-        Route::Home => html! {<App />},
-        Route::ImportNet { d } => {
-            import_url(d);
-            html! { <Redirect<Route> to={Route::Home} /> }
-        }
-    }
-}
-
 #[function_component(Entry)]
 fn entry() -> Html {
+    let last_query = use_state(String::new);
+
+    if let Ok(query) = window().location().search() {
+        if last_query.as_str() != query {
+            if let Ok(params) = UrlSearchParams::new_with_str(&query) {
+                if let Some(d) = params.get("data") {
+                    log::debug!("import the url data");
+                    import_url(d);
+                }
+            }
+
+            last_query.set(query);
+        }
+    }
+
     html! {
-        <BrowserRouter>
-            <Switch<Route> render={Switch::render(switch)} />
-        </BrowserRouter>
+        <App />
     }
 }
+
+// #[derive(Debug, Clone, PartialEq, Eq, Routable)]
+// enum Route {
+//     #[not_found]
+//     #[at("/")]
+//     Home,
+//     #[at("/i/:d")]
+//     ImportNet { d: String },
+// }
+//
+// fn switch(route: &Route) -> Html {
+//     match route {
+//         Route::Home => html! {<App />},
+//         Route::ImportNet { d } => {
+//             import_url(d);
+//             html! { <Redirect<Route> to={Route::Home} /> }
+//         }
+//     }
+// }
+//
+// #[function_component(Entry)]
+// fn entry() -> Html {
+//     html! {
+//         <BrowserRouter>
+//             <Switch<Route> render={Switch::render(switch)} />
+//         </BrowserRouter>
+//     }
+// }
 
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());
