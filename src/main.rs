@@ -36,6 +36,7 @@ use state::State;
 use tooltip::Tooltip;
 use web_sys::UrlSearchParams;
 use yew::prelude::*;
+use yewdux::prelude::*;
 
 #[function_component(App)]
 fn app() -> Html {
