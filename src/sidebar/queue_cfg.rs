@@ -163,7 +163,7 @@ struct EventProps {
 
 #[function_component(EventCfg)]
 fn event_cfg(props: &EventProps) -> Html {
-    let (net, _) = use_store::<Net>();
+    let (net, net_dispatch) = use_store::<Net>();
     let net_borrow = net.net();
     let net = net_borrow.deref();
     let dir_class = "text-main font-bold";
@@ -176,9 +176,21 @@ fn event_cfg(props: &EventProps) -> Html {
         }
     };
     let i = props.i;
+    let clickable = allow_execute(net.queue(), i);
+    let onclick = net_dispatch.reduce_mut_callback(move |net| {
+        if clickable {
+            let mut n = net.net_mut();
+            n.queue_mut().swap_to_front(i);
+            n.simulate_step().unwrap();
+        }
+    });
     let onmouseenter = props.on_mouse_enter.reform(move |_| (src, dst, i));
     let onmouseleave = props.on_mouse_leave.reform(move |_| ());
-    let div_class = "p-4 rounded-md shadow-md border border-base-5 bg-base-1 hover:bg-base-2 hover:shadow-lg w-full flex flex-col";
+    let div_class = if clickable {
+        "p-4 rounded-md shadow-md border border-base-5 bg-base-2 hover:bg-base-3 hover:shadow-lg w-full flex flex-col transition ease-in-out duration-150 cursor-pointer"
+    } else {
+        "p-4 rounded-md shadow-md border border-base-5 bg-base-2 w-lg w-full flex flex-col cursor-not-allowed"
+    };
     let div_class = match (props.translate, props.checked) {
         (t, false) if t > 0 => classes!(
             "transition",
@@ -215,7 +227,7 @@ fn event_cfg(props: &EventProps) -> Html {
         _ => classes!(div_class),
     };
     html! {
-        <div class={div_class} {onmouseenter} {onmouseleave}>
+        <div class={div_class} {onmouseenter} {onmouseleave} {onclick}>
             <p class={dir_class}> {props.i + 1} {": "} {src.fmt(net)} {" → "} {dst.fmt(net)} {": "} {ty} </p>
             {content}
         </div>
@@ -245,4 +257,18 @@ fn allow_swap(queue: &Queue, pos: usize) -> bool {
         (Some(Event::Bgp(_, s1, d1, _)), Some(Event::Bgp(_, s2, d2, _)))
         if (s1, d1) == (s2, d2)
     }
+}
+
+fn allow_execute(queue: &Queue, pos: usize) -> bool {
+    if pos + 1 >= queue.len() {
+        return false;
+    }
+    if let Some(Event::Bgp(_, src, dst, _)) = queue.get(pos) {
+        for k in 0..pos {
+            if matches!(queue.get(k), Some(Event::Bgp(_, s, d, _)) if (src, dst) == (s, d)) {
+                return false;
+            }
+        }
+    }
+    true
 }

@@ -30,7 +30,7 @@ mod tooltip;
 use draw::canvas::Canvas;
 use gloo_utils::window;
 use header::Header;
-use http_serde::import_url;
+use http_serde::{import_json_str, import_url};
 use sidebar::Sidebar;
 use state::State;
 use tooltip::Tooltip;
@@ -80,6 +80,30 @@ fn entry() -> Html {
                     log::debug!("import the url data");
                     import_url(d);
                 }
+                #[cfg(feature = "atomic_bgp")]
+                if let Some(scenario) = params.get("scenario") {
+                    match scenario.as_str() {
+                        "abilene" => {
+                            import_json_str(include_str!("../scenarios/abilene_atomic.json"))
+                        }
+                        "abilene-baseline" => {
+                            import_json_str(include_str!("../scenarios/abilene_baseline.json"))
+                        }
+                        "link-failure" => {
+                            import_json_str(include_str!("../scenarios/link_failure_atomic.json"))
+                        }
+                        "link-failure-baseline" => {
+                            import_json_str(include_str!("../scenarios/link_failure_baseline.json"))
+                        }
+                        "new-best-route" => {
+                            import_json_str(include_str!("../scenarios/new_best_route_atomic.json"))
+                        }
+                        "new-best-route-baseline" => import_json_str(include_str!(
+                            "../scenarios/new_best_route_baseline.json"
+                        )),
+                        s => log::error!("Unknown scenario: {s}"),
+                    }
+                }
             }
 
             last_query.set(query);
@@ -90,34 +114,6 @@ fn entry() -> Html {
         <App />
     }
 }
-
-// #[derive(Debug, Clone, PartialEq, Eq, Routable)]
-// enum Route {
-//     #[not_found]
-//     #[at("/")]
-//     Home,
-//     #[at("/i/:d")]
-//     ImportNet { d: String },
-// }
-//
-// fn switch(route: &Route) -> Html {
-//     match route {
-//         Route::Home => html! {<App />},
-//         Route::ImportNet { d } => {
-//             import_url(d);
-//             html! { <Redirect<Route> to={Route::Home} /> }
-//         }
-//     }
-// }
-//
-// #[function_component(Entry)]
-// fn entry() -> Html {
-//     html! {
-//         <BrowserRouter>
-//             <Switch<Route> render={Switch::render(switch)} />
-//         </BrowserRouter>
-//     }
-// }
 
 fn main() {
     wasm_logger::init(wasm_logger::Config::default());

@@ -58,6 +58,13 @@ impl Queue {
         self.0.swap(i, j)
     }
 
+    pub fn swap_to_front(&mut self, mut pos: usize) {
+        while pos > 0 {
+            self.0.swap(pos, pos - 1);
+            pos -= 1;
+        }
+    }
+
     pub fn get(&self, index: usize) -> Option<&Event<Pfx, ()>> {
         self.0.get(index)
     }
@@ -361,7 +368,7 @@ impl Net {
 
     /// export the current file and download it.
     pub fn export(&self) {
-        trigger_download(export_json_str(false), "bgpsim_json");
+        trigger_download(export_json_str(false), "bgpsim.json");
     }
 
     /// export to latex
