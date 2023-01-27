@@ -131,8 +131,8 @@ pub trait Addressor<P: Prefix> {
     /// Get the internal network
     fn internal_network(&mut self) -> Ipv4Net;
 
-    /// Try to get router address (router ID) for the given router or return `None` if it has not
-    /// been allocated.
+    /// Try to get router address (router ID) for the given router or return `None` if the router
+    /// has not been allocated.
     fn try_get_router_address(&self, router: RouterId) -> Option<Ipv4Addr> {
         self.try_get_router(router).map(|r| r.1)
     }
@@ -169,8 +169,8 @@ pub trait Addressor<P: Prefix> {
         Ok(self.router(router)?.0)
     }
 
-    /// Try to get both the network and the IP address of a router or return `None` if it has not
-    /// been allocated.
+    /// Try to get both the network and the IP address of a router or return `None` if the router
+    /// has not been allocated.
     fn try_get_router(&self, router: RouterId) -> Option<(Ipv4Net, Ipv4Addr)>;
 
     /// Get both the network and the IP address of a router.
@@ -214,6 +214,17 @@ pub trait Addressor<P: Prefix> {
         })
     }
 
+    /// Try to get the interface address of a specific link in the network. Returns `None` if the
+    /// router has not been allocated.
+    fn try_get_iface_address(
+        &self,
+        router: RouterId,
+        neighbor: RouterId,
+    ) -> Option<Result<Ipv4Addr, ExportError>> {
+        self.try_get_iface(router, neighbor)
+            .map(|r| r.map(|iface| iface.0))
+    }
+
     /// Get the interface address of a specific link in the network
     fn iface_address(
         &mut self,
@@ -221,6 +232,17 @@ pub trait Addressor<P: Prefix> {
         neighbor: RouterId,
     ) -> Result<Ipv4Addr, ExportError> {
         Ok(self.iface(router, neighbor)?.0)
+    }
+
+    /// Try to get the full interface address, including the network mask. Returns `None` if the
+    /// router has not been allocated.
+    fn try_get_iface_address_full(
+        &self,
+        router: RouterId,
+        neighbor: RouterId,
+    ) -> Option<Result<Ipv4Net, ExportError>> {
+        self.try_get_iface(router, neighbor)
+            .map(|r| r.and_then(|(ip, net, _)| Ok(Ipv4Net::new(ip, net.prefix_len())?)))
     }
 
     /// Get the full interface address, including the network mask
@@ -233,15 +255,43 @@ pub trait Addressor<P: Prefix> {
         Ok(Ipv4Net::new(ip, net.prefix_len())?)
     }
 
+    /// Try to get the interface index of the specified link and router in the network. Returns
+    /// `None` if the router has not been allocated.
+    fn try_get_iface_index(
+        &self,
+        router: RouterId,
+        neighbor: RouterId,
+    ) -> Option<Result<usize, ExportError>> {
+        self.try_get_iface(router, neighbor)
+            .map(|r| r.map(|iface| iface.2))
+    }
+
     /// Get the interface index of the specified link and router in the network.
     fn iface_index(&mut self, router: RouterId, neighbor: RouterId) -> Result<usize, ExportError> {
         Ok(self.iface(router, neighbor)?.2)
+    }
+
+    /// Try to get the link network. Returns `None` if the router has not been allocated.
+    fn try_get_iface_network(
+        &self,
+        a: RouterId,
+        b: RouterId,
+    ) -> Option<Result<Ipv4Net, ExportError>> {
+        self.try_get_iface(a, b).map(|r| r.map(|iface| iface.1))
     }
 
     /// Get the link network.
     fn iface_network(&mut self, a: RouterId, b: RouterId) -> Result<Ipv4Net, ExportError> {
         Ok(self.iface(a, b)?.1)
     }
+
+    /// Try to get the IP address, the network and the interface index of a router connected to
+    /// another. Returns `None` if the router has not been allocated.
+    fn try_get_iface(
+        &self,
+        router: RouterId,
+        neighbor: RouterId,
+    ) -> Option<Result<(Ipv4Addr, Ipv4Net, usize), ExportError>>;
 
     /// Get the IP address, the network and the interface index of a router connected to another.
     fn iface(

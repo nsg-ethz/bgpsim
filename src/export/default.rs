@@ -308,6 +308,26 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
         }
     }
 
+    fn try_get_iface(
+        &self,
+        router: RouterId,
+        neighbor: RouterId,
+    ) -> Option<Result<(Ipv4Addr, Ipv4Net, usize), ExportError>> {
+        let err = || ExportError::RouterNotConnectedTo(router, neighbor);
+        let link = LinkId::from((router, neighbor));
+        self.link_addrs.get(&link).map(|net| {
+            Ok({
+                let (idx, addr) = self
+                    .interfaces
+                    .get(&router)
+                    .ok_or_else(err)?
+                    .get(&neighbor)
+                    .ok_or_else(err)?;
+                (*addr, *net, *idx)
+            })
+        })
+    }
+
     fn iface(
         &mut self,
         router: RouterId,
