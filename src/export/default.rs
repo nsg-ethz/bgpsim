@@ -248,6 +248,10 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
         self.internal_ip_range
     }
 
+    fn try_get_router(&self, router: RouterId) -> Option<(Ipv4Net, Ipv4Addr)> {
+        self.router_addrs.get(&router).copied()
+    }
+
     fn router(&mut self, router: RouterId) -> Result<(Ipv4Net, Ipv4Addr), ExportError> {
         Ok(match self.router_addrs.entry(router) {
             Entry::Occupied(e) => *e.get(),

@@ -131,9 +131,25 @@ pub trait Addressor<P: Prefix> {
     /// Get the internal network
     fn internal_network(&mut self) -> Ipv4Net;
 
+    /// Try to get router address (router ID) for the given router or return `None` if it has not
+    /// been allocated.
+    fn try_get_router_address(&self, router: RouterId) -> Option<Ipv4Addr> {
+        self.try_get_router(router).map(|r| r.1)
+    }
+
     /// Get router address (router ID) for the given router.
     fn router_address(&mut self, router: RouterId) -> Result<Ipv4Addr, ExportError> {
         Ok(self.router(router)?.1)
+    }
+
+    /// Try to get router address (router ID) for the given router, including the prefix length.
+    /// Returns `None` if the router has not been allocated.
+    fn try_get_router_address_full(
+        &self,
+        router: RouterId,
+    ) -> Option<Result<Ipv4Net, ExportError>> {
+        self.try_get_router(router)
+            .map(|(net, ip)| Ok(Ipv4Net::new(ip, net.prefix_len())?))
     }
 
     /// Get router address (router ID) for the given router, including the prefix length.
@@ -142,10 +158,20 @@ pub trait Addressor<P: Prefix> {
         Ok(Ipv4Net::new(ip, net.prefix_len())?)
     }
 
+    /// Try to get the network of the router itself. This address will be announced via BGP.
+    /// Returns `None` if the router has not been allocated.
+    fn try_get_router_network(&self, router: RouterId) -> Option<Ipv4Net> {
+        self.try_get_router(router).map(|r| r.0)
+    }
+
     /// Get the network of the router itself. This address will be announced via BGP.
     fn router_network(&mut self, router: RouterId) -> Result<Ipv4Net, ExportError> {
         Ok(self.router(router)?.0)
     }
+
+    /// Try to get both the network and the IP address of a router or return `None` if it has not
+    /// been allocated.
+    fn try_get_router(&self, router: RouterId) -> Option<(Ipv4Net, Ipv4Addr)>;
 
     /// Get both the network and the IP address of a router.
     fn router(&mut self, router: RouterId) -> Result<(Ipv4Net, Ipv4Addr), ExportError>;
