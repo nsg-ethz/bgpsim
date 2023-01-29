@@ -260,7 +260,7 @@ fn allow_swap(queue: &Queue, pos: usize) -> bool {
 }
 
 fn allow_execute(queue: &Queue, pos: usize) -> bool {
-    if pos + 1 >= queue.len() {
+    if pos >= queue.len() {
         return false;
     }
     if let Some(Event::Bgp(_, src, dst, _)) = queue.get(pos) {
