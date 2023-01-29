@@ -16,7 +16,7 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use crate::bgp::BgpSessionType::*;
-use crate::config::{Config, ConfigExpr::*, ConfigModifier::*, ConfigPatch};
+use crate::config::{Config, ConfigExpr::*, ConfigModifier::*, ConfigPatch, RouteMapEdit};
 use crate::types::{Ipv4Prefix, Prefix, RouterId, SimplePrefix, SinglePrefix};
 use crate::{route_map::*, router::StaticRoute::*};
 
@@ -122,6 +122,83 @@ mod t1 {
 
         c.apply_patch(&patch).unwrap_err();
         assert_eq!(c, c_before);
+    }
+
+    #[test]
+    fn test_batch_route_map_update<P: Prefix>() {
+        let mut c = Config::<P>::new();
+
+        let r0: RouterId = 0.into();
+        let r1: RouterId = 1.into();
+
+        c.add(link_weight!(r0, r1, 1.0)).unwrap();
+        c.add(link_weight!(r1, r0, 1.0)).unwrap();
+
+        let rm0 = RouteMapBuilder::new()
+            .deny()
+            .order(20)
+            .match_community(10)
+            .build();
+        let rm1 = RouteMapBuilder::new()
+            .deny()
+            .order(20)
+            .match_community(12)
+            .build();
+        let rm2 = RouteMapBuilder::new().allow().order(10).build();
+
+        c.add(BgpRouteMap {
+            router: r0,
+            neighbor: r1,
+            direction: RouteMapDirection::Incoming,
+            map: rm0.clone(),
+        })
+        .unwrap();
+
+        let mut c2 = c.clone();
+
+        c.apply_modifier(&Update {
+            from: BgpRouteMap {
+                router: r0,
+                neighbor: r1,
+                direction: RouteMapDirection::Incoming,
+                map: rm0.clone(),
+            },
+            to: BgpRouteMap {
+                router: r0,
+                neighbor: r1,
+                direction: RouteMapDirection::Incoming,
+                map: rm1.clone(),
+            },
+        })
+        .unwrap();
+        c.add(BgpRouteMap {
+            router: r0,
+            neighbor: r1,
+            direction: RouteMapDirection::Incoming,
+            map: rm2.clone(),
+        })
+        .unwrap();
+
+        c2.apply_modifier(&BatchRouteMapEdit {
+            router: r0,
+            updates: vec![
+                RouteMapEdit {
+                    neighbor: r1,
+                    direction: RouteMapDirection::Incoming,
+                    old: Some(rm0),
+                    new: Some(rm1),
+                },
+                RouteMapEdit {
+                    neighbor: r1,
+                    direction: RouteMapDirection::Incoming,
+                    old: None,
+                    new: Some(rm2),
+                },
+            ],
+        })
+        .unwrap();
+
+        assert_eq!(c, c2);
     }
 
     #[instantiate_tests(<SinglePrefix>)]

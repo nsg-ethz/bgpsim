@@ -17,9 +17,11 @@
 
 use crate::{
     bgp::BgpSessionType::*,
-    config::{Config, ConfigExpr, ConfigModifier::*, ConfigPatch, NetworkConfig},
-    event::EventQueue,
+    config::{Config, ConfigExpr, ConfigModifier::*, ConfigPatch, NetworkConfig, RouteMapEdit},
+    event::{BasicEventQueue, EventQueue},
+    interactive::InteractiveNetwork,
     network::Network,
+    route_map::{RouteMapBuilder, RouteMapDirection::*},
     types::{AsId, NetworkError, Prefix, RouterId, SimplePrefix},
 };
 
@@ -950,6 +952,97 @@ mod t {
         test_route!(net, rr2, prefix, [rr2, e1, p1]);
         test_route!(net, r1, prefix, [r1, e1, p1]);
         test_route!(net, r2, prefix, [r2, r1, e1, p1]);
+    }
+
+    #[test]
+    fn batch_route_map_update<P: Prefix>() {
+        let mut net: Network<P, BasicEventQueue<P>> = Network::default();
+        let p = P::from(1);
+        let r1 = net.add_router("r1");
+        let r2 = net.add_router("r2");
+        let ex = net.add_external_router("ex", AsId(100));
+        net.add_link(r1, r2);
+        net.add_link(r1, ex);
+        net.set_link_weight(r1, r2, 1.0).unwrap();
+        net.set_link_weight(r2, r1, 1.0).unwrap();
+        net.set_link_weight(r1, ex, 1.0).unwrap();
+        net.set_link_weight(ex, r1, 1.0).unwrap();
+        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r1, ex, Some(EBgp)).unwrap();
+        net.set_bgp_route_map(
+            r1,
+            r2,
+            Outgoing,
+            RouteMapBuilder::new().order(100).deny().build(),
+        )
+        .unwrap();
+        net.advertise_external_route(ex, p, [100, 100, 1], None, [10])
+            .unwrap();
+        net.manual_simulation();
+
+        assert_eq!(net.get_device(r2).unwrap_internal().get_next_hop(p), vec![]);
+
+        let mut net2 = net.clone();
+
+        net2.apply_modifier(&BatchRouteMapEdit {
+            router: r1,
+            updates: vec![
+                RouteMapEdit {
+                    neighbor: r2,
+                    direction: Outgoing,
+                    old: Some(RouteMapBuilder::new().order(100).deny().build()),
+                    new: Some(RouteMapBuilder::new().order(100).allow().build()),
+                },
+                RouteMapEdit {
+                    neighbor: r2,
+                    direction: Outgoing,
+                    old: None,
+                    new: Some(
+                        RouteMapBuilder::new()
+                            .order(50)
+                            .deny()
+                            .match_community(10)
+                            .build(),
+                    ),
+                },
+            ],
+        })
+        .unwrap();
+        assert!(net2.queue().is_empty());
+
+        net.apply_modifier(&Update {
+            from: ConfigExpr::BgpRouteMap {
+                router: r1,
+                neighbor: r2,
+                direction: Outgoing,
+                map: RouteMapBuilder::new().order(100).deny().build(),
+            },
+            to: ConfigExpr::BgpRouteMap {
+                router: r1,
+                neighbor: r2,
+                direction: Outgoing,
+                map: RouteMapBuilder::new().order(100).allow().build(),
+            },
+        })
+        .unwrap();
+        net.apply_modifier(&Insert(ConfigExpr::BgpRouteMap {
+            router: r1,
+            neighbor: r2,
+            direction: Outgoing,
+            map: RouteMapBuilder::new()
+                .order(10)
+                .deny()
+                .match_community(10)
+                .build(),
+        }))
+        .unwrap();
+
+        assert_eq!(net.queue().len(), 2);
+        net.simulate().unwrap();
+
+        pretty_assertions::assert_eq!(net.get_config().unwrap(), net2.get_config().unwrap());
+
+        assert!(net.weak_eq(&net2));
     }
 
     #[instantiate_tests(<SinglePrefix>)]
