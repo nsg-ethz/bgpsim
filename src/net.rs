@@ -380,6 +380,59 @@ impl Net {
         }
     }
 
+    /// Normalize the positions of the nodes only by scaling both x and y (without stretching) and centering.
+    pub fn normalize_pos_scale_only(&mut self) {
+        // scale all numbers to be in the expected range
+        let min_x = self
+            .pos()
+            .values()
+            .map(|p| p.x)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(0.0);
+        let max_x = self
+            .pos()
+            .values()
+            .map(|p| p.x)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(1.0);
+        let min_y = self
+            .pos()
+            .values()
+            .map(|p| p.y)
+            .min_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(0.0);
+        let max_y = self
+            .pos()
+            .values()
+            .map(|p| p.y)
+            .max_by(|a, b| a.partial_cmp(b).unwrap())
+            .unwrap_or(1.0);
+
+        let scale_x = 1.0 / (max_x - min_x);
+        let offset_x = -min_x;
+        let scale_y = 1.0 / (max_y - min_y);
+        let offset_y = -min_y;
+
+        let (scale, dx, dy) = if scale_x > scale_y {
+            // max_tx =
+            // min_tx = 0
+            // unused =
+            // offset = (1.0 - (max_x - min_x) * scale_y) / 2
+            //
+            // transformation: (x - min_x) * scale_y + offset
+            let dx = (1.0 - (max_x - min_x) * scale_y) * 0.5;
+            (scale_y, dx, 0.0)
+        } else {
+            let dy = (1.0 - (max_y - min_y) * scale_x) * 0.5;
+            (scale_x, 0.0, dy)
+        };
+
+        for p in self.pos_mut().values_mut() {
+            p.x = (p.x + offset_x) * scale + dx;
+            p.y = (p.y + offset_y) * scale + dy;
+        }
+    }
+
     fn compute_delta(old: &HashMap<RouterId, Point>, new: &HashMap<RouterId, Point>) -> f64 {
         old.iter()
             .map(|(r, p)| (p, new.get(r).unwrap()))

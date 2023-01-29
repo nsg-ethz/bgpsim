@@ -31,6 +31,7 @@ use draw::canvas::Canvas;
 use gloo_utils::window;
 use header::Header;
 use http_serde::{import_json_str, import_url};
+use net::Net;
 use sidebar::Sidebar;
 use state::State;
 use tooltip::Tooltip;
@@ -107,6 +108,9 @@ fn entry() -> Html {
                         }
                         s => log::error!("Unknown scenario: {s}"),
                     }
+                    // scale appropriately
+                    let net_dispatch = Dispatch::<Net>::new();
+                    net_dispatch.reduce_mut(|n| n.normalize_pos_scale_only());
                 }
             }
 
