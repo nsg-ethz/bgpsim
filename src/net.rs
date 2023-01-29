@@ -126,9 +126,9 @@ pub struct Net {
     recorder: Option<Network<Pfx, Queue>>,
     speed: Mrc<HashMap<RouterId, Point>>,
     #[cfg(feature = "atomic_bgp")]
-    pub migration: Mrc<Vec<Vec<AtomicCommand<Pfx>>>>,
+    pub migration: Mrc<Vec<Vec<Vec<AtomicCommand<Pfx>>>>>,
     #[cfg(feature = "atomic_bgp")]
-    pub migration_state: Mrc<Vec<Vec<MigrationState>>>,
+    pub migration_state: Mrc<Vec<Vec<Vec<MigrationState>>>>,
 }
 
 impl Default for Net {
@@ -183,27 +183,48 @@ impl Net {
     }
 
     #[cfg(feature = "atomic_bgp")]
-    pub fn migration(&self) -> impl Deref<Target = Vec<Vec<AtomicCommand<Pfx>>>> + '_ {
+    pub fn migration(&self) -> impl Deref<Target = Vec<Vec<Vec<AtomicCommand<Pfx>>>>> + '_ {
         self.migration.borrow()
     }
 
     #[cfg(feature = "atomic_bgp")]
-    pub fn migration_state(&self) -> impl Deref<Target = Vec<Vec<MigrationState>>> + '_ {
+    pub fn migration_state(&self) -> impl Deref<Target = Vec<Vec<Vec<MigrationState>>>> + '_ {
         self.migration_state.borrow()
     }
 
     #[cfg(feature = "atomic_bgp")]
-    pub fn migration_state_mut(&self) -> impl DerefMut<Target = Vec<Vec<MigrationState>>> + '_ {
+    pub fn migration_state_mut(
+        &self,
+    ) -> impl DerefMut<Target = Vec<Vec<Vec<MigrationState>>>> + '_ {
         self.migration_state.borrow_mut()
     }
 
     #[cfg(feature = "atomic_bgp")]
-    pub fn migration_step(&self) -> usize {
+    pub fn migration_stage(&self) -> Option<usize> {
         self.migration_state()
+            .iter()
+            .find_position(|x| x.iter().flatten().any(|y| *y != MigrationState::Done))
+            .map(|(x, _)| x)
+    }
+
+    #[cfg(feature = "atomic_bgp")]
+    pub fn migration_stage_active(&self, stage: usize) -> bool {
+        self.migration_stage().map(|x| x == stage).unwrap_or(false)
+    }
+
+    #[cfg(feature = "atomic_bgp")]
+    pub fn migration_major(&self) -> Option<usize> {
+        let stage = self.migration_stage()?;
+        self.migration_state()[stage]
             .iter()
             .find_position(|x| x.iter().any(|y| *y != MigrationState::Done))
             .map(|(x, _)| x)
-            .unwrap_or_else(|| self.migration_state().len())
+    }
+
+    #[cfg(feature = "atomic_bgp")]
+    pub fn migration_stage_major_active(&self, stage: usize, step: usize) -> bool {
+        self.migration_stage().map(|x| x == stage).unwrap_or(false)
+            && self.migration_major().map(|x| x == step).unwrap_or(false)
     }
 
     pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {

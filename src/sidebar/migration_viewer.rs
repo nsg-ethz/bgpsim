@@ -24,7 +24,7 @@ use yewdux::prelude::*;
 
 use crate::{
     net::{MigrationState, Net, Pfx},
-    sidebar::{Divider, ExpandableSection},
+    sidebar::{Divider, ExpandableDivider, ExpandableSection},
     state::{Hover, State},
 };
 
@@ -38,14 +38,29 @@ pub fn migration_viewer() -> Html {
                 <p class="text-main-ia italic"> { "Migration is empty!" } </p>
             </div>
         }
+    } else if net.migration().len() == 1 {
+        let content = if net.migration()[0].len() == 1 {
+            (0..net.migration()[0][0].len())
+                .map(|minor| html! { <AtomicCommandViewer stage={0} major={0} {minor} />})
+                .collect::<Html>()
+        } else {
+            (0..net.migration().len())
+                .map(|major| html!( <AtomicCommandGroupViewer stage={0} {major} />))
+                .collect::<Html>()
+        };
+        html! {
+            <div class="w-full space-y-2 mt-2">
+                <Divider text={"Reconfiguration".to_string()}/>
+                { content }
+            </div>
+        }
     } else {
         let content = (0..net.migration().len())
-            .map(|major| html!( <AtomicCommandGroupViewer {major} />))
+            .map(|stage| html!( <AtomicCommandStageViewer {stage} />))
             .collect::<Html>();
 
         html! {
             <div class="w-full space-y-2 mt-2">
-                <Divider text={"Migration".to_string()}/>
                 { content }
             </div>
         }
@@ -53,24 +68,89 @@ pub fn migration_viewer() -> Html {
 }
 
 #[derive(Properties, PartialEq)]
+pub struct AtomicCommandStageProps {
+    pub stage: usize,
+}
+
+#[function_component(AtomicCommandStageViewer)]
+pub fn atomic_command_stage_viewer(props: &AtomicCommandStageProps) -> Html {
+    let (net, _) = use_store::<Net>();
+    let stage = props.stage;
+    let active = net.migration_stage_active(stage);
+
+    let num_groups = net
+        .migration()
+        .get(stage)
+        .map(|x| x.len())
+        .unwrap_or_default();
+
+    if num_groups == 0 {
+        return html!();
+    }
+
+    let content: Html = if num_groups == 1 {
+        let major = 0;
+        let num_commands = net
+            .migration()
+            .get(stage)
+            .and_then(|x| x.get(major))
+            .map(|x| x.len())
+            .unwrap_or_default();
+        (0..num_commands)
+            .map(|minor| html! {<AtomicCommandViewer {stage} {major} {minor} />})
+            .collect()
+    } else {
+        (0..num_groups)
+            .map(|major| html! {<AtomicCommandGroupViewer {stage} {major} />})
+            .collect()
+    };
+
+    let title = match stage {
+        0 => "Setup",
+        1 => "Migration commands",
+        2 => "Original command",
+        3 => "Migration commands",
+        4 => "Cleanup",
+        _ => "?",
+    };
+    let text = if active {
+        format!("{title} (current)")
+    } else {
+        title.to_string()
+    };
+
+    html! {
+        <ExpandableDivider {text}>
+            <div class="flex flex-col space-y-4 pb-4">
+                { content }
+            </div>
+        </ExpandableDivider>
+    }
+}
+
+#[derive(Properties, PartialEq)]
 pub struct AtomicCommandGroupProps {
+    pub stage: usize,
     pub major: usize,
 }
 
 #[function_component(AtomicCommandGroupViewer)]
 pub fn atomic_command_group_viewer(props: &AtomicCommandGroupProps) -> Html {
     let (net, _) = use_store::<Net>();
+    let stage = props.stage;
     let major = props.major;
-    let active = major == net.migration_step();
+    let active = net.migration_stage_major_active(stage, major);
 
     let num_cmds = net
         .migration()
+        .get(stage)
+        .unwrap()
         .get(major)
         .map(|x| x.len())
         .unwrap_or_default();
 
     let content: Html = (0..num_cmds)
-        .map(|minor| html! {<AtomicCommandViewer {major} {minor} />})
+        .map(|minor| html! {<AtomicCommandViewer {stage} {major} {minor} />})
         .collect();
 
     let text = if active {
@@ -90,6 +170,7 @@ pub fn atomic_command_group_viewer(props: &AtomicCommandGroupProps) -> Html {
 
 #[derive(Properties, PartialEq)]
 pub struct AtomicCommandProps {
+    pub stage: usize,
     pub major: usize,
     pub minor: usize,
 }
@@ -98,12 +179,14 @@ pub struct AtomicCommandProps {
 pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
     let (net, net_dispatch) = use_store::<Net>();
 
+    let stage = props.stage;
     let major = props.major;
     let minor = props.minor;
 
     let cmd = net
         .migration()
-        .get(major)
+        .get(stage)
+        .and_then(|x| x.get(major))
         .and_then(|x| x.get(minor))
         .cloned();
 
@@ -125,7 +208,8 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
 
         let (class, sym1, sym2, sym3, onclick) = match net
             .migration_state()
-            .get(major)
+            .get(stage)
+            .and_then(|x| x.get(major))
             .and_then(|x| x.get(minor))
         {
             Some(MigrationState::WaitPre) => (
@@ -143,7 +227,7 @@ pub fn atomic_command_viewer(props: &AtomicCommandProps) -> Html {
                         html!(<yew_lucide::ArrowRight class="w-4 h-4 self-center" />),
                         html!(<div class="w-4 h-4 self-center"></div>),
                         net_dispatch.reduce_mut_callback(move |n| {
-                            n.migration_state_mut()[major][minor] = MigrationState::WaitPost;
+                            n.migration_state_mut()[stage][major][minor] = MigrationState::WaitPost;
                             let raw: Vec<ConfigModifier<Pfx>> = cmd.clone().into();
                             for c in raw {
                                 n.net_mut().apply_modifier_unchecked(&c).unwrap();
