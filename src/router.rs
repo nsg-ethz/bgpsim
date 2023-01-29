@@ -39,7 +39,11 @@ use log::*;
 use ordered_float::NotNan;
 use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
-use std::{collections::HashMap, fmt::Write, mem::swap};
+use std::{
+    collections::{HashMap, HashSet},
+    fmt::Write,
+    mem::swap,
+};
 
 /// Bgp Router
 #[derive(Debug)]
@@ -907,8 +911,18 @@ impl<P: Prefix> Router<P> {
         if self.bgp_rib != other.bgp_rib {
             return false;
         }
-        if self.bgp_rib_out != other.bgp_rib_out {
-            return false;
+        let neighbors: HashSet<_> = self
+            .bgp_rib_out
+            .keys()
+            .chain(other.bgp_rib_out.keys())
+            .collect();
+        for n in neighbors {
+            match (self.bgp_rib_out.get(n), other.bgp_rib_out.get(n)) {
+                (Some(x), None) if !x.is_empty() => return false,
+                (None, Some(x)) if !x.is_empty() => return false,
+                (Some(a), Some(b)) if a != b => return false,
+                _ => {}
+            }
         }
         let prefix_union = self.bgp_known_prefixes.union(&other.bgp_known_prefixes);
         for prefix in prefix_union {

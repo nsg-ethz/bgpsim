@@ -1022,14 +1022,14 @@ where
             return false;
         }
 
-        // check if the forwarding state is the same
-        if self.get_forwarding_state() != other.get_forwarding_state() {
-            return false;
-        }
-
         if self.routers.keys().collect::<HashSet<_>>()
             != other.routers.keys().collect::<HashSet<_>>()
         {
+            return false;
+        }
+
+        // check if the forwarding state is the same
+        if self.get_forwarding_state() != other.get_forwarding_state() {
             return false;
         }
 
