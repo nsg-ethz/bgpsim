@@ -26,7 +26,7 @@ use itertools::{join, Itertools};
 
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute},
-    config::{Config, ConfigExpr, ConfigExprKey, ConfigModifier, ConfigPatch},
+    config::{Config, ConfigExpr, ConfigExprKey, ConfigModifier, ConfigPatch, RouteMapEdit},
     event::{BasicEventQueue, Event, FmtPriority},
     forwarding_state::{ForwardingState, TO_DST},
     network::Network,
@@ -487,6 +487,29 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigModifier<P> 
             ConfigModifier::Insert(e) => format!("INSERT {}", e.fmt(net)),
             ConfigModifier::Remove(e) => format!("REMOVE {}", e.fmt(net)),
             ConfigModifier::Update { from: _, to } => format!("MODIFY {}", to.fmt(net)),
+            ConfigModifier::BatchRouteMapEdit { router, updates } => format!(
+                "BATCH at {}: {}",
+                router.fmt(net),
+                updates.iter().map(|u| u.fmt(net)).join(", ")
+            ),
+        }
+    }
+}
+
+impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapEdit<P> {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+        let dir = match self.direction {
+            RouteMapDirection::Incoming => "in",
+            RouteMapDirection::Outgoing => "out",
+        };
+        let peer = self.neighbor.fmt(net);
+        match (self.old.as_ref(), self.new.as_ref()) {
+            (None, None) => String::new(),
+            (Some(old), None) => format!("del [{peer}:{dir}:{}]", old.order),
+            (None, Some(new)) => format!("add [{peer}:{dir}:{}] {}", new.order, new.fmt(net)),
+            (Some(_), Some(new)) => format!("upd [{peer}:{dir}:{}] {}", new.order, new.fmt(net)),
         }
     }
 }

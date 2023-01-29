@@ -941,6 +941,11 @@ impl<P: Prefix, A: Addressor<P>, Q> InternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
                 }
                 ConfigExpr::LoadBalancing { .. } => unreachable!(),
             },
+            ConfigModifier::BatchRouteMapEdit { router, updates } => updates
+                .into_iter()
+                .map(|u| u.into_modifier(router))
+                .map(|c| self.generate_command(net, addressor, c))
+                .collect::<Result<String, _>>(),
         }
     }
 }

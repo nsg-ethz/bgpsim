@@ -22,7 +22,7 @@
 
 use crate::{
     bgp::{BgpSessionType, BgpState, BgpStateRef},
-    config::NetworkConfig,
+    config::{NetworkConfig, RouteMapEdit},
     event::{BasicEventQueue, Event, EventQueue},
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
@@ -680,6 +680,38 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         self.enqueue_events(events);
         self.do_queue_maybe_skip()?;
         Ok(old_map)
+    }
+
+    /// Modify several route-maps on a single device at once. The router will first update all
+    /// route-maps, than re-run route dissemination once, and trigger several events. This function
+    /// will run the simulation afterwards (unless the network is in manual simulation mode.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    pub fn batch_update_route_maps(
+        &mut self,
+        router: RouterId,
+        updates: &[RouteMapEdit<P>],
+    ) -> Result<(), NetworkError> {
+        // prepare undo stack
+        #[cfg(feature = "undo")]
+        self.undo_stack.push(Vec::new());
+
+        let events = self
+            .routers
+            .get_mut(&router)
+            .ok_or(NetworkError::DeviceNotFound(router))?
+            .batch_update_route_maps(updates)?;
+
+        // add the undo action
+        #[cfg(feature = "undo")]
+        self.undo_stack
+            .last_mut()
+            .unwrap()
+            .push(vec![UndoAction::UndoDevice(router)]);
+
+        self.enqueue_events(events);
+        self.do_queue_maybe_skip()?;
+        Ok(())
     }
 
     /// Update or remove a static route on some router. This function will not cuase any

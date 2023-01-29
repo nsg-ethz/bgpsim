@@ -19,6 +19,7 @@
 
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
+    config::RouteMapEdit,
     event::{Event, EventOutcome},
     formatter::NetworkFormatter,
     network::Network,
@@ -622,6 +623,61 @@ impl<P: Prefix> Router<P> {
             ));
 
         self.update_bgp_tables(true).map(|events| (old_map, events))
+    }
+
+    /// Update or remove multiple route-map items. Any existing route-map entry for the same
+    /// neighbor in the same direction under the same order will be replaced. This function will
+    /// also return all events triggered by this action.
+    ///
+    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    pub(crate) fn batch_update_route_maps<T: Default>(
+        &mut self,
+        updates: &[RouteMapEdit<P>],
+    ) -> Result<Vec<Event<P, T>>, DeviceError> {
+        // prepare the undo action
+        #[cfg(feature = "undo")]
+        self.undo_stack.push(Vec::new());
+
+        for update in updates {
+            let neighbor = update.neighbor;
+            let direction = update.direction;
+            let (order, new) = if let Some(map) = update.new.as_ref() {
+                (map.order, Some(map.clone()))
+            } else if let Some(map) = update.old.as_ref() {
+                (map.order, None)
+            } else {
+                // skip an empty update.
+                continue;
+            };
+            let maps = match direction {
+                Incoming => self.bgp_route_maps_in.entry(neighbor).or_default(),
+                Outgoing => self.bgp_route_maps_out.entry(neighbor).or_default(),
+            };
+            let _old_map: Option<RouteMap<P>> =
+                match (new, maps.binary_search_by(|probe| probe.order.cmp(&order))) {
+                    (Some(mut new_map), Ok(pos)) => {
+                        std::mem::swap(&mut maps[pos], &mut new_map);
+                        Some(new_map)
+                    }
+                    (None, Ok(pos)) => Some(maps.remove(pos)),
+                    (Some(new_map), Err(pos)) => {
+                        maps.insert(pos, new_map);
+                        None
+                    }
+                    (None, Err(_)) => None,
+                };
+
+            // add the undo action
+            #[cfg(feature = "undo")]
+            self.undo_stack
+                .last_mut()
+                .unwrap()
+                .push(UndoAction::BgpRouteMap(
+                    neighbor, direction, order, _old_map,
+                ));
+        }
+
+        self.update_bgp_tables(true)
     }
 
     /// Remove any route map that has the specified order and direction. If the route-map does not

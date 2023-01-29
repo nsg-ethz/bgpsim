@@ -176,6 +176,11 @@ impl<P: Prefix> Config<P> {
                 }
                 self.expr.insert(key, expr_b.clone());
             }
+            ConfigModifier::BatchRouteMapEdit { router, updates } => {
+                for update in updates {
+                    self.apply_modifier(&update.clone().into_modifier(*router))?;
+                }
+            }
         };
         Ok(())
     }
@@ -527,6 +532,69 @@ impl<P> ConfigExprKey<P> {
     }
 }
 
+/// An individual route-map edit that is part of `ConfigModifier::BatchRouteMapEdit`.
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub struct RouteMapEdit<P: Prefix> {
+    /// Neighbor for the route-map.
+    pub neighbor: RouterId,
+    /// Direction in which to apply the route-map
+    pub direction: RouteMapDirection,
+    /// Old route-map. If this is `None`, then insert a new route-map item for that neighbor and
+    /// order. Otherwise, remove this route-map item.
+    pub old: Option<RouteMap<P>>,
+    /// New route-map. If this is `None`, then remove the old route-map item without replacing it.
+    pub new: Option<RouteMap<P>>,
+}
+
+impl<P: Prefix> RouteMapEdit<P> {
+    /// Reverses the batch update. An insert becomes a remove, and viceversa. An update updates from
+    /// the new one to the old one
+    pub fn reverse(self) -> Self {
+        Self {
+            neighbor: self.neighbor,
+            direction: self.direction,
+            old: self.new,
+            new: self.old,
+        }
+    }
+
+    /// Transform `self` into a config modifier.
+    pub fn into_modifier(self, router: RouterId) -> ConfigModifier<P> {
+        let neighbor = self.neighbor;
+        let direction = self.direction;
+        match (self.old, self.new) {
+            (None, None) => panic!("Constructed a RouteMapEdit that doesn't perform any edit!"),
+            (None, Some(new)) => ConfigModifier::Insert(ConfigExpr::BgpRouteMap {
+                router,
+                neighbor,
+                direction,
+                map: new,
+            }),
+            (Some(old), None) => ConfigModifier::Remove(ConfigExpr::BgpRouteMap {
+                router,
+                neighbor,
+                direction,
+                map: old,
+            }),
+            (Some(old), Some(new)) => ConfigModifier::Update {
+                from: ConfigExpr::BgpRouteMap {
+                    router,
+                    neighbor,
+                    direction,
+                    map: old,
+                },
+                to: ConfigExpr::BgpRouteMap {
+                    router,
+                    neighbor,
+                    direction,
+                    map: new,
+                },
+            },
+        }
+    }
+}
+
 /// # Config Modifier
 /// A single patch to apply on a configuration. The modifier can either insert a new expression,
 /// update an existing expression or remove an old expression.
@@ -544,15 +612,23 @@ pub enum ConfigModifier<P: Prefix> {
         /// New configuration expression, which replaces the `from` expression.
         to: ConfigExpr<P>,
     },
+    /// Update multiple route-map items on the same router at once.
+    BatchRouteMapEdit {
+        /// Router on which to perform the batch update
+        router: RouterId,
+        /// Updates to perform on that router in batch.
+        updates: Vec<RouteMapEdit<P>>,
+    },
 }
 
 impl<P: Prefix> ConfigModifier<P> {
     /// Returns the ConfigExprKey for the config expression stored inside.
-    pub fn key(&self) -> ConfigExprKey<P> {
+    pub fn key(&self) -> Option<ConfigExprKey<P>> {
         match self {
-            Self::Insert(e) => e.key(),
-            Self::Remove(e) => e.key(),
-            Self::Update { to, .. } => to.key(),
+            Self::Insert(e) => Some(e.key()),
+            Self::Remove(e) => Some(e.key()),
+            Self::Update { to, .. } => Some(to.key()),
+            Self::BatchRouteMapEdit { .. } => None,
         }
     }
 
@@ -562,6 +638,7 @@ impl<P: Prefix> ConfigModifier<P> {
             Self::Insert(e) => e.routers(),
             Self::Remove(e) => e.routers(),
             Self::Update { to, .. } => to.routers(),
+            Self::BatchRouteMapEdit { router, .. } => vec![*router],
         }
     }
 
@@ -572,6 +649,10 @@ impl<P: Prefix> ConfigModifier<P> {
             Self::Insert(e) => Self::Remove(e),
             Self::Remove(e) => Self::Insert(e),
             Self::Update { from, to } => Self::Update { from: to, to: from },
+            Self::BatchRouteMapEdit { router, updates } => Self::BatchRouteMapEdit {
+                router,
+                updates: updates.into_iter().map(|x| x.reverse()).collect(),
+            },
         }
     }
 }
@@ -770,6 +851,9 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     Ok(())
                 }
             },
+            ConfigModifier::BatchRouteMapEdit { router, updates } => {
+                self.batch_update_route_maps(*router, updates)
+            }
         }
     }
 
@@ -851,6 +935,28 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     .map(|r| r.get_load_balancing())
                     .unwrap_or(false),
             },
+            ConfigModifier::BatchRouteMapEdit { router, updates } => {
+                if let Some(r) = self.get_device(*router).internal() {
+                    for update in updates {
+                        let neighbor = update.neighbor;
+                        let direction = update.direction;
+                        if !match (update.old.as_ref(), update.new.as_ref()) {
+                            (None, None) => true,
+                            (None, Some(rm)) => {
+                                r.get_bgp_route_map(neighbor, direction, rm.order).is_none()
+                            }
+                            (Some(rm), _) => {
+                                r.get_bgp_route_map(neighbor, direction, rm.order).is_some()
+                            }
+                        } {
+                            return false;
+                        }
+                    }
+                    true
+                } else {
+                    false
+                }
+            }
         }
     }
 
