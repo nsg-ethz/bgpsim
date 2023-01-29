@@ -34,7 +34,7 @@ mod t {
         },
         router::StaticRoute::*,
         types::{
-            AsId, Ipv4Prefix, LinkWeight, NetworkError, Prefix, RouterId, SimplePrefix,
+            AsId, Ipv4Prefix, LinkWeight, NetworkError, Prefix, PrefixMap, RouterId, SimplePrefix,
             SinglePrefix,
         },
     };
@@ -368,7 +368,6 @@ mod t {
     }
 
     #[test]
-    #[cfg(feature = "multi_prefix")]
     fn test_bgp_rib_entries<P: Prefix>() {
         use ordered_float::NotNan;
 
@@ -1258,7 +1257,6 @@ mod t {
         assert_eq!(fw_state.get_paths(r2, p), Ok(vec![vec![r2, r1, r3, e3]]));
     }
 
-    #[cfg(feature = "multi_prefix")]
     #[test]
     fn bgp_state_incoming<P: Prefix>() {
         let mut net = get_test_net_igp::<P>();
@@ -1271,7 +1269,7 @@ mod t {
         let state = net.get_bgp_state(p);
         let route_e1 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65101), AsId(101)],
+            as_path: vec![AsId(65101), AsId(100)],
             next_hop: *E1,
             local_pref: None,
             med: None,
@@ -1281,7 +1279,7 @@ mod t {
         };
         let route_r1 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65101), AsId(101)],
+            as_path: vec![AsId(65101), AsId(100)],
             next_hop: *R1,
             local_pref: Some(100),
             med: Some(0),
@@ -1291,7 +1289,7 @@ mod t {
         };
         let route_e4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *E4,
             local_pref: None,
             med: None,
@@ -1301,7 +1299,7 @@ mod t {
         };
         let route_r4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *R4,
             local_pref: Some(100),
             med: Some(0),
@@ -1341,13 +1339,13 @@ mod t {
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(101)], None, None)
+        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(100)], None, None)
             .unwrap();
 
         let state = net.get_bgp_state(p);
         let route_e4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *E4,
             local_pref: None,
             med: None,
@@ -1357,7 +1355,7 @@ mod t {
         };
         let route_r4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *R4,
             local_pref: Some(100),
             med: Some(0),
@@ -1372,7 +1370,7 @@ mod t {
         };
         let route_r421 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *R1,
             local_pref: None,
             med: None,
@@ -1433,7 +1431,6 @@ mod t {
         assert_eq!(BTreeSet::from_iter(state.peers_incoming(*E4)), btreeset! {});
     }
 
-    #[cfg(feature = "multi_prefix")]
     #[test]
     fn bgp_state_outgoing<P: Prefix>() {
         let mut net = get_test_net_igp::<P>();
@@ -1446,7 +1443,7 @@ mod t {
         let state = net.get_bgp_state(p);
         let route_e1 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65101), AsId(101)],
+            as_path: vec![AsId(65101), AsId(100)],
             next_hop: *E1,
             local_pref: None,
             med: None,
@@ -1456,7 +1453,7 @@ mod t {
         };
         let route_r1 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65101), AsId(101)],
+            as_path: vec![AsId(65101), AsId(100)],
             next_hop: *R1,
             local_pref: Some(100),
             med: Some(0),
@@ -1466,7 +1463,7 @@ mod t {
         };
         let route_e4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *E4,
             local_pref: None,
             med: None,
@@ -1476,7 +1473,7 @@ mod t {
         };
         let route_r4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *R4,
             local_pref: Some(100),
             med: Some(0),
@@ -1519,13 +1516,13 @@ mod t {
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(101)], None, None)
+        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(100)], None, None)
             .unwrap();
 
         let state = net.get_bgp_state(p);
         let route_e4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *E4,
             local_pref: None,
             med: None,
@@ -1535,7 +1532,7 @@ mod t {
         };
         let route_r4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *R4,
             local_pref: Some(100),
             med: Some(0),
@@ -1550,7 +1547,7 @@ mod t {
         };
         let route_r421 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(101)],
+            as_path: vec![AsId(65104), AsId(100)],
             next_hop: *R1,
             local_pref: None,
             med: Some(0),

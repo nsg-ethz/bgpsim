@@ -16,7 +16,7 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 //! This module contains the definition for prefixes. In addition, it contains all collections
-//! containing the prefix. This allows consistent handling of the feature `multi_prefix`.
+//! containing the prefix.
 
 use std::{
     collections::{hash_map::RandomState, HashMap, HashSet},

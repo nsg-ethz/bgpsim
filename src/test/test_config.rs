@@ -15,35 +15,34 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use crate::bgp::BgpSessionType::*;
+use crate::config::{Config, ConfigExpr::*, ConfigModifier::*, ConfigPatch};
+use crate::types::{Ipv4Prefix, Prefix, RouterId, SimplePrefix, SinglePrefix};
+use crate::{route_map::*, router::StaticRoute::*};
+
+macro_rules! link_weight {
+    ($source:expr,$target:expr,$weight:expr) => {
+        IgpLinkWeight {
+            source: $source,
+            target: $target,
+            weight: $weight,
+        }
+    };
+}
+
+macro_rules! bgp_session {
+    ($source:expr,$target:expr,$ty:expr) => {
+        BgpSession {
+            source: $source,
+            target: $target,
+            session_type: $ty,
+        }
+    };
+}
+
 #[generic_tests::define]
-mod t {
-
-    use crate::bgp::BgpSessionType::*;
-    use crate::config::{Config, ConfigExpr::*, ConfigModifier::*, ConfigPatch};
-    use crate::types::{Prefix, RouterId, SimplePrefix, SinglePrefix};
-
-    #[cfg(feature = "multi_prefix")]
-    use crate::{route_map::*, router::StaticRoute::*};
-
-    macro_rules! link_weight {
-        ($source:expr,$target:expr,$weight:expr) => {
-            IgpLinkWeight {
-                source: $source,
-                target: $target,
-                weight: $weight,
-            }
-        };
-    }
-
-    macro_rules! bgp_session {
-        ($source:expr,$target:expr,$ty:expr) => {
-            BgpSession {
-                source: $source,
-                target: $target,
-                session_type: $ty,
-            }
-        };
-    }
+mod t1 {
+    use super::*;
 
     #[test]
     fn test_config_diff<P: Prefix>() {
@@ -87,11 +86,60 @@ mod t {
         assert_eq!(c1, c2);
     }
 
-    #[cfg(feature = "multi_prefix")]
+    #[test]
+    fn test_config_undo_wrong_patch<P: Prefix>() {
+        let mut c = Config::<P>::new();
+
+        let r0: RouterId = 0.into();
+        let r1: RouterId = 1.into();
+        let r2: RouterId = 2.into();
+
+        c.add(link_weight!(r0, r1, 1.0)).unwrap();
+        c.add(link_weight!(r1, r0, 1.0)).unwrap();
+
+        let c_before = c.clone();
+
+        // first, check if a correct patch produces something different
+        let mut patch = ConfigPatch::new();
+        patch.add(Update {
+            from: link_weight!(r0, r1, 1.0),
+            to: link_weight!(r0, r1, 2.0),
+        });
+        patch.add(Update {
+            from: link_weight!(r1, r0, 1.0),
+            to: link_weight!(r1, r0, 2.0),
+        });
+
+        c.apply_patch(&patch).unwrap();
+        assert_ne!(c, c_before);
+
+        // then, check if an incorrect patch produces does not change the config
+        let mut c = c_before.clone();
+        patch.add(Update {
+            from: link_weight!(r0, r2, 1.0),
+            to: link_weight!(r0, r2, 2.0),
+        });
+
+        c.apply_patch(&patch).unwrap_err();
+        assert_eq!(c, c_before);
+    }
+
+    #[instantiate_tests(<SinglePrefix>)]
+    mod single {}
+
+    #[instantiate_tests(<SimplePrefix>)]
+    mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
+}
+
+#[generic_tests::define]
+mod t2 {
+    use super::*;
+
     #[test]
     fn config_unique<P: Prefix>() {
-        use crate::types::Prefix;
-
         let mut c = Config::<P>::new();
 
         let r0: RouterId = 0.into();
@@ -192,7 +240,6 @@ mod t {
         .unwrap_err();
     }
 
-    #[cfg(feature = "multi_prefix")]
     #[test]
     fn config_add_remove<P: Prefix>() {
         let r0: RouterId = 0.into();
@@ -391,47 +438,9 @@ mod t {
         }
     }
 
-    #[test]
-    fn test_config_undo_wrong_patch<P: Prefix>() {
-        let mut c = Config::<P>::new();
-
-        let r0: RouterId = 0.into();
-        let r1: RouterId = 1.into();
-        let r2: RouterId = 2.into();
-
-        c.add(link_weight!(r0, r1, 1.0)).unwrap();
-        c.add(link_weight!(r1, r0, 1.0)).unwrap();
-
-        let c_before = c.clone();
-
-        // first, check if a correct patch produces something different
-        let mut patch = ConfigPatch::new();
-        patch.add(Update {
-            from: link_weight!(r0, r1, 1.0),
-            to: link_weight!(r0, r1, 2.0),
-        });
-        patch.add(Update {
-            from: link_weight!(r1, r0, 1.0),
-            to: link_weight!(r1, r0, 2.0),
-        });
-
-        c.apply_patch(&patch).unwrap();
-        assert_ne!(c, c_before);
-
-        // then, check if an incorrect patch produces does not change the config
-        let mut c = c_before.clone();
-        patch.add(Update {
-            from: link_weight!(r0, r2, 1.0),
-            to: link_weight!(r0, r2, 2.0),
-        });
-
-        c.apply_patch(&patch).unwrap_err();
-        assert_eq!(c, c_before);
-    }
-
-    #[instantiate_tests(<SinglePrefix>)]
-    mod single {}
-
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
+
+    #[instantiate_tests(<Ipv4Prefix>)]
+    mod ipv4 {}
 }

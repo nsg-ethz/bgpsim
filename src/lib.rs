@@ -64,11 +64,6 @@
 //!   this crate. Enabling this significantly impact build times.
 //! - `topology_zoo`: This adds the module `topology_zoo` including a `*.graphml` parser, and a
 //!   prepared list of all Topologies in topology zoo.
-//! - `multi_prefix` (*enabled by default*): Disabling this feature causes the network to run in a
-//!   single-preifx mode, where each `Prefix` is treated identically. For instance, a
-//!   `HashSet<Prefix, T>` will be transformed into a `Option<T>`. This significantly improves
-//!   performance. To disable `multi_prefix`, add the option `default-features = false` to the
-//!   dependency declaration in your `cargo.toml` file.
 //! - `layout`: Utilities to automatically create a layout of the network.
 //!
 //! ## Example usage

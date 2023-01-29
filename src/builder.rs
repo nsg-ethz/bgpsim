@@ -412,9 +412,6 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         F: FnOnce(&Network<P, Q>, A) -> Vec<Vec<RouterId>>,
     {
         let prefs = preferences(self, a);
-        #[cfg(feature = "multi_prefix")]
-        let last_as = AsId(prefix.get() + 100);
-        #[cfg(not(feature = "multi_prefix"))]
         let last_as = AsId(100);
 
         let old_skip_queue = self.skip_queue;
