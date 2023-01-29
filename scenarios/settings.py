@@ -19,7 +19,7 @@ data["settings"]["manual_simulation"] = True
 data["settings"]["features"]["load_balancing"] = False
 data["settings"]["features"]["ospf"] = False
 data["settings"]["features"]["bgp"] = True
-data["settings"]["features"]["specificatoin"] = False
+data["settings"]["features"]["specification"] = False
 data["settings"]["features"]["static_routes"] = False
 
 with open(filename, "w") as fp:
