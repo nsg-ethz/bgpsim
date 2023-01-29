@@ -653,10 +653,11 @@ impl<P: Prefix> Router<P> {
                 // skip an empty update.
                 continue;
             };
-            let maps = match direction {
-                Incoming => self.bgp_route_maps_in.entry(neighbor).or_default(),
-                Outgoing => self.bgp_route_maps_out.entry(neighbor).or_default(),
+            let maps_table = match direction {
+                Incoming => &mut self.bgp_route_maps_in,
+                Outgoing => &mut self.bgp_route_maps_out,
             };
+            let maps = maps_table.entry(neighbor).or_default();
             let _old_map: Option<RouteMap<P>> =
                 match (new, maps.binary_search_by(|probe| probe.order.cmp(&order))) {
                     (Some(mut new_map), Ok(pos)) => {
@@ -670,6 +671,10 @@ impl<P: Prefix> Router<P> {
                     }
                     (None, Err(_)) => None,
                 };
+
+            if maps.is_empty() {
+                maps_table.remove(&neighbor);
+            }
 
             // add the undo action
             #[cfg(feature = "undo")]
