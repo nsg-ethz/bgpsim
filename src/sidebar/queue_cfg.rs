@@ -49,6 +49,7 @@ pub enum Msg {
     StateNet(Rc<Net>),
     HoverEnter((RouterId, RouterId, usize)),
     HoverExit,
+    Execute(usize),
     Swap(usize),
     ToggleChecked,
 }
@@ -78,6 +79,7 @@ impl Component for QueueCfg {
             .cloned()
             .enumerate()
             .map(|(i, event)| {
+                let on_click = ctx.link().callback(Msg::Execute);
                 let on_mouse_enter = ctx.link().callback(Msg::HoverEnter);
                 let on_mouse_leave = ctx.link().callback(|()| Msg::HoverExit);
                 let checked = self.next_checked;
@@ -89,17 +91,17 @@ impl Component for QueueCfg {
                     0
                 };
                 if allow_swap(queue, i) {
-                    let on_click = ctx.link().callback(move |_| Msg::Swap(i));
+                    let on_swap = ctx.link().callback(move |_| Msg::Swap(i));
                     html! {
                         <>
-                            <EventCfg {i} {event} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
-                            <DividerButton {on_click} hidden={true}> <yew_lucide::ArrowLeftRight class="w-6 h-6 rotate-90"/> </DividerButton>
+                            <EventCfg {i} {event} {on_click} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
+                            <DividerButton on_click={on_swap} hidden={true}> <yew_lucide::ArrowLeftRight class="w-6 h-6 rotate-90"/> </DividerButton>
                         </>
                     }
                 } else {
                     html! {
                         <>
-                            <EventCfg {i} {event} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
+                            <EventCfg {i} {event} {on_click} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
                         </>
                     }
                 }
@@ -133,6 +135,16 @@ impl Component for QueueCfg {
                 timeout.forget();
                 false
             }
+            Msg::Execute(i) => {
+                self.net_dispatch.reduce_mut(move |n| {
+                    let mut n = n.net_mut();
+                    n.queue_mut().swap_to_front(i);
+                    n.simulate_step().unwrap();
+                });
+                self.state_dispatch
+                    .reduce_mut(move |s| s.set_hover(Hover::None));
+                true
+            }
             Msg::HoverEnter((src, dst, i)) => {
                 self.state_dispatch
                     .reduce_mut(move |s| s.set_hover(Hover::Message(src, dst, i, false)));
@@ -155,6 +167,7 @@ impl Component for QueueCfg {
 struct EventProps {
     i: usize,
     event: Event<Pfx, ()>,
+    on_click: Callback<usize>,
     on_mouse_enter: Callback<(RouterId, RouterId, usize)>,
     on_mouse_leave: Callback<()>,
     translate: isize,
@@ -163,7 +176,7 @@ struct EventProps {
 
 #[function_component(EventCfg)]
 fn event_cfg(props: &EventProps) -> Html {
-    let (net, net_dispatch) = use_store::<Net>();
+    let (net, _) = use_store::<Net>();
     let net_borrow = net.net();
     let net = net_borrow.deref();
     let dir_class = "text-main font-bold";
@@ -177,13 +190,7 @@ fn event_cfg(props: &EventProps) -> Html {
     };
     let i = props.i;
     let clickable = allow_execute(net.queue(), i);
-    let onclick = net_dispatch.reduce_mut_callback(move |net| {
-        if clickable {
-            let mut n = net.net_mut();
-            n.queue_mut().swap_to_front(i);
-            n.simulate_step().unwrap();
-        }
-    });
+    let onclick = props.on_click.reform(move |_| i);
     let onmouseenter = props.on_mouse_enter.reform(move |_| (src, dst, i));
     let onmouseleave = props.on_mouse_leave.reform(move |_| ());
     let div_class = if clickable {
