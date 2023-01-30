@@ -169,8 +169,7 @@ impl Component for Tooltip {
             Hover::Help(content) => {
                 html! {
                     <div class="max-w-md flex space-x-4 items-center ml-2">
-                        <div><p class="text-yellow blur-xs" style="font-size: 2.5rem">{ "?" }</p></div>
-                        <div class="flex-1">{ content }</div>
+                        <div class="flex-1 text-base-5">{ content }</div>
                     </div>
                 }
             }
@@ -184,7 +183,7 @@ impl Component for Tooltip {
         let style = format!("top: {}px; left: {}px;", pos.y, pos.x);
 
         html! {
-            <div class="z-10 absolute rounded-md drop-shadow bg-base-1 p-2 text-main flex flex-col space-y-2 pointer-events-none" {style} ref={self.node_ref.clone()}>
+            <div class="z-20 absolute rounded-md drop-shadow bg-base-1 p-2 text-main flex flex-col space-y-2 pointer-events-none" {style} ref={self.node_ref.clone()}>
                 {content}
             </div>
         }

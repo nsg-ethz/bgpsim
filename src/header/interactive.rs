@@ -15,127 +15,80 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::rc::Rc;
-
 use bgpsim::{event::EventQueue, interactive::InteractiveNetwork, policies::Policy};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::Dim,
     net::Net,
-    state::{Selected, State},
+    state::{Hover, Selected, State},
 };
 
-pub struct InteractivePlayer {
-    shown: bool,
-    net: Rc<Net>,
-    dim: Rc<Dim>,
-    net_dispatch: Dispatch<Net>,
-    _dim_dispatch: Dispatch<Dim>,
-    state_dispatch: Dispatch<State>,
-}
+#[function_component(InteractivePlayer)]
+pub fn interactive_player() -> Html {
+    let (net, net_dispatch) = use_store::<Net>();
+    let (_, state_dispatch) = use_store::<State>();
 
-pub enum Msg {
-    StateNet(Rc<Net>),
-    StateDim(Rc<Dim>),
-    PlayAll,
-    Step,
-    ShowQueue,
-}
+    let shown = !net.net().auto_simulation_enabled();
 
-#[derive(Properties, PartialEq, Eq)]
-pub struct Properties {}
-
-impl Component for InteractivePlayer {
-    type Message = Msg;
-    type Properties = Properties;
-
-    fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
-        let state_dispatch = Dispatch::<State>::subscribe(Callback::from(|_: Rc<State>| ()));
-        InteractivePlayer {
-            shown: false,
-            net: Default::default(),
-            dim: Default::default(),
-            net_dispatch,
-            _dim_dispatch,
-            state_dispatch,
-        }
+    if !shown {
+        return html! {};
     }
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        if !self.shown {
-            return html! {};
-        }
+    let class = "space-x-4 rounded-full z-10 p-2 px-4 drop-shadow bg-base-1 text-main flex justify-between items-center pointer-events-auto";
+    let badge_class = "absolute inline-block top-2 right-2 bottom-auto left-auto translate-x-2/4 -translate-y-1/2 scale-x-100 scale-y-100 py-1 px-2.5 text-xs leading-none text-center whitespace-nowrap align-baseline font-bold bg-blue text-base-1 rounded-full z-10";
 
-        let class = "space-x-4 rounded-full z-10 p-2 px-4 drop-shadow bg-base-1 text-main flex justify-between items-center pointer-events-auto";
-        let badge_class = "absolute inline-block top-2 right-2 bottom-auto left-auto translate-x-2/4 -translate-y-1/2 scale-x-100 scale-y-100 py-1 px-2.5 text-xs leading-none text-center whitespace-nowrap align-baseline font-bold bg-blue text-base-1 rounded-full z-10";
+    let play = net_dispatch.reduce_mut_callback(simulate_verify);
+    let play_enter = state_dispatch.reduce_mut_callback(|s| {
+        s.set_hover(Hover::Help(
+            html! {{"Simulate until all events are processed or until a property is violated."}},
+        ))
+    });
+    let play_leave = state_dispatch.reduce_mut_callback(|s| s.set_hover(Hover::None));
 
-        let play = ctx.link().callback(|_| Msg::PlayAll);
-        let step = ctx.link().callback(|_| Msg::Step);
-        let open_queue = ctx.link().callback(|_| Msg::ShowQueue);
+    let step = net_dispatch.reduce_mut_callback(|net| net.net_mut().simulate_step().unwrap());
+    let step_enter = state_dispatch.reduce_mut_callback(|s| {
+        s.set_hover(Hover::Help(
+            html! {{"Simulate the next event in the queue."}},
+        ))
+    });
+    let step_leave = state_dispatch.reduce_mut_callback(|s| s.set_hover(Hover::None));
 
-        let queue_size = self.net.net().queue().len();
-        let queue_empty = queue_size == 0;
-        let queue_size_s = if queue_size > 1_000_000 {
-            format!("{}m", queue_size / 1_000_000)
-        } else if queue_size > 1_000 {
-            format!("{}k", queue_size / 1_000_000)
-        } else {
-            queue_size.to_string()
-        };
+    let open_queue = state_dispatch.reduce_mut_callback(|s| s.set_selected(Selected::Queue));
+    let open_enter = state_dispatch
+        .reduce_mut_callback(|s| s.set_hover(Hover::Help(html! {{"Open the event queue"}})));
+    let open_leave = state_dispatch.reduce_mut_callback(|s| s.set_hover(Hover::None));
 
-        let play_class = if queue_empty {
-            "text-main-ia cursor-default pointer-events-none"
-        } else {
-            "text-main hover:text-green-dark pointer-events-auto"
-        };
+    let queue_size = net.net().queue().len();
+    let queue_empty = queue_size == 0;
+    let queue_size_s = if queue_size > 1_000_000 {
+        format!("{}m", queue_size / 1_000_000)
+    } else if queue_size > 1_000 {
+        format!("{}k", queue_size / 1_000_000)
+    } else {
+        queue_size.to_string()
+    };
 
-        let step_class = if queue_empty {
-            "text-main-ia cursor-default pointer-events-none"
-        } else {
-            "text-main hover:text-blue-dark pointer-events-auto"
-        };
+    let play_class = if queue_empty {
+        "text-base-5 cursor-default pointer-events-none"
+    } else {
+        "text-main hover:text-green-dark pointer-events-auto"
+    };
 
-        html! {
-            <div {class}>
-                // <p class="mr-4">{ "Queue:" } </p>
-                <button class={play_class} onclick={play}> <yew_lucide::ListVideo class="w-6 h-6"/> </button>
-                <button class={step_class} onclick={step}> <yew_lucide::Forward class="w-6 h-6"/> </button>
-                <div class={badge_class}>{queue_size_s}</div>
-                <button class="text-main hover:text-main" onclick={open_queue}> <yew_lucide::ListOrdered class="w-6 h-6"/> </button>
-            </div>
-        }
-    }
+    let step_class = if queue_empty {
+        "text-base-5 cursor-default pointer-events-none"
+    } else {
+        "text-main hover:text-blue-dark pointer-events-auto"
+    };
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::StateNet(n) => {
-                self.net = n;
-                self.shown = !self.net.net().auto_simulation_enabled();
-                true
-            }
-            Msg::StateDim(d) => {
-                self.dim = d;
-                true
-            }
-            Msg::PlayAll => {
-                self.net_dispatch.reduce_mut(simulate_verify);
-                false
-            }
-            Msg::Step => {
-                self.net_dispatch
-                    .reduce_mut(|n| n.net_mut().simulate_step().unwrap());
-                false
-            }
-            Msg::ShowQueue => {
-                self.state_dispatch
-                    .reduce_mut(|s| s.set_selected(Selected::Queue));
-                false
-            }
-        }
+    html! {
+        <div {class}>
+            // <p class="mr-4">{ "Queue:" } </p>
+            <button class={play_class} onclick={play} onmouseenter={play_enter} onmouseleave={play_leave}> <yew_lucide::ListVideo class="w-6 h-6"/> </button>
+            <button class={step_class} onclick={step} onmouseenter={step_enter} onmouseleave={step_leave}> <yew_lucide::Forward class="w-6 h-6"/> </button>
+            <div class={badge_class}>{queue_size_s}</div>
+            <button class="text-main hover:text-main" onclick={open_queue} onmouseenter={open_enter} onmouseleave={open_leave}> <yew_lucide::ListOrdered class="w-6 h-6"/> </button>
+        </div>
     }
 }
 

@@ -22,7 +22,7 @@ use yewdux::prelude::*;
 
 use crate::{
     net::{MigrationState, Net},
-    state::{Selected, State},
+    state::{Hover, Selected, State},
 };
 
 #[function_component(MigrationButton)]
@@ -60,10 +60,14 @@ pub fn migration_button() -> Html {
         classes!(badge_class, "bg-blue")
     };
 
+    let onmouseenter = state_dispatch
+        .reduce_mut_callback(|s| s.set_hover(Hover::Help(html! {{"Show the current migration"}})));
+    let onmouseleave = state_dispatch.reduce_mut_callback(|s| s.set_hover(Hover::None));
+
     let open_planner = state_dispatch.reduce_mut_callback(|s| s.set_selected(Selected::Migration));
 
     html! {
-        <button {class} onclick={open_planner}>
+        <button {class} onclick={open_planner} {onmouseenter} {onmouseleave}>
             { "Migration" }
             <div class={badge_class}>{progress} {"/"} {total}</div>
         </button>
