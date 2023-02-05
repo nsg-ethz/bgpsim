@@ -136,11 +136,13 @@ impl<P: Prefix> Router<P> {
 
     /// Get a struct to display the BGP table for a specific prefix
     pub fn fmt_bgp_table<Q>(&self, net: &'_ Network<P, Q>, prefix: P) -> String {
+        let table = self
+            .get_processed_bgp_rib()
+            .remove(&prefix)
+            .unwrap_or_default();
         let mut result = String::new();
         let f = &mut result;
-        let selected_entry = self.get_selected_bgp_route(prefix);
-        for entry in self.get_known_bgp_routes(prefix).unwrap_or_default() {
-            let selected = selected_entry == Some(&entry);
+        for (entry, selected) in table {
             writeln!(f, "{} {}", if selected { "*" } else { " " }, entry.fmt(net)).unwrap();
         }
         result
