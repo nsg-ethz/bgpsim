@@ -90,18 +90,6 @@ fn entry() -> Html {
                         "abilene-baseline" => {
                             import_json_str(include_str!("../scenarios/abilene_baseline.json"))
                         }
-                        "link-failure" => {
-                            import_json_str(include_str!("../scenarios/link_failure_atomic.json"))
-                        }
-                        "link-failure-baseline" => {
-                            import_json_str(include_str!("../scenarios/link_failure_baseline.json"))
-                        }
-                        "new-best-route" => {
-                            import_json_str(include_str!("../scenarios/new_best_route_atomic.json"))
-                        }
-                        "new-best-route-baseline" => import_json_str(include_str!(
-                            "../scenarios/new_best_route_baseline.json"
-                        )),
                         "example" => import_json_str(include_str!("../scenarios/example.json")),
                         "example-baseline" => {
                             import_json_str(include_str!("../scenarios/example_baseline.json"))
