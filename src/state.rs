@@ -54,6 +54,7 @@ pub struct Features {
     pub static_routes: bool,
     pub bgp: bool,
     pub specification: bool,
+    pub simple: bool,
 }
 
 impl Default for Features {
@@ -64,6 +65,7 @@ impl Default for Features {
             static_routes: true,
             bgp: true,
             specification: true,
+            simple: false,
         }
     }
 }

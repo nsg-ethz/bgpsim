@@ -53,14 +53,19 @@ fn migration_button() -> Html {
 
 #[function_component(Header)]
 pub fn header(props: &Properties) -> Html {
+    let (state, _) = use_store::<State>();
     html! {
         <>
             <MainMenu node_ref={props.node_ref.clone()}/>
             <div class="absolute w-full p-4 pointer-events-none flex space-x-6">
                 <div class="ml-20 flex-1 flex space-x-4">
-                    <AddRouter />
+                    if !state.features().simple {
+                        <AddRouter />
+                    }
                     <LayerSelection />
-                    <PrefixSelection />
+                    if !state.features().simple {
+                        <PrefixSelection />
+                    }
                 </div>
                 <Verifier />
                 <MigrationButton />

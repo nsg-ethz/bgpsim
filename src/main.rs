@@ -61,7 +61,7 @@ fn app() -> Html {
     html! {
         <div class="flex w-screen h-screen max-h-screen max-w-screen bg-base-2 overflow-scroll text-main">
             <Tooltip />
-            <div class="relative flex-1 h-full p-0 bg-base-2">
+            <div class="relative flex-1 h-full p-0">
               <Header node_ref={header_ref.clone()} />
               <Canvas header_ref={header_ref.clone()} />
             </div>
@@ -82,7 +82,7 @@ fn entry() -> Html {
                     import_url(d);
                 }
                 #[cfg(feature = "atomic_bgp")]
-                if let Some(scenario) = params.get("scenario") {
+                if let Some(scenario) = params.get("scenario").or_else(|| params.get("s")) {
                     match scenario.as_str() {
                         "abilene" => {
                             import_json_str(include_str!("../scenarios/abilene_atomic.json"))

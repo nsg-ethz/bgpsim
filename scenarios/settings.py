@@ -21,6 +21,7 @@ data["settings"]["features"]["ospf"] = False
 data["settings"]["features"]["bgp"] = True
 data["settings"]["features"]["specification"] = False
 data["settings"]["features"]["static_routes"] = False
+data["settings"]["features"]["simple"] = True
 
 with open(filename, "w") as fp:
     json.dump(data, fp)

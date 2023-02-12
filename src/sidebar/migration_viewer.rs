@@ -35,7 +35,7 @@ pub fn migration_viewer() -> Html {
     if net.migration().is_empty() {
         html! {
             <div class="h-full w-full flex flex-col justify-center items-center">
-                <p class="text-main-ia italic"> { "Migration is empty!" } </p>
+                <p class="text-main-ia italic"> { "Reconfiguration plan is empty!" } </p>
             </div>
         }
     } else if net.migration().len() == 1 {
@@ -106,10 +106,10 @@ pub fn atomic_command_stage_viewer(props: &AtomicCommandStageProps) -> Html {
     };
 
     let title = match stage {
-        0 => "Setup",
-        1 => "Migration commands",
+        0 => "Setup phase",
+        1 => "Update phase",
         2 => "Original command",
-        3 => "Migration commands",
+        3 => "Update phase",
         4 => "Cleanup",
         _ => "?",
     };
