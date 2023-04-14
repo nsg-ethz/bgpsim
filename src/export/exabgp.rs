@@ -136,7 +136,6 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 ///     local-address 1.192.0.2;
 ///     local-as 100;
 ///     peer-as 65535;
-///     group-updates false;
 ///     family { ipv4 unicast; }
 ///     capability { route-refresh; }
 /// }"
@@ -330,7 +329,6 @@ neighbor {} {{
     local-address {};
     local-as {};
     peer-as {};
-    group-updates false;
     family {{ ipv4 unicast; }}
     capability {{ route-refresh; }}
 }}",

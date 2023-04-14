@@ -18,6 +18,8 @@
 //! Module to record actions on the network and extract a trace of how the forwarding state changes
 //! over time.
 
+use serde::{Deserialize, Serialize};
+
 use crate::{
     event::EventQueue,
     forwarding_state::ForwardingState,
@@ -237,7 +239,7 @@ impl ConvergenceRecording {
 pub type ConvergenceTrace = Vec<(Vec<FwDelta>, AlwaysEq<Option<f64>>)>;
 
 /// Structure that wraps the inner type and always returns `true` or `Ordering::Equal` when compared.
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, Serialize, Deserialize)]
 #[repr(transparent)]
 pub struct AlwaysEq<T>(T);
 
