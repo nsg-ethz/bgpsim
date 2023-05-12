@@ -452,7 +452,7 @@ impl ForwardingState<SimplePrefix> {
         for router in routers {
             let self_state = self.state.get(router).unwrap();
             let other_state = other.state.get(router).unwrap();
-            let prefixes = self_state.keys().chain(other_state.keys());
+            let prefixes = self_state.keys().chain(other_state.keys()).unique();
             for prefix in prefixes {
                 let self_target = self_state
                     .get(prefix)
