@@ -550,10 +550,13 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         }
 
         // community-list
-        if let Some(communities) = rm_match_community_list(rm) {
+        if let Some((communities, deny_communities)) = rm_match_community_list(rm) {
             let mut cl = CommunityList::new(format!("{name}-{ord}-cl"));
             for c in communities {
                 cl.community(INTERNAL_AS, c);
+            }
+            for c in deny_communities {
+                cl.deny(INTERNAL_AS, c);
             }
             route_map_item.match_community_list(cl);
         }
@@ -1165,21 +1168,24 @@ fn rm_match_prefix_list<P: Prefix>(rm: &RouteMap<P>) -> Option<P::Set> {
     prefixes
 }
 
-/// Extract the set of communities that must be present in the route such that it matches
-fn rm_match_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<HashSet<u32>> {
+/// Extract the set of communities that must be present in the route, and those that must be absent,
+/// such that it matches
+fn rm_match_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<(HashSet<u32>, HashSet<u32>)> {
     let mut communities = HashSet::new();
+    let mut deny_communities = HashSet::new();
 
     for cond in rm.conds.iter() {
         match cond {
             RouteMapMatch::Community(comm) => communities.insert(*comm),
+            RouteMapMatch::DenyCommunity(comm) => deny_communities.insert(*comm),
             _ => false,
         };
     }
 
-    if communities.is_empty() {
+    if communities.is_empty() && deny_communities.is_empty() {
         None
     } else {
-        Some(communities)
+        Some((communities, deny_communities))
     }
 }
 

@@ -300,6 +300,12 @@ impl<P: Prefix> RouteMapBuilder<P> {
         self
     }
 
+    /// Add a match condition to the Route-Map, matching on the absence of a community.
+    pub fn match_deny_community(&mut self, community: u32) -> &mut Self {
+        self.conds.push(RouteMapMatch::DenyCommunity(community));
+        self
+    }
+
     /// Add a set expression to the Route-Map.
     pub fn add_set(&mut self, set: RouteMapSet) -> &mut Self {
         self.set.push(set);
@@ -479,6 +485,8 @@ pub enum RouteMapMatch<P: Prefix> {
     NextHop(RouterId),
     /// Matches on the community (either not set, or set and matches a value or a range)
     Community(u32),
+    /// Match on the absence of a given community.
+    DenyCommunity(u32),
 }
 
 impl<P: Prefix> RouteMapMatch<P> {
@@ -489,6 +497,7 @@ impl<P: Prefix> RouteMapMatch<P> {
             Self::AsPath(clause) => clause.matches(&entry.route.as_path),
             Self::NextHop(nh) => entry.route.next_hop == *nh,
             Self::Community(com) => entry.route.community.contains(com),
+            Self::DenyCommunity(com) => !entry.route.community.contains(com),
         }
     }
 }

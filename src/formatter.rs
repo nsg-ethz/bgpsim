@@ -317,6 +317,7 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapMatch<P> {
             RouteMapMatch::AsPath(c) => format!("{c}"),
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),
             RouteMapMatch::Community(c) => format!("Community {c}"),
+            RouteMapMatch::DenyCommunity(c) => format!("Deny Community {c}"),
         }
     }
 }

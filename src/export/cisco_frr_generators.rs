@@ -2934,6 +2934,7 @@ impl From<&mut PrefixList> for PrefixList {
 pub struct CommunityList {
     name: String,
     communities: Vec<String>,
+    deny_communities: Vec<String>,
 }
 
 impl CommunityList {
@@ -2942,6 +2943,7 @@ impl CommunityList {
         Self {
             name: name.into(),
             communities: Default::default(),
+            deny_communities: Default::default(),
         }
     }
 
@@ -2962,8 +2964,8 @@ impl CommunityList {
         format!("no {} community-list standard {}\n", root, self.name)
     }
 
-    /// Permit the given network. Calling permit multiple times, the resulting prefix list will
-    /// permit one of the given prefixes.
+    /// Permit the given community. Calling `community` multiple times, the resulting community
+    /// list will require all communities to be present at once.
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{CommunityList, Target};
     /// assert_eq!(
@@ -2977,18 +2979,42 @@ impl CommunityList {
         self
     }
 
+    /// Permit the given community. Calling `deny` multiple times, the resulting community
+    /// list will require that none of the given communities are present.
+    /// ```
+    /// # use bgpsim::export::cisco_frr_generators::{CommunityList, Target};
+    /// assert_eq!(
+    ///     CommunityList::new("test")
+    ///         .community(10, 10).community(10, 20)
+    ///         .deny(10, 30).deny(10, 40)
+    ///         .build(Target::Frr),
+    ///     "\
+    /// bgp community-list standard test deny 10:30
+    /// bgp community-list standard test deny 10:40
+    /// bgp community-list standard test permit 10:10 10:20
+    /// "
+    /// );
+    /// ```
+    pub fn deny(&mut self, as_id: impl Into<AsId>, community: u32) -> &mut Self {
+        self.deny_communities
+            .push(format!("{}:{}", as_id.into().0, community));
+        self
+    }
+
     /// Build the community list.
     pub fn build(&self, target: Target) -> String {
         let root = match target {
             Target::CiscoNexus7000 => "ip",
             Target::Frr => "bgp",
         };
-        format!(
+        let permit = format!(
             "{} community-list standard {} permit {}\n",
             root,
             self.name,
             self.communities.iter().join(" ")
-        )
+        );
+        let deny = self.deny_communities.iter().map(|c| format!("{root} community-list standard {} deny {c}\n", self.name)).join("");
+        format!("{deny}{permit}")
     }
 }
 
