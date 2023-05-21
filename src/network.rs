@@ -27,7 +27,7 @@ use crate::{
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
-    ospf::{Ospf, OspfArea},
+    ospf::{Ospf, OspfArea, OspfState},
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
@@ -244,6 +244,12 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// instead.
     pub fn get_bgp_state_owned(&self, prefix: P) -> BgpState<P> {
         BgpState::from_net(self, prefix)
+    }
+
+    /// Return an OSPF state of the current network.
+    pub fn get_ospf_state(&self) -> OspfState {
+        self.ospf
+            .compute(&self.net, &self.external_routers.keys().copied().collect())
     }
 
     // ********************

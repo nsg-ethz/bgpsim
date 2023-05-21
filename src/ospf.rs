@@ -29,7 +29,10 @@ use petgraph::{algo::floyd_warshall, visit::EdgeRef, Directed, Graph};
 use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
 
-use crate::types::{IgpNetwork, IndexType, LinkWeight, RouterId};
+use crate::{
+    forwarding_state::ForwardingState,
+    types::{IgpNetwork, IndexType, LinkWeight, RouterId, SimplePrefix},
+};
 
 pub(crate) const MAX_WEIGHT: LinkWeight = LinkWeight::MAX / 16.0;
 pub(crate) const MIN_EPSILON: LinkWeight = LinkWeight::EPSILON * 1024.0;
@@ -365,13 +368,27 @@ fn redistribute_table_into_area(
 /// part of that area, and `apsps`. This structure stores an All-Pairs-Shortest-Path for each area,
 /// that does also include destinations that were advertised from other areas.
 #[derive(Clone, Debug)]
-pub(crate) struct OspfState {
-    lut_router_areas: HashMap<RouterId, HashSet<OspfArea>>,
+pub struct OspfState {
+    pub(crate) lut_router_areas: HashMap<RouterId, HashSet<OspfArea>>,
     graphs: HashMap<OspfArea, Graph<(), LinkWeight, Directed, IndexType>>,
     apsps: HashMap<OspfArea, HashMap<(RouterId, RouterId), LinkWeight>>,
 }
 
 impl OspfState {
+    /// Get the set of all OSPF areas that the `router` is part of.
+    pub fn get_areas(&self, router: RouterId) -> Option<&HashSet<OspfArea>> {
+        self.lut_router_areas.get(&router)
+    }
+
+    /// Get the routers that are part of a specific OSPF area.
+    pub fn get_area_routers(&self, area: OspfArea) -> Vec<RouterId> {
+        self.lut_router_areas
+            .iter()
+            .filter(|(_, a)| a.contains(&area))
+            .map(|(r, _)| *r)
+            .collect()
+    }
+
     /// Get the set of next hops (router ids) for `src` to reach `dst`. If `src == dst`, then simply
     /// return `vec![src]`. If OSPF does not know a path towards the target, then return `(vec![],
     /// LinkWeight::INFINITY)`.
@@ -383,7 +400,7 @@ impl OspfState {
     }
 
     /// Get the set of next hops (router ids) for `src` to reach `dst`.
-    pub fn maybe_get_next_hops(
+    pub(crate) fn maybe_get_next_hops(
         &self,
         src: RouterId,
         dst: RouterId,
@@ -458,6 +475,21 @@ impl OspfState {
         } else {
             Some((next_hops, cost))
         }
+    }
+
+    /// Generate a forwarding state that represents the OSPF routing state. Each router with
+    /// [`RouterId`] `id` advertises its own prefix `id.index().into()`. The stored paths represent
+    /// the routing decisions performed by OSPF.
+    ///
+    /// The returned lookup table maps each router id to its prefix. You can also obtain the prefix
+    /// of a router with ID `id` by computing `id.index().into()`.
+    pub fn build_forwarding_state(
+        &self,
+    ) -> (
+        ForwardingState<SimplePrefix>,
+        HashMap<RouterId, SimplePrefix>,
+    ) {
+        ForwardingState::from_ospf(self)
     }
 }
 
