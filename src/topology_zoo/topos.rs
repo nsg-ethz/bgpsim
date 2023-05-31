@@ -38,7 +38,7 @@
 use super::TopologyZooParser;
 use crate::{
     event::EventQueue,
-    network::Network, 
+    network::Network,
     types::{Prefix, RouterId}
 };
 
