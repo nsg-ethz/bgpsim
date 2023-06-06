@@ -30,121 +30,41 @@ use crate::{
 
 use super::{arrows::Arrow, SvgColor};
 
-pub struct NextHop {
-    next_hops: Vec<(RouterId, Point)>,
-    p1: Point,
-    net: Rc<Net>,
-    dim: Rc<Dim>,
-    _net_dispatch: Dispatch<Net>,
-    _dim_dispatch: Dispatch<Dim>,
-    state_dispatch: Dispatch<State>,
-}
-
-pub enum Msg {
-    State(Rc<State>),
-    StateDim(Rc<Dim>),
-    StateNet(Rc<Net>),
-    HoverEnter(MouseEvent, RouterId),
-    HoverLeave,
-}
-
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub router_id: RouterId,
     pub prefix: Pfx,
 }
 
-impl Component for NextHop {
-    type Message = Msg;
-    type Properties = Properties;
+#[function_component]
+pub fn NextHop(props: &Properties) -> Html {
+    let (net, _) = use_store::<Net>();
+    let (dim, _) = use_store::<Dim>();
+    let (_, state) = use_store::<State>();
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
-        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
-        NextHop {
-            next_hops: Default::default(),
-            p1: Default::default(),
-            net: Default::default(),
-            dim: Default::default(),
-            _net_dispatch,
-            _dim_dispatch,
-            state_dispatch,
+    // get the point of the router
+    let src = props.router_id;
+    let p_src = dim.get(net.pos().get(&src).copied().unwrap_or_default());
+    // generate all arrows
+
+    html!{
+        <g>
+        {
+            get_next_hop(net, dim, props.router_id, props.prefix).into_iter().map(|(dst, p3)| {
+                let dist = p_src.dist(p3);
+                let p1 = p_src.interpolate(p3, ROUTER_RADIUS / dist);
+                let p2 = p_src.interpolate(p3, FW_ARROW_LENGTH / dist);
+                let on_mouse_enter = state.reduce_mut_callback(move |s| s.set_hover(Hover::NextHop(src, dst)));
+                let on_mouse_leave = state.reduce_mut_callback(|s| s.clear_hover());
+                let color = SvgColor::BlueLight;
+                html!{<Arrow {color} {p1} {p2} {on_mouse_enter} {on_mouse_leave} />}
+            }).collect::<Html>()
         }
-    }
-
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        if self.next_hops.is_empty() {
-            html! {}
-        } else {
-            html! {
-                <g>
-                {
-                    self.next_hops.iter().cloned().map(|(dst, p3)| {
-                        let dist = self.p1.dist(p3);
-                        let p1 = self.p1.interpolate(p3, ROUTER_RADIUS / dist);
-                        let p2 = self.p1.interpolate(p3, FW_ARROW_LENGTH / dist);
-                        let on_mouse_enter = ctx.link().callback(move |e| Msg::HoverEnter(e, dst));
-                        let on_mouse_leave = ctx.link().callback(|_| Msg::HoverLeave);
-                        let color = SvgColor::BlueLight;
-                        html! {
-                            <Arrow {color} {p1} {p2} {on_mouse_enter} {on_mouse_leave} />
-                        }
-                    }).collect::<Html>()
-                }
-                </g>
-            }
-        }
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::StateDim(d) => {
-                self.dim = d;
-            }
-            Msg::StateNet(n) => {
-                self.net = n;
-            }
-            Msg::State(_) => {
-                return false;
-            }
-            Msg::HoverEnter(_, dst) => {
-                let src = ctx.props().router_id;
-                self.state_dispatch
-                    .reduce_mut(move |state| state.set_hover(Hover::NextHop(src, dst)));
-                return false;
-            }
-            Msg::HoverLeave => {
-                self.state_dispatch.reduce_mut(|state| state.clear_hover());
-                return false;
-            }
-        }
-
-        Component::changed(self, ctx, ctx.props())
-    }
-
-    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
-        let r = ctx.props().router_id;
-        let new_p1 = self
-            .dim
-            .get(self.net.pos().get(&r).copied().unwrap_or_default());
-        let new_next_hops = get_next_hop(
-            &self.net,
-            &self.dim,
-            ctx.props().router_id,
-            ctx.props().prefix,
-        );
-        if (&new_next_hops, new_p1) != (&self.next_hops, self.p1) {
-            self.next_hops = new_next_hops;
-            self.p1 = new_p1;
-            true
-        } else {
-            false
-        }
+        </g>
     }
 }
 
-fn get_next_hop(net: &Net, dim: &Dim, router: RouterId, prefix: Pfx) -> Vec<(RouterId, Point)> {
+fn get_next_hop(net: Rc<Net>, dim: Rc<Dim>, router: RouterId, prefix: Pfx) -> Vec<(RouterId, Point)> {
     if let Some(r) = net.net().get_device(router).internal() {
         r.get_next_hop(prefix)
             .into_iter()
