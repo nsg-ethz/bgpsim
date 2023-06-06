@@ -146,9 +146,7 @@ fn bgp_event(props: &BgpEventProps) -> Html {
     let d_frame = format!(
         "M {x} {y} m 22 13 v -7 a 2 2 0 0 0 -2 -2 h -16 a 2 2 0 0 0 -2 2 v 12 c 0 1.1 0.9 2 2 2 h 8"
     );
-    let d_lid = format!(
-        "M {x} {y} m 22 7 l -8.97 5.7 a 1.94 1.94 0 0 1 -2.06 0 l -8.97 -5.7"
-    );
+    let d_lid = format!("M {x} {y} m 22 7 l -8.97 5.7 a 1.94 1.94 0 0 1 -2.06 0 l -8.97 -5.7");
 
     if is_update {
         let d_plus_1 = format!("M {x} {y} m 19 16 v 6");

@@ -30,7 +30,8 @@ pub fn help(props: &HelpProps) -> Html {
     let (_, dispatch) = use_store::<State>();
 
     let help_text = props.text.clone();
-    let onmouseenter = dispatch.reduce_mut_callback(move |s| s.set_hover(Hover::Help(help_text.clone())));
+    let onmouseenter =
+        dispatch.reduce_mut_callback(move |s| s.set_hover(Hover::Help(help_text.clone())));
     let onmouseleave = dispatch.reduce_mut_callback(|s| s.clear_hover());
 
     html! {

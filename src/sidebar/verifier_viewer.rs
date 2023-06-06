@@ -17,8 +17,8 @@
 
 use std::{iter::repeat, rc::Rc};
 
-use itertools::Itertools;
 use bgpsim::{prelude::NetworkFormatter, types::RouterId};
+use itertools::Itertools;
 use yew::prelude::*;
 use yewdux::prelude::*;
 

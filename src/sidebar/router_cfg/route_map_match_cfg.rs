@@ -280,7 +280,9 @@ fn match_update(m: &RouteMapMatch<Pfx>, val: MatchValue) -> Option<RouteMapMatch
         }
         (RouteMapMatch::NextHop(_), MatchValue::Router(r)) => RouteMapMatch::NextHop(r),
         (RouteMapMatch::Community(_), MatchValue::Integer(x)) => RouteMapMatch::Community(x),
-        (RouteMapMatch::DenyCommunity(_), MatchValue::Integer(x)) => RouteMapMatch::DenyCommunity(x),
+        (RouteMapMatch::DenyCommunity(_), MatchValue::Integer(x)) => {
+            RouteMapMatch::DenyCommunity(x)
+        }
         _ => return None,
     })
 }
