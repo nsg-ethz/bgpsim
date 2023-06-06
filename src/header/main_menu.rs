@@ -128,7 +128,11 @@ impl Component for MainMenu {
                 <button class={bg_class} onclick={hide}> </button>
                 <div class={sidebar_class}>
                     <div class="flex-1 flex justify-end">
-                        <div class="cursor-pointer m-2" onclick={on_dark_mode_toggle}>{ dark_mode_symbol }</div>
+                        if self.state.is_theme_forced() {
+                            <div class="m-2 text-base-1">{ dark_mode_symbol }</div>
+                        } else {
+                            <div class="cursor-pointer m-2" onclick={on_dark_mode_toggle}>{ dark_mode_symbol }</div>
+                        }
                     </div>
                     <div class="flex-1 flex flex-col items-center justify-center pt-2 pb-10">
                         {logo}

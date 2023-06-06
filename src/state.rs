@@ -16,7 +16,7 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use bgpsim::{bgp::BgpRoute, types::RouterId};
-use gloo_utils::document;
+use gloo_utils::{document, window};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 use yew::prelude::Html;
@@ -31,6 +31,7 @@ pub struct State {
     layer: Layer,
     prefix: Option<Pfx>,
     dark_mode: bool,
+    theme_forced: bool,
     features: Features,
 }
 
@@ -42,6 +43,7 @@ impl Default for State {
             layer: Layer::FwState,
             prefix: Default::default(),
             dark_mode: false,
+            theme_forced: false,
             features: Default::default(),
         }
     }
@@ -121,29 +123,82 @@ impl State {
         self.prefix = prefix
     }
 
+    pub fn is_theme_forced(&self) -> bool {
+        self.theme_forced
+    }
+
     pub fn is_dark_mode(&self) -> bool {
         self.dark_mode
     }
 
-    pub fn set_dark_mode(&mut self) {
-        if !self.dark_mode {
-            self.toggle_dark_mode()
+    /// initialize the theme by checking the media tag. and/or local storage.
+    pub fn init_theme(&mut self) {
+        // do nothing if the theme is already forced.
+        if self.theme_forced {
+            return;
         }
+
+        // get the preference
+        let prefer_dark = window()
+            .match_media("(prefers-color-scheme: dark)")
+            .ok()
+            .flatten()
+            .map(|x| x.matches())
+            .unwrap_or(false);
+
+        // get the storage. If the storage is not available, then simply do nothing
+        let stored_dark = window()
+            .local_storage()
+            .ok()
+            .flatten()
+            .and_then(|s| s.get("theme").ok().flatten())
+            .map(|t| t == "dark");
+
+        let init_dark = stored_dark.unwrap_or(prefer_dark);
+
+        if init_dark {
+            self.set_dark_mode()
+        } else {
+            self.set_light_mode()
+        }
+    }
+
+    fn store_theme(&mut self) {
+        if let Some(w) = window().local_storage().ok().flatten() {
+            let _ = w.set("theme", if self.dark_mode { "dark" } else { "light" });
+        }
+    }
+
+    pub fn set_dark_mode(&mut self) {
+        self.dark_mode = true;
+        self.store_theme();
+        document().body().unwrap().set_attribute("data-dark-mode", "").unwrap();
+    }
+
+
+    pub fn force_dark_mode(&mut self) {
+        self.dark_mode = true;
+        self.theme_forced = true;
+        document().body().unwrap().set_attribute("data-dark-mode", "").unwrap();
     }
 
     pub fn set_light_mode(&mut self) {
-        if self.dark_mode {
-            self.toggle_dark_mode()
-        }
+        self.dark_mode = false;
+        self.store_theme();
+        document().body().unwrap().remove_attribute("data-dark-mode").unwrap();
+    }
+
+    pub fn force_light_mode(&mut self) {
+        self.dark_mode = false;
+        self.theme_forced = true;
+        document().body().unwrap().remove_attribute("data-dark-mode").unwrap();
     }
 
     pub fn toggle_dark_mode(&mut self) {
-        self.dark_mode = !self.dark_mode;
-        let body = document().body().unwrap();
         if self.dark_mode {
-            body.set_attribute("data-dark-mode", "").unwrap();
+            self.set_light_mode();
         } else {
-            body.remove_attribute("data-dark-mode").unwrap();
+            self.set_dark_mode();
         }
     }
 }

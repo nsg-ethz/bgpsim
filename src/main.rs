@@ -42,21 +42,6 @@ use yewdux::prelude::*;
 #[function_component(App)]
 fn app() -> Html {
     let header_ref = use_node_ref();
-    // register event listener
-    if let Some(media) = window()
-        .match_media("(prefers-color-scheme: dark)")
-        .ok()
-        .flatten()
-    {
-        let dispatch = Dispatch::<State>::new();
-        dispatch.reduce_mut(|s| {
-            if media.matches() {
-                s.set_dark_mode()
-            } else {
-                s.set_light_mode()
-            }
-        });
-    }
 
     html! {
         <div class="flex w-screen h-screen max-h-screen max-w-screen bg-base-2 overflow-scroll text-main">
@@ -74,13 +59,28 @@ fn app() -> Html {
 fn entry() -> Html {
     let last_query = use_state(String::new);
 
+    Dispatch::<State>::new().reduce_mut(|s| s.init_theme());
+
     if let Ok(query) = window().location().search() {
         if last_query.as_str() != query {
             if let Ok(params) = UrlSearchParams::new_with_str(&query) {
+                // handle the theme
+                if let Some(theme) = params.get("theme").or_else(|| params.get("t")) {
+                    match theme.as_str() {
+                        "light" | "l" => {
+                            Dispatch::<State>::new().reduce_mut(|s| s.force_light_mode());
+                        },
+                        "dark" | "d" => {
+                            Dispatch::<State>::new().reduce_mut(|s| s.force_dark_mode());
+                        }
+                        s => log::error!("Unknown theme: {s} (allowed: light, dark)")
+                    }
+                }
+
                 if let Some(d) = params.get("data") {
-                    log::debug!("import the url data");
                     import_url(d);
                 }
+
                 #[cfg(feature = "atomic_bgp")]
                 if let Some(scenario) = params.get("scenario").or_else(|| params.get("s")) {
                     match scenario.as_str() {
