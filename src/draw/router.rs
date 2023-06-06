@@ -15,7 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::rc::Rc;
+use std::sync::{Arc, Mutex};
 
 use bgpsim::types::RouterId;
 use gloo_utils::window;
@@ -30,216 +30,106 @@ use crate::{
     state::{Hover, Selected, State},
 };
 
-pub enum Msg {
-    StateDim(Rc<Dim>),
-    StateNet(Rc<Net>),
-    State(Rc<State>),
-    OnMouseEnter(MouseEvent),
-    OnMouseLeave,
-    OnClick,
-    OnMouseDown(MouseEvent),
-    OnMouseUp,
-    OnMouseMove(MouseEvent),
-}
-
-pub struct Router {
-    dim: Rc<Dim>,
-    net: Rc<Net>,
-    selected: bool,
-    glow: bool,
-    p: Point,
-    move_p: Point,
-    dragging: Option<Closure<dyn Fn(MouseEvent)>>,
-    _dim_dispatch: Dispatch<Dim>,
-    net_dispatch: Dispatch<Net>,
-    state_dispatch: Dispatch<State>,
-}
-
 #[derive(PartialEq, Eq, Properties)]
 pub struct Properties {
     pub router_id: RouterId,
 }
 
-impl Component for Router {
-    type Message = Msg;
-    type Properties = Properties;
+#[function_component]
+pub fn Router(props: &Properties) -> Html {
+    let id = props.router_id;
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
-        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
-        Self {
-            dim: Default::default(),
-            net: Default::default(),
-            selected: false,
-            glow: false,
-            p: Default::default(),
-            move_p: Default::default(),
-            dragging: None,
-            _dim_dispatch,
-            net_dispatch,
-            state_dispatch,
+    let (net, _) = use_store::<Net>();
+    let (dim, _) = use_store::<Dim>();
+    let (s, state) = use_store::<State>();
+
+    let external = net.net().get_device(id).is_external();
+    let p = dim.get(net.pos().get(&id).copied().unwrap());
+    let selected = s.selected() == Selected::Router(id);
+    let glow = match s.hover() {
+        Hover::Router(r) | Hover::Policy(r, _) if r == id => true,
+        #[cfg(feature = "atomic_bgp")]
+        Hover::AtomicCommand(routers) if routers.contains(&id) => true,
+        _ => false,
+    };
+    let scale = dim.canvas_size();
+
+    let onclick = state.reduce_mut_callback(move |s| s.set_selected(Selected::Router(id)));
+    let onmouseenter = state.reduce_mut_callback(move |s| s.set_hover(Hover::Router(id)));
+    let onmouseleave = state.reduce_mut_callback(|s| s.clear_hover());
+
+    // callbacks for mouse movement
+    let move_p = Arc::new(Mutex::new(p));
+    let move_p1 = move_p.clone();
+    let move_p2 = move_p.clone();
+    let move_listener1 = use_state(|| Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e: MouseEvent| {
+        let p = Point::new(e.client_x(), e.client_y()) / scale;
+        let mut move_p = move_p1.lock().unwrap();
+        let delta = (client_p - *move_p) / scale;
+        *move_p = client_p;
+        Dispatch::<Net>::new().reduce_mut(move |n| {
+            *n.pos_mut().get_mut(&id).unwrap() += delta;
+        });
+    })));
+    let move_listener2 = move_listener1.clone();
+
+    let onmousedown = Callback::from(move |e: MouseEvent| {
+        *move_p2.lock().unwrap() = Point::new(e.client_x(), e.client_y());
+        let _ = window().add_event_listener_with_callback("mousemove", move_listener1.as_ref().unchecked_ref());
+    });
+    let onmouseup = Callback::from(move |_| {
+        let _ = window().remove_event_listener_with_callback("mousemove", move_listener2.as_ref().unchecked_ref());
+        Dispatch::<State>::new().reduce_mut(move |s| s.set_hover(Hover::Router(id)));
+    });
+
+    let r = format!("{ROUTER_RADIUS}");
+    let color = if selected {
+        "text-blue stroke-blue hover:stroke-main drop-shadow-lg"
+    } else if glow {
+        "stroke-main text-base-4 drop-shadow-md"
+    } else {
+        "text-base-1 hover:text-base-4 stroke-main drop-shadow-md"
+    };
+
+    let blur_class = if glow {
+        "fill-current text-blue"
+    } else {
+        "opacity-0"
+    };
+    let blur_r = format!("{}", ROUTER_RADIUS * 1.3);
+    let blur = html! {
+        <circle
+            class={classes!(blur_class, "stroke-0", "blur-lg", "pointer-events-none", "transition", "duration-150", "ease-in-out")}
+            style="cursor"
+            cx={p.x()} cy={p.y()} r={blur_r} />
+    };
+
+    if external {
+        let path = format!(
+            "M {} {} m 10 10 h -17 a 14 14 0 1 1 13.42 -18 h 3.58 a 9 9 0 1 1 0 18 z",
+            p.x(),
+            p.y()
+        );
+        html! {
+            <>
+                { blur }
+                <path d={path}
+                    class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
+                    style="cursor"
+                    cx={p.x()} cy={p.y()} {r}
+                    {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>
+            </>
         }
-    }
-
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let r = format!("{ROUTER_RADIUS}");
-        let color = if self.selected {
-            "text-blue stroke-blue hover:stroke-main drop-shadow-lg"
-        } else if self.glow {
-            "stroke-main text-base-4 drop-shadow-md"
-        } else {
-            "text-base-1 hover:text-base-4 stroke-main drop-shadow-md"
-        };
-        let onclick = ctx.link().callback(|_| Msg::OnClick);
-        let onmouseenter = ctx.link().callback(Msg::OnMouseEnter);
-        let onmouseleave = ctx.link().callback(|_| Msg::OnMouseLeave);
-        let onmousedown = ctx.link().callback(Msg::OnMouseDown);
-        let onmouseup = ctx.link().callback(|_| Msg::OnMouseUp);
-
-        let blur_class = if self.glow {
-            "fill-current text-blue"
-        } else {
-            "opacity-0"
-        };
-        let blur_r = format!("{}", ROUTER_RADIUS * 1.3);
-        let blur = html! {
-            <circle
-                class={classes!(blur_class, "stroke-0", "blur-lg", "pointer-events-none", "transition", "duration-150", "ease-in-out")}
-                style="cursor"
-                cx={self.p.x()} cy={self.p.y()} r={blur_r} />
-        };
-
-        if self
-            .net
-            .net()
-            .get_device(ctx.props().router_id)
-            .is_external()
-        {
-            let path = format!(
-                "M {} {} m 10 10 h -17 a 14 14 0 1 1 13.42 -18 h 3.58 a 9 9 0 1 1 0 18 z",
-                self.p.x(),
-                self.p.y()
-            );
-            html! {
-                <>
-                    { blur }
-                    <path d={path}
-                        class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
-                        style="cursor"
-                        cx={self.p.x()} cy={self.p.y()} {r}
-                        {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>
-                </>
-            }
-        } else {
-            html! {
-                <>
-                    { blur }
-                    <circle
-                        class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
-                        style="cursor"
-                        cx={self.p.x()} cy={self.p.y()} {r}
-                        {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>
-                </>
-            }
-        }
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::StateDim(s) => self.dim = s,
-            Msg::StateNet(n) => self.net = n,
-            Msg::State(s) => {
-                let router_id = ctx.props().router_id;
-                let new_selected = s.selected() == Selected::Router(ctx.props().router_id);
-                let new_glow = match s.hover() {
-                    Hover::Router(r) | Hover::Policy(r, _) if r == router_id => true,
-                    #[cfg(feature = "atomic_bgp")]
-                    Hover::AtomicCommand(routers) if routers.contains(&router_id) => true,
-                    _ => false,
-                };
-                return if (new_selected, new_glow) != (self.selected, self.glow) {
-                    self.selected = new_selected;
-                    self.glow = new_glow;
-                    true
-                } else {
-                    false
-                };
-            }
-            Msg::OnMouseEnter(_) => {
-                let router_id = ctx.props().router_id;
-                self.state_dispatch
-                    .reduce_mut(move |s| s.set_hover(Hover::Router(router_id)));
-                return false;
-            }
-            Msg::OnMouseLeave => {
-                self.state_dispatch.reduce_mut(|s| s.clear_hover());
-                return false;
-            }
-            Msg::OnClick => {
-                let router_id = ctx.props().router_id;
-                self.state_dispatch
-                    .reduce_mut(move |s| s.set_selected(Selected::Router(router_id)));
-                // This triggers the event Msg::State(new)
-                return false;
-            }
-            Msg::OnMouseUp => {
-                if let Some(listener) = self.dragging.take() {
-                    if let Err(e) = window().remove_event_listener_with_callback(
-                        "mousemove",
-                        listener.as_ref().unchecked_ref(),
-                    ) {
-                        log::error!("Could not remove event listener! {:?}", e)
-                    }
-                }
-                let router_id = ctx.props().router_id;
-                self.state_dispatch
-                    .reduce_mut(move |s| s.set_hover(Hover::Router(router_id)));
-                return false;
-            }
-            Msg::OnMouseDown(e) => {
-                self.move_p = Point::new(e.client_x(), e.client_y());
-                let link = ctx.link().clone();
-                let listener = Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e| {
-                    link.send_message(Msg::OnMouseMove(e))
-                }));
-                match window().add_event_listener_with_callback(
-                    "mousemove",
-                    listener.as_ref().unchecked_ref(),
-                ) {
-                    Ok(()) => self.dragging = Some(listener),
-                    Err(e) => log::error!("Could not add event listener! {:?}", e),
-                }
-                return false;
-            }
-            Msg::OnMouseMove(e) => {
-                if self.dragging.is_some() {
-                    let client_p = Point::new(e.client_x(), e.client_y());
-                    let delta = (client_p - self.move_p) / self.dim.canvas_size();
-                    self.move_p = client_p;
-
-                    let router_id = ctx.props().router_id;
-                    self.net_dispatch.reduce_mut(move |n| {
-                        *n.pos_mut().get_mut(&router_id).unwrap() += delta;
-                    });
-                }
-                return false;
-            }
-        }
-
-        Component::changed(self, ctx, ctx.props())
-    }
-
-    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
-        let router_id = ctx.props().router_id;
-        let p = self
-            .dim
-            .get(self.net.pos().get(&router_id).copied().unwrap_or_default());
-        if p != self.p {
-            self.p = p;
-            true
-        } else {
-            false
+    } else {
+        html! {
+            <>
+                { blur }
+                <circle
+                    class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
+                    style="cursor"
+                    cx={p.x()} cy={p.y()} {r}
+                    {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>
+            </>
         }
     }
 }
