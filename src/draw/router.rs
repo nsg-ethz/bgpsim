@@ -63,7 +63,7 @@ pub fn Router(props: &Properties) -> Html {
     let move_p1 = move_p.clone();
     let move_p2 = move_p.clone();
     let move_listener1 = use_state(|| Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e: MouseEvent| {
-        let p = Point::new(e.client_x(), e.client_y()) / scale;
+        let client_p = Point::new(e.client_x(), e.client_y());
         let mut move_p = move_p1.lock().unwrap();
         let delta = (client_p - *move_p) / scale;
         *move_p = client_p;
