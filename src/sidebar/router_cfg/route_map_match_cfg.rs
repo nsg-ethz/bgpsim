@@ -219,7 +219,8 @@ fn match_kind_text(m: &RouteMapMatch<Pfx>) -> &'static str {
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(_)) => "Path has",
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Length(_)) => "Path len",
         RouteMapMatch::NextHop(_) => "Next-Hop is",
-        RouteMapMatch::Community(_) => "Community has",
+        RouteMapMatch::Community(_) => "Has community",
+        RouteMapMatch::DenyCommunity(_) => "Deny community",
     }
 }
 
@@ -232,6 +233,7 @@ fn match_kind_options() -> Vec<(RouteMapMatch<Pfx>, String)> {
         ))),
         RouteMapMatch::NextHop(0.into()),
         RouteMapMatch::Community(0),
+        RouteMapMatch::DenyCommunity(0),
     ]
     .map(|kind| {
         let text = match_kind_text(&kind).to_string();
@@ -253,6 +255,7 @@ fn match_values(m: &RouteMapMatch<Pfx>) -> MatchValue {
         }
         RouteMapMatch::NextHop(v) => MatchValue::Router(*v),
         RouteMapMatch::Community(v) => MatchValue::Integer(*v),
+        RouteMapMatch::DenyCommunity(v) => MatchValue::Integer(*v),
         _ => MatchValue::None,
     }
 }
@@ -277,6 +280,7 @@ fn match_update(m: &RouteMapMatch<Pfx>, val: MatchValue) -> Option<RouteMapMatch
         }
         (RouteMapMatch::NextHop(_), MatchValue::Router(r)) => RouteMapMatch::NextHop(r),
         (RouteMapMatch::Community(_), MatchValue::Integer(x)) => RouteMapMatch::Community(x),
+        (RouteMapMatch::DenyCommunity(_), MatchValue::Integer(x)) => RouteMapMatch::DenyCommunity(x),
         _ => return None,
     })
 }
