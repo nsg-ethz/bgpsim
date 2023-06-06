@@ -15,37 +15,15 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::rc::Rc;
-
-use bgpsim::{ospf::OspfArea, types::RouterId};
+use bgpsim::types::RouterId;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
     dim::Dim,
     net::Net,
-    point::Point,
     state::{Layer, State},
 };
-
-pub enum Msg {
-    StateDim(Rc<Dim>),
-    StateNet(Rc<Net>),
-    State(Rc<State>),
-}
-
-pub struct Link {
-    dim: Rc<Dim>,
-    net: Rc<Net>,
-    state: Rc<State>,
-    p1: Point,
-    p2: Point,
-    area: OspfArea,
-    in_ospf: bool,
-    _dim_dispatch: Dispatch<Dim>,
-    _net_dispatch: Dispatch<Net>,
-    _state_dispatch: Dispatch<State>,
-}
 
 #[derive(PartialEq, Eq, Properties)]
 pub struct Properties {
@@ -63,79 +41,33 @@ const LINK_COLORS: [&str; NUM_LINK_COLORS] = [
     "text-orange",
 ];
 
-impl Component for Link {
-    type Message = Msg;
-    type Properties = Properties;
+#[function_component]
+pub fn Link(props: &Properties) -> Html {
+    let (src, dst) = (props.from, props.to);
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
-        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
-        Self {
-            dim: Default::default(),
-            net: Default::default(),
-            state: Default::default(),
-            area: Default::default(),
-            in_ospf: false,
-            p1: Default::default(),
-            p2: Default::default(),
-            _dim_dispatch,
-            _net_dispatch,
-            _state_dispatch,
-        }
-    }
+    let (net, _) = use_store::<Net>();
+    let (dim, _) = use_store::<Dim>();
+    let (state, _) = use_store::<State>();
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
-        let layer = self.state.layer();
-        let class = if matches!(layer, Layer::Bgp | Layer::RouteProp) {
-            classes!("stroke-current", "stroke-1", "text-main-ia")
-        } else if matches!(layer, Layer::Igp) && self.in_ospf {
-            if self.area.is_backbone() {
-                classes!("stroke-current", "stroke-2", "text-main")
-            } else {
-                let color_idx = (self.area.num() as usize - 1) % NUM_LINK_COLORS;
-                classes!("stroke-current", "stroke-2", LINK_COLORS[color_idx])
-            }
+    let p1 = dim.get(net.pos().get(&src).copied().unwrap_or_default());
+    let p2 = dim.get(net.pos().get(&dst).copied().unwrap_or_default());
+    let area = net.net().get_ospf_area(src, dst).unwrap_or_default();
+    let in_ospf = net.net().get_device(src).is_internal() && net.net().get_device(dst).is_internal();
+    let layer = state.layer();
+
+    let class = if matches!(layer, Layer::Bgp | Layer::RouteProp) {
+        classes!("stroke-current", "stroke-1", "text-main-ia")
+    } else if matches!(layer, Layer::Igp) && in_ospf {
+        if area.is_backbone() {
+            classes!("stroke-current", "stroke-2", "text-main")
         } else {
-            classes!("stroke-current", "stroke-1", "text-main")
-        };
-        html! {
-            <line {class} x1={self.p1.x()} y1={self.p1.y()} x2={self.p2.x()} y2={self.p2.y()} />
+            let color_idx = (area.num() as usize - 1) % NUM_LINK_COLORS;
+            classes!("stroke-current", "stroke-2", LINK_COLORS[color_idx])
         }
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        let is_state_update = matches!(msg, Msg::State(_));
-        match msg {
-            Msg::State(s) => self.state = s,
-            Msg::StateDim(s) => self.dim = s,
-            Msg::StateNet(n) => self.net = n,
-        }
-
-        let component_changed = Component::changed(self, ctx, ctx.props());
-        component_changed || is_state_update
-    }
-
-    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
-        let from = ctx.props().from;
-        let to = ctx.props().to;
-        let p1 = self
-            .dim
-            .get(self.net.pos().get(&from).copied().unwrap_or_default());
-        let p2 = self
-            .dim
-            .get(self.net.pos().get(&to).copied().unwrap_or_default());
-        let area = self.net.net().get_ospf_area(from, to).unwrap_or_default();
-        let in_ospf = self.net.net().get_device(from).is_internal()
-            && self.net.net().get_device(to).is_internal();
-        if p1 != self.p1 || p2 != self.p2 || area != self.area || in_ospf != self.in_ospf {
-            self.p1 = p1;
-            self.p2 = p2;
-            self.area = area;
-            self.in_ospf = in_ospf;
-            true
-        } else {
-            false
-        }
+    } else {
+        classes!("stroke-current", "stroke-1", "text-main")
+    };
+    html! {
+        <line {class} x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} />
     }
 }
