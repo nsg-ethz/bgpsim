@@ -29,6 +29,7 @@ pub mod next_hop;
 pub mod propagation;
 pub mod router;
 pub mod text;
+pub mod add_connection;
 
 #[derive(Clone, Copy, PartialEq, Eq, EnumIter, Debug)]
 pub enum SvgColor {

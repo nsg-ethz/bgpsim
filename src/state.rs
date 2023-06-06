@@ -15,12 +15,14 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{bgp::BgpRoute, types::RouterId};
+use bgpsim::{bgp::BgpRoute, types::RouterId, prelude::BgpSessionType};
 use gloo_utils::{document, window};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 use yew::prelude::Html;
 use yewdux::prelude::Store;
+
+use crate::point::Point;
 
 use super::net::Pfx;
 
@@ -28,6 +30,7 @@ use super::net::Pfx;
 pub struct State {
     selected: Selected,
     hover: Hover,
+    context_menu: ContextMenu,
     layer: Layer,
     prefix: Option<Pfx>,
     dark_mode: bool,
@@ -40,6 +43,7 @@ impl Default for State {
         Self {
             selected: Default::default(),
             hover: Default::default(),
+            context_menu: Default::default(),
             layer: Layer::FwState,
             prefix: Default::default(),
             dark_mode: false,
@@ -95,6 +99,10 @@ impl State {
         self.layer
     }
 
+    pub fn context_menu(&self) -> ContextMenu {
+        self.context_menu.clone()
+    }
+
     pub fn prefix(&self) -> Option<Pfx> {
         self.prefix
     }
@@ -113,6 +121,14 @@ impl State {
 
     pub fn is_hover(&self) -> bool {
         !matches!(self.hover, Hover::None)
+    }
+
+    pub fn set_context_menu(&mut self, context_menu: ContextMenu) {
+        self.context_menu = context_menu
+    }
+
+    pub fn clear_context_menu(&mut self) {
+        self.context_menu = ContextMenu::None
     }
 
     pub fn set_layer(&mut self, layer: Layer) {
@@ -172,26 +188,41 @@ impl State {
     pub fn set_dark_mode(&mut self) {
         self.dark_mode = true;
         self.store_theme();
-        document().body().unwrap().set_attribute("data-dark-mode", "").unwrap();
+        document()
+            .body()
+            .unwrap()
+            .set_attribute("data-dark-mode", "")
+            .unwrap();
     }
-
 
     pub fn force_dark_mode(&mut self) {
         self.dark_mode = true;
         self.theme_forced = true;
-        document().body().unwrap().set_attribute("data-dark-mode", "").unwrap();
+        document()
+            .body()
+            .unwrap()
+            .set_attribute("data-dark-mode", "")
+            .unwrap();
     }
 
     pub fn set_light_mode(&mut self) {
         self.dark_mode = false;
         self.store_theme();
-        document().body().unwrap().remove_attribute("data-dark-mode").unwrap();
+        document()
+            .body()
+            .unwrap()
+            .remove_attribute("data-dark-mode")
+            .unwrap();
     }
 
     pub fn force_light_mode(&mut self) {
         self.dark_mode = false;
         self.theme_forced = true;
-        document().body().unwrap().remove_attribute("data-dark-mode").unwrap();
+        document()
+            .body()
+            .unwrap()
+            .remove_attribute("data-dark-mode")
+            .unwrap();
     }
 
     pub fn toggle_dark_mode(&mut self) {
@@ -211,6 +242,7 @@ pub enum Selected {
     #[cfg(feature = "atomic_bgp")]
     Migration,
     Verifier,
+    CreateConnection(RouterId, Connection),
 }
 
 impl Default for Selected {
@@ -245,6 +277,12 @@ impl Hover {
     }
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Connection {
+    Link,
+    BgpSession(BgpSessionType)
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, Deserialize, Serialize)]
 pub enum Layer {
     FwState,
@@ -273,5 +311,33 @@ impl Default for Layer {
 impl Layer {
     pub fn requires_prefix(&self) -> bool {
         matches!(self, Self::FwState | Self::RouteProp)
+    }
+}
+
+#[derive(Debug, Clone, PartialEq)]
+pub enum ContextMenu {
+    None,
+    InternalRouterContext(RouterId, Point),
+    ExternalRouterContext(RouterId, Point),
+}
+
+impl Default for ContextMenu {
+    fn default() -> Self {
+        Self::None
+    }
+}
+
+impl ContextMenu {
+    pub(crate) fn is_none(&self) -> bool {
+        matches!(self, ContextMenu::None)
+    }
+
+    pub(crate) fn point(&self) -> Option<Point> {
+        match self {
+            ContextMenu::None => None,
+            ContextMenu::InternalRouterContext(_, p) | ContextMenu::ExternalRouterContext(_, p) => {
+                Some(*p)
+            }
+        }
     }
 }

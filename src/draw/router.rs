@@ -15,9 +15,10 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use bgpsim::types::RouterId;
+use bgpsim::{prelude::BgpSessionType, types::RouterId};
 use gloo_utils::window;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use yew::prelude::*;
@@ -27,7 +28,7 @@ use crate::{
     dim::{Dim, ROUTER_RADIUS},
     net::Net,
     point::Point,
-    state::{Hover, Selected, State},
+    state::{Connection, ContextMenu, Hover, Selected, State},
 };
 
 #[derive(PartialEq, Eq, Properties)]
@@ -45,7 +46,8 @@ pub fn Router(props: &Properties) -> Html {
 
     let external = net.net().get_device(id).is_external();
     let p = dim.get(net.pos().get(&id).copied().unwrap());
-    let selected = s.selected() == Selected::Router(id);
+    let s_selected = s.selected();
+    let selected = s_selected == Selected::Router(id);
     let glow = match s.hover() {
         Hover::Router(r) | Hover::Policy(r, _) if r == id => true,
         #[cfg(feature = "atomic_bgp")]
@@ -54,7 +56,8 @@ pub fn Router(props: &Properties) -> Html {
     };
     let scale = dim.canvas_size();
 
-    let onclick = state.reduce_mut_callback(move |s| s.set_selected(Selected::Router(id)));
+    // generate the onclick event depending on the state (if we are in create-connection mode).
+    let (onclick, clickable) = prepare_onclick(id, s_selected, &state, &net);
     let onmouseenter = state.reduce_mut_callback(move |s| s.set_hover(Hover::Router(id)));
     let onmouseleave = state.reduce_mut_callback(|s| s.clear_hover());
 
@@ -62,25 +65,52 @@ pub fn Router(props: &Properties) -> Html {
     let move_p = Arc::new(Mutex::new(p));
     let move_p1 = move_p.clone();
     let move_p2 = move_p.clone();
-    let move_listener1 = use_state(|| Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e: MouseEvent| {
-        let client_p = Point::new(e.client_x(), e.client_y());
-        let mut move_p = move_p1.lock().unwrap();
-        let delta = (client_p - *move_p) / scale;
-        *move_p = client_p;
-        Dispatch::<Net>::new().reduce_mut(move |n| {
-            *n.pos_mut().get_mut(&id).unwrap() += delta;
-        });
-    })));
+    let move_listener1 = use_state(|| {
+        Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e: MouseEvent| {
+            let client_p = Point::new(e.client_x(), e.client_y());
+            let mut move_p = move_p1.lock().unwrap();
+            let delta = (client_p - *move_p) / scale;
+            *move_p = client_p;
+            Dispatch::<Net>::new().reduce_mut(move |n| {
+                *n.pos_mut().get_mut(&id).unwrap() += delta;
+            });
+        }))
+    });
     let move_listener2 = move_listener1.clone();
 
-    let onmousedown = Callback::from(move |e: MouseEvent| {
-        *move_p2.lock().unwrap() = Point::new(e.client_x(), e.client_y());
-        let _ = window().add_event_listener_with_callback("mousemove", move_listener1.as_ref().unchecked_ref());
+    let onmousedown = Callback::from(move |e: MouseEvent| match e.button() {
+        0 => {
+            *move_p2.lock().unwrap() = Point::new(e.client_x(), e.client_y());
+            let _ = window().add_event_listener_with_callback(
+                "mousemove",
+                move_listener1.as_ref().unchecked_ref(),
+            );
+        }
+        _ => {}
     });
     let onmouseup = Callback::from(move |_| {
-        let _ = window().remove_event_listener_with_callback("mousemove", move_listener2.as_ref().unchecked_ref());
+        let _ = window().remove_event_listener_with_callback(
+            "mousemove",
+            move_listener2.as_ref().unchecked_ref(),
+        );
         Dispatch::<State>::new().reduce_mut(move |s| s.set_hover(Hover::Router(id)));
     });
+
+    // context menu handler
+    let oncontextmenu = if s.features().simple {
+        Callback::noop()
+    } else {
+        Callback::from(move |e: MouseEvent| {
+            e.prevent_default();
+            let p = Point::new(e.client_x(), e.client_y());
+            let new_context = if external {
+                ContextMenu::ExternalRouterContext(id, p)
+            } else {
+                ContextMenu::InternalRouterContext(id, p)
+            };
+            Dispatch::<State>::new().reduce_mut(move |s| s.set_context_menu(new_context))
+        })
+    };
 
     let r = format!("{ROUTER_RADIUS}");
     let color = if selected {
@@ -103,6 +133,7 @@ pub fn Router(props: &Properties) -> Html {
             style="cursor"
             cx={p.x()} cy={p.y()} r={blur_r} />
     };
+    let pointer = if clickable { "" } else { "cursor-not-allowed" };
 
     if external {
         let path = format!(
@@ -114,10 +145,10 @@ pub fn Router(props: &Properties) -> Html {
             <>
                 { blur }
                 <path d={path}
-                    class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
+                    class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color, pointer)}
                     style="cursor"
                     cx={p.x()} cy={p.y()} {r}
-                    {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>
+                    {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup} {oncontextmenu}/>
             </>
         }
     } else {
@@ -125,11 +156,102 @@ pub fn Router(props: &Properties) -> Html {
             <>
                 { blur }
                 <circle
-                    class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color)}
+                    class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color, pointer)}
                     style="cursor"
                     cx={p.x()} cy={p.y()} {r}
-                    {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup}/>
+                    {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup} {oncontextmenu}/>
             </>
         }
+    }
+}
+
+fn prepare_onclick(
+    id: RouterId,
+    selected: Selected,
+    state: &Dispatch<State>,
+    net: &Rc<Net>,
+) -> (Callback<MouseEvent>, bool) {
+    if let Selected::CreateConnection(src, conn) = selected {
+        let external = net.net().get_device(id).is_external();
+        let src_external = net.net().get_device(src).is_external();
+        match conn {
+            Connection::Link => {
+                // check if the link already exists
+                if net.net().get_topology().find_edge(src, id).is_some() {
+                    // link already exists
+                    (Callback::noop(), false)
+                } else {
+                    let clear_selection =
+                        state.reduce_mut_callback(move |s| s.set_selected(Selected::None));
+                    let update_net = move |_: MouseEvent| {
+                        Dispatch::<Net>::new().reduce_mut(move |n| {
+                            n.net_mut().add_link(src, id);
+                            let w = if external || src_external { 1.0 } else { 100.0 };
+                            n.net_mut().set_link_weight(src, id, w).unwrap();
+                            n.net_mut().set_link_weight(id, src, w).unwrap();
+                        })
+                    };
+                    (clear_selection.reform(update_net), true)
+                }
+            }
+            Connection::BgpSession(BgpSessionType::EBgp) => {
+                // check if the two are already connected
+                if (external && src_external)
+                    || (!external && !src_external)
+                    || net
+                        .net()
+                        .get_device(src)
+                        .internal()
+                        .map(|r| r.get_bgp_session_type(id).is_some())
+                        .unwrap_or(false)
+                    || net
+                        .net()
+                        .get_device(src)
+                        .external()
+                        .map(|r| r.get_bgp_sessions().contains(&id))
+                        .unwrap_or(false)
+                {
+                    (Callback::noop(), false)
+                } else {
+                    let clear_selection =
+                        state.reduce_mut_callback(move |s| s.set_selected(Selected::None));
+                    let update_net = move |_: MouseEvent| {
+                        Dispatch::<Net>::new().reduce_mut(move |n| {
+                            let _ =
+                                n.net_mut()
+                                    .set_bgp_session(src, id, Some(BgpSessionType::EBgp));
+                        })
+                    };
+                    (clear_selection.reform(update_net), true)
+                }
+            }
+            Connection::BgpSession(session_type) => {
+                if external
+                    || src_external
+                    || net
+                        .net()
+                        .get_device(src)
+                        .internal()
+                        .map(|r| r.get_bgp_session_type(id).is_some())
+                        .unwrap_or(true)
+                {
+                    (Callback::noop(), false)
+                } else {
+                    let clear_selection =
+                        state.reduce_mut_callback(move |s| s.set_selected(Selected::None));
+                    let update_net = move |_: MouseEvent| {
+                        Dispatch::<Net>::new().reduce_mut(move |n| {
+                            let _ = n.net_mut().set_bgp_session(src, id, Some(session_type));
+                        })
+                    };
+                    (clear_selection.reform(update_net), true)
+                }
+            }
+        }
+    } else {
+        (
+            state.reduce_mut_callback(move |s| s.set_selected(Selected::Router(id))),
+            true,
+        )
     }
 }

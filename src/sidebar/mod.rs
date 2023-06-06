@@ -86,7 +86,7 @@ impl Component for Sidebar {
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
         let content = match self.state.selected() {
-            Selected::None => html! {
+            Selected::None | Selected::CreateConnection(_, _) => html! {
                 <div class="h-full w-full flex flex-col justify-center items-center">
                     <p class="text-main-ia italic"> { "nothing selected!" } </p>
                 </div>

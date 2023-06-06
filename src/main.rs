@@ -27,6 +27,7 @@ mod point;
 mod sidebar;
 mod state;
 mod tooltip;
+mod context_menu;
 use draw::canvas::Canvas;
 use gloo_utils::window;
 use header::Header;
@@ -35,6 +36,7 @@ use net::Net;
 use sidebar::Sidebar;
 use state::State;
 use tooltip::Tooltip;
+use context_menu::Menu;
 use web_sys::UrlSearchParams;
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -44,8 +46,9 @@ fn app() -> Html {
     let header_ref = use_node_ref();
 
     html! {
-        <div class="flex w-screen h-screen max-h-screen max-w-screen bg-base-2 overflow-scroll text-main">
+        <div class="flex w-screen h-screen max-h-screen max-w-screen bg-base-2 overflow-hidden text-main">
             <Tooltip />
+            <Menu />
             <div class="relative flex-1 h-full p-0">
               <Header node_ref={header_ref.clone()} />
               <Canvas header_ref={header_ref.clone()} />
