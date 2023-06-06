@@ -15,8 +15,6 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::rc::Rc;
-
 use bgpsim::{prelude::BgpSessionType, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -24,31 +22,10 @@ use yewdux::prelude::*;
 use crate::{
     dim::Dim,
     net::Net,
-    point::Point,
     state::{Hover, State},
 };
 
 use super::{arrows::CurvedArrow, SvgColor};
-
-pub struct BgpSession {
-    p1: Point,
-    p2: Point,
-    net: Rc<Net>,
-    dim: Rc<Dim>,
-    old_session_type: Option<BgpSessionType>,
-    _net_dispatch: Dispatch<Net>,
-    _dim_dispatch: Dispatch<Dim>,
-    state_dispatch: Dispatch<State>,
-}
-
-pub enum Msg {
-    State(Rc<State>),
-    StateDim(Rc<Dim>),
-    StateNet(Rc<Net>),
-    OnMouseEnter(MouseEvent),
-    OnMouseLeave,
-    OnClick,
-}
 
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
@@ -57,93 +34,37 @@ pub struct Properties {
     pub session_type: BgpSessionType,
 }
 
-impl Component for BgpSession {
-    type Message = Msg;
-    type Properties = Properties;
+#[function_component]
+pub fn BgpSession(props: &Properties) -> Html {
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
-        let state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
-        BgpSession {
-            p1: Default::default(),
-            p2: Default::default(),
-            net: Default::default(),
-            dim: Default::default(),
-            old_session_type: Default::default(),
-            _net_dispatch,
-            _dim_dispatch,
-            state_dispatch,
-        }
-    }
+    let (src, dst) = (props.src, props.dst);
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let color = match ctx.props().session_type {
-            BgpSessionType::IBgpPeer => SvgColor::BlueLight,
-            BgpSessionType::IBgpClient => SvgColor::PurpleLight,
-            BgpSessionType::EBgp => SvgColor::RedLight,
-        };
-        let on_mouse_enter = ctx.link().callback(Msg::OnMouseEnter);
-        let on_mouse_leave = ctx.link().callback(|_| Msg::OnMouseLeave);
-        let on_click = ctx.link().callback(|_| Msg::OnClick);
-        html! {
-            <>
-                {
-                    if ctx.props().session_type == BgpSessionType::IBgpPeer {
-                        html!{<CurvedArrow {color} p1={self.p2} p2={self.p1} angle={-15.0} sub_radius={true} />}
-                    } else {
-                        html!{}
-                    }
-                }
-                <CurvedArrow {color} p1={self.p1} p2={self.p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} />
-            </>
-        }
-    }
+    let (dim, _) = use_store::<Dim>();
+    let (net, _) = use_store::<Net>();
+    let (_, state) = use_store::<State>();
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::StateDim(d) => {
-                self.dim = d;
-            }
-            Msg::StateNet(n) => {
-                self.net = n;
-            }
-            Msg::State(_) => return false,
-            Msg::OnMouseEnter(_) => {
-                let src = ctx.props().src;
-                let dst = ctx.props().dst;
-                self.state_dispatch
-                    .reduce_mut(move |s| s.set_hover(Hover::BgpSession(src, dst)));
-                return false;
-            }
-            Msg::OnMouseLeave => {
-                self.state_dispatch.reduce_mut(|s| s.clear_hover());
-                return false;
-            }
-            Msg::OnClick => {
-                return false;
+    let p1 = dim.get(net.pos().get(&src).copied().unwrap_or_default());
+    let p2 = dim.get(net.pos().get(&dst).copied().unwrap_or_default());
+    let color = match props.session_type {
+        BgpSessionType::IBgpPeer => SvgColor::BlueLight,
+        BgpSessionType::IBgpClient => SvgColor::PurpleLight,
+        BgpSessionType::EBgp => SvgColor::RedLight,
+    };
+
+    let on_mouse_enter = state.reduce_mut_callback(move |s| s.set_hover(Hover::BgpSession(src, dst)));
+    let on_mouse_leave = state.reduce_mut_callback(|s| s.clear_hover());
+    let on_click = Callback::noop();
+
+    html! {
+        <>
+        {
+            if props.session_type == BgpSessionType::IBgpPeer {
+                html!{<CurvedArrow {color} p1={p2} p2={p1} angle={-15.0} sub_radius={true} />}
+            } else {
+                html!{}
             }
         }
-
-        Component::changed(self, ctx)
-    }
-
-    fn changed(&mut self, ctx: &Context<Self>) -> bool {
-        let r1 = ctx.props().src;
-        let r2 = ctx.props().dst;
-        let p1 = self
-            .dim
-            .get(self.net.pos().get(&r1).copied().unwrap_or_default());
-        let p2 = self
-            .dim
-            .get(self.net.pos().get(&r2).copied().unwrap_or_default());
-        if (p1, p2, self.old_session_type) != (self.p1, self.p2, Some(ctx.props().session_type)) {
-            self.p1 = p1;
-            self.p2 = p2;
-            self.old_session_type = Some(ctx.props().session_type);
-            true
-        } else {
-            false
-        }
+        <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} />
+        </>
     }
 }

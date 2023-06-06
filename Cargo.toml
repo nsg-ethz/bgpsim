@@ -13,9 +13,9 @@ anonymous = []
 [dependencies]
 bgpsim = { path = "../bgpsim" }
 atomic-command = { path = "../atomic-bgp/atomic-command", features = ["serde"], optional = true }
-yew = { version = "0.19" }
-yewdux = { version = "0.8"}
-yew-lucide = "0.91"
+yew = { version = "0.20", features = ["csr"] }
+yewdux = { version = "0.9"}
+yew-lucide = "0.172"
 web-sys = { version = "0.3", features = [ "HtmlDivElement", "SvgGraphicsElement", "SvgRect", "Window", "KeyboardEvent", "Document", "Element", "HtmlElement", "FileList", "FileReader", "Blob", "ProgressEvent", "History", "MediaQueryList", "UrlSearchParams"] }
 js-sys = "0.3"
 log = "0.4.17"

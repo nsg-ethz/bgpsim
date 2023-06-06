@@ -259,7 +259,6 @@ impl Component for MainMenu {
                     return false;
                 }
 
-                let update_net = Callback::once(import_json_str);
                 let listener = {
                     let reader = reader.clone();
                     Closure::<dyn Fn(ProgressEvent)>::wrap(Box::new(move |_| {
@@ -270,7 +269,7 @@ impl Component for MainMenu {
                                 return;
                             }
                         };
-                        update_net.emit(data)
+                        import_json_str(data)
                     }))
                 };
 

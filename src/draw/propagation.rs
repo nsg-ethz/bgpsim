@@ -103,10 +103,10 @@ impl Component for Propagation {
             }
         }
 
-        Component::changed(self, ctx)
+        Component::changed(self, ctx, ctx.props())
     }
 
-    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
         let p_src = self
             .net
             .pos()

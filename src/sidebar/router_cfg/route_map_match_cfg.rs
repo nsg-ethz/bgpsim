@@ -148,7 +148,7 @@ impl Component for RouteMapMatchCfg {
         true
     }
 
-    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
         self.update_from_props(&ctx.props().m);
         true
     }

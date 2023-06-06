@@ -140,7 +140,7 @@ impl Component for TextField {
         }
     }
 
-    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
         if self.original_text != ctx.props().text {
             self.current_text = ctx.props().text.clone();
             self.original_text = ctx.props().text.clone();

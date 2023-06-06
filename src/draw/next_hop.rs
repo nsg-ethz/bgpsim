@@ -120,10 +120,10 @@ impl Component for NextHop {
             }
         }
 
-        Component::changed(self, ctx)
+        Component::changed(self, ctx, ctx.props())
     }
 
-    fn changed(&mut self, ctx: &Context<Self>) -> bool {
+    fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
         let r = ctx.props().router_id;
         let new_p1 = self
             .dim
