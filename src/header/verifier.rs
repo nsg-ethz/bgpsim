@@ -79,7 +79,7 @@ impl Component for Verifier {
             let class = "space-x-4 rounded-full z-10 p-2 px-4 drop-shadow bg-base-1 text-green pointer-events-auto";
             let onclick = ctx.link().callback(|_| Msg::Show);
             html! {
-                <button {class} {onclick} {onmouseenter} {onmouseleave}><yew_lucide::Check class="w-6 h-6"/></button>
+                <button {class} {onclick} {onmouseenter} {onmouseleave} id="specification-button"><yew_lucide::Check class="w-6 h-6"/></button>
             }
         } else {
             let badge_class = "absolute inline-block top-2 right-2 bottom-auto left-auto translate-x-2/4 -translate-y-1/2 scale-x-100 scale-y-100 py-1 px-2.5 text-xs leading-none text-center whitespace-nowrap align-baseline font-bold bg-red text-base-1 rounded-full z-10";
@@ -87,7 +87,7 @@ impl Component for Verifier {
             let onclick = ctx.link().callback(|_| Msg::Show);
             html! {
                 <div class="relative">
-                    <button {class} {onclick} {onmouseenter} {onmouseleave} ><yew_lucide::X class="w-6 h-6"/></button>
+                    <button {class} {onclick} {onmouseenter} {onmouseleave} id="specification-button"><yew_lucide::X class="w-6 h-6"/></button>
                     <div class={badge_class}>{num_violations}</div>
                 </div>
             }

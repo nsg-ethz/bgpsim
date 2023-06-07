@@ -28,13 +28,16 @@ use crate::{
 };
 
 const STEPS: &[TourStep] = &[
-    TourStep::Text(&[
-        #[cfg(feature = "atomic_bgp")]
-        "Welcome to the online simulator for Chameleon.",
-        #[cfg(not(feature = "atomic_bgp"))]
-        "Welcome to BgpSim, the online simulator for BGP networks.",
-        "In a few steps, this tutorial will show you how to use this simulator."
-    ]),
+    TourStep::Text(
+        &[
+            #[cfg(feature = "atomic_bgp")]
+            "Welcome to the online simulator for Chameleon.",
+            #[cfg(not(feature = "atomic_bgp"))]
+            "Welcome to BgpSim, the online simulator for BGP networks.",
+            "In a few steps, this tutorial will show you how to use this simulator."
+        ],
+        &[]
+    ),
     TourStep::Element {
         element_id: "layer-selection",
         alternative: None,
@@ -112,6 +115,25 @@ const STEPS: &[TourStep] = &[
         ],
         align: Align::Left,
     },
+    #[cfg(feature = "atomic_bgp")]
+    TourStep::Element {
+        element_id: "specification-button",
+        alternative: None,
+        actions: &[Action::ShowSpecification],
+        paragraphs: &[
+            "The simulator comes with a built-in verifier. At every step, the simulator will check all forwarding properties, and notify you as soon as any property is violated.",
+            "By clicking on this button, the sidebar on the right will show all properties (and which of them are violated)."
+        ],
+        align: Align::BottomLeft,
+    },
+    TourStep::Text(
+        &[
+            "You now understand the basics of the simulator.",
+            #[cfg(feature = "atomic_bgp")]
+            "Please consider reading the paper for information on how the migration plan is generated, and which guarantees it can provide.",
+        ],
+        &[Action::SelectNothing]
+    ),
 ];
 
 const HIGHLIGHT_PADDING: f64 = 20.0;
@@ -121,7 +143,7 @@ const BOX_HEIGHT: f64 = 200.0;
 
 #[function_component]
 pub fn Tour() -> Html {
-    let (net, net_dispatch) = use_store::<Net>();
+    let (net, _) = use_store::<Net>();
 
     let tour_complete = use_selector(|state: &State| state.is_tour_complete());
 
@@ -153,15 +175,20 @@ pub fn Tour() -> Html {
     let current_step = &STEPS[*step];
 
     let (highlight, popup_pos, paragraphs) = match current_step {
-        TourStep::Text(paragraphs) => (
-            html! {},
-            format!(
-                "left: {}px; top: {}px;",
-                (width - BOX_WIDTH) * 0.5,
-                (height - BOX_HEIGHT) * 0.5
-            ),
-            paragraphs,
-        ),
+        TourStep::Text(paragraphs, actions) => {
+            for action in actions.iter() {
+                action.apply(&net);
+            }
+            (
+                html! {},
+                format!(
+                    "left: {}px; top: {}px;",
+                    (width - BOX_WIDTH) * 0.5,
+                    (height - BOX_HEIGHT) * 0.5
+                ),
+                paragraphs,
+            )
+        }
         TourStep::Element {
             element_id,
             alternative,
@@ -171,42 +198,11 @@ pub fn Tour() -> Html {
         } => {
             // perform the actions
             for action in actions.iter() {
-                match action {
-                    Action::ChooseLayer(l) => {
-                        Dispatch::<State>::new().reduce_mut(|state| state.set_layer(l.clone()));
-                    }
-                    Action::CreateFirstRouter => {
-                        if net.net().get_routers().len() == 0 {
-                            net_dispatch.reduce_mut(|n| {
-                                let id = n.net_mut().add_router("Zürich");
-                                n.pos_mut().insert(id, Point::new(0.5, 0.5));
-                            });
-                        }
-                    }
-                    Action::SelectFirstRouter => {
-                        let first_router = net.net().get_routers()[0];
-                        Dispatch::<State>::new().reduce_mut(move |state| {
-                            state.set_selected(Selected::Router(first_router))
-                        });
-                    }
-                    Action::ShowQueue => {
-                        if !net.net().auto_simulation_enabled() {
-                            Dispatch::<State>::new().reduce_mut(|state| state.set_selected(Selected::Queue));
-                        }
-                    }
-                    #[cfg(feature = "atomic_bgp")]
-                    Action::ShowMigration => {
-                        if net.migration().iter().map(|x| x.len()).sum::<usize>() > 0 {
-                            Dispatch::<State>::new().reduce_mut(|state| state.set_selected(Selected::Migration));
-                        }
-                    }
-                }
+                action.apply(&net);
             }
 
             // then, get the element by ID. If it doesn't exist, then we simply skip that step.
             if let Some(elem) = document().get_element_by_id(element_id) {
-
-
                 let rect = elem.get_bounding_client_rect();
                 let highlight_pos = format!(
                     "width: {}px; height: {}px; top: {}px; left: {}px;",
@@ -301,7 +297,7 @@ pub fn Tour() -> Html {
 
 #[derive(Debug, Clone, PartialEq)]
 enum TourStep {
-    Text(&'static [&'static str]),
+    Text(&'static [&'static str], &'static [Action]),
     Element {
         element_id: &'static str,
         alternative: Option<&'static [&'static str]>,
@@ -329,4 +325,54 @@ enum Action {
     ShowQueue,
     #[cfg(feature = "atomic_bgp")]
     ShowMigration,
+    #[cfg(feature = "atomic_bgp")]
+    ShowSpecification,
+    SelectNothing,
+}
+
+impl Action {
+    pub fn apply(&self, net: impl AsRef<Net>) {
+        let net = net.as_ref();
+        match self {
+            Action::ChooseLayer(l) => {
+                Dispatch::<State>::new().reduce_mut(|state| state.set_layer(l.clone()));
+            }
+            Action::CreateFirstRouter => {
+                if net.net().get_routers().len() == 0 {
+                    Dispatch::<Net>::new().reduce_mut(|n| {
+                        let id = n.net_mut().add_router("Zürich");
+                        n.pos_mut().insert(id, Point::new(0.5, 0.5));
+                    });
+                }
+            }
+            Action::SelectFirstRouter => {
+                let first_router = net.net().get_routers()[0];
+                Dispatch::<State>::new()
+                    .reduce_mut(move |state| state.set_selected(Selected::Router(first_router)));
+            }
+            Action::ShowQueue => {
+                if !net.net().auto_simulation_enabled() {
+                    Dispatch::<State>::new()
+                        .reduce_mut(|state| state.set_selected(Selected::Queue));
+                }
+            }
+            #[cfg(feature = "atomic_bgp")]
+            Action::ShowMigration => {
+                if net.migration().iter().map(|x| x.len()).sum::<usize>() > 0 {
+                    Dispatch::<State>::new()
+                        .reduce_mut(|state| state.set_selected(Selected::Migration));
+                }
+            }
+            #[cfg(feature = "atomic_bgp")]
+            Action::ShowSpecification => {
+                if !net.spec().is_empty() {
+                    Dispatch::<State>::new()
+                        .reduce_mut(|state| state.set_selected(Selected::Verifier));
+                }
+            }
+            Action::SelectNothing => {
+                Dispatch::<State>::new().reduce_mut(|state| state.set_selected(Selected::None));
+            }
+        }
+    }
 }
