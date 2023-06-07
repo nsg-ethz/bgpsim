@@ -15,7 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{bgp::BgpRoute, types::RouterId, prelude::BgpSessionType};
+use bgpsim::{bgp::BgpRoute, prelude::BgpSessionType, types::RouterId};
 use gloo_utils::{document, window};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
@@ -36,6 +36,7 @@ pub struct State {
     dark_mode: bool,
     theme_forced: bool,
     features: Features,
+    tour_complete: bool,
 }
 
 impl Default for State {
@@ -49,6 +50,7 @@ impl Default for State {
             dark_mode: false,
             theme_forced: false,
             features: Default::default(),
+            tour_complete: true,
         }
     }
 }
@@ -179,6 +181,36 @@ impl State {
         }
     }
 
+    pub fn init_tour(&mut self) {
+        let tour_complete = window()
+            .local_storage()
+            .ok()
+            .flatten()
+            .and_then(|s| s.get("tour_complete").ok().flatten())
+            .map(|x| x == "true")
+            .unwrap_or(false);
+
+        self.tour_complete = tour_complete;
+    }
+
+    pub fn is_tour_complete(&self) -> bool {
+        self.tour_complete
+    }
+
+    pub fn set_tour_complete(&mut self) {
+        self.tour_complete = true;
+        if let Ok(Some(storage)) = window().local_storage() {
+            let _ = storage.set("tour_complete", "true");
+        }
+    }
+
+    pub fn reset_tour_complete(&mut self) {
+        self.tour_complete = false;
+        if let Ok(Some(storage)) = window().local_storage() {
+            let _ = storage.set("tour_complete", "false");
+        }
+    }
+
     fn store_theme(&mut self) {
         if let Some(w) = window().local_storage().ok().flatten() {
             let _ = w.set("theme", if self.dark_mode { "dark" } else { "light" });
@@ -280,7 +312,7 @@ impl Hover {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Connection {
     Link,
-    BgpSession(BgpSessionType)
+    BgpSession(BgpSessionType),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, Deserialize, Serialize)]

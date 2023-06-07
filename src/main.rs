@@ -17,6 +17,7 @@
 
 #![allow(clippy::let_unit_value)]
 
+mod context_menu;
 mod dim;
 mod draw;
 mod header;
@@ -27,7 +28,8 @@ mod point;
 mod sidebar;
 mod state;
 mod tooltip;
-mod context_menu;
+mod tour;
+use context_menu::Menu;
 use draw::canvas::Canvas;
 use gloo_utils::window;
 use header::Header;
@@ -36,7 +38,7 @@ use net::Net;
 use sidebar::Sidebar;
 use state::State;
 use tooltip::Tooltip;
-use context_menu::Menu;
+use tour::Tour;
 use web_sys::UrlSearchParams;
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -54,6 +56,7 @@ fn app() -> Html {
               <Canvas header_ref={header_ref.clone()} />
             </div>
             <Sidebar />
+            <Tour />
         </div>
     }
 }
@@ -63,6 +66,7 @@ fn entry() -> Html {
     let last_query = use_state(String::new);
 
     Dispatch::<State>::new().reduce_mut(|s| s.init_theme());
+    Dispatch::<State>::new().reduce_mut(|s| s.init_tour());
 
     if let Ok(query) = window().location().search() {
         if last_query.as_str() != query {
@@ -72,11 +76,11 @@ fn entry() -> Html {
                     match theme.as_str() {
                         "light" | "l" => {
                             Dispatch::<State>::new().reduce_mut(|s| s.force_light_mode());
-                        },
+                        }
                         "dark" | "d" => {
                             Dispatch::<State>::new().reduce_mut(|s| s.force_dark_mode());
                         }
-                        s => log::error!("Unknown theme: {s} (allowed: light, dark)")
+                        s => log::error!("Unknown theme: {s} (allowed: light, dark)"),
                     }
                 }
 

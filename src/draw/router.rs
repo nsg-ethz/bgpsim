@@ -21,7 +21,7 @@ use std::sync::{Arc, Mutex};
 use bgpsim::{prelude::BgpSessionType, types::RouterId};
 use gloo_events::EventListener;
 use gloo_utils::window;
-use wasm_bindgen::{prelude::Closure, JsCast};
+use wasm_bindgen::JsCast;
 use yew::prelude::*;
 use yewdux::prelude::*;
 

@@ -82,7 +82,7 @@ module.exports = {
                 },
             }
         },
-    },         
+    },
     variants: {},
     plugins: [],
 };
