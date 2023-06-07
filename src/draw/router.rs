@@ -19,6 +19,7 @@ use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
 use bgpsim::{prelude::BgpSessionType, types::RouterId};
+use gloo_events::EventListener;
 use gloo_utils::window;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use yew::prelude::*;
@@ -62,37 +63,27 @@ pub fn Router(props: &Properties) -> Html {
     let onmouseleave = state.reduce_mut_callback(|s| s.clear_hover());
 
     // callbacks for mouse movement
-    let move_p = Arc::new(Mutex::new(p));
-    let move_p1 = move_p.clone();
-    let move_p2 = move_p.clone();
-    let move_listener1 = use_state(|| {
-        Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e: MouseEvent| {
+    let onmousemove = use_state(|| None);
+    let onmousemove_c = onmousemove.clone();
+    let onmousedown = Callback::from(move |e: MouseEvent| {
+        if e.button() != 0 {
+            return
+        }
+        let move_p = Arc::new(Mutex::new(Point::new(e.client_x(), e.client_y())));
+        // create the onmousemove event
+        onmousemove_c.set(Some(EventListener::new(&window(), "mousemove", move |e: &Event| {
+            let e = e.dyn_ref::<web_sys::MouseEvent>().unwrap();
             let client_p = Point::new(e.client_x(), e.client_y());
-            let mut move_p = move_p1.lock().unwrap();
+            let mut move_p = move_p.lock().unwrap();
             let delta = (client_p - *move_p) / scale;
             *move_p = client_p;
             Dispatch::<Net>::new().reduce_mut(move |n| {
                 *n.pos_mut().get_mut(&id).unwrap() += delta;
             });
-        }))
-    });
-    let move_listener2 = move_listener1.clone();
-
-    let onmousedown = Callback::from(move |e: MouseEvent| match e.button() {
-        0 => {
-            *move_p2.lock().unwrap() = Point::new(e.client_x(), e.client_y());
-            let _ = window().add_event_listener_with_callback(
-                "mousemove",
-                move_listener1.as_ref().unchecked_ref(),
-            );
-        }
-        _ => {}
+        })))
     });
     let onmouseup = Callback::from(move |_| {
-        let _ = window().remove_event_listener_with_callback(
-            "mousemove",
-            move_listener2.as_ref().unchecked_ref(),
-        );
+        onmousemove.set(None);
         Dispatch::<State>::new().reduce_mut(move |s| s.set_hover(Hover::Router(id)));
     });
 
