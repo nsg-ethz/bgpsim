@@ -59,6 +59,7 @@ pub fn interactive_player() -> Html {
         .reduce_mut_callback(|s| s.set_hover(Hover::Help(html! {{"Open the event queue"}})));
     let open_leave = state_dispatch.reduce_mut_callback(|s| s.set_hover(Hover::None));
 
+    let spec_violated = net.spec().values().flatten().any(|(_, r)| r.is_err());
     let queue_size = net.net().queue().len();
     let queue_empty = queue_size == 0;
     let queue_size_s = if queue_size > 1_000_000 {
@@ -69,7 +70,7 @@ pub fn interactive_player() -> Html {
         queue_size.to_string()
     };
 
-    let play_class = if queue_empty {
+    let play_class = if queue_empty || spec_violated {
         "text-base-5 cursor-default pointer-events-none"
     } else {
         "text-main hover:text-green-dark pointer-events-auto"
