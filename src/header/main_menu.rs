@@ -180,11 +180,11 @@ impl Component for MainMenu {
                                     {self.url_network.as_ref().unwrap()}
                                 </div>
                             }
-                            <button class={element_class} onclick={restart_tour}>
-                                <yew_lucide::HelpCircle class="h-6 mr-4" />
-                                {"Restart the tour"}
-                            </button>
                         }
+                        <button class={element_class} onclick={restart_tour}>
+                            <yew_lucide::HelpCircle class="h-6 mr-4" />
+                            {"Restart the tour"}
+                        </button>
                     </div>
                 </div>
             </>

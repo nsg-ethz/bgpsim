@@ -67,7 +67,7 @@ pub fn migration_button() -> Html {
     let open_planner = state_dispatch.reduce_mut_callback(|s| s.set_selected(Selected::Migration));
 
     html! {
-        <button {class} onclick={open_planner} {onmouseenter} {onmouseleave}>
+        <button {class} onclick={open_planner} {onmouseenter} {onmouseleave} id="migration-button">
             { "Migration" }
             <div class={badge_class}>{progress} {"/"} {total}</div>
         </button>

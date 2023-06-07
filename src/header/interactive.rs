@@ -82,7 +82,7 @@ pub fn interactive_player() -> Html {
     };
 
     html! {
-        <div {class}>
+        <div {class} id="queue-controls">
             // <p class="mr-4">{ "Queue:" } </p>
             <button class={play_class} onclick={play} onmouseenter={play_enter} onmouseleave={play_leave}> <yew_lucide::ListVideo class="w-6 h-6"/> </button>
             <button class={step_class} onclick={step} onmouseenter={step_enter} onmouseleave={step_leave}> <yew_lucide::Forward class="w-6 h-6"/> </button>

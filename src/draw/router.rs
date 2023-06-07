@@ -125,6 +125,11 @@ pub fn Router(props: &Properties) -> Html {
             cx={p.x()} cy={p.y()} r={blur_r} />
     };
     let pointer = if clickable { "" } else { "cursor-not-allowed" };
+    let id = if selected {
+        "selected-router"
+    } else {
+        ""
+    };
 
     if external {
         let path = format!(
@@ -135,7 +140,7 @@ pub fn Router(props: &Properties) -> Html {
         html! {
             <>
                 { blur }
-                <path d={path}
+                <path d={path} {id}
                     class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color, pointer)}
                     style="cursor"
                     cx={p.x()} cy={p.y()} {r}
@@ -146,7 +151,7 @@ pub fn Router(props: &Properties) -> Html {
         html! {
             <>
                 { blur }
-                <circle
+                <circle {id}
                     class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color, pointer)}
                     style="cursor"
                     cx={p.x()} cy={p.y()} {r}

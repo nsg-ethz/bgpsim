@@ -149,7 +149,7 @@ fn add_router() -> Html {
     };
 
     html! {
-        <span class="pointer-events-none">
+        <span class="pointer-events-none" id="add-new-router">
             <input type="checkbox" value="" class="sr-only peer" checked={*shown}/>
             <button class={bg_class} onclick={hide}> </button>
             <button class={button_class} onclick={toggle}> <yew_lucide::Plus class="w-6 h-6"/> </button>
@@ -226,7 +226,7 @@ impl Component for PrefixSelection {
 
         let text_update = ctx.link().callback(|_| Msg::OnChange);
         html! {
-            <span class="pointer-events-none">
+            <span class="pointer-events-none" id="prefix-selection">
                 <input type="checkbox" value="" class="sr-only peer" checked={self.shown}/>
                 <div class={button_class}>
                     <input type="checkbox" value="" class="sr-only peer" checked={self.input_wrong}/>
