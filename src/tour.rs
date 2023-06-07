@@ -88,7 +88,7 @@ const STEPS: &[TourStep] = &[
             "The BGP simulator is based on an event queue. The simulator is in manual simulation mode, meaning BGP message are not automatically processed.",
             "The button in the middle will execute the next euqueued event.",
             "The left button will execute all events until either all messages are handled, or any forwarding policy is violated.",
-            "Finally, the right button shows displays the queue in the sidebar."
+            "Finally, the right button shows displays the queue in the sidebar, where you can arbitrarily reorder messages (as long as the message ordering of a single session is not violated)."
         ],
         align: Align::BottomLeft,
     },
