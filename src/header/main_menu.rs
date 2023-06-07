@@ -53,6 +53,7 @@ pub enum Msg {
     OpenMenu,
     CloseMenu,
     SaveLatex,
+    RestartTour
 }
 
 #[derive(Properties, PartialEq)]
@@ -93,6 +94,7 @@ impl Component for MainMenu {
         let export = ctx.link().callback(|_| Msg::Export);
         let export_latex = ctx.link().callback(|_| Msg::SaveLatex);
         let export_copy_url = ctx.link().callback(|_| Msg::ExportCopyUrl);
+        let restart_tour = ctx.link().callback(|_| Msg::RestartTour);
 
         let link_class = "border-b border-base-4 hover:border-blue-dark hover:text-blue-dark transition duration-150 ease-in-out";
         let target = "_blank";
@@ -145,7 +147,7 @@ impl Component for MainMenu {
                     <div class="p-2 flex flex-col space-y-2">
                         <button class={element_class} onclick={toggle_auto_simulate}>
                             <yew_lucide::ListVideo class="h-6 mr-4" />
-                            {"Automatic Simulation"}
+                            {"Automatic simulation"}
                             <div class="pointer-events-none flex flex-1 flex-row-reverse mt-2">
                                 <Toggle text={""} on_click={Callback::from(|_| ())} checked={self.auto_simulate}/>
                             </div>
@@ -153,31 +155,35 @@ impl Component for MainMenu {
                         if !self.state.features().simple {
                             <button class={element_class} onclick={auto_layout}>
                                 <yew_lucide::Wand class="h-6 mr-4" />
-                                {"Automatic Layout"}
+                                {"Automatic layout"}
                             </button>
                             <FeatureSettings main_class={element_class} />
                             <button class={element_class} onclick={export}>
                                 <yew_lucide::Save class="h-6 mr-4" />
-                                {"Export Network"}
+                                {"Export network"}
                             </button>
                             <button class={element_class} onclick={export_latex}>
                                 <yew_lucide::FileText class="h-6 mr-4" />
-                                {"Export to LaTeX"}
+                                {"Export to laTeX"}
                             </button>
                             <button class={element_class} onclick={import}>
                                 <yew_lucide::Import class="h-6 mr-4" />
-                                {"Import From File"}
+                                {"Import from file"}
                             </button>
                             <input class="hidden" type="file" ref={self.file_ref.clone()} onchange={on_file_import} />
                             <button class={element_class} onclick={export_copy_url}>
                                 <yew_lucide::Copy class="h-6 mr-4" />
-                                {"Copy Network URL"}
+                                {"Copy network URL"}
                             </button>
                             if self.url_network.is_some() {
                                 <div class="m-2 px-4 rounded-md bg-base-2 border border-base-5 drop-shadow break-all select-all text-xs h-32 overflow-y-scroll">
                                     {self.url_network.as_ref().unwrap()}
                                 </div>
                             }
+                            <button class={element_class} onclick={restart_tour}>
+                                <yew_lucide::HelpCircle class="h-6 mr-4" />
+                                {"Restart the tour"}
+                            </button>
                         }
                     </div>
                 </div>
@@ -277,6 +283,11 @@ impl Component for MainMenu {
 
                 self.file_listener = Some(listener);
 
+                self.shown = false;
+                true
+            }
+            Msg::RestartTour => {
+                self.state_dispatch.reduce_mut(|s| s.reset_tour_complete());
                 self.shown = false;
                 true
             }
