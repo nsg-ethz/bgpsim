@@ -119,6 +119,7 @@ pub struct CurvedArrowProps {
     pub on_mouse_enter: Option<Callback<MouseEvent>>,
     pub on_mouse_leave: Option<Callback<MouseEvent>>,
     pub on_click: Option<Callback<MouseEvent>>,
+    pub class: Option<String>,
 }
 
 #[function_component(CurvedArrow)]
@@ -134,7 +135,8 @@ pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
     );
     let class = classes! {
         "stroke-current", "stroke-4", "drop-shadows-md", "peer-hover:drop-shadows-lg", "pointer-events-none",
-        props.color.peer_classes()
+        props.color.peer_classes(),
+        props.class.clone().unwrap_or_default(),
     };
     let phantom_class = "stroke-current stroke-16 opacity-0 peer";
     let p1 = props.p1;

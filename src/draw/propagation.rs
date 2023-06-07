@@ -36,6 +36,7 @@ pub struct Properties {
 
 #[function_component]
 pub fn Propagation(props: &Properties) -> Html {
+    let prefix = props.route.prefix;
     let (src, dst, route) = (props.src, props.dst, props.route.clone());
 
     let (net, _) = use_store::<Net>();
@@ -45,11 +46,20 @@ pub fn Propagation(props: &Properties) -> Html {
     let p1 = dim.get(net.pos().get(&src).copied().unwrap_or_default());
     let p2 = dim.get(net.pos().get(&dst).copied().unwrap_or_default());
 
-    let color = SvgColor::YellowLight;
+    let selected = net
+        .net()
+        .get_device(dst)
+        .internal()
+        .and_then(|r| r.get_selected_bgp_route(prefix))
+        .map(|r| r.from_id == src)
+        .unwrap_or(false);
+
+    let color = SvgColor::BlueLight;
+    let class = if selected { "" } else { "opacity-30" };
     let on_mouse_enter =
         state.reduce_mut_callback(move |s| s.set_hover(Hover::RouteProp(src, dst, route.clone())));
     let on_mouse_leave = state.reduce_mut_callback(|s| s.clear_hover());
     html! {
-        <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} />
+        <CurvedArrow {class} {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} />
     }
 }
