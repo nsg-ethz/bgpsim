@@ -15,7 +15,6 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-
 use bgpsim::{prelude::BgpSessionType, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -37,7 +36,6 @@ pub struct Properties {
 
 #[function_component]
 pub fn BgpSession(props: &Properties) -> Html {
-
     let (src, dst) = (props.src, props.dst);
 
     let (dim, _) = use_store::<Dim>();
@@ -52,7 +50,8 @@ pub fn BgpSession(props: &Properties) -> Html {
         BgpSessionType::EBgp => SvgColor::RedLight,
     };
 
-    let on_mouse_enter = state.reduce_mut_callback(move |s| s.set_hover(Hover::BgpSession(src, dst)));
+    let on_mouse_enter =
+        state.reduce_mut_callback(move |s| s.set_hover(Hover::BgpSession(src, dst)));
     let on_mouse_leave = state.reduce_mut_callback(|s| s.clear_hover());
     let on_click = Callback::noop();
 

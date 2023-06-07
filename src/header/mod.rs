@@ -107,7 +107,7 @@ fn layer_selection() -> Html {
     }).collect::<Html>();
 
     html! {
-        <span class="pointer-events-none">
+        <span class="pointer-events-none" id="layer-selection">
             <input type="checkbox" value="" class="sr-only peer" checked={*shown}/>
             <button class={bg_class} onclick={hide}> </button>
             <button class={button_class} onclick={toggle}> <yew_lucide::Layers class="w-5 h-5 mr-2"/> <p class="flex-1">{layer}</p> </button>

@@ -47,7 +47,7 @@ pub fn NextHop(props: &Properties) -> Html {
     let p_src = dim.get(net.pos().get(&src).copied().unwrap_or_default());
     // generate all arrows
 
-    html!{
+    html! {
         <g>
         {
             get_next_hop(net, dim, props.router_id, props.prefix).into_iter().map(|(dst, p3)| {
@@ -64,7 +64,12 @@ pub fn NextHop(props: &Properties) -> Html {
     }
 }
 
-fn get_next_hop(net: Rc<Net>, dim: Rc<Dim>, router: RouterId, prefix: Pfx) -> Vec<(RouterId, Point)> {
+fn get_next_hop(
+    net: Rc<Net>,
+    dim: Rc<Dim>,
+    router: RouterId,
+    prefix: Pfx,
+) -> Vec<(RouterId, Point)> {
     if let Some(r) = net.net().get_device(router).internal() {
         r.get_next_hop(prefix)
             .into_iter()

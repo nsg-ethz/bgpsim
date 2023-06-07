@@ -52,7 +52,8 @@ pub fn Link(props: &Properties) -> Html {
     let p1 = dim.get(net.pos().get(&src).copied().unwrap_or_default());
     let p2 = dim.get(net.pos().get(&dst).copied().unwrap_or_default());
     let area = net.net().get_ospf_area(src, dst).unwrap_or_default();
-    let in_ospf = net.net().get_device(src).is_internal() && net.net().get_device(dst).is_internal();
+    let in_ospf =
+        net.net().get_device(src).is_internal() && net.net().get_device(dst).is_internal();
     let layer = state.layer();
 
     let class = if matches!(layer, Layer::Bgp | Layer::RouteProp) {

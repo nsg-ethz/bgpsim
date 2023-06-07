@@ -15,7 +15,6 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-
 use bgpsim::{bgp::BgpRoute, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -47,7 +46,8 @@ pub fn Propagation(props: &Properties) -> Html {
     let p2 = dim.get(net.pos().get(&dst).copied().unwrap_or_default());
 
     let color = SvgColor::YellowLight;
-    let on_mouse_enter = state.reduce_mut_callback(move |s| s.set_hover(Hover::RouteProp(src, dst, route.clone())));
+    let on_mouse_enter =
+        state.reduce_mut_callback(move |s| s.set_hover(Hover::RouteProp(src, dst, route.clone())));
     let on_mouse_leave = state.reduce_mut_callback(|s| s.clear_hover());
     html! {
         <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} />

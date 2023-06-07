@@ -62,7 +62,7 @@ impl Component for VerifierViewer {
             .iter()
             .sorted_by_key(|(r, _)| *r)
             .flat_map(|(r, x)| repeat(*r).zip(0..x.len()))
-            .map(|(router, idx)| html!( <> <PropertyViewer {router} {idx} /> <Divider /> </> ))
+            .map(|(router, idx)| html!( <PropertyViewer {router} {idx} /> ))
             .collect::<Html>();
 
         html! {

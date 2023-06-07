@@ -41,11 +41,11 @@ use super::link_weight::LinkWeight;
 use super::next_hop::NextHop;
 use super::router::Router;
 use crate::dim::Dim;
+use crate::draw::add_connection::AddConnection;
 use crate::draw::arrows::CurvedArrow;
 use crate::draw::forwarding_path::ForwardingPath;
 use crate::draw::propagation::Propagation;
 use crate::draw::SvgColor;
-use crate::draw::add_connection::AddConnection;
 use crate::net::{Net, Pfx};
 use crate::state::{Hover, Layer, State};
 

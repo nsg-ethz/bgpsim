@@ -21,7 +21,10 @@ use web_sys::HtmlElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{state::{State, ContextMenu, Selected, Connection}, point::Point};
+use crate::{
+    point::Point,
+    state::{Connection, ContextMenu, Selected, State},
+};
 
 #[function_component]
 pub fn Menu() -> Html {
@@ -38,17 +41,26 @@ pub fn Menu() -> Html {
             });
             let add_ebgp = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(router, Connection::BgpSession(BgpSessionType::EBgp)));
+                s.set_selected(Selected::CreateConnection(
+                    router,
+                    Connection::BgpSession(BgpSessionType::EBgp),
+                ));
             });
             let add_ibgp_peer = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(router, Connection::BgpSession(BgpSessionType::IBgpPeer)));
+                s.set_selected(Selected::CreateConnection(
+                    router,
+                    Connection::BgpSession(BgpSessionType::IBgpPeer),
+                ));
             });
             let add_ibgp_client = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(router, Connection::BgpSession(BgpSessionType::IBgpClient)));
+                s.set_selected(Selected::CreateConnection(
+                    router,
+                    Connection::BgpSession(BgpSessionType::IBgpClient),
+                ));
             });
-            html!{
+            html! {
                 <>
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_link}>{"Add Link"}</button>
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ebgp}>{"Add eBGP session"}</button>
@@ -56,7 +68,7 @@ pub fn Menu() -> Html {
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ibgp_client}>{"Add iBGP client"}</button>
                 </>
             }
-        },
+        }
         ContextMenu::ExternalRouterContext(router, _) => {
             let add_link = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
@@ -64,15 +76,18 @@ pub fn Menu() -> Html {
             });
             let add_ebgp = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(router, Connection::BgpSession(BgpSessionType::EBgp)));
+                s.set_selected(Selected::CreateConnection(
+                    router,
+                    Connection::BgpSession(BgpSessionType::EBgp),
+                ));
             });
-            html!{
+            html! {
                 <>
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_link}>{"Add Link"}</button>
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ebgp}>{"Add eBGP session"}</button>
                 </>
             }
-        },
+        }
     };
 
     // create the new position

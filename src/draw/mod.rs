@@ -18,6 +18,7 @@
 use strum_macros::EnumIter;
 use yew::{classes, Classes};
 
+pub mod add_connection;
 pub mod arrows;
 pub mod bgp_session;
 pub mod canvas;
@@ -29,7 +30,6 @@ pub mod next_hop;
 pub mod propagation;
 pub mod router;
 pub mod text;
-pub mod add_connection;
 
 #[derive(Clone, Copy, PartialEq, Eq, EnumIter, Debug)]
 pub enum SvgColor {
