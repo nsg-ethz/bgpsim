@@ -32,7 +32,7 @@ use yewdux::prelude::*;
 use crate::{
     net::{Net, Pfx},
     point::Point,
-    state::{Layer, State},
+    state::{Layer, State, Hover},
 };
 use interactive::InteractivePlayer;
 use main_menu::MainMenu;
@@ -103,14 +103,24 @@ fn layer_selection() -> Html {
                 s.set_layer(l);
             })
         };
-        html! { <button class="text-main hover:text-main hover:bg-base-3 py-2 focus:outline-none" {onclick}>{text}</button> }
+        let onmouseenter = state_dispatch.reduce_mut_callback(move |s| s.set_hover(Hover::Help(l.help())));
+        let onmouseleave = state_dispatch.reduce_mut_callback(|s| s.clear_hover());
+        html! {
+            <button class="text-main hover:text-main hover:bg-base-2 py-2 focus:outline-none"
+                    {onclick} {onmouseenter} {onmouseleave}>
+                {text}
+            </button>
+        }
     }).collect::<Html>();
+
+    let onmouseenter = state_dispatch.reduce_mut_callback(|s| s.set_hover(Hover::Help(html!{ "Select the visualization layer" })));
+    let onmouseleave = state_dispatch.reduce_mut_callback(|s| s.clear_hover());
 
     html! {
         <span class="pointer-events-none" id="layer-selection">
             <input type="checkbox" value="" class="sr-only peer" checked={*shown}/>
             <button class={bg_class} onclick={hide}> </button>
-            <button class={button_class} onclick={toggle}> <yew_lucide::Layers class="w-5 h-5 mr-2"/> <p class="flex-1">{layer}</p> </button>
+            <button class={button_class} onclick={toggle} {onmouseenter} {onmouseleave}> <yew_lucide::Layers class="w-5 h-5 mr-2"/> <p class="flex-1">{layer}</p> </button>
             <div class={content_class}> {layer_options} </div>
         </span>
     }

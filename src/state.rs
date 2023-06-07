@@ -19,7 +19,7 @@ use bgpsim::{bgp::BgpRoute, prelude::BgpSessionType, types::RouterId};
 use gloo_utils::{document, window};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
-use yew::prelude::Html;
+use yew::prelude::{Html, html};
 use yewdux::prelude::Store;
 
 use crate::point::Point;
@@ -344,6 +344,15 @@ impl Default for Layer {
 impl Layer {
     pub fn requires_prefix(&self) -> bool {
         matches!(self, Self::FwState | Self::RouteProp)
+    }
+
+    pub fn help(&self) -> Html {
+        match self {
+            Layer::FwState => html!{ "Show all next-hops for a given prefix." },
+            Layer::RouteProp => html!{ "Show the routing information and how it is propagated for a given prefix." },
+            Layer::Igp => html!{ "Visualize the OSPF configuration (link weights)" },
+            Layer::Bgp => html!{ "Visualize the BGP configuration (BGP sessions and route maps)." },
+        }
     }
 }
 
