@@ -106,11 +106,9 @@ pub fn atomic_command_stage_viewer(props: &AtomicCommandStageProps) -> Html {
     };
 
     let title = match stage {
-        0 => "Setup phase",
+        0 => "Setup",
         1 => "Update phase",
-        2 => "Original command",
-        3 => "Update phase",
-        4 => "Cleanup",
+        2 => "Cleanup",
         _ => "?",
     };
     let text = if active {

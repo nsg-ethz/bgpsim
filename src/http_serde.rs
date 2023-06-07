@@ -214,12 +214,20 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
     #[cfg(feature = "atomic_bgp")]
     {
         if let Some(migration) = content.get("migration") {
-            imported_net.migration = Mrc::new(
-                serde_json::from_value(migration.clone()).unwrap_or_else(|e| {
-                    log::warn!("Error parsing the migration data: {e}");
-                    Default::default()
-                }),
-            );
+            let mut migration: Vec<Vec<_>> = serde_json::from_value(migration.clone()).unwrap_or_else(|e| {
+                log::warn!("Error parsing the migration data: {e}");
+                Default::default()
+            });
+            if migration.len() == 5 {
+                // merge steps 2, 3 and 4.
+                let p5 = migration.pop().unwrap();
+                let p4 = migration.pop().unwrap();
+                let p3 = migration.pop().unwrap();
+                let p2 = migration.pop().unwrap();
+                migration.push(p2.into_iter().chain(p3).chain(p4).collect());
+                migration.push(p5);
+            }
+            imported_net.migration = Mrc::new(migration);
         }
         imported_net.migration_state = Mrc::new(
             content
