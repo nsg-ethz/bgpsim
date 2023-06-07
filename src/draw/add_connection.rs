@@ -16,8 +16,9 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use bgpsim::prelude::BgpSessionType;
-use gloo_utils::{window, document};
-use wasm_bindgen::{prelude::Closure, JsCast};
+use gloo_events::EventListener;
+use gloo_utils::{document, window};
+use wasm_bindgen::JsCast;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -36,51 +37,33 @@ pub fn AddConnection() -> Html {
     let (dim, _) = use_store::<Dim>();
     let (state, _) = use_store::<State>();
 
-    let registered = use_state(|| false);
     let mouse_pos = use_state(|| Point::default());
-    let mouse_pos_listener = mouse_pos.clone();
-    let move_listener = use_state(|| {
-        Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |e: MouseEvent| {
-            let client_p = Point::new(e.client_x(), e.client_y());
-            mouse_pos_listener.set(client_p);
-        }))
-    });
-
-    let keypress_listener = use_state(|| {
-        Closure::<dyn Fn(KeyboardEvent)>::wrap(Box::new(move |e: KeyboardEvent| {
-            if e.key() == "Escape" || e.key() == "Enter" || e.key() == "q" {
-                Dispatch::<State>::new().reduce_mut(|s| s.set_selected(Selected::None));
-            }
-        }))
-    });
+    let event_callbacks = use_state(|| None);
 
     let Selected::CreateConnection(src, connection) = state.selected() else {
         // unregister if necessary
-        if *registered {
-            registered.set(false);
-            let _ = window().remove_event_listener_with_callback(
-                "mousemove",
-                move_listener.as_ref().unchecked_ref(),
-            );
-            let _ = document().remove_event_listener_with_callback(
-                "keypress",
-                keypress_listener.as_ref().unchecked_ref(),
-            );
+        if event_callbacks.is_some() {
+            event_callbacks.set(None);
         }
         return html!{}
     };
 
     // add the event listener if necessary
-    if !*registered {
-        registered.set(true);
-        let _ = window().add_event_listener_with_callback(
-            "mousemove",
-            move_listener.as_ref().unchecked_ref(),
-        );
-        let _ = document().add_event_listener_with_callback(
-            "keypress",
-            keypress_listener.as_ref().unchecked_ref(),
-        );
+    if event_callbacks.is_none() {
+        let mouse_pos_callback = mouse_pos.clone();
+        event_callbacks.set(Some((
+            EventListener::new(&window(), "mousemove", move |e: &Event| {
+                let e = e.dyn_ref::<web_sys::MouseEvent>().unwrap();
+                let client_p = Point::new(e.client_x(), e.client_y());
+                mouse_pos_callback.set(client_p);
+            }),
+            EventListener::new(&document(), "keypress", |e: &Event| {
+                let e = e.dyn_ref::<web_sys::KeyboardEvent>().unwrap();
+                if e.key() == "Escape" || e.key() == "Enter" || e.key() == "q" {
+                    Dispatch::<State>::new().reduce_mut(|s| s.set_selected(Selected::None));
+                }
+            }),
+        )));
     }
 
     let p1 = dim.get(net.pos().get(&src).copied().unwrap());
