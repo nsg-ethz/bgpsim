@@ -94,6 +94,7 @@ impl Component for Tooltip {
             return html! {};
         }
         let content: Html = match hover {
+            Hover::Text(s) => s,
             Hover::Router(r) if self.state.layer() == Layer::RouteProp => {
                 if let Some(x) = self.net.net().get_device(r).internal() {
                     let rib = x

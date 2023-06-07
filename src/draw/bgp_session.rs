@@ -15,13 +15,19 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{prelude::BgpSessionType, types::RouterId};
+use bgpsim::{
+    prelude::{BgpSessionType, NetworkFormatter},
+    route_map::RouteMapDirection,
+    types::RouterId,
+};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
     dim::Dim,
+    draw::arrows::get_curve_point,
     net::Net,
+    point::Point,
     state::{Hover, State},
 };
 
@@ -57,14 +63,97 @@ pub fn BgpSession(props: &Properties) -> Html {
 
     html! {
         <>
-        {
-            if props.session_type == BgpSessionType::IBgpPeer {
-                html!{<CurvedArrow {color} p1={p2} p2={p1} angle={-15.0} sub_radius={true} />}
-            } else {
-                html!{}
+            {
+                if props.session_type == BgpSessionType::IBgpPeer {
+                    html!{<CurvedArrow {color} p1={p2} p2={p1} angle={-15.0} sub_radius={true} />}
+                } else {
+                    html!{}
+                }
             }
-        }
-        <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} />
+            <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} />
+            <RouteMap id={src} peer={dst} direction={RouteMapDirection::Incoming} angle={15.0} />
+            <RouteMap id={src} peer={dst} direction={RouteMapDirection::Outgoing} angle={15.0} />
+            <RouteMap id={dst} peer={src} direction={RouteMapDirection::Incoming} angle={-15.0} />
+            <RouteMap id={dst} peer={src} direction={RouteMapDirection::Outgoing} angle={-15.0} />
         </>
     }
 }
+
+#[derive(Properties, PartialEq)]
+pub struct RmProps {
+    id: RouterId,
+    peer: RouterId,
+    direction: RouteMapDirection,
+    angle: f64,
+}
+
+#[function_component]
+pub fn RouteMap(props: &RmProps) -> Html {
+    // get the route_map text
+    let id = props.id;
+    let peer = props.peer;
+    let direction = props.direction;
+    let angle = props.angle;
+
+    let (net, _) = use_store::<Net>();
+    let (dim, _) = use_store::<Dim>();
+
+    let n = net.net();
+    let Some(router) = n.get_device(id).internal() else {
+        return html!{}
+    };
+    let route_maps = router.get_bgp_route_maps(peer, direction);
+    if route_maps.is_empty() {
+        return html! {};
+    }
+    let text: Html = route_maps
+        .iter()
+        .map(|rm| {
+            let num_text = rm.order().to_string();
+            let text = rm.fmt(&n);
+            html!{<tr> <td>{num_text}</td> <td>{text}</td> </tr>}
+        })
+        .collect();
+    let dir_text = if direction.incoming() {
+        "Incoming route map:"
+    } else {
+        "Outgoing route map:"
+    };
+    let text = html! {
+        <>
+            <p class="mb-1">{dir_text}</p>
+            <table class="border-separate border-spacing-2">
+                {text}
+            </table>
+        </>
+    };
+
+    // get the position from the network
+    let pos = dim.get(net.pos().get(&id).copied().unwrap_or_default());
+    let peer_pos = dim.get(net.pos().get(&peer).copied().unwrap_or_default());
+    let pt = get_curve_point(pos, peer_pos, angle);
+    let dist = if direction.incoming() { 50.0 } else { 80.0 };
+    let p = pos.interpolate_absolute(pt, dist) + Point::new(-12.0, -12.0);
+
+    let arrow_path = if direction.incoming() {
+        html! { <> <rect fill="currentColor" draw="none" class="text-base-2" rx="2" width="24" height="24"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" x2="12" y1="15" y2="3"/> </> }
+    } else {
+        html! { <> <rect fill="currentColor" draw="none" class="text-base-2" rx="2" width="24" height="24"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" x2="12" y1="3" y2="15"/> </>}
+    };
+
+    let dispatch = Dispatch::<State>::new();
+    let onmouseenter =
+        dispatch.reduce_mut_callback(move |s| s.set_hover(Hover::Text(text.clone())));
+    let onmouseleave = dispatch.reduce_mut_callback(|s| s.clear_hover());
+
+    html! {
+        <svg fill="none" stroke-linecap="round" stroke-linejoint="round" class="text-main stroke-2 fill-none stroke-current" {onmouseenter} {onmouseleave} x={p.x()} y={p.y()}>
+            { arrow_path}
+        </svg>
+    }
+}
+// <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload">
+//   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
+//   <polyline points="17 8 12 3 7 8"/>
+//   <line x1="12" x2="12" y1="3" y2="15"/>
+// </svg>

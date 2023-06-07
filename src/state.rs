@@ -286,6 +286,7 @@ impl Default for Selected {
 #[derive(Debug, Clone, PartialEq)]
 pub enum Hover {
     None,
+    Text(Html),
     Router(RouterId),
     BgpSession(RouterId, RouterId),
     NextHop(RouterId, RouterId),
