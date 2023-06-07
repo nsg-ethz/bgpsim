@@ -43,6 +43,20 @@ use web_sys::UrlSearchParams;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
+/// A macro to create a callback that clones some local variable into the closure
+#[macro_export]
+macro_rules! callback {
+    ( $closure:expr ) => {
+        Callback::from($closure)
+    };
+    ( $( $x: ident),* -> $closure:expr ) => {
+        {
+            $(let $x = $x.clone();)*
+            Callback::from($closure)
+        }
+    };
+}
+
 #[function_component(App)]
 fn app() -> Html {
     let header_ref = use_node_ref();
