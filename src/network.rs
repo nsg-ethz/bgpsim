@@ -37,7 +37,10 @@ use crate::{
 };
 
 use log::*;
-use petgraph::{algo::FloatMeasure, visit::{EdgeRef, IntoEdgeReferences}};
+use petgraph::{
+    algo::FloatMeasure,
+    visit::{EdgeRef, IntoEdgeReferences},
+};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
@@ -883,8 +886,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
                 .ok_or(NetworkError::LinkNotFound(router_b, router_a))?,
         );
 
-        // remove the link
-
         // update the undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.last_mut().unwrap().push(vec![
@@ -893,6 +894,73 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         ]);
 
         self.write_igp_fw_tables()
+    }
+
+    /// Remove a router from the network. This operation will remove all connected links and BGP
+    /// sessions. As a result, this operation may potentially create lots of BGP messages. Due to
+    /// internal implementation, the network must be in automatic simulation mode. Calling this
+    /// function will process all unhandled events!
+    ///
+    /// **Warning**: This function cannot be undone!
+    pub fn remove_router(&mut self, router: RouterId) -> Result<(), NetworkError> {
+        // prepare undo stack
+        #[cfg(feature = "undo")]
+        let undo_stack_depth = self.undo_stack.len();
+
+        // turn the network into automatic simulation and handle all events.
+        let old_skip = self.skip_queue;
+        let old_stop_after = self.stop_after;
+        self.skip_queue = false;
+        self.stop_after = None;
+        self.simulate()?;
+
+        // get all IGP and BGP neighbors
+        let (bgp_neighbors, internal): (Vec<RouterId>, bool) = match self.get_device(router) {
+            NetworkDevice::InternalRouter(r) => {
+                (r.get_bgp_sessions().keys().copied().collect(), true)
+            }
+            NetworkDevice::ExternalRouter(r) => {
+                (r.get_bgp_sessions().iter().copied().collect(), false)
+            }
+            NetworkDevice::None(r) => return Err(NetworkError::DeviceNotFound(r)),
+        };
+        let igp_neighbors: Vec<RouterId> = self.net.neighbors(router).collect();
+
+        // remove all edges
+        for neighbor in igp_neighbors {
+            self.net
+                .remove_edge(self.net.find_edge(router, neighbor).unwrap());
+            self.net
+                .remove_edge(self.net.find_edge(neighbor, router).unwrap());
+        }
+
+        self.write_igp_fw_tables()?;
+
+        // remove all BGP sessions
+        for neighbor in bgp_neighbors {
+            self.set_bgp_session(router, neighbor, None)?;
+        }
+
+        // remove the node from the list
+        if internal {
+            self.routers.remove(&router);
+        } else {
+            self.external_routers.remove(&router);
+        }
+
+        self.net.remove_node(router);
+
+        // clean up the stack
+        #[cfg(feature = "undo")]
+        while self.undo_stack.len() > undo_stack_depth {
+            self.undo_stack.pop();
+        }
+
+        // reset the network mode
+        self.skip_queue = old_skip;
+        self.stop_after = old_stop_after;
+
+        Ok(())
     }
 
     /// Undo the last action performed on the network.

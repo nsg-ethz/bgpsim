@@ -148,6 +148,63 @@ mod t {
     }
 
     #[test]
+    fn test_remove_router<P: Prefix>() {
+        let mut net = get_test_net_bgp::<P>();
+        let p = P::from(0);
+
+        // advertise prefix on e1
+        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+            .unwrap();
+
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
+
+        // advertise prefix on e4
+        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+            .unwrap();
+
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+
+        let net_clone = net.clone();
+
+        let r5 = net.add_router("R5");
+        net.add_link(*R3, r5);
+        net.add_link(*R4, r5);
+        net.set_link_weight(*R3, r5, 1.0).unwrap();
+        net.set_link_weight(*R4, r5, 1.0).unwrap();
+        net.set_link_weight(r5, *R3, 1.0).unwrap();
+        net.set_link_weight(r5, *R4, 1.0).unwrap();
+        net.set_bgp_session(*R1, r5, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(*R4, r5, Some(IBgpPeer)).unwrap();
+
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+        test_route!(net, r5, p, [r5, *R4, *E4]);
+
+        net.remove_router(r5).unwrap();
+
+        assert!(net_clone.weak_eq(&net));
+
+        net.remove_router(*E1).unwrap();
+        test_route!(net, *R1, p, [*R1, *R3, *R2, *R4, *E4]);
+        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R3, p, [*R3, *R2, *R4, *E4]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+
+        net.remove_router(*R2).unwrap();
+        test_route!(net, *R1, p, [*R1, *R3, *R4, *E4]);
+        test_route!(net, *R3, p, [*R3, *R4, *E4]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+    }
+
+    #[test]
     fn test_get_router<P: Prefix>() {
         let net = get_test_net::<P>();
 
