@@ -84,7 +84,7 @@ impl Component for Tooltip {
 
     fn view(&self, _ctx: &Context<Self>) -> Html {
         let hover = self.state.hover();
-        if hover.is_none() {
+        if hover.is_none() || self.state.disable_hover {
             return html! {};
         }
         let content: Html = match hover {

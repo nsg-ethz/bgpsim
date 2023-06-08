@@ -68,6 +68,7 @@ pub fn Router(props: &Properties) -> Html {
         if e.button() != 0 {
             return
         }
+        Dispatch::<State>::new().reduce_mut(|state| state.disable_hover = true);
         let move_p = Arc::new(Mutex::new(Point::new(e.client_x(), e.client_y())));
         // create the onmousemove event
         onmousemove_c.set(Some(EventListener::new(&window(), "mousemove", move |e: &Event| {
@@ -83,7 +84,10 @@ pub fn Router(props: &Properties) -> Html {
     });
     let onmouseup = Callback::from(move |_| {
         onmousemove.set(None);
-        Dispatch::<State>::new().reduce_mut(move |s| s.set_hover(Hover::Router(id)));
+        Dispatch::<State>::new().reduce_mut(move |s| {
+            s.set_hover(Hover::Router(id));
+            s.disable_hover = false;
+        });
     });
 
     // context menu handler

@@ -232,7 +232,11 @@ pub fn CanvasBgpConfig() -> Html {
 #[function_component]
 pub fn CanvasEventQueue() -> Html {
     let nodes = use_selector(|net: &Net| net.net().get_routers());
-    let hover = use_selector(|state: &State| state.hover());
+    let hover = use_selector(|state: &State| (state.hover(), state.disable_hover));
+
+    if hover.1 {
+        return html!()
+    }
 
     log::debug!("render CanvasEventQueue");
 
@@ -241,7 +245,7 @@ pub fn CanvasEventQueue() -> Html {
         .copied()
         .map(|dst| html!(<BgpSessionQueue {dst} />))
         .collect::<Html>();
-    let hover = if let Hover::Message(src, dst, _, _) = *hover {
+    let hover = if let Hover::Message(src, dst, _, _) = hover.0 {
         html!(<CanvasEventHover {src} {dst} />)
     } else {
         html!()
@@ -263,9 +267,9 @@ pub fn CanvasEventHover(&EventHoverProps { src, dst }: &EventHoverProps) -> Html
 
 #[function_component]
 pub fn CanvasHighlightPath() -> Html {
-    let state = use_selector(|state: &State| (state.hover(), state.prefix()));
+    let state = use_selector(|state: &State| (state.hover(), state.layer(), state.prefix()));
     let spec_idx = match state.deref().clone() {
-        (Hover::Policy(router_id, idx), Some(_)) => Some((router_id, idx)),
+        (Hover::Policy(router_id, idx), _, Some(_)) => Some((router_id, idx)),
         _ => None,
     };
     let spec = use_selector_with_deps(
@@ -281,13 +285,13 @@ pub fn CanvasHighlightPath() -> Html {
     );
 
     match (state.deref().clone(), *spec) {
-        ((Hover::Router(router_id), Some(prefix)), _) => {
+        ((Hover::Router(router_id), Layer::FwState, Some(prefix)), _) => {
             html! {<ForwardingPath {router_id} {prefix} />}
         }
-        ((Hover::Policy(router_id, _), Some(prefix)), Some(true)) => {
+        ((Hover::Policy(router_id, _), _, Some(prefix)), Some(true)) => {
             html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Valid}/>}
         }
-        ((Hover::Policy(router_id, _), Some(prefix)), Some(false)) => {
+        ((Hover::Policy(router_id, _), _, Some(prefix)), Some(false)) => {
             html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Invalid}/>}
         }
         _ => html!(),

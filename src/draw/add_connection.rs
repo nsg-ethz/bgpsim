@@ -49,6 +49,7 @@ pub fn AddConnection() -> Html {
     let Some((_, connection)) = params else {
         // unregister if necessary
         if event_callbacks.is_some() {
+            Dispatch::<State>::new().reduce_mut(|state| state.disable_hover = false);
             event_callbacks.set(None);
         }
         return html!{}
@@ -56,6 +57,7 @@ pub fn AddConnection() -> Html {
 
     // add the event listener if necessary
     if event_callbacks.is_none() {
+        Dispatch::<State>::new().reduce_mut(|state| state.disable_hover = true);
         let mouse_pos_callback = mouse_pos.clone();
         event_callbacks.set(Some((
             EventListener::new(&window(), "mousemove", move |e: &Event| {

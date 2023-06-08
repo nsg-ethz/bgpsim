@@ -38,6 +38,7 @@ pub struct State {
     theme_forced: bool,
     features: Features,
     tour_complete: bool,
+    pub disable_hover: bool,
 }
 
 impl Default for State {
@@ -52,6 +53,7 @@ impl Default for State {
             theme_forced: false,
             features: Default::default(),
             tour_complete: true,
+            disable_hover: false,
         }
     }
 }
