@@ -24,18 +24,19 @@ mod t {
         prelude::BgpSessionType,
         types::{AsId, Prefix, SimplePrefix, SinglePrefix},
     };
+    use petgraph::Graph;
 
     #[test]
     fn test_build_complete_graph<P: Prefix>() {
         let net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 0);
         assert_eq!(net.get_routers().len(), 0);
         assert_eq!(net.get_external_routers().len(), 0);
-        assert_eq!(net.get_topology().edge_indices().len(), 0);
+        assert_eq!(net.get_topology().edge_count(), 0);
         for n in [1, 2, 10] {
             let net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), n);
             assert_eq!(net.get_routers().len(), n);
             assert_eq!(net.get_external_routers().len(), 0);
-            assert_eq!(net.get_topology().edge_indices().len(), n * (n - 1));
+            assert_eq!(net.get_topology().edge_count(), n * (n - 1));
         }
     }
 
@@ -314,21 +315,24 @@ mod t {
     #[test]
     fn test_build_connected_graph<P: Prefix>() {
         use petgraph::algo::connected_components;
+        use petgraph::Graph;
 
         let mut i = 0;
         while i < 10 {
             let mut net = Network::<P, Queue<P>>::build_gnp(Queue::new(), 100, 0.03);
-            let num_components = connected_components(net.get_topology());
+            let g = Graph::from(net.get_topology().clone());
+            let num_components = connected_components(&g);
             if num_components == 1 {
                 continue;
             }
             i += 1;
 
-            let num_edges_before = net.get_topology().edge_indices().count() / 2;
+            let num_edges_before = net.get_topology().edge_count() / 2;
             net.build_connected_graph();
 
-            let num_edges_after = net.get_topology().edge_indices().count() / 2;
-            let num_components_after = connected_components(net.get_topology());
+            let num_edges_after = net.get_topology().edge_count() / 2;
+            let g = Graph::from(net.get_topology().clone());
+            let num_components_after = connected_components(&g);
             assert_eq!(num_components_after, 1);
             assert_eq!(num_edges_after - num_edges_before, num_components - 1);
         }
@@ -341,7 +345,7 @@ mod t {
             let net = Network::<P, Queue<P>>::build_gnm(Queue::new(), 100, 100);
             assert_eq!(net.get_routers().len(), 100);
             assert_eq!(net.get_external_routers().len(), 0);
-            assert_eq!(net.get_topology().edge_indices().count(), 100 * 2);
+            assert_eq!(net.get_topology().edge_count(), 100 * 2);
         }
     }
 
@@ -352,7 +356,7 @@ mod t {
             let net = Network::<P, Queue<P>>::build_geometric(Queue::new(), 100, 2.0_f64.sqrt(), 2);
             assert_eq!(net.get_routers().len(), 100);
             assert_eq!(net.get_external_routers().len(), 0);
-            assert_eq!(net.get_topology().edge_indices().count(), 100 * 99);
+            assert_eq!(net.get_topology().edge_count(), 100 * 99);
         }
     }
 
@@ -363,8 +367,8 @@ mod t {
             let net = Network::<P, Queue<P>>::build_geometric(Queue::new(), 100, 0.5, 2);
             assert_eq!(net.get_routers().len(), 100);
             assert_eq!(net.get_external_routers().len(), 0);
-            assert!(net.get_topology().edge_indices().count() < 100 * 99);
-            assert!(net.get_topology().edge_indices().count() > 100 * 10);
+            assert!(net.get_topology().edge_count() < 100 * 99);
+            assert!(net.get_topology().edge_count() > 100 * 10);
         }
     }
 
@@ -377,11 +381,9 @@ mod t {
             let net = Network::<P, Queue<P>>::build_barabasi_albert(Queue::new(), 100, 3);
             assert_eq!(net.get_routers().len(), 100);
             assert_eq!(net.get_external_routers().len(), 0);
-            assert_eq!(
-                net.get_topology().edge_indices().count(),
-                (3 + (100 - 3) * 3) * 2
-            );
-            assert_eq!(connected_components(net.get_topology()), 1);
+            assert_eq!(net.get_topology().edge_count(), (3 + (100 - 3) * 3) * 2);
+            let g = Graph::from(net.get_topology().clone());
+            assert_eq!(connected_components(&g), 1);
         }
     }
 

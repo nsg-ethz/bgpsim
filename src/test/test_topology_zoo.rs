@@ -28,8 +28,8 @@ fn test_all_single() {
         let n: Network<SinglePrefix, _> = topo.build(BasicEventQueue::new());
         assert_eq!(n.get_routers().len(), topo.num_internals());
         assert_eq!(n.get_external_routers().len(), topo.num_externals());
-        assert_eq!(n.get_topology().node_indices().len(), topo.num_routers());
-        assert_eq!(n.get_topology().edge_indices().len() / 2, topo.num_edges());
+        assert_eq!(n.get_topology().node_count(), topo.num_routers());
+        assert_eq!(n.get_topology().edge_count() / 2, topo.num_edges());
     }
 }
 
@@ -39,8 +39,8 @@ fn test_all_simple() {
         let n: Network<SimplePrefix, _> = topo.build(BasicEventQueue::new());
         assert_eq!(n.get_routers().len(), topo.num_internals());
         assert_eq!(n.get_external_routers().len(), topo.num_externals());
-        assert_eq!(n.get_topology().node_indices().len(), topo.num_routers());
-        assert_eq!(n.get_topology().edge_indices().len() / 2, topo.num_edges());
+        assert_eq!(n.get_topology().node_count(), topo.num_routers());
+        assert_eq!(n.get_topology().edge_count() / 2, topo.num_edges());
     }
 }
 

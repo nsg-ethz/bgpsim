@@ -633,6 +633,19 @@ impl fmt::Display for RouteMapDirection {
     }
 }
 
+impl RouteMapDirection {
+    /// Return `true` if `self` is `RouteMapDirection::Incoming`.
+    pub fn incoming(&self) -> bool {
+        matches!(self, Self::Incoming)
+    }
+
+    /// Return `true` if `self` is `RouteMapDirection::Outgoing`.
+    pub fn outgoing(&self) -> bool {
+        matches!(self, Self::Outgoing)
+    }
+
+}
+
 /// Description of the control-flow of route maps. This changes the way a sequence of route maps is
 /// applied to a route. It changes what happens when a `allow` route map matches the given
 /// route.

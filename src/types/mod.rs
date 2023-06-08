@@ -24,7 +24,6 @@ use crate::{
     router::Router,
 };
 use itertools::Itertools;
-use petgraph::graph::Graph;
 use petgraph::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -98,7 +97,7 @@ where
 /// Link Weight for the IGP graph
 pub type LinkWeight = f64;
 /// IGP Network graph
-pub type IgpNetwork = Graph<(), LinkWeight, Directed, IndexType>;
+pub type IgpNetwork = StableGraph<(), LinkWeight, Directed, IndexType>;
 
 /// How does the next hop change after a BGP event has been processed?
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

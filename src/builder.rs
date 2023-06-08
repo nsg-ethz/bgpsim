@@ -412,7 +412,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
 
-        for edge in self.net.edge_indices() {
+        for edge in self.net.edge_indices().collect::<Vec<_>>() {
             let (src, dst) = self.net.edge_endpoints(edge).unwrap();
             let mut weight = link_weight(src, dst, self, a.clone());
 
@@ -450,7 +450,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
 
-        for edge in self.net.edge_indices() {
+        for edge in self.net.edge_indices().collect::<Vec<_>>() {
             let (src, dst) = self.net.edge_endpoints(edge).unwrap();
             let mut weight = link_weight(src, dst, self, rng, a.clone());
 

@@ -37,8 +37,7 @@ use crate::{
 };
 
 use log::*;
-use petgraph::algo::FloatMeasure;
-use petgraph::visit::EdgeRef;
+use petgraph::{algo::FloatMeasure, visit::{EdgeRef, IntoEdgeReferences}};
 use serde::{Deserialize, Serialize};
 use std::collections::{HashMap, HashSet};
 
