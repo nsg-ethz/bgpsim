@@ -15,19 +15,12 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::collections::HashMap;
-use std::rc::Rc;
+use std::ops::Deref;
 
-use bgpsim::bgp::BgpRoute;
-use bgpsim::event::Event;
-use bgpsim::interactive::InteractiveNetwork;
-use bgpsim::policies::Policy;
-use bgpsim::prelude::BgpSessionType;
 use bgpsim::types::RouterId;
+use gloo_events::EventListener;
 use gloo_utils::window;
 use itertools::Itertools;
-use wasm_bindgen::prelude::Closure;
-use wasm_bindgen::JsCast;
 use web_sys::{HtmlDivElement, HtmlElement};
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -45,237 +38,258 @@ use crate::draw::arrows::CurvedArrow;
 use crate::draw::forwarding_path::ForwardingPath;
 use crate::draw::propagation::Propagation;
 use crate::draw::SvgColor;
-use crate::net::{Net, Pfx};
+use crate::net::{use_pos_pair, Net};
 use crate::state::{Hover, Layer, State};
-
-pub enum Msg {
-    UpdateSize,
-    StateNet(Rc<Net>),
-    State(Rc<State>),
-}
-
-pub struct Canvas {
-    div_ref: NodeRef,
-    net: Rc<Net>,
-    state: Rc<State>,
-    net_dispatch: Dispatch<Net>,
-    _state_dispatch: Dispatch<State>,
-    routers: Vec<RouterId>,
-    links: Vec<(RouterId, RouterId)>,
-    bgp_sessions: Vec<(RouterId, RouterId, BgpSessionType)>,
-    propagations: Vec<(RouterId, RouterId, BgpRoute<Pfx>)>,
-    #[allow(clippy::type_complexity)]
-    events: HashMap<RouterId, Vec<(usize, Event<Pfx, ()>)>>,
-    hover_event: Option<(RouterId, RouterId)>,
-    last_layer: Option<Layer>,
-    last_hover: Option<Hover>,
-    resize_listener: Option<Closure<dyn Fn(MouseEvent)>>,
-}
 
 #[derive(Properties, PartialEq)]
 pub struct Properties {
     pub header_ref: NodeRef,
 }
 
-impl Component for Canvas {
-    type Message = Msg;
-    type Properties = Properties;
+#[function_component]
+pub fn Canvas(props: &Properties) -> Html {
+    let div_ref = use_node_ref();
+    let div_ref_1 = div_ref.clone();
+    let div_ref_2 = div_ref.clone();
+    let header_ref_1 = props.header_ref.clone();
+    let header_ref_2 = props.header_ref.clone();
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
-        Self {
-            div_ref: NodeRef::default(),
-            net: Default::default(),
-            state: Default::default(),
-            net_dispatch,
-            _state_dispatch,
-            routers: Vec::new(),
-            links: Vec::new(),
-            bgp_sessions: Vec::new(),
-            propagations: Vec::new(),
-            events: HashMap::new(),
-            hover_event: None,
-            last_layer: None,
-            last_hover: None,
-            resize_listener: None,
+    // re-compute the size once
+    use_effect(move || {
+        let mt = header_ref_1
+            .cast::<HtmlElement>()
+            .map(|div| (div.client_height() + div.offset_top()) as f64);
+        let size = div_ref_1
+            .cast::<HtmlDivElement>()
+            .map(|div| (div.client_width() as f64, div.client_height() as f64));
+        if let (Some(mt), Some((w, h))) = (mt, size) {
+            Dispatch::<Net>::new().reduce_mut(move |net| {
+                net.dim.margin_top = mt;
+                net.dim.width = w;
+                net.dim.height = h;
+            });
         }
-    }
+    });
 
-    fn view(&self, _ctx: &Context<Self>) -> Html {
-        // initialize the network
-        html! {
-            <div class="h-full w-full" ref={self.div_ref.clone()}>
-                <svg width="100%" height="100%">
-                    <ArrowMarkers />
-                    // draw all links
-                    { for self.links.iter().cloned().map(|(from, to)| html_nested!{<Link {from} {to} />}) }
-                    { for self.routers.iter().cloned().map(|router_id| html_nested!{<Router {router_id} />}) }
-                    {
-                        if self.state.layer() == Layer::FwState && self.state.prefix().is_some() {
-                            self.routers.iter().cloned().map(|router_id| {
-                                html!{<NextHop {router_id} prefix={self.state.prefix().unwrap()} />}
-                            }).collect::<Html>()
-                        } else { html!{} }
-                    }
-                    {
-                        if self.state.layer() == Layer::Bgp {
-                            self.bgp_sessions.iter().cloned().map(|(src, dst, session_type)| {
-                                html!{<BgpSession {src} {dst} {session_type} />}
-                            }).collect::<Html>()
-                        } else { html!{} }
-                    }
-                    {
-                        if self.state.layer() == Layer::Igp {
-                            self.links.iter().cloned().map(|(src, dst)| {
-                                html!{<LinkWeight {src} {dst} />}
-                            }).collect::<Html>()
-                        } else { html!{} }
-                    }
-                    {
-                        if self.state.layer() == Layer::RouteProp && self.state.prefix().is_some() {
-                            self.propagations.iter().cloned().map(|(src, dst, route)| {
-                                html!{<Propagation {src} {dst} {route} />}
-                            }).collect::<Html>()
-                        } else { html!{} }
-                    }
-                    {
-                        if let Hover::Router(r) = self.state.hover() {
-                            if self.state.layer() == Layer::FwState {
-                                if let Some(prefix) = self.state.prefix() {
-                                    html!{<ForwardingPath router_id={r} {prefix} />}
-                                } else { html!() }
-                            } else { html!() }
-                        } else { html!() }
-                    }
-                    {
-                        if let Hover::Policy(r, idx) = self.state.hover() {
-                            if let Some((policy, result)) = self.net.spec().get(&r).and_then(|x| x.get(idx)) {
-                                if let Some(prefix) = policy.prefix() {
-                                    let kind = if result.is_ok() { PathKind::Valid } else { PathKind::Invalid };
-                                    html!{<ForwardingPath router_id={r} {prefix} {kind} />}
-                                } else { html!() }
-                            } else { html!() }
-                        } else { html!() }
-                    }
-                    {
-                        if let Some((src, dst)) = self.hover_event {
-                            let [p1, p2] = self.net.multiple_pos([src, dst]);
-                            html!{ <CurvedArrow {p1} {p2} angle={15.0} color={SvgColor::GreenLight} sub_radius={true} /> }
-                        } else { html!{} }
-                    }
-                    {
-                        self.events.clone().into_iter().map(|(dst, events)| {
-                            html!{<BgpSessionQueue {dst} {events} />}
-                        }).collect::<Html>()
-                    }
-                    <AddConnection />
-                </svg>
-            </div>
-        }
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::UpdateSize => {
-                let mt = ctx
-                    .props()
-                    .header_ref
+    let _onresize = use_memo(
+        move |()| {
+            EventListener::new(&window(), "resize", move |_| {
+                let mt = header_ref_2
                     .cast::<HtmlElement>()
                     .map(|div| (div.client_height() + div.offset_top()) as f64)
-                    .unwrap_or(self.net.dim.margin_top);
-                let (w, h) = self
-                    .div_ref
+                    .unwrap();
+                let (w, h) = div_ref_2
                     .cast::<HtmlDivElement>()
                     .map(|div| (div.client_width() as f64, div.client_height() as f64))
-                    .unwrap_or((self.net.dim.width, self.net.dim.height));
-                if (w, h, mt) != (self.net.dim.width, self.net.dim.height, self.net.dim.margin_top) {
-                    self.net_dispatch.reduce_mut(move |net| {
-                        net.dim.width = w;
-                        net.dim.height = h;
-                        net.dim.margin_top = mt;
-                    });
-                }
-                return false;
-            }
-            Msg::State(s) => self.state = s,
-            Msg::StateNet(s) => self.net = s,
-        }
-        let mut ret = false;
-        ret |= update(&mut self.routers, || {
-            self.net.net().get_topology().node_indices().rev().collect()
-        });
-        ret |= update(&mut self.bgp_sessions, || self.net.get_bgp_sessions());
-        ret |= update(&mut self.links, || {
-            let net_borrow = self.net.net();
-            let g = net_borrow.get_topology();
-            g.edge_indices()
-                .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
-                .map(|(a, b)| {
-                    if a.index() > b.index() {
-                        (b, a)
-                    } else {
-                        (a, b)
-                    }
-                })
-                .unique()
-                .collect()
-        });
-        ret |= update(&mut self.propagations, || {
-            self.net
-                .get_route_propagation(self.state.prefix().unwrap_or_else(|| Pfx::from(0)))
-        });
-        ret |= update(&mut self.events, || {
-            self.net
-                .net()
-                .queue()
-                .iter()
-                .enumerate()
-                .map(|(i, e)| match e {
-                    Event::Bgp(_, _, dst, _) => (*dst, (i, e.clone())),
-                })
-                .into_group_map()
-        });
-        ret |= update(&mut self.hover_event, || match self.state.hover() {
-            Hover::Message(src, dst, _, _) => Some((src, dst)),
-            _ => None,
-        });
-        ret |= update(&mut self.last_layer, || Some(self.state.layer()));
+                    .unwrap();
+                Dispatch::<Net>::new().reduce_mut(move |net| {
+                    net.dim.margin_top = mt;
+                    net.dim.width = w;
+                    net.dim.height = h;
+                });
+            })
+        },
+        (),
+    );
 
-        ret |= update(&mut self.last_hover, || Some(self.state.hover()));
-
-        ret
-    }
-
-    fn rendered(&mut self, ctx: &Context<Self>, _first_render: bool) {
-        // set the resize listener callback
-        if self.resize_listener.is_none() {
-            let link = ctx.link().clone();
-            let listener = Closure::<dyn Fn(MouseEvent)>::wrap(Box::new(move |_| {
-                link.send_message(Msg::UpdateSize)
-            }));
-            match window()
-                .add_event_listener_with_callback("resize", listener.as_ref().unchecked_ref())
-            {
-                Ok(()) => self.resize_listener = Some(listener),
-                Err(e) => log::error!("Could not add event listener! {:?}", e),
-            }
-        }
-
-        ctx.link().send_message(Msg::UpdateSize);
+    html! {
+        <div class="h-full w-full" ref={div_ref}>
+            <svg width="100%" height="100%">
+                <ArrowMarkers />
+                <CanvasLinks />
+                <CanvasRouters />
+                <CanvasFwState />
+                <CanvasBgpConfig />
+                <CanvasIgpConfig />
+                <CanvasRouteProp />
+                <CanvasHighlightPath />
+                <CanvasEventQueue />
+                <AddConnection />
+            </svg>
+        </div>
     }
 }
 
-fn update<T, F>(val: &mut T, f: F) -> bool
-where
-    T: PartialEq,
-    F: FnOnce() -> T,
-{
-    let mut new_val = f();
-    if &new_val != val {
-        std::mem::swap(val, &mut new_val);
-        true
+#[function_component]
+pub fn CanvasLinks() -> Html {
+    let links = use_selector(|net: &Net| {
+        let n = net.net();
+        let g = n.get_topology();
+        g.edge_indices()
+            .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
+            .map(|(a, b)| {
+                if a.index() > b.index() {
+                    (b, a)
+                } else {
+                    (a, b)
+                }
+            })
+            .unique()
+            .collect::<Vec<_>>()
+    });
+
+    log::debug!("render CanvasLinks");
+
+    links
+        .iter()
+        .map(|(src, dst)| html! {<Link from={*src} to={*dst} />})
+        .collect()
+}
+
+#[function_component]
+pub fn CanvasRouters() -> Html {
+    let nodes =
+        use_selector(|net: &Net| net.net().get_topology().node_indices().collect::<Vec<_>>());
+
+    log::debug!("render CanvasRouters");
+
+    nodes
+        .iter()
+        .copied()
+        .map(|router_id| html! {<Router {router_id} />})
+        .collect()
+}
+
+#[function_component]
+pub fn CanvasFwState() -> Html {
+    let nodes = use_selector(|net: &Net| net.net().get_routers());
+    let state = use_selector(|state: &State| (state.layer(), state.prefix()));
+
+    log::debug!("render CanvasFwState");
+
+    match state.as_ref() {
+        (Layer::FwState, Some(p)) => nodes
+            .iter()
+            .copied()
+            .map(|router_id| html!(<NextHop {router_id} prefix={*p} />))
+            .collect(),
+        _ => html!(),
+    }
+}
+
+#[function_component]
+pub fn CanvasRouteProp() -> Html {
+    let state = use_selector(|state: &State| (state.layer(), state.prefix()));
+    let prefix = state.1.unwrap_or(0.into());
+    let propagations = use_selector_with_deps(
+        |net: &Net, prefix| net.get_route_propagation(*prefix),
+        prefix,
+    );
+    log::debug!("render CanvasRouteProp");
+
+    match state.as_ref() {
+        (Layer::RouteProp, Some(_)) => propagations.iter().map(|(src, dst, route)| html!{<Propagation src={*src} dst={*dst} route={route.clone()} />}).collect(),
+        _ => html!()
+    }
+}
+
+#[function_component]
+pub fn CanvasIgpConfig() -> Html {
+    let links = use_selector(|net: &Net| {
+        let n = net.net();
+        let g = n.get_topology();
+        g.edge_indices()
+            .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
+            .map(|(a, b)| {
+                if a.index() > b.index() {
+                    (b, a)
+                } else {
+                    (a, b)
+                }
+            })
+            .unique()
+            .collect::<Vec<_>>()
+    });
+    let layer = use_selector(|state: &State| state.layer());
+
+    log::debug!("render CanvasIgpConfig");
+
+    match layer.as_ref() {
+        Layer::Igp => links
+            .iter()
+            .map(|(src, dst)| html! {<LinkWeight src={*src} dst={*dst} />})
+            .collect(),
+        _ => html!(),
+    }
+}
+
+#[function_component]
+pub fn CanvasBgpConfig() -> Html {
+    let sessions = use_selector(|net: &Net| net.get_bgp_sessions());
+    let state = use_selector(|state: &State| state.layer());
+
+    log::debug!("render CanvasBgpConfig");
+
+    match state.as_ref() {
+        Layer::Bgp => sessions
+            .iter()
+            .map(|(a, b, k)| html!(<BgpSession src={*a} dst={*b} session_type={*k} />))
+            .collect(),
+        _ => html!(),
+    }
+}
+
+#[function_component]
+pub fn CanvasEventQueue() -> Html {
+    let nodes = use_selector(|net: &Net| net.net().get_routers());
+    let hover = use_selector(|state: &State| state.hover());
+
+    log::debug!("render CanvasEventQueue");
+
+    let messages = nodes
+        .iter()
+        .copied()
+        .map(|dst| html!(<BgpSessionQueue {dst} />))
+        .collect::<Html>();
+    let hover = if let Hover::Message(src, dst, _, _) = *hover {
+        html!(<CanvasEventHover {src} {dst} />)
     } else {
-        false
+        html!()
+    };
+    html! {<> {messages} {hover} </>}
+}
+
+#[derive(PartialEq, Properties)]
+pub struct EventHoverProps {
+    src: RouterId,
+    dst: RouterId,
+}
+
+#[function_component]
+pub fn CanvasEventHover(&EventHoverProps { src, dst }: &EventHoverProps) -> Html {
+    let (p1, p2) = use_pos_pair(src, dst);
+    html! { <CurvedArrow {p1} {p2} angle={15.0} color={SvgColor::YellowLight} sub_radius={true} /> }
+}
+
+#[function_component]
+pub fn CanvasHighlightPath() -> Html {
+    let state = use_selector(|state: &State| (state.hover(), state.prefix()));
+    let spec_idx = match state.deref().clone() {
+        (Hover::Policy(router_id, idx), Some(_)) => Some((router_id, idx)),
+        _ => None,
+    };
+    let spec = use_selector_with_deps(
+        |net: &Net, spec_idx| {
+            spec_idx.and_then(|(r, idx)| {
+                net.spec()
+                    .get(&r)
+                    .and_then(|x| x.get(idx))
+                    .map(|(_, r)| r.is_ok())
+            })
+        },
+        spec_idx,
+    );
+
+    match (state.deref().clone(), *spec) {
+        ((Hover::Router(router_id), Some(prefix)), _) => {
+            html! {<ForwardingPath {router_id} {prefix} />}
+        }
+        ((Hover::Policy(router_id, _), Some(prefix)), Some(true)) => {
+            html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Valid}/>}
+        }
+        ((Hover::Policy(router_id, _), Some(prefix)), Some(false)) => {
+            html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Invalid}/>}
+        }
+        _ => html!(),
     }
 }

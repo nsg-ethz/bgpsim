@@ -42,7 +42,7 @@ pub fn LinkWeight(props: &Properties) -> Html {
     }
 
     let (p1, p2) = use_pos_pair(src, dst);
-    let weights = *use_selector(move |net: &Net| {
+    let weights = use_selector(move |net: &Net| {
         let n = net.net();
         let g = n.get_topology();
         (

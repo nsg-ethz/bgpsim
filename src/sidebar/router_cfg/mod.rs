@@ -31,9 +31,9 @@ use bgpsim::{formatter::NetworkFormatter, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{draw::SvgColor, net::Net, state::State};
+use crate::{draw::SvgColor, net::Net, state::State, sidebar::Button};
 
-use super::{topology_cfg::TopologyCfg, Divider, Element, Select, TextField, Toggle};
+use super::{topology_cfg::TopologyCfg, Divider, Element, Select, TextField, Toggle, ExpandableDivider};
 use bgp_cfg::BgpCfg;
 use specification_cfg::SpecificationCfg;
 use static_routes_cfg::StaticRoutesCfg;
@@ -116,6 +116,9 @@ impl Component for RouterCfg {
                 if self.state.features().specification {
                     <SpecificationCfg {router} />
                 }
+                if !self.state.features().simple {
+                    <DeleteRouter {router} />
+                }
                 <Divider />
             </div>
         }
@@ -152,5 +155,28 @@ impl Component for RouterCfg {
                 false
             }
         }
+    }
+}
+
+#[derive(Properties, PartialEq)]
+pub struct DeleteRouterProps {
+    pub router: RouterId,
+}
+
+#[function_component]
+pub fn DeleteRouter(props: &DeleteRouterProps) -> Html {
+    let router = props.router;
+    let on_click = Dispatch::<Net>::new().reduce_mut_callback(move |n| {
+        let _ = n.net_mut().remove_router(router);
+        n.pos_mut().remove(&router);
+    });
+
+    html!{
+        <ExpandableDivider text={String::from("Delete this router")}>
+            <div class="w-full flex flex-row">
+                <div class="flex-1">{"Are you sure?"}</div>
+                <Button text="Delete" color={SvgColor::RedLight} {on_click} full={false}/>
+            </div>
+        </ExpandableDivider>
     }
 }

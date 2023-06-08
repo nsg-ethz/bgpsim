@@ -52,7 +52,6 @@ pub fn NextHop(props: &Properties) -> Html {
         (*dst, p1, p2)
     }).collect();
 
-
     html! {
         <g>
         {

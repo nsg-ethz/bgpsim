@@ -15,12 +15,12 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{bgp::BgpEvent as BgpsimBgpEvent, event::Event, types::RouterId};
+use bgpsim::{bgp::BgpEvent as BgpsimBgpEvent, event::Event, types::RouterId, prelude::InteractiveNetwork};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::{use_pos, Pfx},
+    net::{use_pos, Pfx, Net},
     point::Point,
     state::{Hover, State},
 };
@@ -33,17 +33,31 @@ const R_OFFSET: Point = Point { x: 30.0, y: 0.0 };
 #[derive(Properties, PartialEq, Eq)]
 pub struct BgpSessionQueueProps {
     pub dst: RouterId,
-    pub events: Vec<(usize, Event<Pfx, ()>)>,
 }
 
 #[function_component]
 pub fn BgpSessionQueue(props: &BgpSessionQueueProps) -> Html {
     let dst = props.dst;
 
-    let p = use_pos(dst);
-    let overlap = will_overlap(p, props.events.len());
+    let events = use_selector(move |net: &Net| {
+        net.net()
+            .queue()
+            .iter()
+            .enumerate()
+            .filter(|(_, e)| e.router() == dst)
+            .map(|(i, e)| (i, e.clone()))
+            .collect::<Vec<_>>()
+    });
 
-    props.events
+    let p = use_pos(dst);
+
+    if events.is_empty() {
+        return html!();
+    }
+
+    let overlap = will_overlap(p, events.len());
+
+    events
         .iter()
         .enumerate()
         .map(|(num, (i, event))| {
