@@ -23,24 +23,30 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::{Dim, ROUTER_RADIUS},
+    dim::ROUTER_RADIUS,
     draw::arrows::CurvedArrow,
     draw::SvgColor,
-    net::Net,
+    net::use_pos,
     point::Point,
     state::{Connection, Selected, State},
 };
 
 #[function_component]
 pub fn AddConnection() -> Html {
-    let (net, _) = use_store::<Net>();
-    let (dim, _) = use_store::<Dim>();
-    let (state, _) = use_store::<State>();
 
-    let mouse_pos = use_state(|| Point::default());
     let event_callbacks = use_state(|| None);
+    let selected = *use_selector(|s: &State| s.selected());
+    let mouse_pos = use_state(|| Point::default());
 
-    let Selected::CreateConnection(src, connection) = state.selected() else {
+    let mut params = None;
+
+    if let Selected::CreateConnection(src, connection) = selected {
+        params = Some((src, connection));
+    }
+
+    let p1 = use_pos(params.map(|(r, _)| r).unwrap_or(0.into()));
+
+    let Some((_, connection)) = params else {
         // unregister if necessary
         if event_callbacks.is_some() {
             event_callbacks.set(None);
@@ -66,7 +72,6 @@ pub fn AddConnection() -> Html {
         )));
     }
 
-    let p1 = dim.get(net.pos().get(&src).copied().unwrap());
     let p2 = *mouse_pos;
 
     match connection {

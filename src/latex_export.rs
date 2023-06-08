@@ -95,7 +95,7 @@ const LATEX_TEMLPATE: &str = r"
 
 pub fn generate_latex(net: &Net) -> String {
     let net_deref = net.net();
-    let pos_deref = net.pos();
+    let pos_deref = net.pos_ref();
     let p = pos_deref.deref();
     let n = net_deref.deref();
     let g = n.get_topology();

@@ -20,8 +20,7 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::Dim,
-    net::Net,
+    net::{use_pos_pair, Net},
     state::{Layer, State},
 };
 
@@ -45,20 +44,16 @@ const LINK_COLORS: [&str; NUM_LINK_COLORS] = [
 pub fn Link(props: &Properties) -> Html {
     let (src, dst) = (props.from, props.to);
 
-    let (net, _) = use_store::<Net>();
-    let (dim, _) = use_store::<Dim>();
-    let (state, _) = use_store::<State>();
-
-    let p1 = dim.get(net.pos().get(&src).copied().unwrap_or_default());
-    let p2 = dim.get(net.pos().get(&dst).copied().unwrap_or_default());
-    let area = net.net().get_ospf_area(src, dst).unwrap_or_default();
-    let in_ospf =
-        net.net().get_device(src).is_internal() && net.net().get_device(dst).is_internal();
-    let layer = state.layer();
+    let (p1, p2) = use_pos_pair(src, dst);
+    let area = use_selector(move |net: &Net| net.net().get_ospf_area(src, dst).unwrap_or_default());
+    let in_ospf = use_selector(move |net: &Net| {
+        net.net().get_device(src).is_internal() && net.net().get_device(dst).is_internal()
+    });
+    let layer = *use_selector(move |state: &State| state.layer());
 
     let class = if matches!(layer, Layer::Bgp | Layer::RouteProp) {
         classes!("stroke-current", "stroke-1", "text-main-ia")
-    } else if matches!(layer, Layer::Igp) && in_ospf {
+    } else if matches!(layer, Layer::Igp) && *in_ospf {
         if area.is_backbone() {
             classes!("stroke-current", "stroke-2", "text-main")
         } else {

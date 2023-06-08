@@ -33,7 +33,7 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::{Dim, TOOLTIP_OFFSET},
+    dim::TOOLTIP_OFFSET,
     net::{Net, Pfx},
     point::Point,
     sidebar::queue_cfg::PrefixTable,
@@ -43,7 +43,6 @@ use crate::{
 pub struct Tooltip {
     state: Rc<State>,
     net: Rc<Net>,
-    dim: Rc<Dim>,
     mouse_pos: Point,
     size: Point,
     renderer: bool,
@@ -51,13 +50,11 @@ pub struct Tooltip {
     node_ref: NodeRef,
     _state_dispatch: Dispatch<State>,
     _net_dispatch: Dispatch<Net>,
-    _dim_dispatch: Dispatch<Dim>,
 }
 
 pub enum Msg {
     State(Rc<State>),
     StateNet(Rc<Net>),
-    StateDim(Rc<Dim>),
     UpdateSize,
     UpdateMouse(MouseEvent),
 }
@@ -72,11 +69,9 @@ impl Component for Tooltip {
     fn create(ctx: &Context<Self>) -> Self {
         let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
         Tooltip {
             state: Default::default(),
             net: Default::default(),
-            dim: Default::default(),
             mouse_pos: Default::default(),
             size: Default::default(),
             node_ref: NodeRef::default(),
@@ -84,7 +79,6 @@ impl Component for Tooltip {
             dragging: None,
             _state_dispatch,
             _net_dispatch,
-            _dim_dispatch,
         }
     }
 
@@ -144,6 +138,26 @@ impl Component for Tooltip {
                     <>
                         <p> {src.fmt(&self.net.net()).to_string()} {" → "} {dst.fmt(&self.net.net()).to_string()} </p>
                         <RouteTable {route} />
+                    </>
+                }
+            }
+            Hover::RouteMap(id, peer, direction, rms) => {
+                let n = self.net.net();
+                let arrow = if direction.outgoing() {
+                    " → "
+                } else {
+                    " ← "
+                };
+                html! {
+                    <>
+                        <p> {"Route map: "} {id.fmt(&n)} {arrow} {peer.fmt(&n)} </p>
+                        <table class="border-separate border-spacing-2">
+                            {
+                                rms.iter()
+                                    .map(|rms| html!{ <tr> <td> {rms.order()} </td> <td> {rms.fmt(&n)} </td> </tr>})
+                                    .collect::<Html>()
+                            }
+                        </table>
                     </>
                 }
             }
@@ -218,7 +232,6 @@ impl Component for Tooltip {
                 }
             }
             Msg::StateNet(n) => self.net = n,
-            Msg::StateDim(d) => self.dim = d,
             Msg::UpdateMouse(e) => {
                 self.mouse_pos = Point::new(e.client_x() as f64, e.client_y() as f64);
                 self.renderer = false;

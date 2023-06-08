@@ -26,7 +26,7 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::{Dim, ROUTER_RADIUS},
+    dim::{ROUTER_RADIUS},
     net::Net,
     point::Point,
     state::{Connection, ContextMenu, Hover, Selected, State},
@@ -42,11 +42,10 @@ pub fn Router(props: &Properties) -> Html {
     let id = props.router_id;
 
     let (net, _) = use_store::<Net>();
-    let (dim, _) = use_store::<Dim>();
     let (s, state) = use_store::<State>();
 
     let external = net.net().get_device(id).is_external();
-    let p = dim.get(net.pos().get(&id).copied().unwrap());
+    let p = net.pos(id);
     let s_selected = s.selected();
     let selected = s_selected == Selected::Router(id);
     let glow = match s.hover() {
@@ -55,7 +54,7 @@ pub fn Router(props: &Properties) -> Html {
         Hover::AtomicCommand(routers) if routers.contains(&id) => true,
         _ => false,
     };
-    let scale = dim.canvas_size();
+    let scale = net.dim.canvas_size();
 
     // generate the onclick event depending on the state (if we are in create-connection mode).
     let (onclick, clickable) = prepare_onclick(id, s_selected, &state, &net);

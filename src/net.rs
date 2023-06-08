@@ -18,6 +18,7 @@
 use std::{
     collections::{vec_deque::Iter, HashMap, VecDeque},
     ops::{Deref, DerefMut},
+    rc::Rc,
 };
 
 pub use bgpsim::types::Ipv4Prefix as Pfx;
@@ -33,6 +34,7 @@ use forceatlas2::{Layout, Nodes, Settings};
 #[cfg(feature = "atomic_bgp")]
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
+use yew::functional::hook;
 use yewdux::{mrc::Mrc, prelude::*};
 
 #[cfg(feature = "atomic_bgp")]
@@ -42,6 +44,7 @@ use crate::{
     http_serde::{export_json_str, trigger_download},
     latex_export,
     point::Point,
+    dim::Dim,
 };
 
 /// Basic event queue
@@ -123,6 +126,7 @@ pub struct Net {
     pub net: Mrc<Network<Pfx, Queue>>,
     pub pos: Mrc<HashMap<RouterId, Point>>,
     pub spec: Mrc<HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>>,
+    pub dim: Dim,
     recorder: Option<Network<Pfx, Queue>>,
     speed: Mrc<HashMap<RouterId, Point>>,
     #[cfg(feature = "atomic_bgp")]
@@ -137,6 +141,7 @@ impl Default for Net {
             net: Mrc::new(Network::new(Queue::new())),
             pos: Default::default(),
             spec: Default::default(),
+            dim: Default::default(),
             #[cfg(feature = "atomic_bgp")]
             migration: Default::default(),
             #[cfg(feature = "atomic_bgp")]
@@ -160,12 +165,21 @@ impl Net {
         self.net.borrow_mut()
     }
 
-    pub fn pos(&self) -> impl Deref<Target = HashMap<RouterId, Point>> + '_ {
+    pub fn pos_ref(&self) -> impl Deref<Target = HashMap<RouterId, Point>> + '_ {
         self.pos.borrow()
     }
 
     pub fn pos_mut(&mut self) -> impl DerefMut<Target = HashMap<RouterId, Point>> + '_ {
         self.pos.borrow_mut()
+    }
+
+    pub fn pos(&self, router: RouterId) -> Point {
+        self.dim.get(self.pos.borrow().get(&router).copied().unwrap_or_default())
+    }
+
+    pub fn multiple_pos<const N: usize>(&self, routers: [RouterId; N]) -> [Point; N] {
+        let p = self.pos.borrow();
+        routers.map(|r| self.dim.get(p.get(&r).copied().unwrap_or_default()))
     }
 
     pub fn spec(
@@ -384,25 +398,25 @@ impl Net {
     pub fn normalize_pos_scale_only(&mut self) {
         // scale all numbers to be in the expected range
         let min_x = self
-            .pos()
+            .pos_ref()
             .values()
             .map(|p| p.x)
             .min_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(0.0);
         let max_x = self
-            .pos()
+            .pos_ref()
             .values()
             .map(|p| p.x)
             .max_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(1.0);
         let min_y = self
-            .pos()
+            .pos_ref()
             .values()
             .map(|p| p.y)
             .min_by(|a, b| a.partial_cmp(b).unwrap())
             .unwrap_or(0.0);
         let max_y = self
-            .pos()
+            .pos_ref()
             .values()
             .map(|p| p.y)
             .max_by(|a, b| a.partial_cmp(b).unwrap())
@@ -475,4 +489,17 @@ impl Default for MigrationState {
     fn default() -> Self {
         Self::WaitPre
     }
+}
+
+#[hook]
+pub fn use_pos(router: RouterId) -> Point {
+    let point: Rc<Point> = use_selector_with_deps(|n: &Net, r| n.pos(*r), router);
+    *point
+}
+
+#[hook]
+pub fn use_pos_pair(r1: RouterId, r2: RouterId) -> (Point, Point) {
+    let points: Rc<[Point; 2]> = use_selector_with_deps(|n: &Net, (r1, r2)| n.multiple_pos([*r1, *r2]), (r1, r2));
+    let ps = *points;
+    (ps[0], ps[1])
 }

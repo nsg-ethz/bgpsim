@@ -23,7 +23,7 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::{Dim, ROUTER_RADIUS},
+    dim::ROUTER_RADIUS,
     net::{Net, Pfx},
     point::Point,
 };
@@ -33,13 +33,10 @@ use super::SvgColor;
 pub struct ForwardingPath {
     paths: Vec<Vec<Point>>,
     net: Rc<Net>,
-    dim: Rc<Dim>,
     _net_dispatch: Dispatch<Net>,
-    _dim_dispatch: Dispatch<Dim>,
 }
 
 pub enum Msg {
-    StateDim(Rc<Dim>),
     StateNet(Rc<Net>),
 }
 
@@ -56,13 +53,10 @@ impl Component for ForwardingPath {
 
     fn create(ctx: &Context<Self>) -> Self {
         let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let _dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
         ForwardingPath {
             paths: Default::default(),
             net: Default::default(),
-            dim: Default::default(),
             _net_dispatch,
-            _dim_dispatch,
         }
     }
 
@@ -109,9 +103,6 @@ impl Component for ForwardingPath {
 
     fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
         match msg {
-            Msg::StateDim(d) => {
-                self.dim = d;
-            }
             Msg::StateNet(n) => {
                 self.net = n;
             }
@@ -122,7 +113,6 @@ impl Component for ForwardingPath {
     fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
         let new_paths = get_paths(
             &self.net,
-            &self.dim,
             ctx.props().router_id,
             ctx.props().prefix,
         );
@@ -135,7 +125,7 @@ impl Component for ForwardingPath {
     }
 }
 
-fn get_paths(net: &Net, dim: &Dim, router: RouterId, prefix: Pfx) -> Vec<Vec<Point>> {
+fn get_paths(net: &Net, router: RouterId, prefix: Pfx) -> Vec<Vec<Point>> {
     if net.net().get_device(router).is_internal() {
         match net.net().get_forwarding_state().get_paths(router, prefix) {
             Ok(paths) => paths,
@@ -147,7 +137,7 @@ fn get_paths(net: &Net, dim: &Dim, router: RouterId, prefix: Pfx) -> Vec<Vec<Poi
         .into_iter()
         .map(|p| {
             p.into_iter()
-                .map(|r| dim.get(net.pos().get(&r).copied().unwrap_or_default()))
+                .map(|r| net.pos(r))
                 .collect()
         })
         .collect()

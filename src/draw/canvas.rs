@@ -40,7 +40,6 @@ use super::link::Link;
 use super::link_weight::LinkWeight;
 use super::next_hop::NextHop;
 use super::router::Router;
-use crate::dim::Dim;
 use crate::draw::add_connection::AddConnection;
 use crate::draw::arrows::CurvedArrow;
 use crate::draw::forwarding_path::ForwardingPath;
@@ -51,7 +50,6 @@ use crate::state::{Hover, Layer, State};
 
 pub enum Msg {
     UpdateSize,
-    StateDim(Rc<Dim>),
     StateNet(Rc<Net>),
     State(Rc<State>),
 }
@@ -59,10 +57,8 @@ pub enum Msg {
 pub struct Canvas {
     div_ref: NodeRef,
     net: Rc<Net>,
-    dim: Rc<Dim>,
     state: Rc<State>,
-    dim_dispatch: Dispatch<Dim>,
-    _net_dispatch: Dispatch<Net>,
+    net_dispatch: Dispatch<Net>,
     _state_dispatch: Dispatch<State>,
     routers: Vec<RouterId>,
     links: Vec<(RouterId, RouterId)>,
@@ -86,16 +82,13 @@ impl Component for Canvas {
     type Properties = Properties;
 
     fn create(ctx: &Context<Self>) -> Self {
-        let dim_dispatch = Dispatch::<Dim>::subscribe(ctx.link().callback(Msg::StateDim));
-        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
         let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         Self {
             div_ref: NodeRef::default(),
-            dim_dispatch,
             net: Default::default(),
-            dim: Default::default(),
             state: Default::default(),
-            _net_dispatch,
+            net_dispatch,
             _state_dispatch,
             routers: Vec::new(),
             links: Vec::new(),
@@ -167,8 +160,7 @@ impl Component for Canvas {
                     }
                     {
                         if let Some((src, dst)) = self.hover_event {
-                            let p1 = self.dim.get(self.net.pos()[&src]);
-                            let p2 = self.dim.get(self.net.pos()[&dst]);
+                            let [p1, p2] = self.net.multiple_pos([src, dst]);
                             html!{ <CurvedArrow {p1} {p2} angle={15.0} color={SvgColor::GreenLight} sub_radius={true} /> }
                         } else { html!{} }
                     }
@@ -191,22 +183,21 @@ impl Component for Canvas {
                     .header_ref
                     .cast::<HtmlElement>()
                     .map(|div| (div.client_height() + div.offset_top()) as f64)
-                    .unwrap_or(self.dim.margin_top);
+                    .unwrap_or(self.net.dim.margin_top);
                 let (w, h) = self
                     .div_ref
                     .cast::<HtmlDivElement>()
                     .map(|div| (div.client_width() as f64, div.client_height() as f64))
-                    .unwrap_or((self.dim.width, self.dim.height));
-                if (w, h, mt) != (self.dim.width, self.dim.height, self.dim.margin_top) {
-                    self.dim_dispatch.reduce_mut(move |dim: &mut Dim| {
-                        dim.width = w;
-                        dim.height = h;
-                        dim.margin_top = mt;
+                    .unwrap_or((self.net.dim.width, self.net.dim.height));
+                if (w, h, mt) != (self.net.dim.width, self.net.dim.height, self.net.dim.margin_top) {
+                    self.net_dispatch.reduce_mut(move |net| {
+                        net.dim.width = w;
+                        net.dim.height = h;
+                        net.dim.margin_top = mt;
                     });
                 }
                 return false;
             }
-            Msg::StateDim(s) => self.dim = s,
             Msg::State(s) => self.state = s,
             Msg::StateNet(s) => self.net = s,
         }

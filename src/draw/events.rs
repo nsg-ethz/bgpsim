@@ -15,15 +15,12 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::rc::Rc;
-
 use bgpsim::{bgp::BgpEvent as BgpsimBgpEvent, event::Event, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::Dim,
-    net::{Net, Pfx},
+    net::{use_pos, Pfx},
     point::Point,
     state::{Hover, State},
 };
@@ -33,73 +30,32 @@ const OFFSET: Point = Point { x: -30.0, y: 0.0 };
 const R_BASE_OFFSET: Point = Point { x: 20.0, y: 10.0 };
 const R_OFFSET: Point = Point { x: 30.0, y: 0.0 };
 
-pub struct BgpSessionQueue {
-    net: Rc<Net>,
-    dim: Rc<Dim>,
-    _net_dispatch: Dispatch<Net>,
-    _dim_dispatch: Dispatch<Dim>,
-}
-
-pub enum BgpSessionQueueMsg {
-    StateNet(Rc<Net>),
-    StateDim(Rc<Dim>),
-}
-
 #[derive(Properties, PartialEq, Eq)]
 pub struct BgpSessionQueueProps {
     pub dst: RouterId,
     pub events: Vec<(usize, Event<Pfx, ()>)>,
 }
 
-impl Component for BgpSessionQueue {
-    type Message = BgpSessionQueueMsg;
-    type Properties = BgpSessionQueueProps;
+#[function_component]
+pub fn BgpSessionQueue(props: &BgpSessionQueueProps) -> Html {
+    let dst = props.dst;
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let _dim_dispatch = Dispatch::subscribe(ctx.link().callback(Self::Message::StateDim));
-        let _net_dispatch = Dispatch::subscribe(ctx.link().callback(Self::Message::StateNet));
-        BgpSessionQueue {
-            net: _net_dispatch.get(),
-            dim: _dim_dispatch.get(),
-            _net_dispatch,
-            _dim_dispatch,
-        }
-    }
+    let p = use_pos(dst);
+    let overlap = will_overlap(p, props.events.len());
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let dst = self.dim.get(
-            self.net
-                .pos()
-                .get(&ctx.props().dst)
-                .copied()
-                .unwrap_or_default(),
-        );
-
-        let overlap = will_overlap(dst, ctx.props().events.len());
-
-        ctx.props()
-            .events
-            .iter()
-            .enumerate()
-            .map(|(num, (i, event))| {
-                let p = get_event_pos(dst, num, overlap);
-                let i = *i;
-                match event.clone() {
-                    Event::Bgp(_, src, dst, event) => {
-                        html! { <BgpEvent {p} {src} {dst} {event} {i} /> }
-                    }
+    props.events
+        .iter()
+        .enumerate()
+        .map(|(num, (i, event))| {
+            let p = get_event_pos(p, num, overlap);
+            let i = *i;
+            match event.clone() {
+                Event::Bgp(_, src, dst, event) => {
+                    html! { <BgpEvent {p} {src} {dst} {event} {i} /> }
                 }
-            })
-            .collect()
-    }
-
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            BgpSessionQueueMsg::StateNet(n) => self.net = n,
-            BgpSessionQueueMsg::StateDim(d) => self.dim = d,
-        }
-        true
-    }
+            }
+        })
+        .collect()
 }
 
 #[derive(Properties, PartialEq)]

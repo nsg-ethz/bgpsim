@@ -24,9 +24,8 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::Dim,
     draw::arrows::get_curve_point,
-    net::Net,
+    net::{Net, use_pos_pair},
     point::Point,
     state::{Hover, State},
 };
@@ -44,17 +43,14 @@ pub struct Properties {
 pub fn BgpSession(props: &Properties) -> Html {
     let (src, dst) = (props.src, props.dst);
 
-    let (dim, _) = use_store::<Dim>();
-    let (net, _) = use_store::<Net>();
-    let (_, state) = use_store::<State>();
-
-    let p1 = dim.get(net.pos().get(&src).copied().unwrap_or_default());
-    let p2 = dim.get(net.pos().get(&dst).copied().unwrap_or_default());
+    let (p1, p2) = use_pos_pair(src, dst);
     let color = match props.session_type {
         BgpSessionType::IBgpPeer => SvgColor::BlueLight,
         BgpSessionType::IBgpClient => SvgColor::PurpleLight,
         BgpSessionType::EBgp => SvgColor::RedLight,
     };
+
+    let state = Dispatch::<State>::new();
 
     let on_mouse_enter =
         state.reduce_mut_callback(move |s| s.set_hover(Hover::BgpSession(src, dst)));
@@ -96,7 +92,6 @@ pub fn RouteMap(props: &RmProps) -> Html {
     let angle = props.angle;
 
     let (net, _) = use_store::<Net>();
-    let (dim, _) = use_store::<Dim>();
 
     let n = net.net();
     let Some(router) = n.get_device(id).internal() else {
@@ -129,8 +124,7 @@ pub fn RouteMap(props: &RmProps) -> Html {
     };
 
     // get the position from the network
-    let pos = dim.get(net.pos().get(&id).copied().unwrap_or_default());
-    let peer_pos = dim.get(net.pos().get(&peer).copied().unwrap_or_default());
+    let [pos, peer_pos] = net.multiple_pos([id, peer]);
     let pt = get_curve_point(pos, peer_pos, angle);
     let dist = if direction.incoming() { 50.0 } else { 80.0 };
     let p = pos.interpolate_absolute(pt, dist) + Point::new(-12.0, -12.0);

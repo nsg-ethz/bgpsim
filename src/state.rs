@@ -15,12 +15,13 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{bgp::BgpRoute, prelude::BgpSessionType, types::RouterId};
+use bgpsim::{bgp::BgpRoute, prelude::BgpSessionType, types::RouterId, route_map::{RouteMapDirection, RouteMap}};
 use gloo_utils::{document, window};
 use serde::{Deserialize, Serialize};
 use strum_macros::EnumIter;
 use yew::prelude::{Html, html};
 use yewdux::prelude::Store;
+use std::rc::Rc;
 
 use crate::point::Point;
 
@@ -284,6 +285,7 @@ impl Default for Selected {
 }
 
 #[derive(Debug, Clone, PartialEq)]
+#[allow(dead_code)]
 pub enum Hover {
     None,
     Text(Html),
@@ -291,6 +293,7 @@ pub enum Hover {
     BgpSession(RouterId, RouterId),
     NextHop(RouterId, RouterId),
     RouteProp(RouterId, RouterId, BgpRoute<Pfx>),
+    RouteMap(RouterId, RouterId, RouteMapDirection, Rc<Vec<RouteMap<Pfx>>>),
     Message(RouterId, RouterId, usize, bool),
     Policy(RouterId, usize),
     #[cfg(feature = "atomic_bgp")]

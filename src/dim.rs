@@ -15,8 +15,6 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use yewdux::prelude::Store;
-
 use crate::point::Point;
 
 pub const ROUTER_RADIUS: f64 = 12.0;
@@ -24,7 +22,7 @@ pub const FW_ARROW_LENGTH: f64 = 60.0;
 pub const BORDER: f64 = 25.0;
 pub const TOOLTIP_OFFSET: f64 = 8.0;
 
-#[derive(Clone, PartialEq, Store)]
+#[derive(Clone, Copy, PartialEq)]
 pub struct Dim {
     pub width: f64,
     pub height: f64,

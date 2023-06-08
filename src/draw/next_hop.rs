@@ -15,15 +15,13 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::rc::Rc;
-
 use bgpsim::types::RouterId;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::{Dim, FW_ARROW_LENGTH, ROUTER_RADIUS},
-    net::{Net, Pfx},
+    dim::{FW_ARROW_LENGTH, ROUTER_RADIUS},
+    net::{Net, Pfx, use_pos},
     point::Point,
     state::{Hover, State},
 };
@@ -38,22 +36,27 @@ pub struct Properties {
 
 #[function_component]
 pub fn NextHop(props: &Properties) -> Html {
-    let (net, _) = use_store::<Net>();
-    let (dim, _) = use_store::<Dim>();
     let (_, state) = use_store::<State>();
 
     // get the point of the router
+    let prefix = props.prefix;
     let src = props.router_id;
-    let p_src = dim.get(net.pos().get(&src).copied().unwrap_or_default());
+    let p_src = use_pos(src);
     // generate all arrows
+
+    let next_hops = use_selector(move |net: &Net| get_next_hop(net, src, prefix));
+    let arrows: Vec<_> = next_hops.iter().map(|(dst, p3)| {
+        let dist = p_src.dist(*p3);
+        let p1 = p_src.interpolate(*p3, ROUTER_RADIUS / dist);
+        let p2 = p_src.interpolate(*p3, FW_ARROW_LENGTH / dist);
+        (*dst, p1, p2)
+    }).collect();
+
 
     html! {
         <g>
         {
-            get_next_hop(net, dim, props.router_id, props.prefix).into_iter().map(|(dst, p3)| {
-                let dist = p_src.dist(p3);
-                let p1 = p_src.interpolate(p3, ROUTER_RADIUS / dist);
-                let p2 = p_src.interpolate(p3, FW_ARROW_LENGTH / dist);
+            arrows.into_iter().map(|(dst, p1, p2)| {
                 let on_mouse_enter = state.reduce_mut_callback(move |s| s.set_hover(Hover::NextHop(src, dst)));
                 let on_mouse_leave = state.reduce_mut_callback(|s| s.clear_hover());
                 let color = SvgColor::BlueLight;
@@ -64,16 +67,11 @@ pub fn NextHop(props: &Properties) -> Html {
     }
 }
 
-fn get_next_hop(
-    net: Rc<Net>,
-    dim: Rc<Dim>,
-    router: RouterId,
-    prefix: Pfx,
-) -> Vec<(RouterId, Point)> {
+fn get_next_hop(net: &Net, router: RouterId, prefix: Pfx) -> Vec<(RouterId, Point)> {
     if let Some(r) = net.net().get_device(router).internal() {
         r.get_next_hop(prefix)
             .into_iter()
-            .map(|r| (r, dim.get(net.pos().get(&r).copied().unwrap_or_default())))
+            .map(|r| (r, net.pos(r)))
             .collect()
     } else {
         Vec::new()

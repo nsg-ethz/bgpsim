@@ -20,8 +20,7 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    dim::Dim,
-    net::{Net, Pfx},
+    net::{use_pos_pair, Net, Pfx},
     state::{Hover, State},
 };
 
@@ -39,23 +38,20 @@ pub fn Propagation(props: &Properties) -> Html {
     let prefix = props.route.prefix;
     let (src, dst, route) = (props.src, props.dst, props.route.clone());
 
-    let (net, _) = use_store::<Net>();
-    let (dim, _) = use_store::<Dim>();
     let (_, state) = use_store::<State>();
 
-    let p1 = dim.get(net.pos().get(&src).copied().unwrap_or_default());
-    let p2 = dim.get(net.pos().get(&dst).copied().unwrap_or_default());
-
-    let selected = net
-        .net()
-        .get_device(dst)
-        .internal()
-        .and_then(|r| r.get_selected_bgp_route(prefix))
-        .map(|r| r.from_id == src)
-        .unwrap_or(false);
+    let (p1, p2) = use_pos_pair(src, dst);
+    let selected = use_selector(move |net: &Net| {
+        net.net()
+            .get_device(dst)
+            .internal()
+            .and_then(|r| r.get_selected_bgp_route(prefix))
+            .map(|r| r.from_id == src)
+            .unwrap_or(false)
+    });
 
     let color = SvgColor::BlueLight;
-    let class = if selected { "" } else { "opacity-30" };
+    let class = if *selected { "" } else { "opacity-30" };
     let on_mouse_enter =
         state.reduce_mut_callback(move |s| s.set_hover(Hover::RouteProp(src, dst, route.clone())));
     let on_mouse_leave = state.reduce_mut_callback(|s| s.clear_hover());

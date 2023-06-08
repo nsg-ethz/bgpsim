@@ -120,7 +120,7 @@ pub fn export_json_str(compact: bool) -> String {
 
     let net_borrow = net.net();
     let n = net_borrow.deref();
-    let pos_borrow = net.pos();
+    let pos_borrow = net.pos_ref();
     let p = pos_borrow.deref();
     let spec_borrow = net.spec();
     let spec = spec_borrow.deref();
