@@ -1304,7 +1304,7 @@ mod t {
             .unwrap();
 
         // advertise prefix
-        net.advertise_external_route(e3, p, &[3, 3, 30], None, None)
+        net.advertise_external_route(e3, p, [3, 3, 30], None, None)
             .unwrap();
 
         let mut fw_state = net.get_forwarding_state();

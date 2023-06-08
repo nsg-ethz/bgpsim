@@ -837,7 +837,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             .external_routers
             .get_mut(&source)
             .ok_or(NetworkError::DeviceNotFound(source))?
-            .widthdraw_prefix(prefix);
+            .withdraw_prefix(prefix);
 
         // add the undo action
         #[cfg(feature = "undo")]

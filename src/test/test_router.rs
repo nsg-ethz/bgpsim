@@ -737,7 +737,7 @@ mod t1 {
         );
 
         // emove the route
-        let events = r.widthdraw_prefix(P::from(0));
+        let events = r.withdraw_prefix(P::from(0));
 
         // check that one event was created
         assert_eq!(events.len(), 1);
@@ -787,7 +787,7 @@ mod t1 {
         r.close_ebgp_session(1.into()).unwrap();
 
         // then, withdraw the session
-        let events = r.widthdraw_prefix::<()>(P::from(0));
+        let events = r.withdraw_prefix::<()>(P::from(0));
         assert!(events.is_empty());
     }
 
@@ -806,7 +806,7 @@ mod t1 {
         let r_clone_2 = r.clone();
 
         // emove the route
-        r.widthdraw_prefix::<()>(P::from(0));
+        r.withdraw_prefix::<()>(P::from(0));
 
         r.undo_event();
         assert_eq!(r, r_clone_2);

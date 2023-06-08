@@ -200,7 +200,7 @@ impl<P: Prefix> ExternalRouter<P> {
     /// Send a BGP WITHDRAW to all neighbors for the given prefix
     ///
     /// *Undo Functionality*: this function will push a new undo event to the queue.
-    pub(crate) fn widthdraw_prefix<T: Default>(&mut self, prefix: P) -> Vec<Event<P, T>> {
+    pub(crate) fn withdraw_prefix<T: Default>(&mut self, prefix: P) -> Vec<Event<P, T>> {
         // prepare undo stack
         #[cfg(feature = "undo")]
         self.undo_stack.push(Vec::new());
