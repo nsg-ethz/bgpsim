@@ -125,19 +125,19 @@ fn bgp_event(props: &BgpEventProps) -> Html {
     let is_update = matches!(props.event, BgpsimBgpEvent::Update(_));
 
     let class = if hovered {
-        "stroke-blue fill-base-2 pointer-events-none"
+        "stroke-blue pointer-events-none stroke-2"
     } else if is_update {
-        "stroke-green fill-base-2 pointer-events-none"
+        "stroke-green pointer-events-none stroke-2"
     } else {
-        "stroke-red fill-base-2 pointer-events-none"
+        "stroke-red pointer-events-none stroke-2"
     };
 
     let frame_class = if hovered {
-        "stroke-blue fill-base-2"
+        "stroke-blue fill-base-2 stroke-2"
     } else if is_update {
-        "stroke-green fill-base-2"
+        "stroke-green fill-base-2 stroke-2"
     } else {
-        "stroke-red fill-base-2"
+        "stroke-red fill-base-2 stroke-2"
     };
 
     let x = props.p.x();
