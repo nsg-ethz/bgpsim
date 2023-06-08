@@ -184,7 +184,7 @@ impl Component for Tooltip {
             Hover::Help(content) => {
                 html! {
                     <div class="max-w-md flex space-x-4 items-center ml-2">
-                        <div class="flex-1 text-base-5">{ content }</div>
+                        <div class="flex-1 text-main-ia">{ content }</div>
                     </div>
                 }
             }

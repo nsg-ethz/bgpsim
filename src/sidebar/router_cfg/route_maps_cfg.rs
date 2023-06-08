@@ -113,36 +113,40 @@ impl Component for RouteMapsCfg {
             let outgoing_existing: Rc<HashSet<i16>> =
                 Rc::new(outgoing_rms.iter().map(|(o, _)| *o).collect());
 
+            let help = html!{<p>{"Route maps are configured per neighbor. Select a neighbor to configure route-maps from that neighbor."}</p>};
+
             html! {
                 <>
                     <Divider text={"BGP Route-Maps"} />
-                    <Element text={"Neighbor"}>
-                        <Select<RouterId> text={neighbor.fmt(n).to_string()} options={bgp_peers} on_select={ctx.link().callback(Msg::ChooseRMNeighbor)} />
-                    </Element>
-                    <ExpandableDivider text={String::from("Incoming Route Map")} >
-                        <Element text={"New route map"} >
-                            <TextField text={""} placeholder={"order"} on_change={on_in_order_change} on_set={on_in_route_map_add} correct={self.rm_in_order_correct} button_text={"Add"}/>
+                    <div class="w-full space-y-2 bg-base-2 p-4 rounded-md shadow-md">
+                        <Element text={"Neighbor"} {help}>
+                            <Select<RouterId> text={neighbor.fmt(n).to_string()} options={bgp_peers} on_select={ctx.link().callback(Msg::ChooseRMNeighbor)} />
                         </Element>
-                        {
-                            incoming_rms.into_iter().map(|(order, map)|  {
-                                let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Incoming));
-                                let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Incoming));
-                                html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove}/> }
-                            }).collect::<Html>()
-                        }
-                    </ExpandableDivider>
-                    <ExpandableDivider text={String::from("Outgoing Route Map")} >
-                        <Element text={"New route map"} >
-                            <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"}/>
-                        </Element>
-                        {
-                            outgoing_rms.into_iter().map(|(order, map)| {
-                                let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Outgoing));
-                                let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Outgoing));
-                                html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove}/> }
-                            }).collect::<Html>()
-                        }
-                    </ExpandableDivider>
+                        <ExpandableDivider text={String::from("Incoming Route Map")} padding_top={false} >
+                            <Element text={"New route map"} >
+                                <TextField text={""} placeholder={"order"} on_change={on_in_order_change} on_set={on_in_route_map_add} correct={self.rm_in_order_correct} button_text={"Add"}/>
+                            </Element>
+                            {
+                                incoming_rms.into_iter().map(|(order, map)|  {
+                                    let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Incoming));
+                                    let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Incoming));
+                                    html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove}/> }
+                                }).collect::<Html>()
+                            }
+                        </ExpandableDivider>
+                        <ExpandableDivider text={String::from("Outgoing Route Map")} >
+                            <Element text={"New route map"} >
+                                <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"}/>
+                            </Element>
+                            {
+                                outgoing_rms.into_iter().map(|(order, map)| {
+                                    let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Outgoing));
+                                    let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Outgoing));
+                                    html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove}/> }
+                                }).collect::<Html>()
+                            }
+                        </ExpandableDivider>
+                    </div>
                 </>
             }
         } else {

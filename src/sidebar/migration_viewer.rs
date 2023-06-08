@@ -152,9 +152,9 @@ pub fn atomic_command_group_viewer(props: &AtomicCommandGroupProps) -> Html {
         .collect();
 
     let text = if active {
-        format!("Step {} (current)", major + 1)
+        format!("Round {} (current)", major + 1)
     } else {
-        format!("Step {}", major + 1)
+        format!("Round {}", major + 1)
     };
 
     html! {

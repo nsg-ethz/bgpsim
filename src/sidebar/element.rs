@@ -50,7 +50,7 @@ impl Component for Element {
         let d1class = classes!(d1class, "flex", "space-x-2", "justify-end");
 
         let help = if let Some(h) = ctx.props().help.clone() {
-            html! {<Help text={h} />}
+            html! {<div class="flex-1"><Help text={h} /></div>}
         } else {
             html! {}
         };

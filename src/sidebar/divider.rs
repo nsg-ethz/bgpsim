@@ -70,6 +70,7 @@ pub fn divider_button(props: &DividerButtonProps) -> Html {
 pub struct ExpandableDividerProps {
     pub text: Option<String>,
     pub children: Children,
+    pub padding_top: Option<bool>,
 }
 
 #[function_component(ExpandableDivider)]
@@ -87,9 +88,15 @@ pub fn expandable_divider(props: &ExpandableDividerProps) -> Html {
         html! { <span class="inline-flex items-center">{ text } <yew_lucide::ChevronDown class="w-4 h-4" /> </span> }
     };
 
+    let main_class = if props.padding_top.unwrap_or(true) {
+        "w-full flex pt-4 pb-0 items-center"
+    } else {
+        "w-full flex py-0 items-center"
+    };
+
     html! {
         <div class="w-full space-y-2">
-            <div class="w-full flex pt-4 pb-0 items-center">
+            <div class={main_class}>
                 <div class="flex-grow border-t border-base-5"></div>
                 <button class="flex-shrink mx-4 text-main-ia hover:text-main transition duration-150 ease-in-out" {onclick}>{text}</button>
                 <div class="flex-grow border-t border-base-5"></div>
