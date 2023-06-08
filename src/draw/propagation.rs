@@ -51,7 +51,7 @@ pub fn Propagation(props: &Properties) -> Html {
     });
 
     let color = SvgColor::BlueLight;
-    let class = if *selected { "" } else { "opacity-30" };
+    let class = if *selected { "" } else { "opacity-20" };
     let on_mouse_enter =
         state.reduce_mut_callback(move |s| s.set_hover(Hover::RouteProp(src, dst, route.clone())));
     let on_mouse_leave = state.reduce_mut_callback(|s| s.clear_hover());

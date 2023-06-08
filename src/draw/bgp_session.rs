@@ -15,17 +15,13 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{
-    prelude::{BgpSessionType, NetworkFormatter},
-    route_map::RouteMapDirection,
-    types::RouterId,
-};
+use bgpsim::{prelude::BgpSessionType, route_map::RouteMapDirection, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
     draw::arrows::get_curve_point,
-    net::{Net, use_pos_pair},
+    net::{use_pos_pair, Net},
     point::Point,
     state::{Hover, State},
 };
@@ -91,40 +87,21 @@ pub fn RouteMap(props: &RmProps) -> Html {
     let direction = props.direction;
     let angle = props.angle;
 
-    let (net, _) = use_store::<Net>();
+    let (pos, peer_pos) = use_pos_pair(id, peer);
 
-    let n = net.net();
-    let Some(router) = n.get_device(id).internal() else {
-        return html!{}
-    };
-    let route_maps = router.get_bgp_route_maps(peer, direction);
+    let route_maps = use_selector(move |n: &Net| {
+        n.net()
+            .get_device(id)
+            .internal()
+            .map(|r| r.get_bgp_route_maps(peer, direction).to_vec())
+            .unwrap_or_default()
+    });
+
     if route_maps.is_empty() {
         return html! {};
     }
-    let text: Html = route_maps
-        .iter()
-        .map(|rm| {
-            let num_text = rm.order().to_string();
-            let text = rm.fmt(&n);
-            html!{<tr> <td>{num_text}</td> <td>{text}</td> </tr>}
-        })
-        .collect();
-    let dir_text = if direction.incoming() {
-        "Incoming route map:"
-    } else {
-        "Outgoing route map:"
-    };
-    let text = html! {
-        <>
-            <p class="mb-1">{dir_text}</p>
-            <table class="border-separate border-spacing-2">
-                {text}
-            </table>
-        </>
-    };
 
     // get the position from the network
-    let [pos, peer_pos] = net.multiple_pos([id, peer]);
     let pt = get_curve_point(pos, peer_pos, angle);
     let dist = if direction.incoming() { 50.0 } else { 80.0 };
     let p = pos.interpolate_absolute(pt, dist) + Point::new(-12.0, -12.0);
@@ -136,8 +113,9 @@ pub fn RouteMap(props: &RmProps) -> Html {
     };
 
     let dispatch = Dispatch::<State>::new();
-    let onmouseenter =
-        dispatch.reduce_mut_callback(move |s| s.set_hover(Hover::Text(text.clone())));
+    let onmouseenter = dispatch.reduce_mut_callback(move |s| {
+        s.set_hover(Hover::RouteMap(id, peer, direction, route_maps.clone()))
+    });
     let onmouseleave = dispatch.reduce_mut_callback(|s| s.clear_hover());
 
     html! {
@@ -146,8 +124,3 @@ pub fn RouteMap(props: &RmProps) -> Html {
         </svg>
     }
 }
-// <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" class="lucide lucide-upload">
-//   <path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/>
-//   <polyline points="17 8 12 3 7 8"/>
-//   <line x1="12" x2="12" y1="3" y2="15"/>
-// </svg>
