@@ -37,12 +37,13 @@ pub fn Menu() -> Html {
         ContextMenu::InternalRouterContext(router, _) => {
             let add_link = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(router, Connection::Link));
+                s.set_selected(Selected::CreateConnection(router, false, Connection::Link));
             });
             let add_ebgp = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(
                     router,
+                    false,
                     Connection::BgpSession(BgpSessionType::EBgp),
                 ));
             });
@@ -50,6 +51,7 @@ pub fn Menu() -> Html {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(
                     router,
+                    false,
                     Connection::BgpSession(BgpSessionType::IBgpPeer),
                 ));
             });
@@ -57,6 +59,7 @@ pub fn Menu() -> Html {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(
                     router,
+                    false,
                     Connection::BgpSession(BgpSessionType::IBgpClient),
                 ));
             });
@@ -72,12 +75,13 @@ pub fn Menu() -> Html {
         ContextMenu::ExternalRouterContext(router, _) => {
             let add_link = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(router, Connection::Link));
+                s.set_selected(Selected::CreateConnection(router, true, Connection::Link));
             });
             let add_ebgp = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(
                     router,
+                    true,
                     Connection::BgpSession(BgpSessionType::EBgp),
                 ));
             });

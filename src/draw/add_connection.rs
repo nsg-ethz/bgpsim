@@ -33,14 +33,13 @@ use crate::{
 
 #[function_component]
 pub fn AddConnection() -> Html {
-
     let event_callbacks = use_state(|| None);
     let selected = *use_selector(|s: &State| s.selected());
     let mouse_pos = use_state(|| Point::default());
 
     let mut params = None;
 
-    if let Selected::CreateConnection(src, connection) = selected {
+    if let Selected::CreateConnection(src, _, connection) = selected {
         params = Some((src, connection));
     }
 

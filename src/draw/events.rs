@@ -15,12 +15,14 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{bgp::BgpEvent as BgpsimBgpEvent, event::Event, types::RouterId, prelude::InteractiveNetwork};
+use bgpsim::{
+    bgp::BgpEvent as BgpsimBgpEvent, event::Event, prelude::InteractiveNetwork, types::RouterId,
+};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::{use_pos, Pfx, Net},
+    net::{use_pos, Net, Pfx},
     point::Point,
     state::{Hover, State},
 };

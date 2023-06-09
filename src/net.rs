@@ -41,10 +41,10 @@ use yewdux::{mrc::Mrc, prelude::*};
 use atomic_command::AtomicCommand;
 
 use crate::{
+    dim::Dim,
     http_serde::{export_json_str, trigger_download},
     latex_export,
     point::Point,
-    dim::Dim,
 };
 
 /// Basic event queue
@@ -174,7 +174,8 @@ impl Net {
     }
 
     pub fn pos(&self, router: RouterId) -> Point {
-        self.dim.get(self.pos.borrow().get(&router).copied().unwrap_or_default())
+        self.dim
+            .get(self.pos.borrow().get(&router).copied().unwrap_or_default())
     }
 
     pub fn multiple_pos<const N: usize>(&self, routers: [RouterId; N]) -> [Point; N] {
@@ -499,7 +500,8 @@ pub fn use_pos(router: RouterId) -> Point {
 
 #[hook]
 pub fn use_pos_pair(r1: RouterId, r2: RouterId) -> (Point, Point) {
-    let points: Rc<[Point; 2]> = use_selector_with_deps(|n: &Net, (r1, r2)| n.multiple_pos([*r1, *r2]), (r1, r2));
+    let points: Rc<[Point; 2]> =
+        use_selector_with_deps(|n: &Net, (r1, r2)| n.multiple_pos([*r1, *r2]), (r1, r2));
     let ps = *points;
     (ps[0], ps[1])
 }

@@ -15,13 +15,18 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{bgp::BgpRoute, prelude::BgpSessionType, types::RouterId, route_map::{RouteMapDirection, RouteMap}};
+use bgpsim::{
+    bgp::BgpRoute,
+    prelude::BgpSessionType,
+    route_map::{RouteMap, RouteMapDirection},
+    types::RouterId,
+};
 use gloo_utils::{document, window};
 use serde::{Deserialize, Serialize};
-use strum_macros::EnumIter;
-use yew::prelude::{Html, html};
-use yewdux::prelude::Store;
 use std::rc::Rc;
+use strum_macros::EnumIter;
+use yew::prelude::{html, Html};
+use yewdux::prelude::Store;
 
 use crate::point::Point;
 
@@ -277,7 +282,8 @@ pub enum Selected {
     #[cfg(feature = "atomic_bgp")]
     Migration,
     Verifier,
-    CreateConnection(RouterId, Connection),
+    /// Create a connection from src `.0` (that is external router with `.1`) of kind `.2`.
+    CreateConnection(RouterId, bool, Connection),
 }
 
 impl Default for Selected {
@@ -295,7 +301,12 @@ pub enum Hover {
     BgpSession(RouterId, RouterId),
     NextHop(RouterId, RouterId),
     RouteProp(RouterId, RouterId, BgpRoute<Pfx>),
-    RouteMap(RouterId, RouterId, RouteMapDirection, Rc<Vec<RouteMap<Pfx>>>),
+    RouteMap(
+        RouterId,
+        RouterId,
+        RouteMapDirection,
+        Rc<Vec<RouteMap<Pfx>>>,
+    ),
     Message(RouterId, RouterId, usize, bool),
     Policy(RouterId, usize),
     #[cfg(feature = "atomic_bgp")]
@@ -353,10 +364,14 @@ impl Layer {
 
     pub fn help(&self) -> Html {
         match self {
-            Layer::FwState => html!{ "Show all next-hops for a given prefix." },
-            Layer::RouteProp => html!{ "Show the routing information and how it is propagated for a given prefix." },
-            Layer::Igp => html!{ "Visualize the OSPF configuration (link weights)" },
-            Layer::Bgp => html!{ "Visualize the BGP configuration (BGP sessions and route maps)." },
+            Layer::FwState => html! { "Show all next-hops for a given prefix." },
+            Layer::RouteProp => {
+                html! { "Show the routing information and how it is propagated for a given prefix." }
+            }
+            Layer::Igp => html! { "Visualize the OSPF configuration (link weights)" },
+            Layer::Bgp => {
+                html! { "Visualize the BGP configuration (BGP sessions and route maps)." }
+            }
         }
     }
 }

@@ -31,9 +31,11 @@ use bgpsim::{formatter::NetworkFormatter, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{draw::SvgColor, net::Net, state::State, sidebar::Button};
+use crate::{draw::SvgColor, net::Net, sidebar::Button, state::State};
 
-use super::{topology_cfg::TopologyCfg, Divider, Element, Select, TextField, Toggle, ExpandableDivider};
+use super::{
+    topology_cfg::TopologyCfg, Divider, Element, ExpandableDivider, Select, TextField, Toggle,
+};
 use bgp_cfg::BgpCfg;
 use specification_cfg::SpecificationCfg;
 use static_routes_cfg::StaticRoutesCfg;
@@ -171,7 +173,7 @@ pub fn DeleteRouter(props: &DeleteRouterProps) -> Html {
         n.pos_mut().remove(&router);
     });
 
-    html!{
+    html! {
         <ExpandableDivider text={String::from("Delete this router")}>
             <div class="w-full flex flex-row">
                 <div class="flex-1">{"Are you sure?"}</div>

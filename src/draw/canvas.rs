@@ -232,11 +232,9 @@ pub fn CanvasBgpConfig() -> Html {
 #[function_component]
 pub fn CanvasEventQueue() -> Html {
     let nodes = use_selector(|net: &Net| net.net().get_routers());
-    let state = use_selector(|state: &State| {
-        match (state.hover(), state.disable_hover) {
-            (Hover::Message(src, dst, _, _), false) => Some((src, dst)),
-            _ => None
-        }
+    let state = use_selector(|state: &State| match (state.hover(), state.disable_hover) {
+        (Hover::Message(src, dst, _, _), false) => Some((src, dst)),
+        _ => None,
     });
 
     log::debug!("render CanvasEventQueue");

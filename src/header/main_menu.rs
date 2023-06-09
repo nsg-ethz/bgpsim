@@ -42,11 +42,13 @@ pub fn MainMenu(props: &Properties) -> Html {
     // define the state
     let shown = use_state(|| false);
     let auto_simulate = use_selector(|net: &Net| net.net().auto_simulation_enabled());
-    let s = use_selector(|state: &State| (
-        state.is_theme_forced(),
-        state.features().simple,
-        state.is_dark_mode(),
-    ));
+    let s = use_selector(|state: &State| {
+        (
+            state.is_theme_forced(),
+            state.features().simple,
+            state.is_dark_mode(),
+        )
+    });
     let (forced_theme, simple_mode, dark_mode) = (s.0, s.1, s.2);
     let url_network = use_state(|| None);
     let file_ref = use_node_ref();

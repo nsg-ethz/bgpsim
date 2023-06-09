@@ -133,6 +133,10 @@ fn entry() -> Html {
 }
 
 fn main() {
-    wasm_logger::init(wasm_logger::Config::default());
+    #[cfg(debug_assertions)]
+    let logger_config = wasm_logger::Config::new(log::Level::Debug);
+    #[cfg(not(debug_assertions))]
+    let logger_config = wasm_logger::Config::new(log::Level::Info);
+    wasm_logger::init(logger_config);
     yew::Renderer::<Entry>::new().render();
 }

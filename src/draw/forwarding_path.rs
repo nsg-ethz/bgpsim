@@ -111,11 +111,7 @@ impl Component for ForwardingPath {
     }
 
     fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
-        let new_paths = get_paths(
-            &self.net,
-            ctx.props().router_id,
-            ctx.props().prefix,
-        );
+        let new_paths = get_paths(&self.net, ctx.props().router_id, ctx.props().prefix);
         if new_paths != self.paths {
             self.paths = new_paths;
             true
@@ -135,11 +131,7 @@ fn get_paths(net: &Net, router: RouterId, prefix: Pfx) -> Vec<Vec<Point>> {
             _ => unreachable!(),
         }
         .into_iter()
-        .map(|p| {
-            p.into_iter()
-                .map(|r| net.pos(r))
-                .collect()
-        })
+        .map(|p| p.into_iter().map(|r| net.pos(r)).collect())
         .collect()
     } else {
         Vec::new()

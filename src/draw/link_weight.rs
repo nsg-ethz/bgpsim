@@ -22,7 +22,7 @@ use yewdux::prelude::*;
 
 use crate::{
     dim::ROUTER_RADIUS,
-    net::{Net, use_pos_pair},
+    net::{use_pos_pair, Net},
 };
 
 #[derive(PartialEq, Eq, Properties)]
@@ -35,10 +35,12 @@ pub struct Properties {
 pub fn LinkWeight(props: &Properties) -> Html {
     let (src, dst) = (props.src, props.dst);
 
-    let external = use_selector(move |net: &Net| net.net().get_device(src).is_external() || net.net().get_device(dst).is_external());
+    let external = use_selector(move |net: &Net| {
+        net.net().get_device(src).is_external() || net.net().get_device(dst).is_external()
+    });
 
     if *external {
-        return html!{}
+        return html! {};
     }
 
     let (p1, p2) = use_pos_pair(src, dst);

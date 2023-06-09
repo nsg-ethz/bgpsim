@@ -113,7 +113,7 @@ impl Component for RouteMapsCfg {
             let outgoing_existing: Rc<HashSet<i16>> =
                 Rc::new(outgoing_rms.iter().map(|(o, _)| *o).collect());
 
-            let help = html!{<p>{"Route maps are configured per neighbor. Select a neighbor to configure route-maps from that neighbor."}</p>};
+            let help = html! {<p>{"Route maps are configured per neighbor. Select a neighbor to configure route-maps from that neighbor."}</p>};
 
             html! {
                 <>

@@ -32,7 +32,7 @@ use yewdux::prelude::*;
 use crate::{
     net::{Net, Pfx},
     point::Point,
-    state::{Layer, State, Hover},
+    state::{Hover, Layer, State},
 };
 use interactive::InteractivePlayer;
 use main_menu::MainMenu;
@@ -94,26 +94,31 @@ fn layer_selection() -> Html {
     let (state, state_dispatch) = use_store::<State>();
     let layer = state.layer().to_string();
 
-    let layer_options = Layer::iter().map(|l| {
-        let text = l.to_string();
-        let onclick = {
-            let shown = shown.clone();
-            state_dispatch.reduce_mut_callback(move |s| {
-                shown.set(false);
-                s.set_layer(l);
-            })
-        };
-        let onmouseenter = state_dispatch.reduce_mut_callback(move |s| s.set_hover(Hover::Help(l.help())));
-        let onmouseleave = state_dispatch.reduce_mut_callback(|s| s.clear_hover());
-        html! {
-            <button class="text-main hover:text-main hover:bg-base-2 py-2 focus:outline-none"
-                    {onclick} {onmouseenter} {onmouseleave}>
-                {text}
-            </button>
-        }
-    }).collect::<Html>();
+    let layer_options = Layer::iter()
+        .map(|l| {
+            let text = l.to_string();
+            let onclick = {
+                let shown = shown.clone();
+                state_dispatch.reduce_mut_callback(move |s| {
+                    shown.set(false);
+                    s.set_layer(l);
+                })
+            };
+            let onmouseenter =
+                state_dispatch.reduce_mut_callback(move |s| s.set_hover(Hover::Help(l.help())));
+            let onmouseleave = state_dispatch.reduce_mut_callback(|s| s.clear_hover());
+            html! {
+                <button class="text-main hover:text-main hover:bg-base-2 py-2 focus:outline-none"
+                        {onclick} {onmouseenter} {onmouseleave}>
+                    {text}
+                </button>
+            }
+        })
+        .collect::<Html>();
 
-    let onmouseenter = state_dispatch.reduce_mut_callback(|s| s.set_hover(Hover::Help(html!{ "Select the visualization layer" })));
+    let onmouseenter = state_dispatch.reduce_mut_callback(|s| {
+        s.set_hover(Hover::Help(html! { "Select the visualization layer" }))
+    });
     let onmouseleave = state_dispatch.reduce_mut_callback(|s| s.clear_hover());
 
     html! {

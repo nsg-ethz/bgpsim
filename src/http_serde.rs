@@ -214,10 +214,11 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
     #[cfg(feature = "atomic_bgp")]
     {
         if let Some(migration) = content.get("migration") {
-            let mut migration: Vec<Vec<_>> = serde_json::from_value(migration.clone()).unwrap_or_else(|e| {
-                log::warn!("Error parsing the migration data: {e}");
-                Default::default()
-            });
+            let mut migration: Vec<Vec<_>> = serde_json::from_value(migration.clone())
+                .unwrap_or_else(|e| {
+                    log::warn!("Error parsing the migration data: {e}");
+                    Default::default()
+                });
             if migration.len() == 5 {
                 // merge steps 2, 3 and 4.
                 let p5 = migration.pop().unwrap();

@@ -21,7 +21,7 @@ use yewdux::prelude::*;
 
 use crate::{
     dim::{FW_ARROW_LENGTH, ROUTER_RADIUS},
-    net::{Net, Pfx, use_pos},
+    net::{use_pos, Net, Pfx},
     point::Point,
     state::{Hover, State},
 };
@@ -45,12 +45,15 @@ pub fn NextHop(props: &Properties) -> Html {
     // generate all arrows
 
     let next_hops = use_selector(move |net: &Net| get_next_hop(net, src, prefix));
-    let arrows: Vec<_> = next_hops.iter().map(|(dst, p3)| {
-        let dist = p_src.dist(*p3);
-        let p1 = p_src.interpolate(*p3, ROUTER_RADIUS / dist);
-        let p2 = p_src.interpolate(*p3, FW_ARROW_LENGTH / dist);
-        (*dst, p1, p2)
-    }).collect();
+    let arrows: Vec<_> = next_hops
+        .iter()
+        .map(|(dst, p3)| {
+            let dist = p_src.dist(*p3);
+            let p1 = p_src.interpolate(*p3, ROUTER_RADIUS / dist);
+            let p2 = p_src.interpolate(*p3, FW_ARROW_LENGTH / dist);
+            (*dst, p1, p2)
+        })
+        .collect();
 
     html! {
         <g>
