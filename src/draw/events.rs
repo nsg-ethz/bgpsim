@@ -124,9 +124,9 @@ fn bgp_event(props: &BgpEventProps) -> Html {
         html! {
             <g>
                 <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave}></path>
-                <path {class} d={d_lid}></path>
-                <path {class} d={d_plus_1}></path>
-                <path {class} d={d_plus_2}></path>
+                <path {class} fill="none" d={d_lid}></path>
+                <path {class} fill="none" d={d_plus_1}></path>
+                <path {class} fill="none" d={d_plus_2}></path>
             </g>
         }
     } else {
@@ -135,9 +135,9 @@ fn bgp_event(props: &BgpEventProps) -> Html {
         html! {
             <g>
                 <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave}></path>
-                <path {class} d={d_lid}></path>
-                <path {class} d={d_x_1}></path>
-                <path {class} d={d_x_2}></path>
+                <path {class} fill="none" d={d_lid}></path>
+                <path {class} fill="none" d={d_x_1}></path>
+                <path {class} fill="none" d={d_x_2}></path>
             </g>
         }
     }
