@@ -15,15 +15,13 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::{ops::Deref, rc::Rc};
-
 use bgpsim::{
     bgp::BgpEvent,
     event::{Event, EventQueue},
     formatter::NetworkFormatter,
     interactive::InteractiveNetwork,
-    types::RouterId,
 };
+use web_sys::HtmlElement;
 use gloo_timers::callback::Timeout;
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -36,208 +34,166 @@ use crate::{
 
 use super::divider::{Divider, DividerButton};
 
-pub struct QueueCfg {
-    net: Rc<Net>,
-    net_dispatch: Dispatch<Net>,
-    state_dispatch: Dispatch<State>,
-    last_transition: Option<usize>,
-    next_checked: bool,
-    checked: bool,
-}
-
-pub enum Msg {
-    StateNet(Rc<Net>),
-    HoverEnter((RouterId, RouterId, usize)),
-    HoverExit,
-    Execute(usize),
-    Swap(usize),
-    ToggleChecked,
-}
-
-impl Component for QueueCfg {
-    type Message = Msg;
-    type Properties = ();
-
-    fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        let state_dispatch = Dispatch::<State>::subscribe(Callback::from(|_: Rc<State>| ()));
-        QueueCfg {
-            net: Default::default(),
-            net_dispatch,
-            state_dispatch,
-            last_transition: None,
-            next_checked: false,
-            checked: false,
-        }
+#[function_component]
+pub fn QueueCfg() -> Html {
+    // handle the state
+    let queue = use_selector(|net: &Net| net.net().queue().clone());
+    let queue_len = queue.len();
+    let refs = use_state(move || (0..queue_len).map(|_| NodeRef::default()).collect::<Vec<_>>());
+    if queue.len() != refs.len() {
+        refs.set((0..queue.len()).map(|_| NodeRef::default()).collect());
+        return html!();
     }
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let net = self.net.net();
-        let queue = net.queue();
-        let content = queue
-            .iter()
-            .cloned()
-            .enumerate()
-            .map(|(i, event)| {
-                let on_click = ctx.link().callback(Msg::Execute);
-                let on_mouse_enter = ctx.link().callback(Msg::HoverEnter);
-                let on_mouse_leave = ctx.link().callback(|()| Msg::HoverExit);
-                let checked = self.next_checked;
-                let translate = if Some(i) == self.last_transition {
-                    1
-                } else if i >= 1 && Some(i - 1) == self.last_transition {
-                    -1
-                } else {
-                    0
-                };
-                if allow_swap(queue, i) {
-                    let on_swap = ctx.link().callback(move |_| Msg::Swap(i));
-                    html! {
-                        <>
-                            <EventCfg {i} {event} {on_click} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
-                            <DividerButton on_click={on_swap} hidden={true}> <yew_lucide::ArrowLeftRight class="w-6 h-6 rotate-90"/> </DividerButton>
-                        </>
-                    }
-                } else {
-                    html! {
-                        <>
-                            <EventCfg {i} {event} {on_click} {on_mouse_enter} {on_mouse_leave} {checked} {translate} />
-                        </>
-                    }
-                }
-            })
-            .collect::<Html>();
-        html! {
-            <div class="w-full space-y-2">
-                <input type="checkbox" value="" class="sr-only peer" checked={self.checked}/>
-                <Divider text="Event Queue" />
-                {content}
-                <Divider />
-            </div>
-        }
+    let mut elements: Vec<Html> = Vec::new();
+
+    for (pos, event) in queue.iter().cloned().enumerate() {
+        let executable = allow_execute(&queue, pos);
+        let swappable = allow_swap(&queue, pos);
+        let node_ref = refs.get(pos).cloned().unwrap();
+        let next_ref = refs.get(pos + 1).cloned();
+
+        elements.push(
+            html! {<QueueEventCfg {pos} {event} {executable} {swappable} {node_ref} {next_ref} />},
+        );
     }
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::StateNet(n) => {
-                self.net = n;
-                true
-            }
-            Msg::Swap(pos) => {
-                self.net_dispatch
-                    .reduce_mut(move |n| n.net_mut().queue_mut().swap(pos, pos + 1));
-                self.last_transition = Some(pos);
-                self.next_checked = !self.checked;
-                let link = ctx.link().clone();
-                let timeout = Timeout::new(80, move || {
-                    link.send_message(Msg::ToggleChecked);
-                });
-                timeout.forget();
-                false
-            }
-            Msg::Execute(i) => {
-                self.net_dispatch.reduce_mut(move |n| {
-                    let mut n = n.net_mut();
-                    n.queue_mut().swap_to_front(i);
-                    n.simulate_step().unwrap();
-                });
-                self.state_dispatch
-                    .reduce_mut(move |s| s.set_hover(Hover::None));
-                true
-            }
-            Msg::HoverEnter((src, dst, i)) => {
-                self.state_dispatch
-                    .reduce_mut(move |s| s.set_hover(Hover::Message(src, dst, i, false)));
-                false
-            }
-            Msg::HoverExit => {
-                self.state_dispatch
-                    .reduce_mut(move |s| s.set_hover(Hover::None));
-                false
-            }
-            Msg::ToggleChecked => {
-                self.checked = !self.checked;
-                true
-            }
-        }
+    html! {
+        <div class="w-full space-y-2">
+            <Divider text="Event Queue" />
+                {elements.into_iter().collect::<Html>()}
+            <Divider />
+        </div>
     }
 }
 
 #[derive(PartialEq, Properties)]
-struct EventProps {
-    i: usize,
+pub struct QueueEventCfgProps {
+    pos: usize,
     event: Event<Pfx, ()>,
-    on_click: Callback<usize>,
-    on_mouse_enter: Callback<(RouterId, RouterId, usize)>,
-    on_mouse_leave: Callback<()>,
-    translate: isize,
-    checked: bool,
+    executable: bool,
+    swappable: bool,
+    node_ref: NodeRef,
+    next_ref: Option<NodeRef>,
 }
 
-#[function_component(EventCfg)]
-fn event_cfg(props: &EventProps) -> Html {
-    let (net, _) = use_store::<Net>();
-    let net_borrow = net.net();
-    let net = net_borrow.deref();
-    let dir_class = "text-main font-bold";
-    let (src, dst, ty, content) = match props.event.clone() {
+#[function_component]
+pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
+    let pos = props.pos;
+
+
+    let (src, dst, prefix, route) = match &props.event {
         Event::Bgp(_, src, dst, BgpEvent::Update(route)) => {
-            (src, dst, "BGP Update", html! { <RouteTable {route} /> })
+            (*src, *dst, route.prefix, Some(route.clone()))
         }
-        Event::Bgp(_, src, dst, BgpEvent::Withdraw(prefix)) => {
-            (src, dst, "BGP Withdraw", html! { <PrefixTable {prefix} />})
-        }
+        Event::Bgp(_, src, dst, BgpEvent::Withdraw(p)) => (*src, *dst, *p, None),
     };
-    let i = props.i;
-    let clickable = allow_execute(net.queue(), i);
-    let onclick = props.on_click.reform(move |_| i);
-    let onmouseenter = props.on_mouse_enter.reform(move |_| (src, dst, i));
-    let onmouseleave = props.on_mouse_leave.reform(move |_| ());
-    let div_class = if clickable {
-        "p-4 rounded-md shadow-md border border-base-5 bg-base-2 hover:bg-base-3 hover:shadow-lg w-full flex flex-col transition ease-in-out duration-150 cursor-pointer"
+    let state = Dispatch::<State>::new();
+
+    let header = use_selector_with_deps(|net: &Net, (src, dst, pos)| format!("{pos}: {} → {}", src.fmt(&net.net()), dst.fmt(&net.net())), (src, dst, pos));
+
+    log::debug!("render QueueEventCfg {header}");
+
+    let (kind, content) = match route {
+        Some(route) => ("BGP Update", html!(<RouteTable {route} />)),
+        None => ("BGP Withdraw", html!(<PrefixTable {prefix} />)),
+    };
+    let title = format!("{header}: {kind}");
+
+    let onclick: Callback<MouseEvent> = if props.executable {
+        Callback::from(move |_| {
+            Dispatch::<Net>::new().reduce_mut(move |n| {
+                let mut net = n.net_mut();
+                net.queue_mut().swap_to_front(pos);
+                net.simulate_step().unwrap();
+            });
+            Dispatch::<State>::new().reduce_mut(move |s| s.set_hover(Hover::None));
+        })
     } else {
-        "p-4 rounded-md shadow-md border border-base-5 bg-base-2 w-lg w-full flex flex-col cursor-not-allowed"
+        Callback::noop()
     };
-    let div_class = match (props.translate, props.checked) {
-        (t, false) if t > 0 => classes!(
-            "transition",
-            "duration-200",
-            "ease-out",
-            "peer-checked:translate-y-full",
-            "translate-y-0",
-            div_class
-        ),
-        (t, true) if t > 0 => classes!(
-            "transition",
-            "duration-200",
-            "ease-out",
-            "translate-y-full",
-            "peer-checked:translate-y-0",
-            div_class
-        ),
-        (t, false) if t < 0 => classes!(
-            "transition",
-            "duration-200",
-            "ease-out",
-            "peer-checked:-translate-y-full",
-            "translate-y-0",
-            div_class
-        ),
-        (t, true) if t < 0 => classes!(
-            "transition",
-            "duration-200",
-            "ease-out",
-            "-translate-y-full",
-            "peer-checked:translate-y-0",
-            div_class
-        ),
-        _ => classes!(div_class),
+    let onmouseenter =
+        state.reduce_mut_callback(move |s| s.set_hover(Hover::Message(src, dst, pos, false)));
+    let onmouseleave = state.reduce_mut_callback(|s| s.set_hover(Hover::None));
+
+    let main_class =
+        "p-4 rounded-md shadow-md border border-base-4 bg-base-2 w-full flex flex-col translate-y-0";
+    let animation_class = "transition duration-150";
+    let main_class = if props.executable {
+        classes!(
+            main_class,
+            animation_class,
+            "hover:bg-base-3",
+            "cursor-pointer"
+        )
+    } else {
+        classes!(main_class, animation_class, "cursor-not-allowed")
     };
+
+    let swap = if props.swappable && props.next_ref.is_some() {
+        let node_ref = props.node_ref.clone();
+        let next_ref = props.next_ref.as_ref().cloned().unwrap();
+        html!(<QueueSwapPos {pos} {node_ref} {next_ref} />)
+    } else {
+        html!()
+    };
+
     html! {
-        <div class={div_class} {onmouseenter} {onmouseleave} {onclick}>
-            <p class={dir_class}> {props.i + 1} {": "} {src.fmt(net)} {" → "} {dst.fmt(net)} {": "} {ty} </p>
-            {content}
-        </div>
+        <>
+            <div class={main_class} {onclick} {onmouseenter} {onmouseleave} ref={props.node_ref.clone()}>
+                <p class="text-main font-bold"> {title} </p>
+                {content}
+            </div>
+            {swap}
+        </>
+    }
+}
+
+#[derive(PartialEq, Properties)]
+pub struct QueueSwapProps {
+    pos: usize,
+    node_ref: NodeRef,
+    next_ref: NodeRef,
+}
+
+#[function_component]
+pub fn QueueSwapPos(props: &QueueSwapProps) -> Html {
+    let pos = props.pos;
+
+    let top_div = props.node_ref.cast::<HtmlElement>().unwrap().get_bounding_client_rect();
+    let bot_div = props.next_ref.cast::<HtmlElement>().unwrap().get_bounding_client_rect();
+    let delta = bot_div.y() - top_div.y();
+
+
+    let top_ref = props.node_ref.clone();
+    let bot_ref = props.next_ref.clone();
+    let on_click = Callback::from(move |_| {
+        // call the update functions
+        let tr = top_ref.clone();
+        let br = bot_ref.clone();
+        if let Some(div) = top_ref.cast::<HtmlElement>() {
+            let _ = div.style().set_property("transform", &format!("translateY({delta}px)"));
+        }
+        if let Some(div) = bot_ref.cast::<HtmlElement>() {
+            let _ = div.style().set_property("transform", &format!("translateY(-{delta}px)"));
+        }
+        Timeout::new(150, move || {
+            if let Some(div) = tr.cast::<HtmlElement>() {
+                let _ = div.style().set_property("transform", &format!("translateY(0px)"));
+            }
+            if let Some(div) = br.cast::<HtmlElement>() {
+                let _ = div.style().set_property("transform", &format!("translateY(0px)"));
+            }
+        }).forget();
+
+        // delayed trigger the swap
+        Timeout::new(150, move || {
+            Dispatch::<Net>::new().reduce_mut(move |n| n.net_mut().queue_mut().swap(pos, pos + 1));
+
+        }).forget();
+    });
+    html! {
+        <DividerButton {on_click} hidden={true}> <yew_lucide::ArrowLeftRight class="w-6 h-6 rotate-90"/> </DividerButton>
     }
 }
 

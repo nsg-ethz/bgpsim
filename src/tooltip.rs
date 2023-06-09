@@ -288,19 +288,20 @@ impl Tooltip {
 #[derive(Properties, PartialEq, Eq)]
 pub struct RouteTableProps {
     pub route: BgpRoute<Pfx>,
+    #[prop_or_default]
+    pub idx: usize
 }
 
-#[function_component(RouteTable)]
-pub fn route_table(props: &RouteTableProps) -> Html {
-    let (net, _) = use_store::<Net>();
-    let net = net.net();
-    let n = net.deref();
+#[function_component]
+pub fn RouteTable(props: &RouteTableProps) -> Html {
+    let next_hop = props.route.next_hop;
+    let next_hop = use_selector(move |net: &Net| next_hop.fmt(&net.net()).to_string());
 
     html! {
         <table class="table-auto border-separate border-spacing-x-3">
             <tr> <td class="italic text-main-ia"> {"Prefix: "} </td> <td> {props.route.prefix} </td> </tr>
             <tr> <td class="italic text-main-ia"> {"Path: "} </td> <td> {join(props.route.as_path.iter().map(|x| x.0), ", ")} </td> </tr>
-            <tr> <td class="italic text-main-ia"> {"Next Hop: "} </td> <td> {props.route.next_hop.fmt(n).to_string()} </td> </tr>
+            <tr> <td class="italic text-main-ia"> {"Next Hop: "} </td> <td> {next_hop} </td> </tr>
             {
                 if let Some(lp) = props.route.local_pref {
                     html!{<tr> <td class="italic text-main-ia"> {"Local Pref: "} </td> <td> {lp} </td> </tr>}
