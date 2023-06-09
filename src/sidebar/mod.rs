@@ -56,6 +56,8 @@ use crate::state::{Selected, State};
 pub fn Sidebar() -> Html {
     let state = use_selector(|state: &State| state.selected());
 
+    log::debug!("render Sidebar");
+
     let content = match *state {
         Selected::None | Selected::CreateConnection(_, _, _) => html! {
             <div class="h-full w-full flex flex-col justify-center items-center">
