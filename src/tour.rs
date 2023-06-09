@@ -348,7 +348,7 @@ impl Action {
             Action::SelectFirstRouter => {
                 let first_router = net.net().get_routers()[0];
                 Dispatch::<State>::new()
-                    .reduce_mut(move |state| state.set_selected(Selected::Router(first_router)));
+                    .reduce_mut(move |state| state.set_selected(Selected::Router(first_router, false)));
             }
             Action::ShowQueue => {
                 if !net.net().auto_simulation_enabled() {

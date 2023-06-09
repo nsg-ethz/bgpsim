@@ -179,7 +179,7 @@ impl VisualizationState {
             _ => false,
         };
         match state.selected() {
-            Selected::Router(x) if x == id => s.selected = true,
+            Selected::Router(x, _) if x == id => s.selected = true,
             Selected::CreateConnection(src, ext, con) => {
                 s.create_connection = Some((src, ext, con))
             }
@@ -289,7 +289,7 @@ fn prepare_onclick(
         (Callback::noop(), false)
     } else {
         (
-            state.reduce_mut_callback(move |s| s.set_selected(Selected::Router(id))),
+            state.reduce_mut_callback(move |s| s.set_selected(Selected::Router(id, external))),
             true,
         )
     }

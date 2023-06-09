@@ -277,7 +277,8 @@ impl State {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Selected {
     None,
-    Router(RouterId),
+    /// Router `.0`, that is external if `.1`.
+    Router(RouterId, bool),
     Queue,
     #[cfg(feature = "atomic_bgp")]
     Migration,

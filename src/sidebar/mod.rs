@@ -47,79 +47,34 @@ use queue_cfg::QueueCfg;
 use router_cfg::RouterCfg;
 use verifier_viewer::VerifierViewer;
 
-use std::rc::Rc;
-
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{
-    net::Net,
-    state::{Selected, State},
-};
+use crate::state::{Selected, State};
 
-pub struct Sidebar {
-    state: Rc<State>,
-    net: Rc<Net>,
-    _state_dispatch: Dispatch<State>,
-    _net_dispatch: Dispatch<Net>,
-}
+#[function_component]
+pub fn Sidebar() -> Html {
+    let state = use_selector(|state: &State| state.selected());
 
-pub enum Msg {
-    State(Rc<State>),
-    StateNet(Rc<Net>),
-}
-
-impl Component for Sidebar {
-    type Message = Msg;
-    type Properties = ();
-
-    fn create(ctx: &Context<Self>) -> Self {
-        let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
-        let _net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        Sidebar {
-            state: Default::default(),
-            net: Default::default(),
-            _state_dispatch,
-            _net_dispatch,
-        }
-    }
-
-    fn view(&self, _ctx: &Context<Self>) -> Html {
-        let content = match self.state.selected() {
-            Selected::None | Selected::CreateConnection(_, _, _) => html! {
-                <div class="h-full w-full flex flex-col justify-center items-center">
-                    <p class="text-main-ia italic"> { "nothing selected!" } </p>
-                </div>
-            },
-            Selected::Router(r) if self.net.net().get_device(r).is_internal() => {
-                html! { <RouterCfg router={r} /> }
-            }
-            Selected::Router(r) => html! { <ExternalRouterCfg router={r} /> },
-            Selected::Queue => html! { <QueueCfg /> },
-            #[cfg(feature = "atomic_bgp")]
-            Selected::Migration => html! { <MigrationViewer /> },
-            Selected::Verifier => html! { <VerifierViewer /> },
-        };
-
-        html! {
-            <div class="w-[30rem] h-full max-h-full pr-4 py-4 align-middle">
-                <div class="w-full h-full max-h-full px-4 bg-base-1 shadow-lg flex flex-col rounded-lg overflow-scroll" id="sidebar">
-                    { content }
-                </div>
+    let content = match *state {
+        Selected::None | Selected::CreateConnection(_, _, _) => html! {
+            <div class="h-full w-full flex flex-col justify-center items-center">
+                <p class="text-main-ia italic"> { "nothing selected!" } </p>
             </div>
-        }
-    }
+        },
+        Selected::Router(r, false) => html! { <RouterCfg router={r} /> },
+        Selected::Router(r, true) => html! { <ExternalRouterCfg router={r} /> },
+        Selected::Queue => html! { <QueueCfg /> },
+        #[cfg(feature = "atomic_bgp")]
+        Selected::Migration => html! { <MigrationViewer /> },
+        Selected::Verifier => html! { <VerifierViewer /> },
+    };
 
-    fn update(&mut self, _ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::State(s) => {
-                self.state = s;
-                true
-            }
-            Msg::StateNet(n) => {
-                self.net = n;
-                true
-            }
-        }
+    html! {
+        <div class="w-[30rem] h-full max-h-full pr-4 py-4 align-middle">
+            <div class="w-full h-full max-h-full px-4 bg-base-1 shadow-lg flex flex-col rounded-lg overflow-scroll" id="sidebar">
+                { content }
+            </div>
+        </div>
     }
 }
