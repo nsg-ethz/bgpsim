@@ -354,7 +354,11 @@ impl std::fmt::Display for Layer {
 
 impl Default for Layer {
     fn default() -> Self {
-        Self::Igp
+        if cfg!(feature = "atomic_bgp") {
+            Self::RouteProp
+        } else {
+            Self::Igp
+        }
     }
 }
 

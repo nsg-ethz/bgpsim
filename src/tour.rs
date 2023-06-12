@@ -41,7 +41,12 @@ const STEPS: &[TourStep] = &[
     TourStep::Element {
         element_id: "layer-selection",
         alternative: None,
-        actions: &[Action::ChooseLayer(Layer::FwState)],
+        actions: &[
+            #[cfg(feature = "atomic_bgp")]
+            Action::ChooseLayer(Layer::RouteProp),
+            #[cfg(not(feature = "atomic_bgp"))]
+            Action::ChooseLayer(Layer::FwState),
+        ],
         paragraphs: &["The simulator offers visualization layers for many different aspects of the network. You can select which aspect should be visualized using this button. The main section below can visualize the forwarding state, the routing state (how routes are propagated), the IGP configuration, or the BGP configuration."],
         align: Align::Bottom,
     },
