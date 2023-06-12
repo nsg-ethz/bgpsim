@@ -119,6 +119,7 @@ pub struct CurvedArrowProps {
     pub on_mouse_enter: Option<Callback<MouseEvent>>,
     pub on_mouse_leave: Option<Callback<MouseEvent>>,
     pub on_click: Option<Callback<MouseEvent>>,
+    pub on_context_menu: Option<Callback<MouseEvent>>,
     pub class: Option<String>,
 }
 
@@ -153,6 +154,7 @@ pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
     let d = format!("M {} {} Q {} {} {} {}", p1.x, p1.y, pt.x, pt.y, p2.x, p2.y);
 
     let onclick = props.on_click.clone();
+    let oncontextmenu = props.on_context_menu.clone();
     let onmouseenter = {
         let hovered = hovered.clone();
         props.on_mouse_enter.clone().map(|c| {
@@ -172,7 +174,7 @@ pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
     };
     html! {
         <g>
-            <path d={d.clone()} class={phantom_class} {onclick} {onmouseenter} {onmouseleave} fill="none" />
+            <path d={d.clone()} class={phantom_class} {onclick} {onmouseenter} {onmouseleave} {oncontextmenu} fill="none" />
             <path marker-end={marker_end} {d} {class} fill="none" />
         </g>
     }

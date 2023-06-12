@@ -23,7 +23,7 @@ use crate::{
     draw::arrows::get_curve_point,
     net::{use_pos_pair, Net},
     point::Point,
-    state::{Hover, State},
+    state::{Hover, State, ContextMenu},
 };
 
 use super::{arrows::CurvedArrow, SvgColor};
@@ -46,12 +46,25 @@ pub fn BgpSession(props: &Properties) -> Html {
         BgpSessionType::EBgp => SvgColor::RedLight,
     };
 
+    let simple = use_selector(|state: &State| state.features().simple);
+
     let state = Dispatch::<State>::new();
 
     let on_mouse_enter =
         state.reduce_mut_callback(move |s| s.set_hover(Hover::BgpSession(src, dst)));
     let on_mouse_leave = state.reduce_mut_callback(|s| s.clear_hover());
     let on_click = Callback::noop();
+
+    let on_context_menu = if *simple {
+        Callback::noop()
+    } else {
+        Callback::from(move |e: MouseEvent| {
+            e.prevent_default();
+            let p = Point::new(e.client_x(), e.client_y());
+            let new_context = ContextMenu::DeleteSession(src, dst, p);
+            Dispatch::<State>::new().reduce_mut(move |s| s.set_context_menu(new_context))
+        })
+    };
 
     html! {
         <>
@@ -62,7 +75,7 @@ pub fn BgpSession(props: &Properties) -> Html {
                     html!{}
                 }
             }
-            <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} />
+            <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} {on_context_menu} />
             <RouteMap id={src} peer={dst} direction={RouteMapDirection::Incoming} angle={15.0} />
             <RouteMap id={src} peer={dst} direction={RouteMapDirection::Outgoing} angle={15.0} />
             <RouteMap id={dst} peer={src} direction={RouteMapDirection::Incoming} angle={-15.0} />

@@ -383,6 +383,7 @@ pub enum ContextMenu {
     InternalRouterContext(RouterId, Point),
     ExternalRouterContext(RouterId, Point),
     DeleteLink(RouterId, RouterId, Point),
+    DeleteSession(RouterId, RouterId, Point),
 }
 
 impl Default for ContextMenu {
@@ -401,7 +402,8 @@ impl ContextMenu {
             ContextMenu::None => None,
             ContextMenu::InternalRouterContext(_, p)
             | ContextMenu::ExternalRouterContext(_, p)
-            | ContextMenu::DeleteLink(_, _, p) => Some(*p),
+            | ContextMenu::DeleteLink(_, _, p)
+            | ContextMenu::DeleteSession(_, _, p) => Some(*p),
         }
     }
 }

@@ -74,7 +74,6 @@ pub fn Link(props: &Properties) -> Html {
             let p = Point::new(e.client_x(), e.client_y());
             let new_context = ContextMenu::DeleteLink(src, dst, p);
             Dispatch::<State>::new().reduce_mut(move |s| s.set_context_menu(new_context))
-
         })
     };
 

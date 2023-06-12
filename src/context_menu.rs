@@ -45,6 +45,17 @@ pub fn Menu() -> Html {
                 </>
             }
         }
+        ContextMenu::DeleteSession(src, dst, _) => {
+            let delete_session = callback!(move |_| {
+                Dispatch::<Net>::new().reduce_mut(move |n| n.net_mut().set_bgp_session(src, dst, None).unwrap());
+                Dispatch::<State>::new().reduce_mut(|s| s.clear_context_menu());
+            });
+            html! {
+                <>
+                    <button class="text-red bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={delete_session}>{"Delete BGP session"}</button>
+                </>
+            }
+        }
         ContextMenu::InternalRouterContext(router, _) => {
             let add_link = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
