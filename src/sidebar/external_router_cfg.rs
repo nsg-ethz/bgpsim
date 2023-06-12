@@ -23,291 +23,177 @@ use bgpsim::{
     prelude::BgpSessionType,
     types::{AsId, RouterId},
 };
-use itertools::{join, Itertools};
+use itertools::join;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
+    callback,
     draw::SvgColor,
     net::{Net, Pfx},
 };
 
 use super::{
-    topology_cfg::TopologyCfg, Button, Divider, Element, ExpandableDivider, ExpandableSection,
-    MultiSelect, TextField,
+    topology_cfg::TopologyCfg, Button, Divider, Element, ExpandableSection, MultiSelect, TextField,
 };
-
-pub struct ExternalRouterCfg {
-    net: Rc<Net>,
-    net_dispatch: Dispatch<Net>,
-    name_input_correct: bool,
-    as_input_correct: bool,
-    route_add_input_correct: bool,
-}
-
-pub enum Msg {
-    StateNet(Rc<Net>),
-    OnNameChange(String),
-    OnNameSet(String),
-    OnAsChange(String),
-    OnAsSet(String),
-    AddBgpSession(RouterId),
-    RemoveBgpSession(RouterId),
-    UpdateRoute((Pfx, BgpRoute<Pfx>)),
-    OnRouteAddChange(String),
-    OnRouteAdd(String),
-    DeleteRoute(Pfx),
-}
 
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub router: RouterId,
 }
 
-impl Component for ExternalRouterCfg {
-    type Message = Msg;
-    type Properties = Properties;
+#[function_component]
+pub fn ExternalRouterCfg(props: &Properties) -> Html {
+    let id = props.router;
+    let info = use_selector_with_deps(|net, id| RouterInfo::new(*id, net), id);
+    let name_input_correct = use_state(|| true);
+    let asid_input_correct = use_state(|| true);
+    let prefix_input_correct = use_state(|| true);
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
-        ExternalRouterCfg {
-            net: Default::default(),
-            net_dispatch,
-            name_input_correct: true,
-            as_input_correct: true,
-            route_add_input_correct: true,
-        }
+    let on_name_change = callback!(name_input_correct -> move |new_name|  {
+        name_input_correct.set(Dispatch::<Net>::new().get().net().get_router_id(&new_name).is_err());
+    });
+    let on_name_set = callback!(move |new_name| {
+        Dispatch::<Net>::new().reduce_mut(move |n| {
+            let _ = n.net_mut().set_router_name(id, new_name);
+        });
+    });
+
+    let on_asid_change = callback!(asid_input_correct -> move |new_asid: String| {
+        asid_input_correct.set(new_asid.to_lowercase().trim_start_matches("as").parse::<u32>().is_ok());
+    });
+    let on_asid_set = callback!(move |new_asid: String| {
+        let new_asid = AsId::from(
+            new_asid
+                .to_lowercase()
+                .trim_start_matches("as")
+                .parse::<u32>()
+                .unwrap(),
+        );
+        Dispatch::<Net>::new().reduce_mut(move |n| {
+            let _ = n.net_mut().set_as_id(id, new_asid);
+        });
+    });
+
+    let on_session_add = callback!(move |peer| {
+        Dispatch::<Net>::new().reduce_mut(move |net| {
+            let _ = net
+                .net_mut()
+                .set_bgp_session(id, peer, Some(BgpSessionType::EBgp));
+        });
+    });
+    let on_session_remove = callback!(move |peer: RouterId| {
+        Dispatch::<Net>::new().reduce_mut(move |net| {
+            let _ = net.net_mut().set_bgp_session(id, peer, None);
+        });
+    });
+
+    let on_route_add_change = callback!(info, prefix_input_correct -> move |new_prefix: String| {
+        prefix_input_correct.set(
+            Pfx::from_str(&new_prefix).map(|p| info.routes.iter().find(|(x, _)| x == &p).is_none()).unwrap_or(false)
+        );
+    });
+    let on_route_add = callback!(prefix_input_correct -> move |new_prefix: String| {
+        let Ok(p) = Pfx::from_str(&new_prefix) else {
+            return;
+        };
+        prefix_input_correct.set(false);
+        Dispatch::<Net>::new().reduce_mut(move |net| {
+            let _ = net.net_mut().advertise_external_route::<Option<AsId>, Option<u32>>(id, p, None, None, None);
+        });
+    });
+    let on_route_update = callback!(move |(prefix, route): (Pfx, BgpRoute<Pfx>)| {
+        Dispatch::<Net>::new().reduce_mut(move |net| {
+            if prefix != route.prefix {
+                let _ = net.net_mut().retract_external_route(id, prefix);
+            }
+            let _ = net.net_mut().advertise_external_route(
+                id,
+                route.prefix,
+                route.as_path,
+                route.med,
+                route.community,
+            );
+        });
+    });
+    let on_route_delete = callback!(move |prefix| {
+        Dispatch::<Net>::new().reduce_mut(move |net| {
+            let _ = net.net_mut().retract_external_route(id, prefix);
+        })
+    });
+
+    let advertised = Rc::new(info.advertised_prefixes.clone());
+    let as_text = format!("AS{}", info.as_id.0);
+
+    html! {
+        <div class="w-full space-y-2">
+            <Divider text={format!("External Router {}", info.name)} />
+            <Element text={"Name"}>
+                <TextField text={info.name.clone()} on_change={on_name_change} on_set={on_name_set} correct={*name_input_correct}/>
+            </Element>
+            <Element text={"AS Number"}>
+                <TextField text={as_text} on_change={on_asid_change} on_set={on_asid_set} correct={*asid_input_correct}/>
+            </Element>
+            <TopologyCfg router={id} only_internal={true} />
+            <Divider text={"BGP"} />
+            <Element text={"Neighbors"} class={Classes::from("mt-0.5")}>
+                <MultiSelect<RouterId> options={info.bgp_options.clone()} on_add={on_session_add} on_remove={on_session_remove} />
+            </Element>
+            <Divider text={"Advertised Routes"} />
+            <Element text={"New route"} >
+                <TextField text={""} placeholder={"prefix"} on_change={on_route_add_change} on_set={on_route_add} correct={*prefix_input_correct} button_text={"Advertise"}/>
+            </Element>
+            {
+                info.routes.iter().map(|(prefix, route)| html!{
+                    <AdvertisedRouteCfg prefix={*prefix} route={route.clone()} on_update={on_route_update.clone()} on_delete={on_route_delete.clone()} advertised={Rc::clone(&advertised)} />
+                }).collect::<Html>()
+            }
+            <Divider />
+        </div>
     }
+}
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let router_id = ctx.props().router;
-        let n = &self.net.net();
-        let name_text = n
-            .get_router_name(ctx.props().router)
-            .unwrap_or("Err")
-            .to_string();
-        let on_name_change = ctx.link().callback(Msg::OnNameChange);
-        let on_name_set = ctx.link().callback(Msg::OnNameSet);
+#[derive(PartialEq)]
+pub struct RouterInfo {
+    name: String,
+    as_id: AsId,
+    bgp_options: Vec<(RouterId, String, bool)>,
+    routes: Vec<(Pfx, BgpRoute<Pfx>)>,
+    advertised_prefixes: HashSet<Pfx>,
+}
 
-        let as_text = n
-            .get_device(ctx.props().router)
-            .external()
-            .map(|r| r.as_id().to_string())
-            .unwrap_or_else(|| "Err".to_string());
-        let on_as_change = ctx.link().callback(Msg::OnAsChange);
-        let on_as_set = ctx.link().callback(Msg::OnAsSet);
+impl RouterInfo {
+    pub fn new(id: RouterId, net: &Net) -> Self {
+        let n = net.net();
+        let r = n.get_device(id).unwrap_external();
 
-        let sessions = n
-            .get_device(router_id)
-            .external()
-            .map(|r| r.get_bgp_sessions().clone())
-            .unwrap_or_default();
+        let sessions = r.get_bgp_sessions();
         let bgp_options = n
             .get_topology()
             .node_indices()
             .filter(|r| {
-                *r != router_id
-                    && n.get_device(*r).is_internal()
-                    && n.get_topology().contains_edge(router_id, *r)
+                *r != id && n.get_device(*r).is_internal() && n.get_topology().contains_edge(id, *r)
             })
-            .map(|r| (r, r.fmt(n).to_string(), sessions.contains(&r)))
+            .map(|r| (r, r.fmt(&n).to_string(), sessions.contains(&r)))
             .collect::<Vec<_>>();
 
-        let on_session_add = ctx.link().callback(Msg::AddBgpSession);
-        let on_session_remove = ctx.link().callback(Msg::RemoveBgpSession);
-
-        let mut routes: Vec<(Pfx, BgpRoute<Pfx>)> = n
-            .get_device(router_id)
-            .external()
-            .map(|r| {
-                Vec::from_iter(
-                    r.get_advertised_routes()
-                        .iter()
-                        .map(|(k, v)| (*k, v.clone())),
-                )
-            })
-            .unwrap_or_default();
-        routes.sort_by(|(p1, _), (p2, _)| p1.cmp(p2));
-        let on_route_update = ctx.link().callback(Msg::UpdateRoute);
-        let on_route_delete = ctx.link().callback(Msg::DeleteRoute);
-
-        let on_route_add_change = ctx.link().callback(Msg::OnRouteAddChange);
-        let on_route_add = ctx.link().callback(Msg::OnRouteAdd);
-
-        let advertised_prefixes = Rc::new(
-            n.get_device(router_id)
-                .external()
-                .map(|r| HashSet::from_iter(r.get_advertised_routes().keys().cloned()))
-                .unwrap_or_default(),
+        let mut routes = Vec::from_iter(
+            r.get_advertised_routes()
+                .iter()
+                .map(|(k, v)| (*k, v.clone())),
         );
+        routes.sort_by(|(p1, _), (p2, _)| p1.cmp(p2));
 
-        html! {
-            <div class="w-full space-y-2">
-                <Divider text={format!("External Router {name_text}")} />
-                <Element text={"Name"}>
-                    <TextField text={name_text} on_change={on_name_change} on_set={on_name_set} correct={self.name_input_correct}/>
-                </Element>
-                <Element text={"AS Number"}>
-                    <TextField text={as_text} on_change={on_as_change} on_set={on_as_set} correct={self.as_input_correct}/>
-                </Element>
-                <TopologyCfg router={router_id} only_internal={true} />
-                <Divider text={"BGP"} />
-                <Element text={"Neighbors"} class={Classes::from("mt-0.5")}>
-                    <MultiSelect<RouterId> options={bgp_options} on_add={on_session_add} on_remove={on_session_remove} />
-                </Element>
-                <ExpandableDivider text={"Advertised Routes"}>
-                    <Element text={"New route"} >
-                        <TextField text={""} placeholder={"prefix"} on_change={on_route_add_change} on_set={on_route_add} correct={self.route_add_input_correct} button_text={"Advertise"}/>
-                    </Element>
-                    {
-                        routes.into_iter().map(|(prefix, route)| html!{
-                            <AdvertisedRouteCfg {prefix} {route} on_update={on_route_update.clone()} on_delete={on_route_delete.clone()} advertised={advertised_prefixes.clone()} />
-                        }).collect::<Html>()
-                    }
-                </ExpandableDivider>
-                <Divider />
-            </div>
+        let advertised_prefixes = r.get_advertised_routes().keys().copied().collect();
+
+        Self {
+            name: r.name().to_string(),
+            as_id: r.as_id(),
+            bgp_options,
+            routes,
+            advertised_prefixes,
         }
     }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            Msg::OnNameChange(new_name) => {
-                self.name_input_correct = match self.net.net().get_router_id(new_name) {
-                    Err(_) => true,
-                    Ok(r) if r == ctx.props().router => true,
-                    Ok(_) => false,
-                };
-                true
-            }
-            Msg::OnNameSet(new_name) => {
-                let router_id = ctx.props().router;
-                self.net_dispatch
-                    .reduce_mut(move |n| n.net_mut().set_router_name(router_id, new_name).unwrap());
-                false
-            }
-            Msg::OnAsChange(new_as) => {
-                self.as_input_correct = if new_as.starts_with("as") || new_as.starts_with("AS") {
-                    &new_as[2..]
-                } else {
-                    &new_as[..]
-                }
-                .parse::<u32>()
-                .is_ok();
-                true
-            }
-            Msg::OnAsSet(new_as) => {
-                let router_id = ctx.props().router;
-                let new_as: AsId = if new_as.starts_with("as") || new_as.starts_with("AS") {
-                    &new_as[2..]
-                } else {
-                    &new_as[..]
-                }
-                .parse::<u32>()
-                .unwrap()
-                .into();
-                self.net_dispatch
-                    .reduce_mut(move |n| n.net_mut().set_as_id(router_id, new_as));
-                false
-            }
-            Msg::StateNet(n) => {
-                self.net = n;
-                true
-            }
-            Msg::AddBgpSession(neighbor) => {
-                let router = ctx.props().router;
-                self.net_dispatch.reduce_mut(move |net| {
-                    net.net_mut()
-                        .set_bgp_session(router, neighbor, Some(BgpSessionType::EBgp))
-                });
-                false
-            }
-            Msg::RemoveBgpSession(neighbor) => {
-                let router = ctx.props().router;
-                self.net_dispatch
-                    .reduce_mut(move |net| net.net_mut().set_bgp_session(router, neighbor, None));
-                false
-            }
-            Msg::DeleteRoute(prefix) => {
-                let router = ctx.props().router;
-                self.net_dispatch.reduce_mut(move |net| {
-                    net.net_mut()
-                        .retract_external_route(router, prefix)
-                        .unwrap();
-                });
-                false
-            }
-            Msg::UpdateRoute((prefix, route)) => {
-                let router = ctx.props().router;
-                self.net_dispatch.reduce_mut(move |net| {
-                    if prefix != route.prefix {
-                        net.net_mut()
-                            .retract_external_route(router, prefix)
-                            .unwrap();
-                    }
-                    net.net_mut()
-                        .advertise_external_route(
-                            router,
-                            route.prefix,
-                            route.as_path,
-                            route.med,
-                            route.community,
-                        )
-                        .unwrap();
-                });
-                false
-            }
-            Msg::OnRouteAddChange(p) => {
-                self.route_add_input_correct = if let Ok(p) = Pfx::from_str(&p) {
-                    self.net
-                        .net()
-                        .get_device(ctx.props().router)
-                        .external()
-                        .map(|r| !r.advertised_prefixes().contains(&p))
-                        .unwrap_or(false)
-                } else {
-                    false
-                };
-                true
-            }
-            Msg::OnRouteAdd(p) => {
-                let router = ctx.props().router;
-                let p = if let Ok(p) = Pfx::from_str(&p) {
-                    p
-                } else {
-                    self.route_add_input_correct = false;
-                    return true;
-                };
-                self.net_dispatch.reduce_mut(move |net| {
-                    net.net_mut()
-                        .advertise_external_route::<Option<AsId>, Option<u32>>(
-                            router, p, None, None, None,
-                        )
-                        .unwrap()
-                });
-                self.route_add_input_correct = false;
-                true
-            }
-        }
-    }
-}
-
-struct AdvertisedRouteCfg {
-    prefix_input_correct: bool,
-    path_input_correct: bool,
-    med_input_correct: bool,
-    community_input_correct: bool,
-}
-
-enum AdvertisedRouteMsg {
-    PrefixChange(String),
-    PrefixSet(String),
-    PathChange(String),
-    PathSet(String),
-    MedChange(String),
-    MedSet(String),
-    CommunityChange(String),
-    CommunitySet(String),
 }
 
 #[derive(Properties, PartialEq)]
@@ -319,152 +205,108 @@ struct AdvertisedRouteProperties {
     advertised: Rc<HashSet<Pfx>>,
 }
 
-impl Component for AdvertisedRouteCfg {
-    type Message = AdvertisedRouteMsg;
-    type Properties = AdvertisedRouteProperties;
+#[function_component]
+fn AdvertisedRouteCfg(props: &AdvertisedRouteProperties) -> Html {
+    let prefix_input_correct = use_state(|| true);
+    let path_input_correct = use_state(|| true);
+    let med_input_correct = use_state(|| true);
+    let community_input_correct = use_state(|| true);
 
-    fn create(_ctx: &Context<Self>) -> Self {
-        AdvertisedRouteCfg {
-            prefix_input_correct: true,
-            path_input_correct: true,
-            med_input_correct: true,
-            community_input_correct: true,
-        }
-    }
+    let prefix = props.prefix;
+    let route = &props.route;
+    let on_update = &props.on_update;
+    let on_delete = &props.on_delete;
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let prefix_text = ctx.props().prefix.to_string();
-        let on_prefix_change = ctx.link().callback(AdvertisedRouteMsg::PrefixChange);
-        let on_prefix_set = ctx.link().callback(AdvertisedRouteMsg::PrefixSet);
+    let prefix_text = props.prefix.to_string();
+    let on_prefix_change = callback!(prefix_input_correct -> move |p: String| {
+        prefix_input_correct.set(Pfx::from_str(&p).is_ok());
+    });
+    let on_prefix_set = callback!(route, on_update -> move |p: String| {
+        let Ok(p) = Pfx::from_str(&p) else {
+            return;
+        };
+        let mut route = route.clone();
+        route.prefix = p;
+        on_update.emit((prefix, route));
+    });
 
-        let path_text = join(ctx.props().route.as_path.iter().map(|x| x.0), "; ");
-        let on_path_change = ctx.link().callback(AdvertisedRouteMsg::PathChange);
-        let on_path_set = ctx.link().callback(AdvertisedRouteMsg::PathSet);
+    let path_text = join(route.as_path.iter().map(|x| x.0), "; ");
+    let on_path_change = callback!(path_input_correct -> move |new_path: String| {
+        path_input_correct.set(new_path
+            .split(';')
+            .flat_map(|s| s.split(','))
+            .map(|s| s.trim())
+            .map(|s| s.parse::<u32>())
+            .all(|r| r.is_ok()));
+    });
+    let on_path_set = callback!(route, on_update -> move |new_path: String| {
+        let mut route = route.clone();
+        let new_path = new_path
+            .split(';')
+            .flat_map(|s| s.split(','))
+            .map(|s| s.trim())
+            .filter_map(|s| s.parse::<u32>().ok())
+            .map(AsId::from)
+            .collect();
+        route.as_path = new_path;
+        on_update.emit((prefix, route));
+    });
 
-        let med_text = ctx
-            .props()
-            .route
-            .med
-            .as_ref()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "none".to_string());
-        let on_med_change = ctx.link().callback(AdvertisedRouteMsg::MedChange);
-        let on_med_set = ctx.link().callback(AdvertisedRouteMsg::MedSet);
+    let med_text = route.med.map(|x| x.to_string()).unwrap_or_else(|| "none".to_string());
+    let on_med_change = callback!(med_input_correct -> move |med: String| {
+        med_input_correct.set(med == "none" || med.parse::<u32>().is_ok())
+    });
+    let on_med_set = callback!(route, on_update -> move |new_med: String| {
+        let mut route = route.clone();
+        route.med = if new_med == "none" {
+            None
+        } else {
+            Some(new_med.parse::<u32>().unwrap())
+        };
+        on_update.emit((prefix, route));
+    });
 
-        let community_text = join(ctx.props().route.community.iter(), "; ");
-        let on_community_change = ctx.link().callback(AdvertisedRouteMsg::CommunityChange);
-        let on_community_set = ctx.link().callback(AdvertisedRouteMsg::CommunitySet);
+    let community_text = join(route.community.iter(), "; ");
+    let on_community_change = callback!(community_input_correct -> move |new_c: String| {
+        community_input_correct.set(new_c
+            .split(';')
+            .flat_map(|s| s.split(','))
+            .map(|s| s.trim())
+            .map(|s| s.parse::<u32>())
+            .all(|r| r.is_ok()));
+    });
+    let on_community_set = callback!(route, on_update -> move |new_c: String| {
+        let mut route = route.clone();
+        route.community = new_c
+            .split(';')
+            .flat_map(|s| s.split(','))
+            .map(|s| s.trim())
+            .filter_map(|s| s.parse::<u32>().ok())
+            .collect();
+        on_update.emit((prefix, route));
+    });
 
-        let prefix = ctx.props().prefix;
-        let on_delete = ctx.props().on_delete.reform(move |_| prefix);
-        html! {
-            <>
-                <ExpandableSection text={format!("Route for {}", ctx.props().prefix)}>
-                    <Element text={"Prefix"}>
-                        <TextField text={prefix_text} on_change={on_prefix_change} on_set={on_prefix_set} correct={self.prefix_input_correct}/>
-                    </Element>
-                    <Element text={"AS Path"}>
-                        <TextField text={path_text} on_change={on_path_change} on_set={on_path_set} correct={self.path_input_correct}/>
-                    </Element>
-                    <Element text={"MED"}>
-                        <TextField text={med_text} on_change={on_med_change} on_set={on_med_set} correct={self.med_input_correct}/>
-                    </Element>
-                    <Element text={"Communities"}>
-                        <TextField text={community_text} on_change={on_community_change} on_set={on_community_set} correct={self.community_input_correct}/>
-                    </Element>
-                    <Element text={""}>
-                        <Button text={"delete"} color={Some(SvgColor::RedLight)} on_click={on_delete} />
-                    </Element>
-                </ExpandableSection>
-            </>
-        }
-    }
+    let on_delete = callback!(on_delete -> move |_| on_delete.emit(prefix));
 
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            AdvertisedRouteMsg::PrefixChange(p) => {
-                self.prefix_input_correct = Pfx::from_str(&p)
-                    .map(|p| !ctx.props().advertised.contains(&p))
-                    .unwrap_or(false);
-                true
-            }
-            AdvertisedRouteMsg::PrefixSet(p) => {
-                let p = if let Ok(p) = Pfx::from_str(&p) {
-                    p
-                } else {
-                    self.prefix_input_correct = false;
-                    return true;
-                };
-                let mut r = ctx.props().route.clone();
-                r.prefix = p;
-                ctx.props().on_update.emit((ctx.props().prefix, r));
-                false
-            }
-            AdvertisedRouteMsg::PathChange(p) => {
-                self.path_input_correct = p
-                    .split(';')
-                    .flat_map(|s| s.split(','))
-                    .map(|s| s.trim())
-                    .map(|s| s.parse::<u32>())
-                    .all(|r| r.is_ok());
-                true
-            }
-            AdvertisedRouteMsg::PathSet(p) => {
-                let path = p
-                    .split(';')
-                    .flat_map(|s| s.split(','))
-                    .map(|s| s.trim())
-                    .filter_map(|s| s.parse::<u32>().map(AsId).ok())
-                    .collect();
-                let mut r = ctx.props().route.clone();
-                r.as_path = path;
-                ctx.props().on_update.emit((ctx.props().prefix, r));
-                false
-            }
-            AdvertisedRouteMsg::MedChange(med) => {
-                let med = med.to_lowercase();
-                self.med_input_correct = if med.as_str() == "none" {
-                    true
-                } else {
-                    med.parse::<u32>().is_ok()
-                };
-                true
-            }
-            AdvertisedRouteMsg::MedSet(med) => {
-                let med = med.to_lowercase();
-                let med = if med.as_str() == "none" {
-                    None
-                } else {
-                    med.parse::<u32>().ok()
-                };
-                let mut r = ctx.props().route.clone();
-                r.med = med;
-                ctx.props().on_update.emit((ctx.props().prefix, r));
-                false
-            }
-            AdvertisedRouteMsg::CommunityChange(c_str) => {
-                let c_str = c_str.to_lowercase();
-                self.community_input_correct = c_str
-                    .split(';')
-                    .flat_map(|s| s.split(','))
-                    .map(|s| s.trim())
-                    .map(|s| s.parse::<u32>())
-                    .all(|r| r.is_ok());
-                true
-            }
-            AdvertisedRouteMsg::CommunitySet(c_str) => {
-                let c_str = c_str.to_lowercase();
-                let community = c_str
-                    .split(';')
-                    .flat_map(|s| s.split(','))
-                    .map(|s| s.trim())
-                    .filter_map(|s| s.parse::<u32>().ok())
-                    .collect();
-                let mut r = ctx.props().route.clone();
-                r.community = community;
-                ctx.props().on_update.emit((ctx.props().prefix, r));
-                false
-            }
-        }
+    html! {
+        <>
+            <ExpandableSection text={format!("Route for {}", prefix)}>
+                <Element text={"Prefix"}>
+                    <TextField text={prefix_text} on_change={on_prefix_change} on_set={on_prefix_set} correct={*prefix_input_correct}/>
+                </Element>
+                <Element text={"AS Path"}>
+                    <TextField text={path_text} on_change={on_path_change} on_set={on_path_set} correct={*path_input_correct}/>
+                </Element>
+                <Element text={"MED"}>
+                    <TextField text={med_text} on_change={on_med_change} on_set={on_med_set} correct={*med_input_correct}/>
+                </Element>
+                <Element text={"Communities"}>
+                    <TextField text={community_text} on_change={on_community_change} on_set={on_community_set} correct={*community_input_correct}/>
+                </Element>
+                <Element text={""}>
+                    <Button text={"delete"} color={Some(SvgColor::RedLight)} on_click={on_delete} />
+                </Element>
+            </ExpandableSection>
+        </>
     }
 }

@@ -32,7 +32,7 @@ use crate::{
     tooltip::RouteTable,
 };
 
-use super::divider::{Divider, DividerButton};
+use super::divider::Divider;
 
 #[function_component]
 pub fn QueueCfg() -> Html {
@@ -118,7 +118,7 @@ pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
 
     let main_class =
         "p-4 rounded-md shadow-md border border-base-4 bg-base-2 w-full flex flex-col translate-y-0";
-    let animation_class = "transition duration-150";
+    let animation_class = "transition-all duration-150 ease-linear";
     let main_class = if props.executable {
         classes!(
             main_class,
@@ -160,40 +160,37 @@ pub struct QueueSwapProps {
 pub fn QueueSwapPos(props: &QueueSwapProps) -> Html {
     let pos = props.pos;
 
-    let top_div = props.node_ref.cast::<HtmlElement>().unwrap().get_bounding_client_rect();
-    let bot_div = props.next_ref.cast::<HtmlElement>().unwrap().get_bounding_client_rect();
-    let delta = bot_div.y() - top_div.y();
-
-
     let top_ref = props.node_ref.clone();
     let bot_ref = props.next_ref.clone();
-    let on_click = Callback::from(move |_| {
-        // call the update functions
-        let tr = top_ref.clone();
-        let br = bot_ref.clone();
-        if let Some(div) = top_ref.cast::<HtmlElement>() {
-            let _ = div.style().set_property("transform", &format!("translateY({delta}px)"));
-        }
-        if let Some(div) = bot_ref.cast::<HtmlElement>() {
-            let _ = div.style().set_property("transform", &format!("translateY(-{delta}px)"));
-        }
-        Timeout::new(150, move || {
-            if let Some(div) = tr.cast::<HtmlElement>() {
-                let _ = div.style().set_property("transform", &format!("translateY(0px)"));
-            }
-            if let Some(div) = br.cast::<HtmlElement>() {
-                let _ = div.style().set_property("transform", &format!("translateY(0px)"));
-            }
-        }).forget();
+    let onclick = Callback::from(move |_| {
+        // first, get the elements. Top will still be the top element after swapping.
+        let (Some(top), Some(bot)) = (top_ref.cast::<HtmlElement>(), bot_ref.cast::<HtmlElement>()) else {
+            return;
+        };
+        // then, compute the y delta
+        let top_y = top.get_bounding_client_rect().y();
+        let bot_y = bot.get_bounding_client_rect().y();
+        let delta = (bot_y - top_y) * 0.5;
 
-        // delayed trigger the swap
+        // first, move half the way
+        let _ = top.style().set_property("transform", &format!("translateY({delta}px)"));
+        let _ = bot.style().set_property("transform", &format!("translateY(-{delta}px)"));
+
+        // At the half point, swap the positions and move the elements back.
         Timeout::new(150, move || {
+            let _ = top.style().set_property("transform", "translateY(0px)");
+            let _ = bot.style().set_property("transform", "translateY(0px)");
             Dispatch::<Net>::new().reduce_mut(move |n| n.net_mut().queue_mut().swap(pos, pos + 1));
-
         }).forget();
     });
     html! {
-        <DividerButton {on_click} hidden={true}> <yew_lucide::ArrowLeftRight class="w-6 h-6 rotate-90"/> </DividerButton>
+        <div class="w-full flex items-center">
+            <div class="flex-grow"></div>
+            <button class="rounded-full bg-base-2 hover:bg-base-3 p-2 shadow-md hover:shadow-lg" {onclick}>
+                <yew_lucide::ArrowLeftRight class="w-6 h-6 rotate-90"/>
+            </button>
+            <div class="flex-grow"></div>
+        </div>
     }
 }
 
