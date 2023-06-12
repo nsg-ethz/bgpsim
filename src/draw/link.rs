@@ -15,13 +15,13 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::types::RouterId;
+use bgpsim::{types::RouterId, ospf::OspfArea};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
     net::{use_pos_pair, Net},
-    state::{Layer, State},
+    state::{Layer, State, ContextMenu}, point::Point,
 };
 
 #[derive(PartialEq, Eq, Properties)]
@@ -45,25 +45,74 @@ pub fn Link(props: &Properties) -> Html {
     let (src, dst) = (props.from, props.to);
 
     let (p1, p2) = use_pos_pair(src, dst);
-    let area = use_selector(move |net: &Net| net.net().get_ospf_area(src, dst).unwrap_or_default());
-    let in_ospf = use_selector(move |net: &Net| {
-        net.net().get_device(src).is_internal() && net.net().get_device(dst).is_internal()
-    });
-    let layer = *use_selector(move |state: &State| state.layer());
+    let l = use_selector(move |net| LinkState::new(src, dst, net));
+    let s = use_selector(move |state| VisState::new(state));
 
-    let class = if matches!(layer, Layer::Bgp | Layer::RouteProp) {
-        classes!("stroke-current", "stroke-1", "text-main-ia")
-    } else if matches!(layer, Layer::Igp) && *in_ospf {
-        if area.is_backbone() {
-            classes!("stroke-current", "stroke-2", "text-main")
+    let width = "stroke-1 peer-hover:stroke-2";
+    let thick_width = "stroke-2 peer-hover:stroke-4";
+    let common = "stroke-current pointer-events-none";
+
+    let class = if matches!(s.layer, Layer::Bgp | Layer::RouteProp) {
+        classes!(common, width, "text-main-ia")
+    } else if matches!(s.layer, Layer::Igp) && l.in_ospf {
+        if l.area.is_backbone() {
+            classes!(common, thick_width, "text-main")
         } else {
-            let color_idx = (area.num() as usize - 1) % NUM_LINK_COLORS;
-            classes!("stroke-current", "stroke-2", LINK_COLORS[color_idx])
+            let color_idx = (l.area.num() as usize - 1) % NUM_LINK_COLORS;
+            classes!(common, width, LINK_COLORS[color_idx])
         }
     } else {
-        classes!("stroke-current", "stroke-1", "text-main")
+        classes!(common, width, "text-main")
     };
+    let shadow_class = "stroke-current stroke-16 opacity-0 peer";
+
+    let oncontextmenu = if s.simple {
+        Callback::noop()
+    } else {
+        Callback::from(move |e: MouseEvent| {
+            e.prevent_default();
+            let p = Point::new(e.client_x(), e.client_y());
+            let new_context = ContextMenu::DeleteLink(src, dst, p);
+            Dispatch::<State>::new().reduce_mut(move |s| s.set_context_menu(new_context))
+
+        })
+    };
+
     html! {
-        <line {class} x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} />
+        <g>
+            <line class={shadow_class} x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} {oncontextmenu} />
+            <line {class} x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} />
+        </g>
+    }
+}
+
+#[derive(PartialEq)]
+struct LinkState {
+    area: OspfArea,
+    in_ospf: bool,
+}
+
+impl LinkState {
+    fn new(src: RouterId, dst: RouterId, net: &Net) -> Self {
+        Self {
+            area: net.net().get_ospf_area(src, dst).unwrap_or_default(),
+            in_ospf: net.net().get_device(src).is_internal() && net.net().get_device(dst).is_internal()
+        }
+    }
+}
+
+
+#[derive(PartialEq)]
+struct VisState {
+    simple: bool,
+    layer: Layer,
+}
+
+impl VisState {
+    fn new(state: &State) -> Self {
+        Self {
+            simple: state.features().simple,
+            layer: state.layer(),
+        }
     }
 }

@@ -382,6 +382,7 @@ pub enum ContextMenu {
     None,
     InternalRouterContext(RouterId, Point),
     ExternalRouterContext(RouterId, Point),
+    DeleteLink(RouterId, RouterId, Point),
 }
 
 impl Default for ContextMenu {
@@ -398,9 +399,9 @@ impl ContextMenu {
     pub(crate) fn point(&self) -> Option<Point> {
         match self {
             ContextMenu::None => None,
-            ContextMenu::InternalRouterContext(_, p) | ContextMenu::ExternalRouterContext(_, p) => {
-                Some(*p)
-            }
+            ContextMenu::InternalRouterContext(_, p)
+            | ContextMenu::ExternalRouterContext(_, p)
+            | ContextMenu::DeleteLink(_, _, p) => Some(*p),
         }
     }
 }

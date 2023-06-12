@@ -23,7 +23,7 @@ use yewdux::prelude::*;
 
 use crate::{
     point::Point,
-    state::{Connection, ContextMenu, Selected, State},
+    state::{Connection, ContextMenu, Selected, State}, net::Net, callback,
 };
 
 #[function_component]
@@ -34,6 +34,17 @@ pub fn Menu() -> Html {
     let shown = !context.is_none();
     let menu_options = match context {
         ContextMenu::None => html!(),
+        ContextMenu::DeleteLink(src, dst, _) => {
+            let delete_link = callback!(move |_| {
+                Dispatch::<Net>::new().reduce_mut(move |n| n.net_mut().remove_link(src, dst).unwrap());
+                Dispatch::<State>::new().reduce_mut(|s| s.clear_context_menu());
+            });
+            html! {
+                <>
+                    <button class="text-red bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={delete_link}>{"Delete Link"}</button>
+                </>
+            }
+        }
         ContextMenu::InternalRouterContext(router, _) => {
             let add_link = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
