@@ -95,6 +95,12 @@ pub fn AtomicCommandStageViewer(props: &AtomicCommandStageProps) -> Html {
     let steps = &props.steps;
     let active =
         use_selector_with_deps(|net: &Net, stage| net.migration_stage_active(*stage), stage);
+    let executable = use_selector_with_deps(|net: &Net, stage| {
+        if *stage != 0 && *stage != 2 {
+            return false
+        }
+        net.migration_state()[*stage][0].iter().all(|x| *x != MigrationState::WaitPre)
+    }, stage);
 
     log::debug!("render AtomicCommandStageViewer at stage={stage}");
 
@@ -121,11 +127,11 @@ pub fn AtomicCommandStageViewer(props: &AtomicCommandStageProps) -> Html {
             .collect()
     };
 
-    let title = match stage {
-        0 => "Setup",
-        1 => "Update phase",
-        2 => "Cleanup",
-        _ => "?",
+    let (title, button) = match stage {
+        0 => ("Setup", Some("Complete the setup")),
+        1 => ("Update phase", None),
+        2 => ("Cleanup", Some("Complete the cleanup")),
+        _ => ("?", None),
     };
     let text = if *active {
         format!("{title} (current)")
@@ -133,8 +139,37 @@ pub fn AtomicCommandStageViewer(props: &AtomicCommandStageProps) -> Html {
         title.to_string()
     };
 
+    let stage_shown = use_state(|| Option::<bool>::None);
+    let button = if let (true, true, Some(text)) = (*active, *executable, button) {
+        let shown = stage_shown.clone();
+        let onclick = Dispatch::<Net>::new().reduce_mut_callback(move |net| {
+            let major = 0;
+            let num_minors = net.migration_state()[stage][major].len();
+            for minor in 0..num_minors {
+                net.migration_state_mut()[stage][major][minor] = MigrationState::WaitPost;
+                let raw: Vec<ConfigModifier<Pfx>> = net.migration()[stage][major][minor]
+                    .command
+                    .clone()
+                    .into_raw();
+                for c in raw {
+                    net.net_mut().apply_modifier_unchecked(&c).unwrap();
+                }
+            }
+            shown.set(Some(false))
+        });
+        html! {
+            <div class="w-full flex">
+                <div class="flex-1"></div>
+                <div class="cursor-pointer underline decoration-base-5 text-base-5 hover:decoration-blue hover:underline-2 hover:text-blue transition duration-150 ease-in-out" {onclick}>{text}</div>
+            </div>
+        }
+    } else {
+        html! {}
+    };
+
     html! {
-        <ExpandableDivider {text}>
+        <ExpandableDivider {text} shown={*stage_shown}>
+            {button}
             <div class="flex flex-col space-y-4 pb-4">
                 { content }
             </div>
