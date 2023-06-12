@@ -146,6 +146,10 @@ pub fn AtomicCommandStageViewer(props: &AtomicCommandStageProps) -> Html {
             let major = 0;
             let num_minors = net.migration_state()[stage][major].len();
             for minor in 0..num_minors {
+                // skip all that are not ready
+                if net.migration_state()[stage][major][minor] != MigrationState::Ready {
+                    continue
+                }
                 net.migration_state_mut()[stage][major][minor] = MigrationState::WaitPost;
                 let raw: Vec<ConfigModifier<Pfx>> = net.migration()[stage][major][minor]
                     .command

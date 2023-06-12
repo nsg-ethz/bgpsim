@@ -249,7 +249,7 @@ pub fn CanvasEventQueue() -> Html {
     } else {
         html!()
     };
-    html! {<> {messages} {hover} </>}
+    html! {<> {hover} {messages} </>}
 }
 
 #[derive(PartialEq, Properties)]
