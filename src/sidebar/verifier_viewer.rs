@@ -69,7 +69,15 @@ pub fn property_viewer(props: &PropertyViewerProps) -> Html {
     let idx = props.idx;
 
     let dispatch = Dispatch::<State>::new();
-    let spec = use_selector(move |net: &Net| net.spec().get(&router).and_then(|x| x.get(idx)).map(|(p, e)| (p.fmt(&net.net()), e.is_ok())));
+    let spec = use_selector_with_deps(
+        |net: &Net, (router, idx)| {
+            net.spec()
+                .get(router)
+                .and_then(|x| x.get(*idx))
+                .map(|(p, e)| (p.fmt(&net.net()), e.is_ok()))
+        },
+        (router, idx),
+    );
 
     let Some((repr, sat)) = spec.deref().clone() else {
         return html!()

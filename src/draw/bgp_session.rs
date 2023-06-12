@@ -23,7 +23,7 @@ use crate::{
     draw::arrows::get_curve_point,
     net::{use_pos_pair, Net},
     point::Point,
-    state::{Hover, State, ContextMenu},
+    state::{ContextMenu, Hover, State},
 };
 
 use super::{arrows::CurvedArrow, SvgColor};
@@ -102,13 +102,16 @@ pub fn RouteMap(props: &RmProps) -> Html {
 
     let (pos, peer_pos) = use_pos_pair(id, peer);
 
-    let route_maps = use_selector(move |n: &Net| {
-        n.net()
-            .get_device(id)
-            .internal()
-            .map(|r| r.get_bgp_route_maps(peer, direction).to_vec())
-            .unwrap_or_default()
-    });
+    let route_maps = use_selector_with_deps(
+        |n: &Net, (id, peer, direction)| {
+            n.net()
+                .get_device(*id)
+                .internal()
+                .map(|r| r.get_bgp_route_maps(*peer, *direction).to_vec())
+                .unwrap_or_default()
+        },
+        (id, peer, direction),
+    );
 
     if route_maps.is_empty() {
         return html! {};

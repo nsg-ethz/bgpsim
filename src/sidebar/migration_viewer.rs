@@ -93,7 +93,8 @@ pub struct AtomicCommandStageProps {
 pub fn AtomicCommandStageViewer(props: &AtomicCommandStageProps) -> Html {
     let stage = props.stage;
     let steps = &props.steps;
-    let active = use_selector(move |net: &Net| net.migration_stage_active(stage));
+    let active =
+        use_selector_with_deps(|net: &Net, stage| net.migration_stage_active(*stage), stage);
 
     log::debug!("render AtomicCommandStageViewer at stage={stage}");
 
@@ -153,7 +154,10 @@ pub fn AtomicCommandGroupViewer(props: &AtomicCommandGroupProps) -> Html {
     let stage = props.stage;
     let major = props.major;
     let commands = &props.commands;
-    let active = use_selector(move |net: &Net| net.migration_stage_major_active(stage, major));
+    let active = use_selector_with_deps(
+        |net: &Net, (stage, major)| net.migration_stage_major_active(*stage, *major),
+        (stage, major),
+    );
 
     log::debug!("render AtomicCommandGroupViewer at stage={stage}, major={major}");
 
@@ -193,7 +197,6 @@ pub fn AtomicCommandViewer(props: &AtomicCommandProps) -> Html {
     let major = props.major;
     let minor = props.minor;
     let cmd = Rc::new(props.command.clone());
-    let cmd_c = Rc::clone(&cmd);
 
     log::debug!("render AtomicCommandViewer at stage={stage}, major={major}, minor={minor}");
 
@@ -203,20 +206,26 @@ pub fn AtomicCommandViewer(props: &AtomicCommandProps) -> Html {
 
     // handle the state
     let state_dispatch = Dispatch::<State>::new();
-    let formatted_text = use_selector(move |net: &Net| {
-        (
-            cmd_c.precondition.fmt(&net.net()),
-            cmd_c.command.fmt(&net.net()),
-            cmd_c.postcondition.fmt(&net.net()),
-        )
-    });
-    let migration_state = use_selector(move |net: &Net| {
-        net.migration_state()
-            .get(stage)
-            .and_then(|x| x.get(major))
-            .and_then(|x| x.get(minor))
-            .copied()
-    });
+    let formatted_text = use_selector_with_deps(
+        |net: &Net, cmd| {
+            (
+                cmd.precondition.fmt(&net.net()),
+                cmd.command.fmt(&net.net()),
+                cmd.postcondition.fmt(&net.net()),
+            )
+        },
+        cmd.clone(),
+    );
+    let migration_state = use_selector_with_deps(
+        |net: &Net, (stage, major, minor)| {
+            net.migration_state()
+                .get(*stage)
+                .and_then(|x| x.get(*major))
+                .and_then(|x| x.get(*minor))
+                .copied()
+        },
+        (stage, major, minor),
+    );
 
     let pre = formatted_text.0.as_str();
     let text = formatted_text.1.as_str();

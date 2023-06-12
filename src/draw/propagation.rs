@@ -38,17 +38,20 @@ pub fn Propagation(props: &Properties) -> Html {
     let prefix = props.route.prefix;
     let (src, dst, route) = (props.src, props.dst, props.route.clone());
 
-    let (_, state) = use_store::<State>();
+    let state = Dispatch::<State>::new();
 
     let (p1, p2) = use_pos_pair(src, dst);
-    let selected = use_selector(move |net: &Net| {
-        net.net()
-            .get_device(dst)
-            .internal()
-            .and_then(|r| r.get_selected_bgp_route(prefix))
-            .map(|r| r.from_id == src)
-            .unwrap_or(false)
-    });
+    let selected = use_selector_with_deps(
+        |net: &Net, (src, dst, prefix)| {
+            net.net()
+                .get_device(*dst)
+                .internal()
+                .and_then(|r| r.get_selected_bgp_route(*prefix))
+                .map(|r| r.from_id == *src)
+                .unwrap_or(false)
+        },
+        (src, dst, prefix),
+    );
 
     let color = SvgColor::BlueLight;
     let class = if *selected { "" } else { "opacity-20" };

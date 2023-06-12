@@ -41,15 +41,15 @@ pub struct BgpSessionQueueProps {
 pub fn BgpSessionQueue(props: &BgpSessionQueueProps) -> Html {
     let dst = props.dst;
 
-    let events = use_selector(move |net: &Net| {
+    let events = use_selector_with_deps(|net: &Net, dst| {
         net.net()
             .queue()
             .iter()
             .enumerate()
-            .filter(|(_, e)| e.router() == dst)
+            .filter(|(_, e)| e.router() == *dst)
             .map(|(i, e)| (i, e.clone()))
             .collect::<Vec<_>>()
-    });
+    }, dst);
 
     let p = use_pos(dst);
 

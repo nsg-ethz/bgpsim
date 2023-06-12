@@ -45,8 +45,8 @@ pub fn Link(props: &Properties) -> Html {
     let (src, dst) = (props.from, props.to);
 
     let (p1, p2) = use_pos_pair(src, dst);
-    let l = use_selector(move |net| LinkState::new(src, dst, net));
-    let s = use_selector(move |state| VisState::new(state));
+    let l = use_selector_with_deps(|net, (src, dst)| LinkState::new(*src, *dst, net), (src, dst));
+    let s = use_selector(|state| VisState::new(state));
 
     let width = "stroke-1 peer-hover:stroke-2";
     let thick_width = "stroke-2 peer-hover:stroke-4";

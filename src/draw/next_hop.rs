@@ -44,7 +44,10 @@ pub fn NextHop(props: &Properties) -> Html {
     let p_src = use_pos(src);
     // generate all arrows
 
-    let next_hops = use_selector(move |net: &Net| get_next_hop(net, src, prefix));
+    let next_hops = use_selector_with_deps(
+        |net: &Net, (src, prefix)| get_next_hop(net, *src, *prefix),
+        (src, prefix),
+    );
     let arrows: Vec<_> = next_hops
         .iter()
         .map(|(dst, p3)| {

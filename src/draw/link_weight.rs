@@ -22,7 +22,8 @@ use yewdux::prelude::*;
 
 use crate::{
     dim::ROUTER_RADIUS,
-    net::{use_pos_pair, Net}, state::{Selected, State},
+    net::{use_pos_pair, Net},
+    state::{Selected, State},
 };
 
 #[derive(PartialEq, Eq, Properties)]
@@ -35,29 +36,34 @@ pub struct Properties {
 pub fn LinkWeight(props: &Properties) -> Html {
     let (src, dst) = (props.src, props.dst);
 
-    let external_info = use_selector(move |net: &Net| {
-        (
-            net.net().get_device(src).is_external(),
-            net.net().get_device(dst).is_external(),
-        )
-    });
+    let external_info = use_selector_with_deps(
+        |net: &Net, (src, dst)| {
+            (
+                net.net().get_device(*src).is_external(),
+                net.net().get_device(*dst).is_external(),
+            )
+        },
+        (src, dst),
+    );
+    let (p1, p2) = use_pos_pair(src, dst);
+    let weights = use_selector_with_deps(
+        |net: &Net, (src, dst)| {
+            let n = net.net();
+            let g = n.get_topology();
+            (
+                *g.edge_weight(g.find_edge(*src, *dst).unwrap()).unwrap(),
+                *g.edge_weight(g.find_edge(*dst, *src).unwrap()).unwrap(),
+            )
+        },
+        (src, dst),
+    );
+
     let src_external = external_info.0;
     let dst_external = external_info.0;
     let external = src_external || dst_external;
-
     if external {
         return html! {};
     }
-
-    let (p1, p2) = use_pos_pair(src, dst);
-    let weights = use_selector(move |net: &Net| {
-        let n = net.net();
-        let g = n.get_topology();
-        (
-            *g.edge_weight(g.find_edge(src, dst).unwrap()).unwrap(),
-            *g.edge_weight(g.find_edge(dst, src).unwrap()).unwrap(),
-        )
-    });
 
     let w1 = weights.1.to_string();
     let w2 = weights.1.to_string();

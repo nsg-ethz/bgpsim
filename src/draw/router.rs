@@ -44,8 +44,8 @@ pub fn Router(props: &Properties) -> Html {
     let id = props.router_id;
 
     // compute the state
-    let r = use_selector(move |n| RouterState::new(id, n));
-    let s = use_selector(move |s| VisualizationState::new(id, s));
+    let r = use_selector_with_deps(|n, id| RouterState::new(*id, n), id);
+    let s = use_selector_with_deps(|s, id| VisualizationState::new(*id, s), id);
     let p = use_pos(id);
     let state = Dispatch::<State>::new();
 

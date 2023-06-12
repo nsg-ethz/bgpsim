@@ -289,13 +289,16 @@ impl Tooltip {
 pub struct RouteTableProps {
     pub route: BgpRoute<Pfx>,
     #[prop_or_default]
-    pub idx: usize
+    pub idx: usize,
 }
 
 #[function_component]
 pub fn RouteTable(props: &RouteTableProps) -> Html {
     let next_hop = props.route.next_hop;
-    let next_hop = use_selector(move |net: &Net| next_hop.fmt(&net.net()).to_string());
+    let next_hop = use_selector_with_deps(
+        |net: &Net, next_hop| next_hop.fmt(&net.net()).to_string(),
+        next_hop,
+    );
 
     html! {
         <table class="table-auto border-separate border-spacing-x-3">
