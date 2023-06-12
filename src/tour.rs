@@ -103,7 +103,7 @@ const STEPS: &[TourStep] = &[
         alternative: None,
         actions: &[Action::ShowMigration],
         paragraphs: &[
-            "The current scenario comes with a predefined migration plan. By clicking this button, the complete migration plan shows on the left.",
+            "The current scenario comes with a predefined migration plan. By clicking this button, the complete migration plan shows on the right.",
         ],
         align: Align::BottomLeft,
     },

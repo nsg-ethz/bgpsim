@@ -17,13 +17,13 @@
 
 use std::{iter::repeat, ops::Deref};
 
-use bgpsim::{prelude::NetworkFormatter, types::RouterId};
+use bgpsim::{prelude::{NetworkFormatter, Network}, types::RouterId, policies::FwPolicy};
 use itertools::Itertools;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::Net,
+    net::{Net, Pfx, Queue},
     sidebar::divider::Divider,
     state::{Hover, State},
 };
@@ -74,7 +74,7 @@ pub fn property_viewer(props: &PropertyViewerProps) -> Html {
             net.spec()
                 .get(router)
                 .and_then(|x| x.get(*idx))
-                .map(|(p, e)| (p.fmt(&net.net()), e.is_ok()))
+                .map(|(p, e)| (format_spec(p, &net.net()), e.is_ok()))
         },
         (router, idx),
     );
@@ -99,5 +99,13 @@ pub fn property_viewer(props: &PropertyViewerProps) -> Html {
                 { repr }
             </div>
         </div>
+    }
+}
+
+fn format_spec(spec: &FwPolicy<Pfx>, net: &Network<Pfx, Queue>) -> String {
+    match spec {
+        FwPolicy::Reachable(r, p) => format!("{} can reach {p}", r.fmt(net)),
+        FwPolicy::NotReachable(r, p) => format!("{} cannot reach {p}", r.fmt(net)),
+        _ => spec.fmt(net),
     }
 }

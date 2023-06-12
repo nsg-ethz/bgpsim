@@ -227,9 +227,15 @@ pub fn AtomicCommandViewer(props: &AtomicCommandProps) -> Html {
         (stage, major, minor),
     );
 
-    let pre = formatted_text.0.as_str();
+    let mut pre = formatted_text.0.as_str();
     let text = formatted_text.1.as_str();
-    let post = formatted_text.2.as_str();
+    let mut post = formatted_text.2.as_str();
+    if pre == "None" {
+        pre = "No precondition"
+    }
+    if post == "None" {
+        post = "No postcondition"
+    }
 
     let routers = cmd.command.routers();
     let onmouseenter = state_dispatch
