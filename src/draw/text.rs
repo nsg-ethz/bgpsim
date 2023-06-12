@@ -47,6 +47,7 @@ where
     pub padding: Option<f64>,
     pub padding_x: Option<f64>,
     pub rounded_corners: Option<f64>,
+    pub onclick: Option<Callback<MouseEvent>>,
 }
 
 impl<T> Component for Text<T>
@@ -76,16 +77,19 @@ where
         let box_w = (self.width + 2.0 * padding_x).to_string();
         let box_h = (self.height + 2.0 * padding).to_string();
 
-        let bg_class = ctx
+        let mut bg_class = ctx
             .props()
             .bg_class
             .clone()
             .unwrap_or_else(|| classes!("fill-base-2", "stroke-0"));
+        bg_class.push("cursor-pointer");
         let mut text_class = ctx.props().text_class.clone().unwrap_or_default();
         text_class.push("stroke-main");
+        text_class.push("pointer-events-none");
+        let onclick = ctx.props().onclick.clone();
         html! {
             <>
-                <rect x={p_box.x()} y={p_box.y()} width={box_w} height={box_h} class={bg_class} {rx} />
+                <rect x={p_box.x()} y={p_box.y()} width={box_w} height={box_h} class={bg_class} {rx} {onclick} />
                 <text class={text_class} x={p.x()} y={p.y()} ref={self.text_ref.clone()} dominant-baseline="central">{ ctx.props().text.to_string() }</text>
             </>
         }
