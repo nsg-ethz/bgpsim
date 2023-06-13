@@ -176,7 +176,12 @@ pub trait NetworkBuilder<P, Q> {
     /// ```
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_link_weights_seeded<F, A, Rng>(&mut self, rng: &mut Rng, link_weight: F, a: A) -> Result<(), NetworkError>
+    fn build_link_weights_seeded<F, A, Rng>(
+        &mut self,
+        rng: &mut Rng,
+        link_weight: F,
+        a: A,
+    ) -> Result<(), NetworkError>
     where
         A: Clone,
         F: FnMut(RouterId, RouterId, &Network<P, Q>, &mut Rng, A) -> LinkWeight,
@@ -438,11 +443,17 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
 
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_link_weights_seeded<F, A, Rng>(&mut self, rng: &mut Rng, mut link_weight: F, a: A) -> Result<(), NetworkError>
+    fn build_link_weights_seeded<F, A, Rng>(
+        &mut self,
+        rng: &mut Rng,
+        mut link_weight: F,
+        a: A,
+    ) -> Result<(), NetworkError>
     where
         A: Clone,
         F: FnMut(RouterId, RouterId, &Network<P, Q>, &mut Rng, A) -> LinkWeight,
-        Rng: RngCore {
+        Rng: RngCore,
+    {
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;
 

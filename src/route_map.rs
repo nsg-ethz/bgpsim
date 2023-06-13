@@ -643,7 +643,6 @@ impl RouteMapDirection {
     pub fn outgoing(&self) -> bool {
         matches!(self, Self::Outgoing)
     }
-
 }
 
 /// Description of the control-flow of route maps. This changes the way a sequence of route maps is

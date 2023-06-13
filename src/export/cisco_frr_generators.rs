@@ -3013,7 +3013,11 @@ impl CommunityList {
             self.name,
             self.communities.iter().join(" ")
         );
-        let deny = self.deny_communities.iter().map(|c| format!("{root} community-list standard {} deny {c}\n", self.name)).join("");
+        let deny = self
+            .deny_communities
+            .iter()
+            .map(|c| format!("{root} community-list standard {} deny {c}\n", self.name))
+            .join("");
         format!("{deny}{permit}")
     }
 }

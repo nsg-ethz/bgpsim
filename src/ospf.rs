@@ -497,7 +497,7 @@ impl OspfState {
 mod test {
     use std::collections::HashSet;
 
-    use petgraph::{Directed, stable_graph::StableGraph};
+    use petgraph::{stable_graph::StableGraph, Directed};
 
     use crate::{
         ospf::OspfArea,
@@ -696,7 +696,10 @@ mod test {
         assert_eq!(state.get_next_hops(r9, r8), (vec![r6], 4.0));
     }
 
-    fn get_test_net() -> (StableGraph<(), LinkWeight, Directed, IndexType>, TestRouters) {
+    fn get_test_net() -> (
+        StableGraph<(), LinkWeight, Directed, IndexType>,
+        TestRouters,
+    ) {
         let mut g = StableGraph::new();
         let r0 = g.add_node(());
         let r1 = g.add_node(());
