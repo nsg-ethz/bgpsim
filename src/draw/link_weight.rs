@@ -23,7 +23,7 @@ use yewdux::prelude::*;
 use crate::{
     dim::ROUTER_RADIUS,
     net::{use_pos_pair, Net},
-    state::{Selected, State},
+    state::{Selected, State, Flash},
 };
 
 #[derive(PartialEq, Eq, Properties)]
@@ -59,7 +59,7 @@ pub fn LinkWeight(props: &Properties) -> Html {
     );
 
     let src_external = external_info.0;
-    let dst_external = external_info.0;
+    let dst_external = external_info.1;
     let external = src_external || dst_external;
     if external {
         return html! {};
@@ -72,10 +72,14 @@ pub fn LinkWeight(props: &Properties) -> Html {
     let t2 = p2.interpolate_absolute(p1, dist);
 
     let state = Dispatch::<State>::new();
-    let onclick_src =
-        state.reduce_mut_callback(move |s| s.set_selected(Selected::Router(src, src_external)));
-    let onclick_dst =
-        state.reduce_mut_callback(move |s| s.set_selected(Selected::Router(dst, dst_external)));
+    let onclick_src = state.reduce_mut_callback(move |s| {
+        s.set_selected(Selected::Router(src, src_external));
+        s.set_flash(Flash::LinkConfig(dst));
+    });
+    let onclick_dst = state.reduce_mut_callback(move |s| {
+        s.set_selected(Selected::Router(dst, dst_external));
+        s.set_flash(Flash::LinkConfig(src));
+    });
 
     html! {
         <>

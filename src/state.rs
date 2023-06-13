@@ -21,12 +21,13 @@ use bgpsim::{
     route_map::{RouteMap, RouteMapDirection},
     types::RouterId,
 };
+use gloo_timers::callback::Timeout;
 use gloo_utils::{document, window};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 use strum_macros::EnumIter;
 use yew::prelude::{html, Html};
-use yewdux::prelude::Store;
+use yewdux::{prelude::{Dispatch, Store}, mrc::Mrc};
 
 use crate::point::Point;
 
@@ -44,6 +45,8 @@ pub struct State {
     features: Features,
     tour_complete: bool,
     pub disable_hover: bool,
+    flash: Option<Flash>,
+    flash_timeout: Mrc<Option<Timeout>>,
 }
 
 impl Default for State {
@@ -59,6 +62,8 @@ impl Default for State {
             features: Default::default(),
             tour_complete: true,
             disable_hover: false,
+            flash: None,
+            flash_timeout: Mrc::new(None),
         }
     }
 }
@@ -272,6 +277,25 @@ impl State {
             self.set_dark_mode();
         }
     }
+
+    pub fn set_flash(&mut self, flash: Flash) {
+        if let Some(f) = self.flash_timeout.borrow_mut().take() {
+            f.cancel();
+        }
+        self.flash = Some(flash);
+        *self.flash_timeout.borrow_mut() = Some(Timeout::new(2000, || Dispatch::new().reduce_mut(Self::clear_flash)))
+    }
+
+    pub fn clear_flash(&mut self) {
+        self.flash = None;
+        if let Some(f) = self.flash_timeout.borrow_mut().take() {
+            f.cancel();
+        }
+    }
+
+    pub fn get_flash(&self) -> Option<Flash> {
+        self.flash
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -410,4 +434,9 @@ impl ContextMenu {
             | ContextMenu::DeleteSession(_, _, p) => Some(*p),
         }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq)]
+pub enum Flash {
+    LinkConfig(RouterId),
 }

@@ -25,7 +25,11 @@ use bgpsim::{
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::net::Net;
+use crate::{
+    callback,
+    net::Net,
+    state::{Flash, State},
+};
 
 use super::{multi_select::MultiSelect, Divider, Element, TextField};
 
@@ -127,125 +131,100 @@ impl Component for TopologyCfg {
     }
 }
 
-struct LinkWeightCfg {
-    net: Rc<Net>,
-    net_dispatch: Dispatch<Net>,
-    cost_correct: bool,
-    area_correct: bool,
-}
-
-enum LinkWeightMsg {
-    StateNet(Rc<Net>),
-    OnCostChange(String),
-    OnCostSet(String),
-    OnAreaChange(String),
-    OnAreaSet(String),
-}
-
 #[derive(Properties, PartialEq)]
 struct LinkWeightProperties {
     src: RouterId,
     dst: RouterId,
 }
 
-impl Component for LinkWeightCfg {
-    type Message = LinkWeightMsg;
-    type Properties = LinkWeightProperties;
+#[function_component]
+fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
+    let (src, dst) = (props.src, props.dst);
+    let info = use_selector_with_deps(
+        |net, (src, dst)| LinkWeightInfo::new(*src, *dst, net),
+        (src, dst),
+    );
+    let flash = use_selector(|state: &State| state.get_flash());
+    let area_correct = use_state(|| true);
+    let weight_correct = use_state(|| true);
 
-    fn create(ctx: &Context<Self>) -> Self {
-        let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(LinkWeightMsg::StateNet));
-        LinkWeightCfg {
-            net: Default::default(),
-            net_dispatch,
-            cost_correct: true,
-            area_correct: true,
-        }
+    // early exit if one of the links is towards an external router.
+    if info.src_external || info.dst_external {
+        return html!();
     }
 
-    fn view(&self, ctx: &Context<Self>) -> Html {
-        let (src, dst) = (ctx.props().src, ctx.props().dst);
-        let element_text = format!("→ {}", dst.fmt(&self.net.net()));
+    let flash = *flash == Some(Flash::LinkConfig(dst));
+    let base_class = "w-full transition duratoin-300 ease-in-out rounded-lg";
+    let flash_class = "ring-4 ring-blue ring-offset-4";
+    let class = if flash {
+        classes!(base_class, flash_class)
+    } else {
+        classes!(base_class)
+    };
 
-        let inside_ospf = self.net.net().get_device(src).is_internal()
-            && self.net.net().get_device(dst).is_internal();
+    let element_text = info.element_text.clone();
 
-        if inside_ospf {
-            let area_text = self
-                .net
-                .net()
+    let area_text = info.area.num().to_string();
+    let on_area_change = callback!(area_correct -> move |new_area: String| {
+        area_correct.set(new_area.parse::<u32>().is_ok());
+    });
+    let on_area_set = callback!(move |new_area: String| {
+        let new_area = new_area
+            .parse::<u32>()
+            .map(OspfArea::from)
+            .unwrap_or_else(|_| OspfArea::backbone());
+        Dispatch::<Net>::new().reduce_mut(move |n| {
+            let _ = n.net_mut().set_ospf_area(src, dst, new_area);
+        });
+    });
+
+    let weight_text = info.weight.to_string();
+    let on_weight_change = callback!(weight_correct -> move |new_weight: String| {
+        weight_correct.set(new_weight.parse::<LinkWeight>().is_ok());
+    });
+    let on_weight_set = callback!(move |new_weight: String| {
+        let new_weight = new_weight.parse::<LinkWeight>().unwrap_or(100.0);
+        Dispatch::<Net>::new().reduce_mut(move |n| {
+            let _ = n.net_mut().set_link_weight(src, dst, new_weight);
+        });
+    });
+
+    html! {
+        <div {class}>
+            <Element text={element_text}>
+                <div class="flex flex-col flex-1 space-y-2">
+                    <Element text={"cost"} small={true} class={classes!("text-main-ia")}>
+                        <TextField text={weight_text} on_change={on_weight_change} on_set={on_weight_set} correct={*weight_correct}/>
+                    </Element>
+                    <Element text={"area"} small={true} class={classes!("text-main-ia")}>
+                        <TextField text={area_text} on_change={on_area_change} on_set={on_area_set} correct={*area_correct}/>
+                    </Element>
+                </div>
+            </Element>
+        </div>
+    }
+}
+
+#[derive(PartialEq)]
+struct LinkWeightInfo {
+    element_text: String,
+    src_external: bool,
+    dst_external: bool,
+    area: OspfArea,
+    weight: LinkWeight,
+}
+
+impl LinkWeightInfo {
+    fn new(src: RouterId, dst: RouterId, net: &Net) -> Self {
+        let net = &net.net();
+        Self {
+            element_text: format!("→ {}", dst.fmt(net)),
+            src_external: net.get_device(src).is_external(),
+            dst_external: net.get_device(dst).is_external(),
+            area: net
                 .get_ospf_area(src, dst)
-                .unwrap_or_default()
-                .num()
-                .to_string();
-            let on_area_change = ctx.link().callback(LinkWeightMsg::OnAreaChange);
-            let on_area_set = ctx.link().callback(LinkWeightMsg::OnAreaSet);
-
-            let net_borrow = self.net.net();
-            let g = net_borrow.get_topology();
-            let cost_text = g
-                .find_edge(src, dst)
-                .and_then(|e| g.edge_weight(e))
-                .cloned()
-                .unwrap_or(LinkWeight::INFINITY)
-                .to_string();
-            let on_cost_change = ctx.link().callback(LinkWeightMsg::OnCostChange);
-            let on_cost_set = ctx.link().callback(LinkWeightMsg::OnCostSet);
-
-            html! {
-                <Element text={element_text}>
-                    <div class="flex flex-col flex-1 space-y-2">
-                        <Element text={"cost"} small={true} class={classes!("text-main-ia")}>
-                            <TextField text={cost_text} on_change={on_cost_change} on_set={on_cost_set} correct={self.cost_correct}/>
-                        </Element>
-                        <Element text={"area"} small={true} class={classes!("text-main-ia")}>
-                            <TextField text={area_text} on_change={on_area_change} on_set={on_area_set} correct={self.area_correct}/>
-                        </Element>
-                    </div>
-                </Element>
-            }
-        } else {
-            html! {}
-        }
-    }
-
-    fn update(&mut self, ctx: &Context<Self>, msg: Self::Message) -> bool {
-        match msg {
-            LinkWeightMsg::StateNet(n) => {
-                self.net = n;
-                true
-            }
-            LinkWeightMsg::OnCostChange(val) => {
-                self.cost_correct = val.parse::<LinkWeight>().map(|x| x > 0.0).unwrap_or(false);
-                true
-            }
-            LinkWeightMsg::OnCostSet(val) => {
-                let (src, dst) = (ctx.props().src, ctx.props().dst);
-                let weight = if let Ok(w) = val.parse::<LinkWeight>() {
-                    w
-                } else {
-                    self.cost_correct = false;
-                    return true;
-                };
-                self.net_dispatch
-                    .reduce_mut(move |net| net.net_mut().set_link_weight(src, dst, weight));
-                false
-            }
-            LinkWeightMsg::OnAreaChange(val) => {
-                self.area_correct = val.parse::<u32>().is_ok();
-                true
-            }
-            LinkWeightMsg::OnAreaSet(val) => {
-                let (src, dst) = (ctx.props().src, ctx.props().dst);
-                let area: OspfArea = if let Ok(a) = val.parse::<u32>() {
-                    a.into()
-                } else {
-                    self.area_correct = false;
-                    return true;
-                };
-                self.net_dispatch
-                    .reduce_mut(move |net| net.net_mut().set_ospf_area(src, dst, area));
-                false
-            }
+                .unwrap_or_else(|_| OspfArea::backbone()),
+            weight: net.get_link_weigth(src, dst).unwrap_or(100.0),
         }
     }
 }
