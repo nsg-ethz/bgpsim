@@ -14,7 +14,7 @@ with open(filename, "r") as fp:
     data = json.load(fp)
 
 data["settings"]["prefix"] = ip
-data["settings"]["layer"] = "FwState"
+data["settings"]["layer"] = "RouteProp"
 data["settings"]["manual_simulation"] = True
 data["settings"]["features"]["load_balancing"] = False
 data["settings"]["features"]["ospf"] = False

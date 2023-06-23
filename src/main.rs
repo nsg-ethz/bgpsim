@@ -115,6 +115,19 @@ fn entry() -> Html {
                         "example-baseline" => {
                             import_json_str(include_str!("../scenarios/example_baseline.json"))
                         }
+                        "eenet" => import_json_str(include_str!("../scenarios/eenet_atomic.json")),
+                        "jgn2plus" => {
+                            import_json_str(include_str!("../scenarios/jgn2plus_atomic.json"))
+                        }
+                        "sprint" => {
+                            import_json_str(include_str!("../scenarios/sprint_atomic.json"))
+                        }
+                        "hibernia" => {
+                            import_json_str(include_str!("../scenarios/hibernia_canada_atomic.json"))
+                        }
+                        "compuserve" => {
+                            import_json_str(include_str!("../scenarios/compuserve_atomic.json"))
+                        }
                         s => log::error!("Unknown scenario: {s}"),
                     }
                     // scale appropriately
