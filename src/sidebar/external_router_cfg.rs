@@ -31,6 +31,8 @@ use crate::{
     callback,
     draw::SvgColor,
     net::{Net, Pfx},
+    sidebar::router_cfg::DeleteRouter,
+    state::State,
 };
 
 use super::{
@@ -49,6 +51,11 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
     let name_input_correct = use_state(|| true);
     let asid_input_correct = use_state(|| true);
     let prefix_input_correct = use_state(|| true);
+    let simple = use_selector(|state: &State| state.features().simple);
+
+    if !info.exists {
+        return html!();
+    }
 
     let on_name_change = callback!(name_input_correct -> move |new_name|  {
         name_input_correct.set(Dispatch::<Net>::new().get().net().get_router_id(&new_name).is_err());
@@ -148,6 +155,9 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
                     <AdvertisedRouteCfg prefix={*prefix} route={route.clone()} on_update={on_route_update.clone()} on_delete={on_route_delete.clone()} advertised={Rc::clone(&advertised)} />
                 }).collect::<Html>()
             }
+            if !*simple {
+                <DeleteRouter router={id} />
+            }
             <Divider />
         </div>
     }
@@ -155,6 +165,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
 
 #[derive(PartialEq)]
 pub struct RouterInfo {
+    exists: bool,
     name: String,
     as_id: AsId,
     bgp_options: Vec<(RouterId, String, bool)>,
@@ -165,7 +176,16 @@ pub struct RouterInfo {
 impl RouterInfo {
     pub fn new(id: RouterId, net: &Net) -> Self {
         let n = net.net();
-        let r = n.get_device(id).unwrap_external();
+        let Some(r) = n.get_device(id).external() else {
+            return Self {
+                exists: false,
+                name: String::new(),
+                as_id: 0.into(),
+                bgp_options: Vec::new(),
+                routes: Vec::new(),
+                advertised_prefixes: HashSet::new(),
+            }
+        };
 
         let sessions = r.get_bgp_sessions();
         let bgp_options = n
@@ -187,6 +207,7 @@ impl RouterInfo {
         let advertised_prefixes = r.get_advertised_routes().keys().copied().collect();
 
         Self {
+            exists: true,
             name: r.name().to_string(),
             as_id: r.as_id(),
             bgp_options,
@@ -252,7 +273,10 @@ fn AdvertisedRouteCfg(props: &AdvertisedRouteProperties) -> Html {
         on_update.emit((prefix, route));
     });
 
-    let med_text = route.med.map(|x| x.to_string()).unwrap_or_else(|| "none".to_string());
+    let med_text = route
+        .med
+        .map(|x| x.to_string())
+        .unwrap_or_else(|| "none".to_string());
     let on_med_change = callback!(med_input_correct -> move |med: String| {
         med_input_correct.set(med == "none" || med.parse::<u32>().is_ok())
     });

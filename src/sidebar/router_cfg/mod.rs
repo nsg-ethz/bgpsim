@@ -31,7 +31,13 @@ use bgpsim::{formatter::NetworkFormatter, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{draw::SvgColor, net::Net, sidebar::Button, state::State};
+use crate::{
+    callback,
+    draw::SvgColor,
+    net::Net,
+    sidebar::Button,
+    state::{Selected, State},
+};
 
 use super::{
     topology_cfg::TopologyCfg, Divider, Element, ExpandableDivider, Select, TextField, Toggle,
@@ -168,9 +174,14 @@ pub struct DeleteRouterProps {
 #[function_component]
 pub fn DeleteRouter(props: &DeleteRouterProps) -> Html {
     let router = props.router;
-    let on_click = Dispatch::<Net>::new().reduce_mut_callback(move |n| {
-        let _ = n.net_mut().remove_router(router);
-        n.pos_mut().remove(&router);
+    let on_click = callback!(move |_| {
+        Dispatch::<Net>::new().reduce_mut(move |n| {
+            let _ = n.net_mut().remove_router(router);
+            n.pos_mut().remove(&router);
+        });
+        Dispatch::<State>::new().reduce_mut(move |s| {
+            s.set_selected(Selected::None);
+        })
     });
 
     html! {
