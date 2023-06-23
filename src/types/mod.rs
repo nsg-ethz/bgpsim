@@ -197,6 +197,7 @@ pub enum NetworkDevice<'a, P: Prefix> {
 #[cfg(not(tarpaulin_include))]
 impl<'a, P: Prefix> NetworkDevice<'a, P> {
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::InternalRouter`
+    #[track_caller]
     pub fn unwrap_internal(self) -> &'a Router<P> {
         match self {
             Self::InternalRouter(r) => r,
@@ -208,6 +209,7 @@ impl<'a, P: Prefix> NetworkDevice<'a, P> {
     }
 
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::ExternalRouter`
+    #[track_caller]
     pub fn unwrap_external(self) -> &'a ExternalRouter<P> {
         match self {
             Self::InternalRouter(_) => {
@@ -219,6 +221,7 @@ impl<'a, P: Prefix> NetworkDevice<'a, P> {
     }
 
     /// Returns `()` or **panics** is the enum is not a `NetworkDevice::None`
+    #[track_caller]
     pub fn unwrap_none(self) {
         match self {
             Self::InternalRouter(_) => {
@@ -328,6 +331,7 @@ pub enum NetworkDeviceMut<'a, P: Prefix> {
 #[cfg(not(tarpaulin_include))]
 impl<'a, P: Prefix> NetworkDeviceMut<'a, P> {
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::InternalRouter`
+    #[track_caller]
     pub fn unwrap_internal(self) -> &'a mut Router<P> {
         match self {
             Self::InternalRouter(r) => r,
@@ -339,6 +343,7 @@ impl<'a, P: Prefix> NetworkDeviceMut<'a, P> {
     }
 
     /// Returns the Router or **panics**, if the enum is not a `NetworkDevice::ExternalRouter`
+    #[track_caller]
     pub fn unwrap_external(self) -> &'a mut ExternalRouter<P> {
         match self {
             Self::InternalRouter(_) => {
@@ -350,6 +355,7 @@ impl<'a, P: Prefix> NetworkDeviceMut<'a, P> {
     }
 
     /// Returns `()` or **panics** is the enum is not a `NetworkDevice::None`
+    #[track_caller]
     pub fn unwrap_none(self) {
         match self {
             Self::InternalRouter(_) => {
