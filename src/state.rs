@@ -27,7 +27,10 @@ use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 use strum_macros::EnumIter;
 use yew::prelude::{html, Html};
-use yewdux::{prelude::{Dispatch, Store}, mrc::Mrc};
+use yewdux::{
+    mrc::Mrc,
+    prelude::{Dispatch, Store},
+};
 
 use crate::point::Point;
 
@@ -283,7 +286,9 @@ impl State {
             f.cancel();
         }
         self.flash = Some(flash);
-        *self.flash_timeout.borrow_mut() = Some(Timeout::new(2000, || Dispatch::new().reduce_mut(Self::clear_flash)))
+        *self.flash_timeout.borrow_mut() = Some(Timeout::new(2000, || {
+            Dispatch::new().reduce_mut(Self::clear_flash)
+        }))
     }
 
     pub fn clear_flash(&mut self) {

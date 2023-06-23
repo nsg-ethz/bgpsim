@@ -21,8 +21,8 @@ use bgpsim::{
     formatter::NetworkFormatter,
     interactive::InteractiveNetwork,
 };
-use web_sys::HtmlElement;
 use gloo_timers::callback::Timeout;
+use web_sys::HtmlElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -39,7 +39,11 @@ pub fn QueueCfg() -> Html {
     // handle the state
     let queue = use_selector(|net: &Net| net.net().queue().clone());
     let queue_len = queue.len();
-    let refs = use_state(move || (0..queue_len).map(|_| NodeRef::default()).collect::<Vec<_>>());
+    let refs = use_state(move || {
+        (0..queue_len)
+            .map(|_| NodeRef::default())
+            .collect::<Vec<_>>()
+    });
     if queue.len() != refs.len() {
         refs.set((0..queue.len()).map(|_| NodeRef::default()).collect());
         return html!();
@@ -81,7 +85,6 @@ pub struct QueueEventCfgProps {
 pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
     let pos = props.pos;
 
-
     let (src, dst, prefix, route) = match &props.event {
         Event::Bgp(_, src, dst, BgpEvent::Update(route)) => {
             (*src, *dst, route.prefix, Some(route.clone()))
@@ -90,7 +93,12 @@ pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
     };
     let state = Dispatch::<State>::new();
 
-    let header = use_selector_with_deps(|net: &Net, (src, dst, pos)| format!("{pos}: {} → {}", src.fmt(&net.net()), dst.fmt(&net.net())), (src, dst, pos));
+    let header = use_selector_with_deps(
+        |net: &Net, (src, dst, pos)| {
+            format!("{pos}: {} → {}", src.fmt(&net.net()), dst.fmt(&net.net()))
+        },
+        (src, dst, pos),
+    );
 
     log::debug!("render QueueEventCfg {header}");
 
@@ -173,15 +181,20 @@ pub fn QueueSwapPos(props: &QueueSwapProps) -> Html {
         let delta = (bot_y - top_y) * 0.5;
 
         // first, move half the way
-        let _ = top.style().set_property("transform", &format!("translateY({delta}px)"));
-        let _ = bot.style().set_property("transform", &format!("translateY(-{delta}px)"));
+        let _ = top
+            .style()
+            .set_property("transform", &format!("translateY({delta}px)"));
+        let _ = bot
+            .style()
+            .set_property("transform", &format!("translateY(-{delta}px)"));
 
         // At the half point, swap the positions and move the elements back.
         Timeout::new(150, move || {
             let _ = top.style().set_property("transform", "translateY(0px)");
             let _ = bot.style().set_property("transform", "translateY(0px)");
             Dispatch::<Net>::new().reduce_mut(move |n| n.net_mut().queue_mut().swap(pos, pos + 1));
-        }).forget();
+        })
+        .forget();
     });
     html! {
         <div class="w-full flex items-center">

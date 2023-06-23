@@ -17,7 +17,11 @@
 
 use std::{iter::repeat, ops::Deref};
 
-use bgpsim::{prelude::{NetworkFormatter, Network}, types::RouterId, policies::FwPolicy};
+use bgpsim::{
+    policies::FwPolicy,
+    prelude::{Network, NetworkFormatter},
+    types::RouterId,
+};
 use itertools::Itertools;
 use yew::prelude::*;
 use yewdux::prelude::*;

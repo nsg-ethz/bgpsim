@@ -95,12 +95,17 @@ pub fn AtomicCommandStageViewer(props: &AtomicCommandStageProps) -> Html {
     let steps = &props.steps;
     let active =
         use_selector_with_deps(|net: &Net, stage| net.migration_stage_active(*stage), stage);
-    let executable = use_selector_with_deps(|net: &Net, stage| {
-        if *stage != 0 && *stage != 2 {
-            return false
-        }
-        net.migration_state()[*stage][0].iter().all(|x| *x != MigrationState::WaitPre)
-    }, stage);
+    let executable = use_selector_with_deps(
+        |net: &Net, stage| {
+            if *stage != 0 && *stage != 2 {
+                return false;
+            }
+            net.migration_state()[*stage][0]
+                .iter()
+                .all(|x| *x != MigrationState::WaitPre)
+        },
+        stage,
+    );
 
     log::debug!("render AtomicCommandStageViewer at stage={stage}");
 
@@ -148,7 +153,7 @@ pub fn AtomicCommandStageViewer(props: &AtomicCommandStageProps) -> Html {
             for minor in 0..num_minors {
                 // skip all that are not ready
                 if net.migration_state()[stage][major][minor] != MigrationState::Ready {
-                    continue
+                    continue;
                 }
                 net.migration_state_mut()[stage][major][minor] = MigrationState::WaitPost;
                 let raw: Vec<ConfigModifier<Pfx>> = net.migration()[stage][major][minor]

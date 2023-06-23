@@ -22,8 +22,10 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
+    callback,
+    net::Net,
     point::Point,
-    state::{Connection, ContextMenu, Selected, State}, net::Net, callback,
+    state::{Connection, ContextMenu, Selected, State},
 };
 
 #[function_component]
@@ -36,7 +38,8 @@ pub fn Menu() -> Html {
         ContextMenu::None => html!(),
         ContextMenu::DeleteLink(src, dst, _) => {
             let delete_link = callback!(move |_| {
-                Dispatch::<Net>::new().reduce_mut(move |n| n.net_mut().remove_link(src, dst).unwrap());
+                Dispatch::<Net>::new()
+                    .reduce_mut(move |n| n.net_mut().remove_link(src, dst).unwrap());
                 Dispatch::<State>::new().reduce_mut(|s| s.clear_context_menu());
             });
             html! {
@@ -47,7 +50,8 @@ pub fn Menu() -> Html {
         }
         ContextMenu::DeleteSession(src, dst, _) => {
             let delete_session = callback!(move |_| {
-                Dispatch::<Net>::new().reduce_mut(move |n| n.net_mut().set_bgp_session(src, dst, None).unwrap());
+                Dispatch::<Net>::new()
+                    .reduce_mut(move |n| n.net_mut().set_bgp_session(src, dst, None).unwrap());
                 Dispatch::<State>::new().reduce_mut(|s| s.clear_context_menu());
             });
             html! {

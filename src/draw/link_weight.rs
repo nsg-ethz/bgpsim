@@ -23,7 +23,7 @@ use yewdux::prelude::*;
 use crate::{
     dim::ROUTER_RADIUS,
     net::{use_pos_pair, Net},
-    state::{Selected, State, Flash},
+    state::{Flash, Selected, State},
 };
 
 #[derive(PartialEq, Eq, Properties)]

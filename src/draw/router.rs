@@ -144,10 +144,14 @@ impl RouterState {
         let g = n.get_topology();
         let igp_neighbors: Vec<RouterId> = g.neighbors(id).sorted().collect();
         let (external, bgp_neighbors) = match n.get_device(id) {
-            NetworkDevice::InternalRouter(r) => {
-                (false, r.get_bgp_sessions().keys().copied().sorted().collect())
-            }
-            NetworkDevice::ExternalRouter(r) => (true, r.get_bgp_sessions().iter().copied().sorted().collect()),
+            NetworkDevice::InternalRouter(r) => (
+                false,
+                r.get_bgp_sessions().keys().copied().sorted().collect(),
+            ),
+            NetworkDevice::ExternalRouter(r) => (
+                true,
+                r.get_bgp_sessions().iter().copied().sorted().collect(),
+            ),
             NetworkDevice::None(_) => (false, Default::default()),
         };
 
@@ -246,11 +250,7 @@ fn prepare_onclick(
                     let update_net = move |_: MouseEvent| {
                         Dispatch::<Net>::new().reduce_mut(move |n| {
                             n.net_mut().add_link(src, id);
-                            let w = if external || src_external {
-                                1.0
-                            } else {
-                                100.0
-                            };
+                            let w = if external || src_external { 1.0 } else { 100.0 };
                             n.net_mut().set_link_weight(src, id, w).unwrap();
                             n.net_mut().set_link_weight(id, src, w).unwrap();
                         })

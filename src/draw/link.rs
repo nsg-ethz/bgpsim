@@ -15,13 +15,14 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{types::RouterId, ospf::OspfArea};
+use bgpsim::{ospf::OspfArea, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
     net::{use_pos_pair, Net},
-    state::{Layer, State, ContextMenu}, point::Point,
+    point::Point,
+    state::{ContextMenu, Layer, State},
 };
 
 #[derive(PartialEq, Eq, Properties)]
@@ -45,7 +46,10 @@ pub fn Link(props: &Properties) -> Html {
     let (src, dst) = (props.from, props.to);
 
     let (p1, p2) = use_pos_pair(src, dst);
-    let l = use_selector_with_deps(|net, (src, dst)| LinkState::new(*src, *dst, net), (src, dst));
+    let l = use_selector_with_deps(
+        |net, (src, dst)| LinkState::new(*src, *dst, net),
+        (src, dst),
+    );
     let s = use_selector(|state| VisState::new(state));
 
     let width = "stroke-1 peer-hover:stroke-2";
@@ -95,11 +99,11 @@ impl LinkState {
     fn new(src: RouterId, dst: RouterId, net: &Net) -> Self {
         Self {
             area: net.net().get_ospf_area(src, dst).unwrap_or_default(),
-            in_ospf: net.net().get_device(src).is_internal() && net.net().get_device(dst).is_internal()
+            in_ospf: net.net().get_device(src).is_internal()
+                && net.net().get_device(dst).is_internal(),
         }
     }
 }
-
 
 #[derive(PartialEq)]
 struct VisState {
