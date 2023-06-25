@@ -15,6 +15,8 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+#![allow(non_upper_case_globals)]
+
 //! Module containing the [TopologyZoo](http://www.topology-zoo.org/dataset.html) dataset. This file
 //! is automatically generated.
 //!
@@ -38,14 +40,277 @@
 use super::TopologyZooParser;
 use crate::{
     event::EventQueue,
-    network::Network,
+    network::Network, 
     types::{Prefix, RouterId}
 };
 
 use geoutils::Location;
 use std::collections::HashMap;
+use include_flate::flate;
 
 use serde::{Deserialize, Serialize};
+
+flate!(static GRAPHML_Aarnet: str from "topology_zoo/Aarnet.graphml");
+flate!(static GRAPHML_Abilene: str from "topology_zoo/Abilene.graphml");
+flate!(static GRAPHML_Abvt: str from "topology_zoo/Abvt.graphml");
+flate!(static GRAPHML_Aconet: str from "topology_zoo/Aconet.graphml");
+flate!(static GRAPHML_Agis: str from "topology_zoo/Agis.graphml");
+flate!(static GRAPHML_Ai3: str from "topology_zoo/Ai3.graphml");
+flate!(static GRAPHML_Airtel: str from "topology_zoo/Airtel.graphml");
+flate!(static GRAPHML_Amres: str from "topology_zoo/Amres.graphml");
+flate!(static GRAPHML_Ans: str from "topology_zoo/Ans.graphml");
+flate!(static GRAPHML_Arn: str from "topology_zoo/Arn.graphml");
+flate!(static GRAPHML_Arnes: str from "topology_zoo/Arnes.graphml");
+flate!(static GRAPHML_Arpanet196912: str from "topology_zoo/Arpanet196912.graphml");
+flate!(static GRAPHML_Arpanet19706: str from "topology_zoo/Arpanet19706.graphml");
+flate!(static GRAPHML_Arpanet19719: str from "topology_zoo/Arpanet19719.graphml");
+flate!(static GRAPHML_Arpanet19723: str from "topology_zoo/Arpanet19723.graphml");
+flate!(static GRAPHML_Arpanet19728: str from "topology_zoo/Arpanet19728.graphml");
+flate!(static GRAPHML_AsnetAm: str from "topology_zoo/AsnetAm.graphml");
+flate!(static GRAPHML_Atmnet: str from "topology_zoo/Atmnet.graphml");
+flate!(static GRAPHML_AttMpls: str from "topology_zoo/AttMpls.graphml");
+flate!(static GRAPHML_Azrena: str from "topology_zoo/Azrena.graphml");
+flate!(static GRAPHML_Bandcon: str from "topology_zoo/Bandcon.graphml");
+flate!(static GRAPHML_Basnet: str from "topology_zoo/Basnet.graphml");
+flate!(static GRAPHML_Bbnplanet: str from "topology_zoo/Bbnplanet.graphml");
+flate!(static GRAPHML_Bellcanada: str from "topology_zoo/Bellcanada.graphml");
+flate!(static GRAPHML_Bellsouth: str from "topology_zoo/Bellsouth.graphml");
+flate!(static GRAPHML_Belnet2003: str from "topology_zoo/Belnet2003.graphml");
+flate!(static GRAPHML_Belnet2004: str from "topology_zoo/Belnet2004.graphml");
+flate!(static GRAPHML_Belnet2005: str from "topology_zoo/Belnet2005.graphml");
+flate!(static GRAPHML_Belnet2006: str from "topology_zoo/Belnet2006.graphml");
+flate!(static GRAPHML_Belnet2007: str from "topology_zoo/Belnet2007.graphml");
+flate!(static GRAPHML_Belnet2008: str from "topology_zoo/Belnet2008.graphml");
+flate!(static GRAPHML_Belnet2009: str from "topology_zoo/Belnet2009.graphml");
+flate!(static GRAPHML_Belnet2010: str from "topology_zoo/Belnet2010.graphml");
+flate!(static GRAPHML_BeyondTheNetwork: str from "topology_zoo/BeyondTheNetwork.graphml");
+flate!(static GRAPHML_Bics: str from "topology_zoo/Bics.graphml");
+flate!(static GRAPHML_Biznet: str from "topology_zoo/Biznet.graphml");
+flate!(static GRAPHML_Bren: str from "topology_zoo/Bren.graphml");
+flate!(static GRAPHML_BsonetEurope: str from "topology_zoo/BsonetEurope.graphml");
+flate!(static GRAPHML_BtAsiaPac: str from "topology_zoo/BtAsiaPac.graphml");
+flate!(static GRAPHML_BtEurope: str from "topology_zoo/BtEurope.graphml");
+flate!(static GRAPHML_BtLatinAmerica: str from "topology_zoo/BtLatinAmerica.graphml");
+flate!(static GRAPHML_BtNorthAmerica: str from "topology_zoo/BtNorthAmerica.graphml");
+flate!(static GRAPHML_Canerie: str from "topology_zoo/Canerie.graphml");
+flate!(static GRAPHML_Carnet: str from "topology_zoo/Carnet.graphml");
+flate!(static GRAPHML_Cernet: str from "topology_zoo/Cernet.graphml");
+flate!(static GRAPHML_Cesnet1993: str from "topology_zoo/Cesnet1993.graphml");
+flate!(static GRAPHML_Cesnet1997: str from "topology_zoo/Cesnet1997.graphml");
+flate!(static GRAPHML_Cesnet1999: str from "topology_zoo/Cesnet1999.graphml");
+flate!(static GRAPHML_Cesnet2001: str from "topology_zoo/Cesnet2001.graphml");
+flate!(static GRAPHML_Cesnet200304: str from "topology_zoo/Cesnet200304.graphml");
+flate!(static GRAPHML_Cesnet200511: str from "topology_zoo/Cesnet200511.graphml");
+flate!(static GRAPHML_Cesnet200603: str from "topology_zoo/Cesnet200603.graphml");
+flate!(static GRAPHML_Cesnet200706: str from "topology_zoo/Cesnet200706.graphml");
+flate!(static GRAPHML_Cesnet201006: str from "topology_zoo/Cesnet201006.graphml");
+flate!(static GRAPHML_Chinanet: str from "topology_zoo/Chinanet.graphml");
+flate!(static GRAPHML_Claranet: str from "topology_zoo/Claranet.graphml");
+flate!(static GRAPHML_Cogentco: str from "topology_zoo/Cogentco.graphml");
+flate!(static GRAPHML_Colt: str from "topology_zoo/Colt.graphml");
+flate!(static GRAPHML_Columbus: str from "topology_zoo/Columbus.graphml");
+flate!(static GRAPHML_Compuserve: str from "topology_zoo/Compuserve.graphml");
+flate!(static GRAPHML_CrlNetworkServices: str from "topology_zoo/CrlNetworkServices.graphml");
+flate!(static GRAPHML_Cudi: str from "topology_zoo/Cudi.graphml");
+flate!(static GRAPHML_Cwix: str from "topology_zoo/Cwix.graphml");
+flate!(static GRAPHML_Cynet: str from "topology_zoo/Cynet.graphml");
+flate!(static GRAPHML_Darkstrand: str from "topology_zoo/Darkstrand.graphml");
+flate!(static GRAPHML_Dataxchange: str from "topology_zoo/Dataxchange.graphml");
+flate!(static GRAPHML_Deltacom: str from "topology_zoo/Deltacom.graphml");
+flate!(static GRAPHML_DeutscheTelekom: str from "topology_zoo/DeutscheTelekom.graphml");
+flate!(static GRAPHML_Dfn: str from "topology_zoo/Dfn.graphml");
+flate!(static GRAPHML_DialtelecomCz: str from "topology_zoo/DialtelecomCz.graphml");
+flate!(static GRAPHML_Digex: str from "topology_zoo/Digex.graphml");
+flate!(static GRAPHML_Easynet: str from "topology_zoo/Easynet.graphml");
+flate!(static GRAPHML_Eenet: str from "topology_zoo/Eenet.graphml");
+flate!(static GRAPHML_EliBackbone: str from "topology_zoo/EliBackbone.graphml");
+flate!(static GRAPHML_Epoch: str from "topology_zoo/Epoch.graphml");
+flate!(static GRAPHML_Ernet: str from "topology_zoo/Ernet.graphml");
+flate!(static GRAPHML_Esnet: str from "topology_zoo/Esnet.graphml");
+flate!(static GRAPHML_Eunetworks: str from "topology_zoo/Eunetworks.graphml");
+flate!(static GRAPHML_Evolink: str from "topology_zoo/Evolink.graphml");
+flate!(static GRAPHML_Fatman: str from "topology_zoo/Fatman.graphml");
+flate!(static GRAPHML_Fccn: str from "topology_zoo/Fccn.graphml");
+flate!(static GRAPHML_Forthnet: str from "topology_zoo/Forthnet.graphml");
+flate!(static GRAPHML_Funet: str from "topology_zoo/Funet.graphml");
+flate!(static GRAPHML_Gambia: str from "topology_zoo/Gambia.graphml");
+flate!(static GRAPHML_Garr199901: str from "topology_zoo/Garr199901.graphml");
+flate!(static GRAPHML_Garr199904: str from "topology_zoo/Garr199904.graphml");
+flate!(static GRAPHML_Garr199905: str from "topology_zoo/Garr199905.graphml");
+flate!(static GRAPHML_Garr200109: str from "topology_zoo/Garr200109.graphml");
+flate!(static GRAPHML_Garr200112: str from "topology_zoo/Garr200112.graphml");
+flate!(static GRAPHML_Garr200212: str from "topology_zoo/Garr200212.graphml");
+flate!(static GRAPHML_Garr200404: str from "topology_zoo/Garr200404.graphml");
+flate!(static GRAPHML_Garr200902: str from "topology_zoo/Garr200902.graphml");
+flate!(static GRAPHML_Garr200908: str from "topology_zoo/Garr200908.graphml");
+flate!(static GRAPHML_Garr200909: str from "topology_zoo/Garr200909.graphml");
+flate!(static GRAPHML_Garr200912: str from "topology_zoo/Garr200912.graphml");
+flate!(static GRAPHML_Garr201001: str from "topology_zoo/Garr201001.graphml");
+flate!(static GRAPHML_Garr201003: str from "topology_zoo/Garr201003.graphml");
+flate!(static GRAPHML_Garr201004: str from "topology_zoo/Garr201004.graphml");
+flate!(static GRAPHML_Garr201005: str from "topology_zoo/Garr201005.graphml");
+flate!(static GRAPHML_Garr201007: str from "topology_zoo/Garr201007.graphml");
+flate!(static GRAPHML_Garr201008: str from "topology_zoo/Garr201008.graphml");
+flate!(static GRAPHML_Garr201010: str from "topology_zoo/Garr201010.graphml");
+flate!(static GRAPHML_Garr201012: str from "topology_zoo/Garr201012.graphml");
+flate!(static GRAPHML_Garr201101: str from "topology_zoo/Garr201101.graphml");
+flate!(static GRAPHML_Garr201102: str from "topology_zoo/Garr201102.graphml");
+flate!(static GRAPHML_Garr201103: str from "topology_zoo/Garr201103.graphml");
+flate!(static GRAPHML_Garr201104: str from "topology_zoo/Garr201104.graphml");
+flate!(static GRAPHML_Garr201105: str from "topology_zoo/Garr201105.graphml");
+flate!(static GRAPHML_Garr201107: str from "topology_zoo/Garr201107.graphml");
+flate!(static GRAPHML_Garr201108: str from "topology_zoo/Garr201108.graphml");
+flate!(static GRAPHML_Garr201109: str from "topology_zoo/Garr201109.graphml");
+flate!(static GRAPHML_Garr201110: str from "topology_zoo/Garr201110.graphml");
+flate!(static GRAPHML_Garr201111: str from "topology_zoo/Garr201111.graphml");
+flate!(static GRAPHML_Garr201112: str from "topology_zoo/Garr201112.graphml");
+flate!(static GRAPHML_Garr201201: str from "topology_zoo/Garr201201.graphml");
+flate!(static GRAPHML_Gblnet: str from "topology_zoo/Gblnet.graphml");
+flate!(static GRAPHML_Geant2001: str from "topology_zoo/Geant2001.graphml");
+flate!(static GRAPHML_Geant2009: str from "topology_zoo/Geant2009.graphml");
+flate!(static GRAPHML_Geant2010: str from "topology_zoo/Geant2010.graphml");
+flate!(static GRAPHML_Geant2012: str from "topology_zoo/Geant2012.graphml");
+flate!(static GRAPHML_Getnet: str from "topology_zoo/Getnet.graphml");
+flate!(static GRAPHML_Globalcenter: str from "topology_zoo/Globalcenter.graphml");
+flate!(static GRAPHML_Globenet: str from "topology_zoo/Globenet.graphml");
+flate!(static GRAPHML_Goodnet: str from "topology_zoo/Goodnet.graphml");
+flate!(static GRAPHML_Grena: str from "topology_zoo/Grena.graphml");
+flate!(static GRAPHML_Gridnet: str from "topology_zoo/Gridnet.graphml");
+flate!(static GRAPHML_Grnet: str from "topology_zoo/Grnet.graphml");
+flate!(static GRAPHML_GtsCe: str from "topology_zoo/GtsCe.graphml");
+flate!(static GRAPHML_GtsCzechRepublic: str from "topology_zoo/GtsCzechRepublic.graphml");
+flate!(static GRAPHML_GtsHungary: str from "topology_zoo/GtsHungary.graphml");
+flate!(static GRAPHML_GtsPoland: str from "topology_zoo/GtsPoland.graphml");
+flate!(static GRAPHML_GtsRomania: str from "topology_zoo/GtsRomania.graphml");
+flate!(static GRAPHML_GtsSlovakia: str from "topology_zoo/GtsSlovakia.graphml");
+flate!(static GRAPHML_Harnet: str from "topology_zoo/Harnet.graphml");
+flate!(static GRAPHML_Heanet: str from "topology_zoo/Heanet.graphml");
+flate!(static GRAPHML_HiberniaCanada: str from "topology_zoo/HiberniaCanada.graphml");
+flate!(static GRAPHML_HiberniaGlobal: str from "topology_zoo/HiberniaGlobal.graphml");
+flate!(static GRAPHML_HiberniaIreland: str from "topology_zoo/HiberniaIreland.graphml");
+flate!(static GRAPHML_HiberniaNireland: str from "topology_zoo/HiberniaNireland.graphml");
+flate!(static GRAPHML_HiberniaUk: str from "topology_zoo/HiberniaUk.graphml");
+flate!(static GRAPHML_HiberniaUs: str from "topology_zoo/HiberniaUs.graphml");
+flate!(static GRAPHML_Highwinds: str from "topology_zoo/Highwinds.graphml");
+flate!(static GRAPHML_HostwayInternational: str from "topology_zoo/HostwayInternational.graphml");
+flate!(static GRAPHML_HurricaneElectric: str from "topology_zoo/HurricaneElectric.graphml");
+flate!(static GRAPHML_Ibm: str from "topology_zoo/Ibm.graphml");
+flate!(static GRAPHML_Iij: str from "topology_zoo/Iij.graphml");
+flate!(static GRAPHML_Iinet: str from "topology_zoo/Iinet.graphml");
+flate!(static GRAPHML_Ilan: str from "topology_zoo/Ilan.graphml");
+flate!(static GRAPHML_Integra: str from "topology_zoo/Integra.graphml");
+flate!(static GRAPHML_Intellifiber: str from "topology_zoo/Intellifiber.graphml");
+flate!(static GRAPHML_Internetmci: str from "topology_zoo/Internetmci.graphml");
+flate!(static GRAPHML_Internode: str from "topology_zoo/Internode.graphml");
+flate!(static GRAPHML_Interoute: str from "topology_zoo/Interoute.graphml");
+flate!(static GRAPHML_Intranetwork: str from "topology_zoo/Intranetwork.graphml");
+flate!(static GRAPHML_Ion: str from "topology_zoo/Ion.graphml");
+flate!(static GRAPHML_IowaStatewideFiberMap: str from "topology_zoo/IowaStatewideFiberMap.graphml");
+flate!(static GRAPHML_Iris: str from "topology_zoo/Iris.graphml");
+flate!(static GRAPHML_Istar: str from "topology_zoo/Istar.graphml");
+flate!(static GRAPHML_Itnet: str from "topology_zoo/Itnet.graphml");
+flate!(static GRAPHML_JanetExternal: str from "topology_zoo/JanetExternal.graphml");
+flate!(static GRAPHML_Janetbackbone: str from "topology_zoo/Janetbackbone.graphml");
+flate!(static GRAPHML_Janetlense: str from "topology_zoo/Janetlense.graphml");
+flate!(static GRAPHML_Jgn2Plus: str from "topology_zoo/Jgn2Plus.graphml");
+flate!(static GRAPHML_Karen: str from "topology_zoo/Karen.graphml");
+flate!(static GRAPHML_Kdl: str from "topology_zoo/Kdl.graphml");
+flate!(static GRAPHML_KentmanApr2007: str from "topology_zoo/KentmanApr2007.graphml");
+flate!(static GRAPHML_KentmanAug2005: str from "topology_zoo/KentmanAug2005.graphml");
+flate!(static GRAPHML_KentmanFeb2008: str from "topology_zoo/KentmanFeb2008.graphml");
+flate!(static GRAPHML_KentmanJan2011: str from "topology_zoo/KentmanJan2011.graphml");
+flate!(static GRAPHML_KentmanJul2005: str from "topology_zoo/KentmanJul2005.graphml");
+flate!(static GRAPHML_Kreonet: str from "topology_zoo/Kreonet.graphml");
+flate!(static GRAPHML_LambdaNet: str from "topology_zoo/LambdaNet.graphml");
+flate!(static GRAPHML_Latnet: str from "topology_zoo/Latnet.graphml");
+flate!(static GRAPHML_Layer42: str from "topology_zoo/Layer42.graphml");
+flate!(static GRAPHML_Litnet: str from "topology_zoo/Litnet.graphml");
+flate!(static GRAPHML_Marnet: str from "topology_zoo/Marnet.graphml");
+flate!(static GRAPHML_Marwan: str from "topology_zoo/Marwan.graphml");
+flate!(static GRAPHML_Missouri: str from "topology_zoo/Missouri.graphml");
+flate!(static GRAPHML_Mren: str from "topology_zoo/Mren.graphml");
+flate!(static GRAPHML_Myren: str from "topology_zoo/Myren.graphml");
+flate!(static GRAPHML_Napnet: str from "topology_zoo/Napnet.graphml");
+flate!(static GRAPHML_Navigata: str from "topology_zoo/Navigata.graphml");
+flate!(static GRAPHML_Netrail: str from "topology_zoo/Netrail.graphml");
+flate!(static GRAPHML_NetworkUsa: str from "topology_zoo/NetworkUsa.graphml");
+flate!(static GRAPHML_Nextgen: str from "topology_zoo/Nextgen.graphml");
+flate!(static GRAPHML_Niif: str from "topology_zoo/Niif.graphml");
+flate!(static GRAPHML_Noel: str from "topology_zoo/Noel.graphml");
+flate!(static GRAPHML_Nordu1989: str from "topology_zoo/Nordu1989.graphml");
+flate!(static GRAPHML_Nordu1997: str from "topology_zoo/Nordu1997.graphml");
+flate!(static GRAPHML_Nordu2005: str from "topology_zoo/Nordu2005.graphml");
+flate!(static GRAPHML_Nordu2010: str from "topology_zoo/Nordu2010.graphml");
+flate!(static GRAPHML_Nsfcnet: str from "topology_zoo/Nsfcnet.graphml");
+flate!(static GRAPHML_Nsfnet: str from "topology_zoo/Nsfnet.graphml");
+flate!(static GRAPHML_Ntelos: str from "topology_zoo/Ntelos.graphml");
+flate!(static GRAPHML_Ntt: str from "topology_zoo/Ntt.graphml");
+flate!(static GRAPHML_Oteglobe: str from "topology_zoo/Oteglobe.graphml");
+flate!(static GRAPHML_Oxford: str from "topology_zoo/Oxford.graphml");
+flate!(static GRAPHML_Pacificwave: str from "topology_zoo/Pacificwave.graphml");
+flate!(static GRAPHML_Packetexchange: str from "topology_zoo/Packetexchange.graphml");
+flate!(static GRAPHML_Padi: str from "topology_zoo/Padi.graphml");
+flate!(static GRAPHML_Palmetto: str from "topology_zoo/Palmetto.graphml");
+flate!(static GRAPHML_Peer1: str from "topology_zoo/Peer1.graphml");
+flate!(static GRAPHML_Pern: str from "topology_zoo/Pern.graphml");
+flate!(static GRAPHML_PionierL1: str from "topology_zoo/PionierL1.graphml");
+flate!(static GRAPHML_PionierL3: str from "topology_zoo/PionierL3.graphml");
+flate!(static GRAPHML_Psinet: str from "topology_zoo/Psinet.graphml");
+flate!(static GRAPHML_Quest: str from "topology_zoo/Quest.graphml");
+flate!(static GRAPHML_RedBestel: str from "topology_zoo/RedBestel.graphml");
+flate!(static GRAPHML_Rediris: str from "topology_zoo/Rediris.graphml");
+flate!(static GRAPHML_Renam: str from "topology_zoo/Renam.graphml");
+flate!(static GRAPHML_Renater1999: str from "topology_zoo/Renater1999.graphml");
+flate!(static GRAPHML_Renater2001: str from "topology_zoo/Renater2001.graphml");
+flate!(static GRAPHML_Renater2004: str from "topology_zoo/Renater2004.graphml");
+flate!(static GRAPHML_Renater2006: str from "topology_zoo/Renater2006.graphml");
+flate!(static GRAPHML_Renater2008: str from "topology_zoo/Renater2008.graphml");
+flate!(static GRAPHML_Renater2010: str from "topology_zoo/Renater2010.graphml");
+flate!(static GRAPHML_Restena: str from "topology_zoo/Restena.graphml");
+flate!(static GRAPHML_Reuna: str from "topology_zoo/Reuna.graphml");
+flate!(static GRAPHML_Rhnet: str from "topology_zoo/Rhnet.graphml");
+flate!(static GRAPHML_Rnp: str from "topology_zoo/Rnp.graphml");
+flate!(static GRAPHML_Roedunet: str from "topology_zoo/Roedunet.graphml");
+flate!(static GRAPHML_RoedunetFibre: str from "topology_zoo/RoedunetFibre.graphml");
+flate!(static GRAPHML_Sago: str from "topology_zoo/Sago.graphml");
+flate!(static GRAPHML_Sanet: str from "topology_zoo/Sanet.graphml");
+flate!(static GRAPHML_Sanren: str from "topology_zoo/Sanren.graphml");
+flate!(static GRAPHML_Savvis: str from "topology_zoo/Savvis.graphml");
+flate!(static GRAPHML_Shentel: str from "topology_zoo/Shentel.graphml");
+flate!(static GRAPHML_Sinet: str from "topology_zoo/Sinet.graphml");
+flate!(static GRAPHML_Singaren: str from "topology_zoo/Singaren.graphml");
+flate!(static GRAPHML_Spiralight: str from "topology_zoo/Spiralight.graphml");
+flate!(static GRAPHML_Sprint: str from "topology_zoo/Sprint.graphml");
+flate!(static GRAPHML_Sunet: str from "topology_zoo/Sunet.graphml");
+flate!(static GRAPHML_Surfnet: str from "topology_zoo/Surfnet.graphml");
+flate!(static GRAPHML_Switch: str from "topology_zoo/Switch.graphml");
+flate!(static GRAPHML_SwitchL3: str from "topology_zoo/SwitchL3.graphml");
+flate!(static GRAPHML_Syringa: str from "topology_zoo/Syringa.graphml");
+flate!(static GRAPHML_TLex: str from "topology_zoo/TLex.graphml");
+flate!(static GRAPHML_TataNld: str from "topology_zoo/TataNld.graphml");
+flate!(static GRAPHML_Telcove: str from "topology_zoo/Telcove.graphml");
+flate!(static GRAPHML_Telecomserbia: str from "topology_zoo/Telecomserbia.graphml");
+flate!(static GRAPHML_Tinet: str from "topology_zoo/Tinet.graphml");
+flate!(static GRAPHML_Tw: str from "topology_zoo/Tw.graphml");
+flate!(static GRAPHML_Twaren: str from "topology_zoo/Twaren.graphml");
+flate!(static GRAPHML_Ulaknet: str from "topology_zoo/Ulaknet.graphml");
+flate!(static GRAPHML_UniC: str from "topology_zoo/UniC.graphml");
+flate!(static GRAPHML_Uninet: str from "topology_zoo/Uninet.graphml");
+flate!(static GRAPHML_Uninett2010: str from "topology_zoo/Uninett2010.graphml");
+flate!(static GRAPHML_Uninett2011: str from "topology_zoo/Uninett2011.graphml");
+flate!(static GRAPHML_Uran: str from "topology_zoo/Uran.graphml");
+flate!(static GRAPHML_UsCarrier: str from "topology_zoo/UsCarrier.graphml");
+flate!(static GRAPHML_UsSignal: str from "topology_zoo/UsSignal.graphml");
+flate!(static GRAPHML_Uunet: str from "topology_zoo/Uunet.graphml");
+flate!(static GRAPHML_Vinaren: str from "topology_zoo/Vinaren.graphml");
+flate!(static GRAPHML_VisionNet: str from "topology_zoo/VisionNet.graphml");
+flate!(static GRAPHML_VtlWavenet2008: str from "topology_zoo/VtlWavenet2008.graphml");
+flate!(static GRAPHML_VtlWavenet2011: str from "topology_zoo/VtlWavenet2011.graphml");
+flate!(static GRAPHML_WideJpn: str from "topology_zoo/WideJpn.graphml");
+flate!(static GRAPHML_Xeex: str from "topology_zoo/Xeex.graphml");
+flate!(static GRAPHML_Xspedius: str from "topology_zoo/Xspedius.graphml");
+flate!(static GRAPHML_York: str from "topology_zoo/York.graphml");
+flate!(static GRAPHML_Zamren: str from "topology_zoo/Zamren.graphml");
 
 /// Topologies from [TopologyZoo](http://www.topology-zoo.org/dataset.html). The following example
 /// code creates an Abilene network and configures it with random configuration:
@@ -3530,267 +3795,267 @@ impl TopologyZoo {
     /// Get the string for graphml
     fn graphml(&self) -> &'static str {
         match self {
-            Self::Aarnet => include_str!("../../topology_zoo/Aarnet.graphml"),
-            Self::Abilene => include_str!("../../topology_zoo/Abilene.graphml"),
-            Self::Abvt => include_str!("../../topology_zoo/Abvt.graphml"),
-            Self::Aconet => include_str!("../../topology_zoo/Aconet.graphml"),
-            Self::Agis => include_str!("../../topology_zoo/Agis.graphml"),
-            Self::Ai3 => include_str!("../../topology_zoo/Ai3.graphml"),
-            Self::Airtel => include_str!("../../topology_zoo/Airtel.graphml"),
-            Self::Amres => include_str!("../../topology_zoo/Amres.graphml"),
-            Self::Ans => include_str!("../../topology_zoo/Ans.graphml"),
-            Self::Arn => include_str!("../../topology_zoo/Arn.graphml"),
-            Self::Arnes => include_str!("../../topology_zoo/Arnes.graphml"),
-            Self::Arpanet196912 => include_str!("../../topology_zoo/Arpanet196912.graphml"),
-            Self::Arpanet19706 => include_str!("../../topology_zoo/Arpanet19706.graphml"),
-            Self::Arpanet19719 => include_str!("../../topology_zoo/Arpanet19719.graphml"),
-            Self::Arpanet19723 => include_str!("../../topology_zoo/Arpanet19723.graphml"),
-            Self::Arpanet19728 => include_str!("../../topology_zoo/Arpanet19728.graphml"),
-            Self::AsnetAm => include_str!("../../topology_zoo/AsnetAm.graphml"),
-            Self::Atmnet => include_str!("../../topology_zoo/Atmnet.graphml"),
-            Self::AttMpls => include_str!("../../topology_zoo/AttMpls.graphml"),
-            Self::Azrena => include_str!("../../topology_zoo/Azrena.graphml"),
-            Self::Bandcon => include_str!("../../topology_zoo/Bandcon.graphml"),
-            Self::Basnet => include_str!("../../topology_zoo/Basnet.graphml"),
-            Self::Bbnplanet => include_str!("../../topology_zoo/Bbnplanet.graphml"),
-            Self::Bellcanada => include_str!("../../topology_zoo/Bellcanada.graphml"),
-            Self::Bellsouth => include_str!("../../topology_zoo/Bellsouth.graphml"),
-            Self::Belnet2003 => include_str!("../../topology_zoo/Belnet2003.graphml"),
-            Self::Belnet2004 => include_str!("../../topology_zoo/Belnet2004.graphml"),
-            Self::Belnet2005 => include_str!("../../topology_zoo/Belnet2005.graphml"),
-            Self::Belnet2006 => include_str!("../../topology_zoo/Belnet2006.graphml"),
-            Self::Belnet2007 => include_str!("../../topology_zoo/Belnet2007.graphml"),
-            Self::Belnet2008 => include_str!("../../topology_zoo/Belnet2008.graphml"),
-            Self::Belnet2009 => include_str!("../../topology_zoo/Belnet2009.graphml"),
-            Self::Belnet2010 => include_str!("../../topology_zoo/Belnet2010.graphml"),
-            Self::BeyondTheNetwork => include_str!("../../topology_zoo/BeyondTheNetwork.graphml"),
-            Self::Bics => include_str!("../../topology_zoo/Bics.graphml"),
-            Self::Biznet => include_str!("../../topology_zoo/Biznet.graphml"),
-            Self::Bren => include_str!("../../topology_zoo/Bren.graphml"),
-            Self::BsonetEurope => include_str!("../../topology_zoo/BsonetEurope.graphml"),
-            Self::BtAsiaPac => include_str!("../../topology_zoo/BtAsiaPac.graphml"),
-            Self::BtEurope => include_str!("../../topology_zoo/BtEurope.graphml"),
-            Self::BtLatinAmerica => include_str!("../../topology_zoo/BtLatinAmerica.graphml"),
-            Self::BtNorthAmerica => include_str!("../../topology_zoo/BtNorthAmerica.graphml"),
-            Self::Canerie => include_str!("../../topology_zoo/Canerie.graphml"),
-            Self::Carnet => include_str!("../../topology_zoo/Carnet.graphml"),
-            Self::Cernet => include_str!("../../topology_zoo/Cernet.graphml"),
-            Self::Cesnet1993 => include_str!("../../topology_zoo/Cesnet1993.graphml"),
-            Self::Cesnet1997 => include_str!("../../topology_zoo/Cesnet1997.graphml"),
-            Self::Cesnet1999 => include_str!("../../topology_zoo/Cesnet1999.graphml"),
-            Self::Cesnet2001 => include_str!("../../topology_zoo/Cesnet2001.graphml"),
-            Self::Cesnet200304 => include_str!("../../topology_zoo/Cesnet200304.graphml"),
-            Self::Cesnet200511 => include_str!("../../topology_zoo/Cesnet200511.graphml"),
-            Self::Cesnet200603 => include_str!("../../topology_zoo/Cesnet200603.graphml"),
-            Self::Cesnet200706 => include_str!("../../topology_zoo/Cesnet200706.graphml"),
-            Self::Cesnet201006 => include_str!("../../topology_zoo/Cesnet201006.graphml"),
-            Self::Chinanet => include_str!("../../topology_zoo/Chinanet.graphml"),
-            Self::Claranet => include_str!("../../topology_zoo/Claranet.graphml"),
-            Self::Cogentco => include_str!("../../topology_zoo/Cogentco.graphml"),
-            Self::Colt => include_str!("../../topology_zoo/Colt.graphml"),
-            Self::Columbus => include_str!("../../topology_zoo/Columbus.graphml"),
-            Self::Compuserve => include_str!("../../topology_zoo/Compuserve.graphml"),
-            Self::CrlNetworkServices => include_str!("../../topology_zoo/CrlNetworkServices.graphml"),
-            Self::Cudi => include_str!("../../topology_zoo/Cudi.graphml"),
-            Self::Cwix => include_str!("../../topology_zoo/Cwix.graphml"),
-            Self::Cynet => include_str!("../../topology_zoo/Cynet.graphml"),
-            Self::Darkstrand => include_str!("../../topology_zoo/Darkstrand.graphml"),
-            Self::Dataxchange => include_str!("../../topology_zoo/Dataxchange.graphml"),
-            Self::Deltacom => include_str!("../../topology_zoo/Deltacom.graphml"),
-            Self::DeutscheTelekom => include_str!("../../topology_zoo/DeutscheTelekom.graphml"),
-            Self::Dfn => include_str!("../../topology_zoo/Dfn.graphml"),
-            Self::DialtelecomCz => include_str!("../../topology_zoo/DialtelecomCz.graphml"),
-            Self::Digex => include_str!("../../topology_zoo/Digex.graphml"),
-            Self::Easynet => include_str!("../../topology_zoo/Easynet.graphml"),
-            Self::Eenet => include_str!("../../topology_zoo/Eenet.graphml"),
-            Self::EliBackbone => include_str!("../../topology_zoo/EliBackbone.graphml"),
-            Self::Epoch => include_str!("../../topology_zoo/Epoch.graphml"),
-            Self::Ernet => include_str!("../../topology_zoo/Ernet.graphml"),
-            Self::Esnet => include_str!("../../topology_zoo/Esnet.graphml"),
-            Self::Eunetworks => include_str!("../../topology_zoo/Eunetworks.graphml"),
-            Self::Evolink => include_str!("../../topology_zoo/Evolink.graphml"),
-            Self::Fatman => include_str!("../../topology_zoo/Fatman.graphml"),
-            Self::Fccn => include_str!("../../topology_zoo/Fccn.graphml"),
-            Self::Forthnet => include_str!("../../topology_zoo/Forthnet.graphml"),
-            Self::Funet => include_str!("../../topology_zoo/Funet.graphml"),
-            Self::Gambia => include_str!("../../topology_zoo/Gambia.graphml"),
-            Self::Garr199901 => include_str!("../../topology_zoo/Garr199901.graphml"),
-            Self::Garr199904 => include_str!("../../topology_zoo/Garr199904.graphml"),
-            Self::Garr199905 => include_str!("../../topology_zoo/Garr199905.graphml"),
-            Self::Garr200109 => include_str!("../../topology_zoo/Garr200109.graphml"),
-            Self::Garr200112 => include_str!("../../topology_zoo/Garr200112.graphml"),
-            Self::Garr200212 => include_str!("../../topology_zoo/Garr200212.graphml"),
-            Self::Garr200404 => include_str!("../../topology_zoo/Garr200404.graphml"),
-            Self::Garr200902 => include_str!("../../topology_zoo/Garr200902.graphml"),
-            Self::Garr200908 => include_str!("../../topology_zoo/Garr200908.graphml"),
-            Self::Garr200909 => include_str!("../../topology_zoo/Garr200909.graphml"),
-            Self::Garr200912 => include_str!("../../topology_zoo/Garr200912.graphml"),
-            Self::Garr201001 => include_str!("../../topology_zoo/Garr201001.graphml"),
-            Self::Garr201003 => include_str!("../../topology_zoo/Garr201003.graphml"),
-            Self::Garr201004 => include_str!("../../topology_zoo/Garr201004.graphml"),
-            Self::Garr201005 => include_str!("../../topology_zoo/Garr201005.graphml"),
-            Self::Garr201007 => include_str!("../../topology_zoo/Garr201007.graphml"),
-            Self::Garr201008 => include_str!("../../topology_zoo/Garr201008.graphml"),
-            Self::Garr201010 => include_str!("../../topology_zoo/Garr201010.graphml"),
-            Self::Garr201012 => include_str!("../../topology_zoo/Garr201012.graphml"),
-            Self::Garr201101 => include_str!("../../topology_zoo/Garr201101.graphml"),
-            Self::Garr201102 => include_str!("../../topology_zoo/Garr201102.graphml"),
-            Self::Garr201103 => include_str!("../../topology_zoo/Garr201103.graphml"),
-            Self::Garr201104 => include_str!("../../topology_zoo/Garr201104.graphml"),
-            Self::Garr201105 => include_str!("../../topology_zoo/Garr201105.graphml"),
-            Self::Garr201107 => include_str!("../../topology_zoo/Garr201107.graphml"),
-            Self::Garr201108 => include_str!("../../topology_zoo/Garr201108.graphml"),
-            Self::Garr201109 => include_str!("../../topology_zoo/Garr201109.graphml"),
-            Self::Garr201110 => include_str!("../../topology_zoo/Garr201110.graphml"),
-            Self::Garr201111 => include_str!("../../topology_zoo/Garr201111.graphml"),
-            Self::Garr201112 => include_str!("../../topology_zoo/Garr201112.graphml"),
-            Self::Garr201201 => include_str!("../../topology_zoo/Garr201201.graphml"),
-            Self::Gblnet => include_str!("../../topology_zoo/Gblnet.graphml"),
-            Self::Geant2001 => include_str!("../../topology_zoo/Geant2001.graphml"),
-            Self::Geant2009 => include_str!("../../topology_zoo/Geant2009.graphml"),
-            Self::Geant2010 => include_str!("../../topology_zoo/Geant2010.graphml"),
-            Self::Geant2012 => include_str!("../../topology_zoo/Geant2012.graphml"),
-            Self::Getnet => include_str!("../../topology_zoo/Getnet.graphml"),
-            Self::Globalcenter => include_str!("../../topology_zoo/Globalcenter.graphml"),
-            Self::Globenet => include_str!("../../topology_zoo/Globenet.graphml"),
-            Self::Goodnet => include_str!("../../topology_zoo/Goodnet.graphml"),
-            Self::Grena => include_str!("../../topology_zoo/Grena.graphml"),
-            Self::Gridnet => include_str!("../../topology_zoo/Gridnet.graphml"),
-            Self::Grnet => include_str!("../../topology_zoo/Grnet.graphml"),
-            Self::GtsCe => include_str!("../../topology_zoo/GtsCe.graphml"),
-            Self::GtsCzechRepublic => include_str!("../../topology_zoo/GtsCzechRepublic.graphml"),
-            Self::GtsHungary => include_str!("../../topology_zoo/GtsHungary.graphml"),
-            Self::GtsPoland => include_str!("../../topology_zoo/GtsPoland.graphml"),
-            Self::GtsRomania => include_str!("../../topology_zoo/GtsRomania.graphml"),
-            Self::GtsSlovakia => include_str!("../../topology_zoo/GtsSlovakia.graphml"),
-            Self::Harnet => include_str!("../../topology_zoo/Harnet.graphml"),
-            Self::Heanet => include_str!("../../topology_zoo/Heanet.graphml"),
-            Self::HiberniaCanada => include_str!("../../topology_zoo/HiberniaCanada.graphml"),
-            Self::HiberniaGlobal => include_str!("../../topology_zoo/HiberniaGlobal.graphml"),
-            Self::HiberniaIreland => include_str!("../../topology_zoo/HiberniaIreland.graphml"),
-            Self::HiberniaNireland => include_str!("../../topology_zoo/HiberniaNireland.graphml"),
-            Self::HiberniaUk => include_str!("../../topology_zoo/HiberniaUk.graphml"),
-            Self::HiberniaUs => include_str!("../../topology_zoo/HiberniaUs.graphml"),
-            Self::Highwinds => include_str!("../../topology_zoo/Highwinds.graphml"),
-            Self::HostwayInternational => include_str!("../../topology_zoo/HostwayInternational.graphml"),
-            Self::HurricaneElectric => include_str!("../../topology_zoo/HurricaneElectric.graphml"),
-            Self::Ibm => include_str!("../../topology_zoo/Ibm.graphml"),
-            Self::Iij => include_str!("../../topology_zoo/Iij.graphml"),
-            Self::Iinet => include_str!("../../topology_zoo/Iinet.graphml"),
-            Self::Ilan => include_str!("../../topology_zoo/Ilan.graphml"),
-            Self::Integra => include_str!("../../topology_zoo/Integra.graphml"),
-            Self::Intellifiber => include_str!("../../topology_zoo/Intellifiber.graphml"),
-            Self::Internetmci => include_str!("../../topology_zoo/Internetmci.graphml"),
-            Self::Internode => include_str!("../../topology_zoo/Internode.graphml"),
-            Self::Interoute => include_str!("../../topology_zoo/Interoute.graphml"),
-            Self::Intranetwork => include_str!("../../topology_zoo/Intranetwork.graphml"),
-            Self::Ion => include_str!("../../topology_zoo/Ion.graphml"),
-            Self::IowaStatewideFiberMap => include_str!("../../topology_zoo/IowaStatewideFiberMap.graphml"),
-            Self::Iris => include_str!("../../topology_zoo/Iris.graphml"),
-            Self::Istar => include_str!("../../topology_zoo/Istar.graphml"),
-            Self::Itnet => include_str!("../../topology_zoo/Itnet.graphml"),
-            Self::JanetExternal => include_str!("../../topology_zoo/JanetExternal.graphml"),
-            Self::Janetbackbone => include_str!("../../topology_zoo/Janetbackbone.graphml"),
-            Self::Janetlense => include_str!("../../topology_zoo/Janetlense.graphml"),
-            Self::Jgn2Plus => include_str!("../../topology_zoo/Jgn2Plus.graphml"),
-            Self::Karen => include_str!("../../topology_zoo/Karen.graphml"),
-            Self::Kdl => include_str!("../../topology_zoo/Kdl.graphml"),
-            Self::KentmanApr2007 => include_str!("../../topology_zoo/KentmanApr2007.graphml"),
-            Self::KentmanAug2005 => include_str!("../../topology_zoo/KentmanAug2005.graphml"),
-            Self::KentmanFeb2008 => include_str!("../../topology_zoo/KentmanFeb2008.graphml"),
-            Self::KentmanJan2011 => include_str!("../../topology_zoo/KentmanJan2011.graphml"),
-            Self::KentmanJul2005 => include_str!("../../topology_zoo/KentmanJul2005.graphml"),
-            Self::Kreonet => include_str!("../../topology_zoo/Kreonet.graphml"),
-            Self::LambdaNet => include_str!("../../topology_zoo/LambdaNet.graphml"),
-            Self::Latnet => include_str!("../../topology_zoo/Latnet.graphml"),
-            Self::Layer42 => include_str!("../../topology_zoo/Layer42.graphml"),
-            Self::Litnet => include_str!("../../topology_zoo/Litnet.graphml"),
-            Self::Marnet => include_str!("../../topology_zoo/Marnet.graphml"),
-            Self::Marwan => include_str!("../../topology_zoo/Marwan.graphml"),
-            Self::Missouri => include_str!("../../topology_zoo/Missouri.graphml"),
-            Self::Mren => include_str!("../../topology_zoo/Mren.graphml"),
-            Self::Myren => include_str!("../../topology_zoo/Myren.graphml"),
-            Self::Napnet => include_str!("../../topology_zoo/Napnet.graphml"),
-            Self::Navigata => include_str!("../../topology_zoo/Navigata.graphml"),
-            Self::Netrail => include_str!("../../topology_zoo/Netrail.graphml"),
-            Self::NetworkUsa => include_str!("../../topology_zoo/NetworkUsa.graphml"),
-            Self::Nextgen => include_str!("../../topology_zoo/Nextgen.graphml"),
-            Self::Niif => include_str!("../../topology_zoo/Niif.graphml"),
-            Self::Noel => include_str!("../../topology_zoo/Noel.graphml"),
-            Self::Nordu1989 => include_str!("../../topology_zoo/Nordu1989.graphml"),
-            Self::Nordu1997 => include_str!("../../topology_zoo/Nordu1997.graphml"),
-            Self::Nordu2005 => include_str!("../../topology_zoo/Nordu2005.graphml"),
-            Self::Nordu2010 => include_str!("../../topology_zoo/Nordu2010.graphml"),
-            Self::Nsfcnet => include_str!("../../topology_zoo/Nsfcnet.graphml"),
-            Self::Nsfnet => include_str!("../../topology_zoo/Nsfnet.graphml"),
-            Self::Ntelos => include_str!("../../topology_zoo/Ntelos.graphml"),
-            Self::Ntt => include_str!("../../topology_zoo/Ntt.graphml"),
-            Self::Oteglobe => include_str!("../../topology_zoo/Oteglobe.graphml"),
-            Self::Oxford => include_str!("../../topology_zoo/Oxford.graphml"),
-            Self::Pacificwave => include_str!("../../topology_zoo/Pacificwave.graphml"),
-            Self::Packetexchange => include_str!("../../topology_zoo/Packetexchange.graphml"),
-            Self::Padi => include_str!("../../topology_zoo/Padi.graphml"),
-            Self::Palmetto => include_str!("../../topology_zoo/Palmetto.graphml"),
-            Self::Peer1 => include_str!("../../topology_zoo/Peer1.graphml"),
-            Self::Pern => include_str!("../../topology_zoo/Pern.graphml"),
-            Self::PionierL1 => include_str!("../../topology_zoo/PionierL1.graphml"),
-            Self::PionierL3 => include_str!("../../topology_zoo/PionierL3.graphml"),
-            Self::Psinet => include_str!("../../topology_zoo/Psinet.graphml"),
-            Self::Quest => include_str!("../../topology_zoo/Quest.graphml"),
-            Self::RedBestel => include_str!("../../topology_zoo/RedBestel.graphml"),
-            Self::Rediris => include_str!("../../topology_zoo/Rediris.graphml"),
-            Self::Renam => include_str!("../../topology_zoo/Renam.graphml"),
-            Self::Renater1999 => include_str!("../../topology_zoo/Renater1999.graphml"),
-            Self::Renater2001 => include_str!("../../topology_zoo/Renater2001.graphml"),
-            Self::Renater2004 => include_str!("../../topology_zoo/Renater2004.graphml"),
-            Self::Renater2006 => include_str!("../../topology_zoo/Renater2006.graphml"),
-            Self::Renater2008 => include_str!("../../topology_zoo/Renater2008.graphml"),
-            Self::Renater2010 => include_str!("../../topology_zoo/Renater2010.graphml"),
-            Self::Restena => include_str!("../../topology_zoo/Restena.graphml"),
-            Self::Reuna => include_str!("../../topology_zoo/Reuna.graphml"),
-            Self::Rhnet => include_str!("../../topology_zoo/Rhnet.graphml"),
-            Self::Rnp => include_str!("../../topology_zoo/Rnp.graphml"),
-            Self::Roedunet => include_str!("../../topology_zoo/Roedunet.graphml"),
-            Self::RoedunetFibre => include_str!("../../topology_zoo/RoedunetFibre.graphml"),
-            Self::Sago => include_str!("../../topology_zoo/Sago.graphml"),
-            Self::Sanet => include_str!("../../topology_zoo/Sanet.graphml"),
-            Self::Sanren => include_str!("../../topology_zoo/Sanren.graphml"),
-            Self::Savvis => include_str!("../../topology_zoo/Savvis.graphml"),
-            Self::Shentel => include_str!("../../topology_zoo/Shentel.graphml"),
-            Self::Sinet => include_str!("../../topology_zoo/Sinet.graphml"),
-            Self::Singaren => include_str!("../../topology_zoo/Singaren.graphml"),
-            Self::Spiralight => include_str!("../../topology_zoo/Spiralight.graphml"),
-            Self::Sprint => include_str!("../../topology_zoo/Sprint.graphml"),
-            Self::Sunet => include_str!("../../topology_zoo/Sunet.graphml"),
-            Self::Surfnet => include_str!("../../topology_zoo/Surfnet.graphml"),
-            Self::Switch => include_str!("../../topology_zoo/Switch.graphml"),
-            Self::SwitchL3 => include_str!("../../topology_zoo/SwitchL3.graphml"),
-            Self::Syringa => include_str!("../../topology_zoo/Syringa.graphml"),
-            Self::TLex => include_str!("../../topology_zoo/TLex.graphml"),
-            Self::TataNld => include_str!("../../topology_zoo/TataNld.graphml"),
-            Self::Telcove => include_str!("../../topology_zoo/Telcove.graphml"),
-            Self::Telecomserbia => include_str!("../../topology_zoo/Telecomserbia.graphml"),
-            Self::Tinet => include_str!("../../topology_zoo/Tinet.graphml"),
-            Self::Tw => include_str!("../../topology_zoo/Tw.graphml"),
-            Self::Twaren => include_str!("../../topology_zoo/Twaren.graphml"),
-            Self::Ulaknet => include_str!("../../topology_zoo/Ulaknet.graphml"),
-            Self::UniC => include_str!("../../topology_zoo/UniC.graphml"),
-            Self::Uninet => include_str!("../../topology_zoo/Uninet.graphml"),
-            Self::Uninett2010 => include_str!("../../topology_zoo/Uninett2010.graphml"),
-            Self::Uninett2011 => include_str!("../../topology_zoo/Uninett2011.graphml"),
-            Self::Uran => include_str!("../../topology_zoo/Uran.graphml"),
-            Self::UsCarrier => include_str!("../../topology_zoo/UsCarrier.graphml"),
-            Self::UsSignal => include_str!("../../topology_zoo/UsSignal.graphml"),
-            Self::Uunet => include_str!("../../topology_zoo/Uunet.graphml"),
-            Self::Vinaren => include_str!("../../topology_zoo/Vinaren.graphml"),
-            Self::VisionNet => include_str!("../../topology_zoo/VisionNet.graphml"),
-            Self::VtlWavenet2008 => include_str!("../../topology_zoo/VtlWavenet2008.graphml"),
-            Self::VtlWavenet2011 => include_str!("../../topology_zoo/VtlWavenet2011.graphml"),
-            Self::WideJpn => include_str!("../../topology_zoo/WideJpn.graphml"),
-            Self::Xeex => include_str!("../../topology_zoo/Xeex.graphml"),
-            Self::Xspedius => include_str!("../../topology_zoo/Xspedius.graphml"),
-            Self::York => include_str!("../../topology_zoo/York.graphml"),
-            Self::Zamren => include_str!("../../topology_zoo/Zamren.graphml"),
+            Self::Aarnet => &*GRAPHML_Aarnet,
+            Self::Abilene => &*GRAPHML_Abilene,
+            Self::Abvt => &*GRAPHML_Abvt,
+            Self::Aconet => &*GRAPHML_Aconet,
+            Self::Agis => &*GRAPHML_Agis,
+            Self::Ai3 => &*GRAPHML_Ai3,
+            Self::Airtel => &*GRAPHML_Airtel,
+            Self::Amres => &*GRAPHML_Amres,
+            Self::Ans => &*GRAPHML_Ans,
+            Self::Arn => &*GRAPHML_Arn,
+            Self::Arnes => &*GRAPHML_Arnes,
+            Self::Arpanet196912 => &*GRAPHML_Arpanet196912,
+            Self::Arpanet19706 => &*GRAPHML_Arpanet19706,
+            Self::Arpanet19719 => &*GRAPHML_Arpanet19719,
+            Self::Arpanet19723 => &*GRAPHML_Arpanet19723,
+            Self::Arpanet19728 => &*GRAPHML_Arpanet19728,
+            Self::AsnetAm => &*GRAPHML_AsnetAm,
+            Self::Atmnet => &*GRAPHML_Atmnet,
+            Self::AttMpls => &*GRAPHML_AttMpls,
+            Self::Azrena => &*GRAPHML_Azrena,
+            Self::Bandcon => &*GRAPHML_Bandcon,
+            Self::Basnet => &*GRAPHML_Basnet,
+            Self::Bbnplanet => &*GRAPHML_Bbnplanet,
+            Self::Bellcanada => &*GRAPHML_Bellcanada,
+            Self::Bellsouth => &*GRAPHML_Bellsouth,
+            Self::Belnet2003 => &*GRAPHML_Belnet2003,
+            Self::Belnet2004 => &*GRAPHML_Belnet2004,
+            Self::Belnet2005 => &*GRAPHML_Belnet2005,
+            Self::Belnet2006 => &*GRAPHML_Belnet2006,
+            Self::Belnet2007 => &*GRAPHML_Belnet2007,
+            Self::Belnet2008 => &*GRAPHML_Belnet2008,
+            Self::Belnet2009 => &*GRAPHML_Belnet2009,
+            Self::Belnet2010 => &*GRAPHML_Belnet2010,
+            Self::BeyondTheNetwork => &*GRAPHML_BeyondTheNetwork,
+            Self::Bics => &*GRAPHML_Bics,
+            Self::Biznet => &*GRAPHML_Biznet,
+            Self::Bren => &*GRAPHML_Bren,
+            Self::BsonetEurope => &*GRAPHML_BsonetEurope,
+            Self::BtAsiaPac => &*GRAPHML_BtAsiaPac,
+            Self::BtEurope => &*GRAPHML_BtEurope,
+            Self::BtLatinAmerica => &*GRAPHML_BtLatinAmerica,
+            Self::BtNorthAmerica => &*GRAPHML_BtNorthAmerica,
+            Self::Canerie => &*GRAPHML_Canerie,
+            Self::Carnet => &*GRAPHML_Carnet,
+            Self::Cernet => &*GRAPHML_Cernet,
+            Self::Cesnet1993 => &*GRAPHML_Cesnet1993,
+            Self::Cesnet1997 => &*GRAPHML_Cesnet1997,
+            Self::Cesnet1999 => &*GRAPHML_Cesnet1999,
+            Self::Cesnet2001 => &*GRAPHML_Cesnet2001,
+            Self::Cesnet200304 => &*GRAPHML_Cesnet200304,
+            Self::Cesnet200511 => &*GRAPHML_Cesnet200511,
+            Self::Cesnet200603 => &*GRAPHML_Cesnet200603,
+            Self::Cesnet200706 => &*GRAPHML_Cesnet200706,
+            Self::Cesnet201006 => &*GRAPHML_Cesnet201006,
+            Self::Chinanet => &*GRAPHML_Chinanet,
+            Self::Claranet => &*GRAPHML_Claranet,
+            Self::Cogentco => &*GRAPHML_Cogentco,
+            Self::Colt => &*GRAPHML_Colt,
+            Self::Columbus => &*GRAPHML_Columbus,
+            Self::Compuserve => &*GRAPHML_Compuserve,
+            Self::CrlNetworkServices => &*GRAPHML_CrlNetworkServices,
+            Self::Cudi => &*GRAPHML_Cudi,
+            Self::Cwix => &*GRAPHML_Cwix,
+            Self::Cynet => &*GRAPHML_Cynet,
+            Self::Darkstrand => &*GRAPHML_Darkstrand,
+            Self::Dataxchange => &*GRAPHML_Dataxchange,
+            Self::Deltacom => &*GRAPHML_Deltacom,
+            Self::DeutscheTelekom => &*GRAPHML_DeutscheTelekom,
+            Self::Dfn => &*GRAPHML_Dfn,
+            Self::DialtelecomCz => &*GRAPHML_DialtelecomCz,
+            Self::Digex => &*GRAPHML_Digex,
+            Self::Easynet => &*GRAPHML_Easynet,
+            Self::Eenet => &*GRAPHML_Eenet,
+            Self::EliBackbone => &*GRAPHML_EliBackbone,
+            Self::Epoch => &*GRAPHML_Epoch,
+            Self::Ernet => &*GRAPHML_Ernet,
+            Self::Esnet => &*GRAPHML_Esnet,
+            Self::Eunetworks => &*GRAPHML_Eunetworks,
+            Self::Evolink => &*GRAPHML_Evolink,
+            Self::Fatman => &*GRAPHML_Fatman,
+            Self::Fccn => &*GRAPHML_Fccn,
+            Self::Forthnet => &*GRAPHML_Forthnet,
+            Self::Funet => &*GRAPHML_Funet,
+            Self::Gambia => &*GRAPHML_Gambia,
+            Self::Garr199901 => &*GRAPHML_Garr199901,
+            Self::Garr199904 => &*GRAPHML_Garr199904,
+            Self::Garr199905 => &*GRAPHML_Garr199905,
+            Self::Garr200109 => &*GRAPHML_Garr200109,
+            Self::Garr200112 => &*GRAPHML_Garr200112,
+            Self::Garr200212 => &*GRAPHML_Garr200212,
+            Self::Garr200404 => &*GRAPHML_Garr200404,
+            Self::Garr200902 => &*GRAPHML_Garr200902,
+            Self::Garr200908 => &*GRAPHML_Garr200908,
+            Self::Garr200909 => &*GRAPHML_Garr200909,
+            Self::Garr200912 => &*GRAPHML_Garr200912,
+            Self::Garr201001 => &*GRAPHML_Garr201001,
+            Self::Garr201003 => &*GRAPHML_Garr201003,
+            Self::Garr201004 => &*GRAPHML_Garr201004,
+            Self::Garr201005 => &*GRAPHML_Garr201005,
+            Self::Garr201007 => &*GRAPHML_Garr201007,
+            Self::Garr201008 => &*GRAPHML_Garr201008,
+            Self::Garr201010 => &*GRAPHML_Garr201010,
+            Self::Garr201012 => &*GRAPHML_Garr201012,
+            Self::Garr201101 => &*GRAPHML_Garr201101,
+            Self::Garr201102 => &*GRAPHML_Garr201102,
+            Self::Garr201103 => &*GRAPHML_Garr201103,
+            Self::Garr201104 => &*GRAPHML_Garr201104,
+            Self::Garr201105 => &*GRAPHML_Garr201105,
+            Self::Garr201107 => &*GRAPHML_Garr201107,
+            Self::Garr201108 => &*GRAPHML_Garr201108,
+            Self::Garr201109 => &*GRAPHML_Garr201109,
+            Self::Garr201110 => &*GRAPHML_Garr201110,
+            Self::Garr201111 => &*GRAPHML_Garr201111,
+            Self::Garr201112 => &*GRAPHML_Garr201112,
+            Self::Garr201201 => &*GRAPHML_Garr201201,
+            Self::Gblnet => &*GRAPHML_Gblnet,
+            Self::Geant2001 => &*GRAPHML_Geant2001,
+            Self::Geant2009 => &*GRAPHML_Geant2009,
+            Self::Geant2010 => &*GRAPHML_Geant2010,
+            Self::Geant2012 => &*GRAPHML_Geant2012,
+            Self::Getnet => &*GRAPHML_Getnet,
+            Self::Globalcenter => &*GRAPHML_Globalcenter,
+            Self::Globenet => &*GRAPHML_Globenet,
+            Self::Goodnet => &*GRAPHML_Goodnet,
+            Self::Grena => &*GRAPHML_Grena,
+            Self::Gridnet => &*GRAPHML_Gridnet,
+            Self::Grnet => &*GRAPHML_Grnet,
+            Self::GtsCe => &*GRAPHML_GtsCe,
+            Self::GtsCzechRepublic => &*GRAPHML_GtsCzechRepublic,
+            Self::GtsHungary => &*GRAPHML_GtsHungary,
+            Self::GtsPoland => &*GRAPHML_GtsPoland,
+            Self::GtsRomania => &*GRAPHML_GtsRomania,
+            Self::GtsSlovakia => &*GRAPHML_GtsSlovakia,
+            Self::Harnet => &*GRAPHML_Harnet,
+            Self::Heanet => &*GRAPHML_Heanet,
+            Self::HiberniaCanada => &*GRAPHML_HiberniaCanada,
+            Self::HiberniaGlobal => &*GRAPHML_HiberniaGlobal,
+            Self::HiberniaIreland => &*GRAPHML_HiberniaIreland,
+            Self::HiberniaNireland => &*GRAPHML_HiberniaNireland,
+            Self::HiberniaUk => &*GRAPHML_HiberniaUk,
+            Self::HiberniaUs => &*GRAPHML_HiberniaUs,
+            Self::Highwinds => &*GRAPHML_Highwinds,
+            Self::HostwayInternational => &*GRAPHML_HostwayInternational,
+            Self::HurricaneElectric => &*GRAPHML_HurricaneElectric,
+            Self::Ibm => &*GRAPHML_Ibm,
+            Self::Iij => &*GRAPHML_Iij,
+            Self::Iinet => &*GRAPHML_Iinet,
+            Self::Ilan => &*GRAPHML_Ilan,
+            Self::Integra => &*GRAPHML_Integra,
+            Self::Intellifiber => &*GRAPHML_Intellifiber,
+            Self::Internetmci => &*GRAPHML_Internetmci,
+            Self::Internode => &*GRAPHML_Internode,
+            Self::Interoute => &*GRAPHML_Interoute,
+            Self::Intranetwork => &*GRAPHML_Intranetwork,
+            Self::Ion => &*GRAPHML_Ion,
+            Self::IowaStatewideFiberMap => &*GRAPHML_IowaStatewideFiberMap,
+            Self::Iris => &*GRAPHML_Iris,
+            Self::Istar => &*GRAPHML_Istar,
+            Self::Itnet => &*GRAPHML_Itnet,
+            Self::JanetExternal => &*GRAPHML_JanetExternal,
+            Self::Janetbackbone => &*GRAPHML_Janetbackbone,
+            Self::Janetlense => &*GRAPHML_Janetlense,
+            Self::Jgn2Plus => &*GRAPHML_Jgn2Plus,
+            Self::Karen => &*GRAPHML_Karen,
+            Self::Kdl => &*GRAPHML_Kdl,
+            Self::KentmanApr2007 => &*GRAPHML_KentmanApr2007,
+            Self::KentmanAug2005 => &*GRAPHML_KentmanAug2005,
+            Self::KentmanFeb2008 => &*GRAPHML_KentmanFeb2008,
+            Self::KentmanJan2011 => &*GRAPHML_KentmanJan2011,
+            Self::KentmanJul2005 => &*GRAPHML_KentmanJul2005,
+            Self::Kreonet => &*GRAPHML_Kreonet,
+            Self::LambdaNet => &*GRAPHML_LambdaNet,
+            Self::Latnet => &*GRAPHML_Latnet,
+            Self::Layer42 => &*GRAPHML_Layer42,
+            Self::Litnet => &*GRAPHML_Litnet,
+            Self::Marnet => &*GRAPHML_Marnet,
+            Self::Marwan => &*GRAPHML_Marwan,
+            Self::Missouri => &*GRAPHML_Missouri,
+            Self::Mren => &*GRAPHML_Mren,
+            Self::Myren => &*GRAPHML_Myren,
+            Self::Napnet => &*GRAPHML_Napnet,
+            Self::Navigata => &*GRAPHML_Navigata,
+            Self::Netrail => &*GRAPHML_Netrail,
+            Self::NetworkUsa => &*GRAPHML_NetworkUsa,
+            Self::Nextgen => &*GRAPHML_Nextgen,
+            Self::Niif => &*GRAPHML_Niif,
+            Self::Noel => &*GRAPHML_Noel,
+            Self::Nordu1989 => &*GRAPHML_Nordu1989,
+            Self::Nordu1997 => &*GRAPHML_Nordu1997,
+            Self::Nordu2005 => &*GRAPHML_Nordu2005,
+            Self::Nordu2010 => &*GRAPHML_Nordu2010,
+            Self::Nsfcnet => &*GRAPHML_Nsfcnet,
+            Self::Nsfnet => &*GRAPHML_Nsfnet,
+            Self::Ntelos => &*GRAPHML_Ntelos,
+            Self::Ntt => &*GRAPHML_Ntt,
+            Self::Oteglobe => &*GRAPHML_Oteglobe,
+            Self::Oxford => &*GRAPHML_Oxford,
+            Self::Pacificwave => &*GRAPHML_Pacificwave,
+            Self::Packetexchange => &*GRAPHML_Packetexchange,
+            Self::Padi => &*GRAPHML_Padi,
+            Self::Palmetto => &*GRAPHML_Palmetto,
+            Self::Peer1 => &*GRAPHML_Peer1,
+            Self::Pern => &*GRAPHML_Pern,
+            Self::PionierL1 => &*GRAPHML_PionierL1,
+            Self::PionierL3 => &*GRAPHML_PionierL3,
+            Self::Psinet => &*GRAPHML_Psinet,
+            Self::Quest => &*GRAPHML_Quest,
+            Self::RedBestel => &*GRAPHML_RedBestel,
+            Self::Rediris => &*GRAPHML_Rediris,
+            Self::Renam => &*GRAPHML_Renam,
+            Self::Renater1999 => &*GRAPHML_Renater1999,
+            Self::Renater2001 => &*GRAPHML_Renater2001,
+            Self::Renater2004 => &*GRAPHML_Renater2004,
+            Self::Renater2006 => &*GRAPHML_Renater2006,
+            Self::Renater2008 => &*GRAPHML_Renater2008,
+            Self::Renater2010 => &*GRAPHML_Renater2010,
+            Self::Restena => &*GRAPHML_Restena,
+            Self::Reuna => &*GRAPHML_Reuna,
+            Self::Rhnet => &*GRAPHML_Rhnet,
+            Self::Rnp => &*GRAPHML_Rnp,
+            Self::Roedunet => &*GRAPHML_Roedunet,
+            Self::RoedunetFibre => &*GRAPHML_RoedunetFibre,
+            Self::Sago => &*GRAPHML_Sago,
+            Self::Sanet => &*GRAPHML_Sanet,
+            Self::Sanren => &*GRAPHML_Sanren,
+            Self::Savvis => &*GRAPHML_Savvis,
+            Self::Shentel => &*GRAPHML_Shentel,
+            Self::Sinet => &*GRAPHML_Sinet,
+            Self::Singaren => &*GRAPHML_Singaren,
+            Self::Spiralight => &*GRAPHML_Spiralight,
+            Self::Sprint => &*GRAPHML_Sprint,
+            Self::Sunet => &*GRAPHML_Sunet,
+            Self::Surfnet => &*GRAPHML_Surfnet,
+            Self::Switch => &*GRAPHML_Switch,
+            Self::SwitchL3 => &*GRAPHML_SwitchL3,
+            Self::Syringa => &*GRAPHML_Syringa,
+            Self::TLex => &*GRAPHML_TLex,
+            Self::TataNld => &*GRAPHML_TataNld,
+            Self::Telcove => &*GRAPHML_Telcove,
+            Self::Telecomserbia => &*GRAPHML_Telecomserbia,
+            Self::Tinet => &*GRAPHML_Tinet,
+            Self::Tw => &*GRAPHML_Tw,
+            Self::Twaren => &*GRAPHML_Twaren,
+            Self::Ulaknet => &*GRAPHML_Ulaknet,
+            Self::UniC => &*GRAPHML_UniC,
+            Self::Uninet => &*GRAPHML_Uninet,
+            Self::Uninett2010 => &*GRAPHML_Uninett2010,
+            Self::Uninett2011 => &*GRAPHML_Uninett2011,
+            Self::Uran => &*GRAPHML_Uran,
+            Self::UsCarrier => &*GRAPHML_UsCarrier,
+            Self::UsSignal => &*GRAPHML_UsSignal,
+            Self::Uunet => &*GRAPHML_Uunet,
+            Self::Vinaren => &*GRAPHML_Vinaren,
+            Self::VisionNet => &*GRAPHML_VisionNet,
+            Self::VtlWavenet2008 => &*GRAPHML_VtlWavenet2008,
+            Self::VtlWavenet2011 => &*GRAPHML_VtlWavenet2011,
+            Self::WideJpn => &*GRAPHML_WideJpn,
+            Self::Xeex => &*GRAPHML_Xeex,
+            Self::Xspedius => &*GRAPHML_Xspedius,
+            Self::York => &*GRAPHML_York,
+            Self::Zamren => &*GRAPHML_Zamren,
         }
     }
 

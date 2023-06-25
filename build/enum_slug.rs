@@ -15,6 +15,8 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+#![allow(non_upper_case_globals)]
+
 //! Module containing the [TopologyZoo](http://www.topology-zoo.org/dataset.html) dataset. This file
 //! is automatically generated.
 //!
@@ -44,8 +46,11 @@ use crate::{
 
 use geoutils::Location;
 use std::collections::HashMap;
+use include_flate::flate;
 
 use serde::{Deserialize, Serialize};
+
+{{FLATE_INCLUDE}}
 
 /// Topologies from [TopologyZoo](http://www.topology-zoo.org/dataset.html). The following example
 /// code creates an Abilene network and configures it with random configuration:

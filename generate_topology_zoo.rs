@@ -117,11 +117,17 @@ fn main() {
         .iter()
         .map(|m| format!("{}Self::{} => {},", tab, m.name, m.num_internal_edges))
         .join("\n");
+    let flate_include = metadata
+        .iter()
+        .map(|m| {
+            format!("flate!(static GRAPHML_{0}: str from \"topology_zoo/{0}.graphml\");", m.name)
+        })
+        .join("\n");
     let graphml_cases = metadata
         .iter()
         .map(|m| {
             format!(
-                "{}Self::{} => include_str!(\"../../topology_zoo/{}.graphml\"),",
+                "{}Self::{} => &*GRAPHML_{},",
                 tab, m.name, m.name
             )
         })
@@ -183,7 +189,8 @@ fn main() {
         .replace("{{ORDER_INCREASING_NODES}}", &order_increasing_nodes)
         .replace("{{ORDER_INCREASING_EDGES}}", &order_increasing_edges)
         .replace("{{DISPLAY_CASES}}", &display_cases)
-        .replace("{{FROM_STR_CASES}}", &from_str_cases);
+        .replace("{{FROM_STR_CASES}}", &from_str_cases)
+        .replace("{{FLATE_INCLUDE}}", &flate_include);
 
     // replace the current topos file
     let _ = remove_file("src/topology_zoo/topos.rs");
