@@ -3,3 +3,4 @@
 tailwind.css
 publish.sh
 .gitconfig
+.dir-locals.el

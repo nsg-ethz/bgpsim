@@ -15,18 +15,27 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::interactive::InteractiveNetwork;
+use std::collections::HashMap;
+
+use bgpsim::{
+    builder::{constant_link_weight, NetworkBuilder},
+    interactive::InteractiveNetwork,
+    topology_zoo::TopologyZoo,
+};
+use itertools::Itertools;
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::{Blob, FileReader, HtmlElement, HtmlInputElement};
 use yew::prelude::*;
 use yewdux::prelude::*;
+use mapproj::{CenteredProjection, cylindrical::mer::Mer, LonLat, Projection};
+use geoutils::Location;
 
 use crate::{
     callback,
     http_serde::{export_url, import_json_str},
-    net::Net,
+    net::{Net, Queue},
     sidebar::Toggle,
-    state::State,
+    state::State, point::Point,
 };
 
 #[derive(Properties, PartialEq)]
@@ -98,7 +107,7 @@ pub fn MainMenu(props: &Properties) -> Html {
 
     let button_class = "absolute rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue text-base-1 hover:bg-blue-dark focus:bg-blue active:bg-blue-darker transition duration-150 ease-in-out";
     let bg_class = "absolute z-20 h-screen w-screen bg-black bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-300 ease-in-out";
-    let sidebar_class = "absolute z-20 h-screen -left-96 w-96 bg-base-1 peer-checked:opacity-100 pointer-events-none peer-checked:pointer-events-auto peer-checked:translate-x-full transition duration-300 ease-in-out";
+    let sidebar_class = "absolute z-20 h-screen -left-96 w-96 bg-base-1 peer-checked:opacity-100 pointer-events-none peer-checked:pointer-events-auto peer-checked:translate-x-full transition duration-300 ease-in-out overflow-auto";
     let link_class = "border-b border-base-4 hover:border-blue-dark hover:text-blue-dark transition duration-150 ease-in-out";
     let element_class = "w-full flex items-center py-4 px-6 h-12 overflow-hidden text-main text-ellipsis whitespace-nowrap rounded hover:text-blue hover:bg-base-2 transition duration-200 ease-in-out cursor-pointer active:ring-none";
     let target = "_blank";
@@ -174,6 +183,7 @@ pub fn MainMenu(props: &Properties) -> Html {
                                 {url}
                             </div>
                         }
+                        <ImportTopologyZoo main_class={element_class} />
                     }
                     <button class={element_class} onclick={restart_tour}>
                         <yew_lucide::HelpCircle class="h-6 mr-4" />
@@ -232,7 +242,7 @@ fn feature_settings(props: &FeatureSettingsProps) -> Html {
                 if *visible {
                     <yew_lucide::ChevronDown class="h-6 mr-4" />
                 } else {
-                    <yew_lucide::ChevronRight class="h-6 mr-4" />
+                    <yew_lucide::Wrench class="h-6 mr-4" />
                 }
                 {"Settings"}
             </button>
@@ -273,6 +283,110 @@ fn feature_settings(props: &FeatureSettingsProps) -> Html {
         </>
 
     }
+}
+
+#[derive(Clone, PartialEq, Properties)]
+struct ImportTopoProps {
+    main_class: &'static str,
+}
+
+#[function_component]
+fn ImportTopologyZoo(props: &ImportTopoProps) -> Html {
+    let visible = use_state(|| false);
+    let toggle_show = {
+        let visible = visible.clone();
+        Callback::from(move |_| visible.set(!*visible))
+    };
+
+    let element_class = "w-full flex items-center py-4 px-6 h-8 overflow-hidden text-main text-sm text-ellipsis whitespace-nowrap rounded hover:text-blue hover:bg-base-3 transition duration-200 ease-in-out cursor-pointer active:ring-none";
+
+    let options: Html = TopologyZoo::topologies_increasing_nodes()
+        .iter()
+        .copied()
+        .sorted_by_key(|x| x.to_string())
+        .map(|t| {
+            let onclick = callback!(move |_| import_topology_zoo(t));
+            let text = format!("{t} ({} nodes)", t.num_internals());
+            html! {<button class={element_class} {onclick}>{text}</button>}
+        })
+        .collect();
+
+    html! {
+        <>
+            <button class={props.main_class} onclick={toggle_show}>
+                if *visible {
+                    <yew_lucide::ChevronDown class="h-6 mr-4" />
+                } else {
+                    <yew_lucide::Globe class="h-6 mr-4" />
+                }
+                {"Load TopologyZoo"}
+            </button>
+            if *visible {
+                <div class= "w-full flex flex-col py-2 px-2 rounded bg-base-2 h-48 overflow-y-auto">
+                    { options }
+                </div>
+            }
+        </>
+    }
+}
+
+fn rad(x: Location) -> LonLat {
+    let mut lon = x.longitude();
+    let mut lat = x.latitude();
+    if lon < 0.0 {
+        lon += 360.0;
+    }
+    lon = lon * 3.1415926535 / 180.0;
+    lat = lat * 3.1415926535 / 180.0;
+    LonLat::new(lon, lat)
+}
+
+fn import_topology_zoo(topo: TopologyZoo) {
+    // generate the network
+    let mut net = topo.build(Queue::new());
+    // generate all link weights
+    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    // generate ebgp sessions
+    net.build_ebgp_sessions().unwrap();
+
+    // build the position
+    let mut geo = topo.geo_location();
+    geo.retain(|_, pos| pos.latitude() != 0.0 || pos.longitude() != 0.0);
+    let mut pos = HashMap::new();
+    if !geo.is_empty() {
+        let points = geo.values().collect_vec();
+        let center = rad(Location::center(&points));
+        let mut proj = CenteredProjection::new(Mer::new());
+        proj.set_proj_center_from_lonlat(&center);
+        for r in net.get_topology().node_indices() {
+            let p = geo.get(&r)
+                .map(|pos| rad(*pos))
+                .unwrap_or_else(|| center.clone());
+            let xy = proj.proj_lonlat(&p).unwrap();
+            pos.insert(r, Point::new(xy.x(), -xy.y()));
+        }
+        // Net::normalize_pos(&mut pos);
+    }
+
+    Dispatch::<Net>::new().reduce_mut(move |n| {
+        // set the network
+        *n.net.borrow_mut() = net;
+        // reset the spec
+        n.spec.borrow_mut().clear();
+        #[cfg(feature = "atomic_bgp")]
+        {
+            n.migration.borrow_mut().clear();
+            n.migration_state.borrow_mut().clear();
+        }
+
+        // set the position
+        if geo.is_empty() {
+            n.spring_layout();
+        } else {
+            *n.pos.borrow_mut() = pos;
+            n.normalize_pos_scale_only();
+        }
+    })
 }
 
 fn import_file(file_ref: NodeRef) -> Option<Closure<dyn Fn(ProgressEvent)>> {

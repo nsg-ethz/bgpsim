@@ -11,7 +11,7 @@ anonymous = []
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
-bgpsim = { path = "../bgpsim" }
+bgpsim = { path = "../bgpsim", features = ["topology_zoo"] }
 atomic-command = { path = "../atomic-bgp/atomic-command", features = ["serde"], optional = true }
 yew = { version = "0.20", features = ["csr"] }
 yewdux = { version = "0.9"}
@@ -37,3 +37,5 @@ base64 = "0.13"
 sise = "0.8.0"
 ipnet = "2.7.0"
 gloo-events = "0.1.2"
+mapproj = "0.3"
+geoutils = "0.5.1"
