@@ -12,7 +12,7 @@ anonymous = []
 
 [dependencies]
 bgpsim = { path = "../bgpsim", features = ["topology_zoo"] }
-atomic-command = { path = "../atomic-bgp/atomic-command", features = ["serde"], optional = true }
+atomic-command = { path = "../chameleon/atomic-command", features = ["serde"], optional = true }
 yew = { version = "0.20", features = ["csr"] }
 yewdux = { version = "0.9"}
 yew-lucide = "0.172"
