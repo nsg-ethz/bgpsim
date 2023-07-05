@@ -1,5 +1,5 @@
 // BgpSim: BGP Network Simulator written in Rust
-// Copyright (C) 2022 Tibor Schneider
+// Copyright (C) 2022-2023 Tibor Schneider <sctibor@ethz.ch>
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
