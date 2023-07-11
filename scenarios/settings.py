@@ -13,6 +13,8 @@ print(f"set ip of {filename} to {ip}")
 with open(filename, "r") as fp:
     data = json.load(fp)
 
+if "settings" not in data:
+    data["settings"] = {"features": {}}
 data["settings"]["prefix"] = ip
 data["settings"]["layer"] = "RouteProp"
 data["settings"]["manual_simulation"] = True
