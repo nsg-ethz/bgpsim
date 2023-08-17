@@ -129,7 +129,7 @@ const STEPS: &[TourStep] = &[
             "The simulator comes with a built-in verifier. At every step, the simulator will check all forwarding properties, and notify you as soon as any property is violated.",
             "By clicking on this button, the sidebar on the right will show all properties (and which of them are violated)."
         ],
-        align: Align::BottomLeft,
+        align: Align::Bottom,
     },
     TourStep::Text(
         &[

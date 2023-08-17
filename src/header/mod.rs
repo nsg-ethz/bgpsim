@@ -63,7 +63,9 @@ pub fn header(props: &Properties) -> Html {
                         <AddRouter />
                     }
                     <LayerSelection />
-                    <PrefixSelection />
+                    if !*simple {
+                        <PrefixSelection />
+                    }
                 </div>
                 <Verifier />
                 <MigrationButton />
