@@ -21,11 +21,14 @@ use bgpsim::{
     route_map::{RouteMap, RouteMapDirection},
     types::RouterId,
 };
+use gloo_events::EventListener;
 use gloo_timers::callback::Timeout;
-use gloo_utils::{document, window};
+use gloo_utils::{document, window, format::JsValueSerdeExt};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 use strum_macros::EnumIter;
+use wasm_bindgen::JsCast;
+use web_sys::{Event, MessageEvent};
 use yew::prelude::{html, Html};
 use yewdux::{
     mrc::Mrc,
@@ -167,6 +170,9 @@ impl State {
 
     /// initialize the theme by checking the media tag. and/or local storage.
     pub fn init_theme(&mut self) {
+        // setup the event listener
+        EventListener::new(&window(), "message", theme_message).forget();
+
         // do nothing if the theme is already forced.
         if self.theme_forced {
             return;
@@ -301,6 +307,27 @@ impl State {
     pub fn get_flash(&self) -> Option<Flash> {
         self.flash
     }
+}
+
+/// change the theme according to the event received.
+fn theme_message(event: &Event) {
+    if let Some(event) = event.dyn_ref::<MessageEvent>() {
+        let data = event.data();
+        if let Ok(content) = data.into_serde::<ThemeMessage>() {
+            log::info!("Switching theme according to the received event!");
+            let dark_mode = content.dark;
+            Dispatch::<State>::new().reduce_mut(move |s| if dark_mode {
+                s.set_dark_mode();
+            } else {
+                s.set_light_mode();
+            });
+        }
+    }
+}
+
+#[derive(Clone, Copy, Deserialize)]
+struct ThemeMessage {
+    dark: bool,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
