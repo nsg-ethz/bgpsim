@@ -26,7 +26,7 @@ const ARROW_LENGTH: f64 = 14.0;
 
 #[function_component(ArrowMarkers)]
 pub fn arrow_markers() -> Html {
-    let class_template = classes! { "fill-current", "drop-shadows-md", "hover:drop-shadows-lg", "transition", "duration-150", "ease-in-out"};
+    let class_template = classes! { "fill-current", "drop-shadows-md", "hover:drop-shadows-lg", "transition", "transition-[stroke-width]", "duration-150", "ease-in-out"};
 
     html! {
         <defs>
@@ -67,6 +67,7 @@ pub struct ArrowProps {
 pub fn arrow(props: &ArrowProps) -> Html {
     let class = classes! {
         "stroke-current", "stroke-4", "drop-shadows-md", "peer-hover:drop-shadows-lg", "pointer-events-none",
+        "transition-svg", "duration-150", "ease-in-out", "peer-hover:stroke-6",
         props.color.peer_classes()
     };
     let hovered = use_state(|| false);
@@ -116,6 +117,8 @@ pub struct CurvedArrowProps {
     pub angle: f64,
     pub color: SvgColor,
     pub sub_radius: bool,
+    #[prop_or_default]
+    pub bidirectional: bool,
     pub on_mouse_enter: Option<Callback<MouseEvent>>,
     pub on_mouse_leave: Option<Callback<MouseEvent>>,
     pub on_click: Option<Callback<MouseEvent>>,
@@ -134,24 +137,45 @@ pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
             props.color.arrow_tip()
         }
     );
+    let rev_marker_end = marker_end.clone();
     let class = classes! {
         "stroke-current", "stroke-4", "drop-shadows-md", "peer-hover:drop-shadows-lg", "pointer-events-none",
+        "transition-svg", "duration-150", "ease-in-out", "peer-hover:stroke-6",
         props.color.peer_classes(),
         props.class.clone().unwrap_or_default(),
     };
+    let rev_class = class.clone();
     let phantom_class = "stroke-current stroke-16 opacity-0 peer";
     let p1 = props.p1;
     let p2 = props.p2;
     let pt = get_curve_point(p1, p2, props.angle);
-    let (p1, p2) = if props.sub_radius {
-        (
+    let (p1, p2, p1_rev) = match (props.sub_radius, props.bidirectional) {
+        (true, true) => (
+            p1.interpolate_absolute(pt, ROUTER_RADIUS + ARROW_LENGTH),
+            p2.interpolate_absolute(pt, ROUTER_RADIUS + ARROW_LENGTH),
+            p1.interpolate_absolute(pt, ROUTER_RADIUS + ARROW_LENGTH),
+        ),
+        (true, false) => (
             p1.interpolate_absolute(pt, ROUTER_RADIUS),
             p2.interpolate_absolute(pt, ROUTER_RADIUS + ARROW_LENGTH),
-        )
-    } else {
-        (p1, p2.interpolate_absolute(pt, ARROW_LENGTH))
+            p1.interpolate_absolute(pt, ROUTER_RADIUS + ARROW_LENGTH),
+        ),
+        (false, true) => (
+            p1.interpolate_absolute(pt, ARROW_LENGTH),
+            p2.interpolate_absolute(pt, ARROW_LENGTH),
+            p1.interpolate_absolute(pt, ARROW_LENGTH),
+        ),
+        (false, false) => (
+            p1,
+            p2.interpolate_absolute(pt, ARROW_LENGTH),
+            p1.interpolate_absolute(pt, ARROW_LENGTH),
+        ),
     };
     let d = format!("M {} {} Q {} {} {} {}", p1.x, p1.y, pt.x, pt.y, p2.x, p2.y);
+    let rev_d = format!(
+        "M {} {} Q {} {} {} {}",
+        p2.x, p2.y, pt.x, pt.y, p1_rev.x, p1_rev.y
+    );
 
     let onclick = props.on_click.clone();
     let oncontextmenu = props.on_context_menu.clone();
@@ -176,6 +200,9 @@ pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
         <g>
             <path d={d.clone()} class={phantom_class} {onclick} {onmouseenter} {onmouseleave} {oncontextmenu} fill="none" />
             <path marker-end={marker_end} {d} {class} fill="none" />
+            if props.bidirectional {
+                <path marker-end={rev_marker_end} d={rev_d} class={rev_class} fill="none" />
+            }
         </g>
     }
 }

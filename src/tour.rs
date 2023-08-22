@@ -103,7 +103,7 @@ const STEPS: &[TourStep] = &[
         alternative: None,
         actions: &[Action::ShowMigration],
         paragraphs: &[
-            "The current scenario comes with a predefined migration plan. By clicking this button, the complete migration plan shows on the right.",
+            "The current scenario comes with a predefined reconfiguration plan. By clicking this button, the complete configuration plan shows on the right.",
         ],
         align: Align::BottomLeft,
     },
@@ -113,10 +113,10 @@ const STEPS: &[TourStep] = &[
         alternative: None,
         actions: &[],
         paragraphs: &[
-            "The migration is separated into three pahses: the setup, the main update phase, and the cleanup. Each phase is further divided into multiple steps.",
+            "The reconfiguration is separated into three pahses: the setup, the main update phase, and the cleanup. Each phase is further divided into multiple steps.",
             "Chameleon requires each step to be completed before moving to the next one. Within each step, different commands can be executed in any order, as long as their precondition is satisfied.",
             "The sidebar will show all individual commands, including their pre- and postconditions. By clicking on any command (that has its preconditions satisfied), the modifications are performed.",
-            "Note, that the network does by default not automatically process BGP messages. You will need to process some messages of the queue in order to complete the migration.",
+            "Note, that the network does by default not automatically process BGP messages. You will need to process some messages of the queue in order to complete the reconfiguration.",
         ],
         align: Align::Left,
     },
@@ -135,7 +135,7 @@ const STEPS: &[TourStep] = &[
         &[
             "You now understand the basics of the simulator.",
             #[cfg(feature = "atomic_bgp")]
-            "Please consider reading the paper for information on how the migration plan is generated, and which guarantees it can provide.",
+            "Please consider reading the paper for information on how the reconfiguration plan is generated, and which guarantees it can provide.",
         ],
         &[Action::SelectNothing]
     ),

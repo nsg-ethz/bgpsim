@@ -83,13 +83,13 @@ pub fn AddConnection() -> Html {
             }
         }
         Connection::BgpSession(kind) => {
-            let color = match kind {
-                BgpSessionType::IBgpPeer => SvgColor::BlueLight,
-                BgpSessionType::IBgpClient => SvgColor::PurpleLight,
-                BgpSessionType::EBgp => SvgColor::RedLight,
+            let (color, bidirectional) = match kind {
+                BgpSessionType::IBgpPeer => (SvgColor::BlueLight, true),
+                BgpSessionType::IBgpClient => (SvgColor::PurpleLight, false),
+                BgpSessionType::EBgp => (SvgColor::RedLight, false),
             };
             html! {
-                <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true}/>
+                <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {bidirectional}/>
             }
         }
     }

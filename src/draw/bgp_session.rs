@@ -66,16 +66,11 @@ pub fn BgpSession(props: &Properties) -> Html {
         })
     };
 
+    let bidirectional = props.session_type == BgpSessionType::IBgpPeer;
+
     html! {
         <>
-            {
-                if props.session_type == BgpSessionType::IBgpPeer {
-                    html!{<CurvedArrow {color} p1={p2} p2={p1} angle={-15.0} sub_radius={true} />}
-                } else {
-                    html!{}
-                }
-            }
-            <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} {on_context_menu} />
+            <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} {on_context_menu} {bidirectional} />
             <RouteMap id={src} peer={dst} direction={RouteMapDirection::Incoming} angle={15.0} />
             <RouteMap id={src} peer={dst} direction={RouteMapDirection::Outgoing} angle={15.0} />
             <RouteMap id={dst} peer={src} direction={RouteMapDirection::Incoming} angle={-15.0} />
@@ -135,7 +130,7 @@ pub fn RouteMap(props: &RmProps) -> Html {
     let onmouseleave = dispatch.reduce_mut_callback(|s| s.clear_hover());
 
     html! {
-        <svg fill="none" stroke-linecap="round" stroke-linejoint="round" class="text-main stroke-2 fill-none stroke-current" {onmouseenter} {onmouseleave} x={p.x()} y={p.y()}>
+        <svg fill="none" stroke-linecap="round" stroke-linejoint="round" class="text-main stroke-2 fill-none stroke-current hover:stroke-4 transition-svg ease-in-out" {onmouseenter} {onmouseleave} x={p.x()} y={p.y()}>
             { arrow_path}
         </svg>
     }

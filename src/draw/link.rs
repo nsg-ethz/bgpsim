@@ -52,9 +52,9 @@ pub fn Link(props: &Properties) -> Html {
     );
     let s = use_selector(|state| VisState::new(state));
 
-    let width = "stroke-1 peer-hover:stroke-2";
-    let thick_width = "stroke-2 peer-hover:stroke-4";
-    let common = "stroke-current pointer-events-none";
+    let width = "stroke-1 peer-hover:stroke-6";
+    let thick_width = "stroke-4 peer-hover:stroke-6";
+    let common = "stroke-current pointer-events-none transition-svg ease-in-out";
 
     let class = if matches!(s.layer, Layer::Bgp | Layer::RouteProp) {
         classes!(common, width, "text-main-ia")

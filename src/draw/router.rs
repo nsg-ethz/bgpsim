@@ -77,24 +77,14 @@ pub fn Router(props: &Properties) -> Html {
 
     let radius = format!("{ROUTER_RADIUS}");
     let color = if s.selected {
-        "text-blue stroke-blue hover:stroke-main drop-shadow-lg"
-    } else if s.glow {
-        "stroke-main text-base-4 drop-shadow-md"
+        "text-blue hover:stroke-main drop-shadow-lg"
     } else {
-        "text-base-1 hover:text-base-4 stroke-main drop-shadow-md"
+        "text-base-1 hover-text-base-4 drop-shadow-md"
     };
-
-    let blur_class = if s.glow {
-        "fill-current text-blue"
+    let border = if s.glow {
+        "stroke-main stroke-[6px]"
     } else {
-        "opacity-0"
-    };
-    let blur_r = format!("{}", ROUTER_RADIUS * 1.3);
-    let blur = html! {
-        <circle
-            class={classes!(blur_class, "stroke-0", "blur-lg", "pointer-events-none", "transition", "duration-150", "ease-in-out")}
-            style="cursor"
-            cx={p.x()} cy={p.y()} r={blur_r} />
+        "stroke-main stroke-1"
     };
     let pointer = if clickable { "" } else { "cursor-not-allowed" };
     let id = if s.selected { "selected-router" } else { "" };
@@ -107,9 +97,8 @@ pub fn Router(props: &Properties) -> Html {
         );
         html! {
             <>
-                { blur }
                 <path d={path} {id}
-                    class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color, pointer)}
+                    class={classes!("fill-current", "hover:drop-shadow-xl", "transition-svg", "ease-in-out" , color, border, pointer)}
                     style="cursor"
                     cx={p.x()} cy={p.y()} r={radius}
                     {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup} {oncontextmenu}/>
@@ -118,9 +107,8 @@ pub fn Router(props: &Properties) -> Html {
     } else {
         html! {
             <>
-                { blur }
                 <circle {id}
-                    class={classes!("fill-current", "stroke-1", "hover:drop-shadow-xl", "transition", "duration-150", "ease-in-out" , color, pointer)}
+            class={classes!("fill-current", "hover:drop-shadow-xl", "transition-svg", "ease-in-out" , color, border, pointer)}
                     style="cursor"
                     cx={p.x()} cy={p.y()} r={radius}
                     {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup} {oncontextmenu}/>
