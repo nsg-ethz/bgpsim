@@ -179,7 +179,7 @@ mod t {
 
         for src in net.get_routers() {
             let r = net.get_device(src).unwrap_internal();
-            let igp_table = r.get_igp_fw_table();
+            let igp_table = r.igp.get_table();
             assert!(igp_table
                 .iter()
                 .filter(|(target, _)| **target != src)
@@ -390,7 +390,7 @@ mod t {
     fn assert_igp_reachability<P: Prefix, Q>(net: &Network<P, Q>) {
         for src in net.get_routers() {
             let r = net.get_device(src).unwrap_internal();
-            let igp_table = r.get_igp_fw_table();
+            let igp_table = r.igp.get_table();
             assert!(igp_table
                 .iter()
                 .filter(|(target, _)| **target != src)

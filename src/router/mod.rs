@@ -3,6 +3,7 @@
 //
 // This program is free software; you can redistribute it and/or modify
 // it under the terms of the GNU General Public License as published by
+
 // the Free Software Foundation; either version 2 of the License, or
 // (at your option) any later version.
 //
@@ -29,21 +30,22 @@ use crate::{
         RouteMapDirection::{self, Incoming, Outgoing},
         RouteMapList,
     },
-    types::{
-        AsId, DeviceError, IgpNetwork, LinkWeight, Prefix, PrefixMap, PrefixSet, RouterId,
-        StepUpdate,
-    },
+    types::{AsId, DeviceError, IgpNetwork, Prefix, PrefixMap, PrefixSet, RouterId, StepUpdate},
 };
 use itertools::Itertools;
 use log::*;
 use ordered_float::NotNan;
-use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
 use std::{
     collections::{HashMap, HashSet},
     fmt::Write,
-    mem::swap,
 };
+
+mod bgp_process;
+mod igp_process;
+mod sr_process;
+
+use igp_process::IgpProcess;
 
 /// Bgp Router
 #[derive(Debug)]
@@ -54,10 +56,8 @@ pub struct Router<P: Prefix> {
     router_id: RouterId,
     /// AS Id of the router
     as_id: AsId,
-    /// Neighbors of that node. This updates with any IGP update
-    pub(crate) neighbors: HashMap<RouterId, LinkWeight>,
-    /// forwarding table for IGP messages
-    pub igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+    /// The IGP routing process
+    pub igp: IgpProcess,
     /// Static Routes for Prefixes
     pub(crate) static_routes: P::Map<StaticRoute>,
     /// hashmap of all bgp sessions
@@ -91,8 +91,7 @@ impl<P: Prefix> Clone for Router<P> {
             name: self.name.clone(),
             router_id: self.router_id,
             as_id: self.as_id,
-            igp_table: self.igp_table.clone(),
-            neighbors: self.neighbors.clone(),
+            igp: self.igp.clone(),
             static_routes: self.static_routes.clone(),
             bgp_sessions: self.bgp_sessions.clone(),
             bgp_rib_in: self.bgp_rib_in.clone(),
@@ -112,8 +111,7 @@ impl<P: Prefix> Router<P> {
             name,
             router_id,
             as_id,
-            igp_table: HashMap::new(),
-            neighbors: HashMap::new(),
+            igp: IgpProcess::new(router_id),
             static_routes: Default::default(),
             bgp_sessions: HashMap::new(),
             bgp_rib_in: Default::default(),
@@ -140,37 +138,6 @@ impl<P: Prefix> Router<P> {
         result
     }
 
-    /// Get a struct to display the IGP table.
-    pub fn fmt_igp_table<Q>(&self, net: &'_ Network<P, Q>) -> String {
-        let mut result = String::new();
-        let f = &mut result;
-        for r in net.get_routers() {
-            if r == self.router_id {
-                continue;
-            }
-            let (next_hops, cost, found) = self
-                .igp_table
-                .get(&r)
-                .map(|(x, cost)| (x.as_slice(), cost, true))
-                .unwrap_or((Default::default(), &LinkWeight::INFINITY, false));
-            writeln!(
-                f,
-                "{} -> {}: {}, cost = {:.2}{}",
-                self.name,
-                r.fmt(net),
-                if next_hops.is_empty() {
-                    String::from("X")
-                } else {
-                    next_hops.iter().map(|x| x.fmt(net)).join("|")
-                },
-                cost,
-                if found { "" } else { " (missing)" }
-            )
-            .unwrap();
-        }
-        result
-    }
-
     /// Return the idx of the Router
     pub fn router_id(&self) -> RouterId {
         self.router_id
@@ -184,13 +151,6 @@ impl<P: Prefix> Router<P> {
     /// Return the AS ID of the Router
     pub fn as_id(&self) -> AsId {
         self.as_id
-    }
-
-    /// Returns the IGP Forwarding table. The table maps the ID of every router in the network to
-    /// a tuple `(next_hop, cost)` of the next hop on the path and the cost to reach the
-    /// destination.
-    pub fn get_igp_fw_table(&self) -> &HashMap<RouterId, (Vec<RouterId>, LinkWeight)> {
-        &self.igp_table
     }
 
     /// handle an `Event`. This function returns all events triggered by this function, and a
@@ -278,17 +238,11 @@ impl<P: Prefix> Router<P> {
     pub fn get_next_hop(&self, prefix: P) -> Vec<RouterId> {
         fn sr_next_hops<P: Prefix>(r: &Router<P>, target: &StaticRoute) -> Vec<RouterId> {
             match target {
-                StaticRoute::Direct(target) => r
-                    .neighbors
-                    .get(target)
-                    .map(|_| vec![*target])
-                    .unwrap_or_default(),
-                StaticRoute::Indirect(target) => r
-                    .igp_table
-                    .get(target)
-                    .map(|(x, _)| x.clone())
-                    .or_else(|| r.neighbors.get(target).map(|_| vec![*target]))
-                    .unwrap_or_default(),
+                StaticRoute::Direct(target) if r.igp.is_neighbor(*target) => vec![*target],
+                StaticRoute::Direct() => vec![],
+                StaticRoute::Indirect(target) => {
+                    r.igp.get(*target).map(|x| x.to_vec()).unwrap_or_default()
+                }
                 StaticRoute::Drop => vec![],
             }
         }
@@ -299,11 +253,19 @@ impl<P: Prefix> Router<P> {
         let next_hops = match (sr, bgp) {
             (None, None) => vec![],
             (Some((_, target)), None) => sr_next_hops(self, target),
-            (None, Some((_, entry))) => self.igp_table[&entry.route.next_hop].0.clone(),
+            (None, Some((_, entry))) => self
+                .igp
+                .get(entry.route.next_hop)
+                .expect("Only reachable entries are inserted in the BGP table!")
+                .to_vec(),
             (Some((nh_sr, target)), Some((nh_bgp, _))) if nh_bgp.contains(nh_sr) => {
                 sr_next_hops(self, target)
             }
-            (Some(_), Some((_, entry))) => self.igp_table[&entry.route.next_hop].0.clone(),
+            (Some(_), Some((_, entry))) => self
+                .igp
+                .get(entry.route.next_hop)
+                .expect("Only reachable entries are inserted in the BGP table!")
+                .to_vec(),
         };
 
         if self.do_load_balancing {
@@ -631,37 +593,7 @@ impl<P: Prefix> Router<P> {
         graph: &IgpNetwork,
         ospf: &OspfState,
     ) -> Result<Vec<Event<P, T>>, DeviceError> {
-        // clear the forwarding table
-        let mut swap_table = HashMap::new();
-        swap(&mut self.igp_table, &mut swap_table);
-
-        // create the new neighbors hashmap
-        let mut neighbors: HashMap<RouterId, LinkWeight> = graph
-            .edges(self.router_id)
-            .map(|r| (r.target(), *r.weight()))
-            .filter(|(_, w)| w.is_finite())
-            .collect();
-        swap(&mut self.neighbors, &mut neighbors);
-
-        for target in graph.node_indices() {
-            if target == self.router_id {
-                self.igp_table.insert(target, (vec![], 0.0));
-                continue;
-            }
-
-            let (next_hops, weight) = ospf.get_next_hops(self.router_id, target);
-            // check if the next hops are empty
-            if next_hops.is_empty() {
-                // no next hops could be found using OSPF. Check if the target is directly
-                // connected.
-                if let Some(w) = self.neighbors.get(&target) {
-                    self.igp_table.insert(target, (vec![target], *w));
-                }
-            } else {
-                self.igp_table.insert(target, (next_hops, weight));
-            }
-        }
-
+        self.igp.update_table(graph, ospf);
         self.update_bgp_tables(false)
     }
 
@@ -938,10 +870,9 @@ impl<P: Prefix> Router<P> {
         entry.igp_cost = Some(
             entry.igp_cost.unwrap_or(
                 match self
-                    .igp_table
-                    .get(&entry.route.next_hop)
+                    .igp
+                    .get_cost(entry.route.next_hop)
                     .ok_or(DeviceError::RouterNotFound(entry.route.next_hop))?
-                    .1
                 {
                     cost if cost.is_infinite() => return Ok(None),
                     cost => NotNan::new(cost).unwrap(),
@@ -1056,7 +987,7 @@ impl<P: Prefix> PartialEq for Router<P> {
             && self.do_load_balancing == other.do_load_balancing
             && self.router_id == other.router_id
             && self.as_id == other.as_id
-            && self.igp_table == other.igp_table
+            && self.igp == other.igp
             && self.static_routes == other.static_routes
             && self.bgp_sessions == other.bgp_sessions
             && self.bgp_rib == other.bgp_rib
@@ -1110,8 +1041,7 @@ impl<P: Prefix> Serialize for Router<P> {
             name: String,
             router_id: RouterId,
             as_id: AsId,
-            neighbors: Vec<(RouterId, LinkWeight)>,
-            igp_table: Vec<(RouterId, (Vec<RouterId>, LinkWeight))>,
+            igp: IgpProcess,
             static_routes: P::Map<StaticRoute>,
             bgp_sessions: Vec<(RouterId, BgpSessionType)>,
             bgp_rib_in: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
@@ -1126,8 +1056,7 @@ impl<P: Prefix> Serialize for Router<P> {
             name: self.name.clone(),
             router_id: self.router_id,
             as_id: self.as_id,
-            neighbors: self.neighbors.clone().into_iter().collect(),
-            igp_table: self.igp_table.clone().into_iter().collect(),
+            igp: self.igp.clone(),
             static_routes: self.static_routes.clone(),
             bgp_sessions: self.bgp_sessions.clone().into_iter().collect(),
             bgp_rib_in: self
@@ -1163,8 +1092,7 @@ impl<'de, P: Prefix> Deserialize<'de> for Router<P> {
             name: String,
             router_id: RouterId,
             as_id: AsId,
-            neighbors: Vec<(RouterId, LinkWeight)>,
-            igp_table: Vec<(RouterId, (Vec<RouterId>, LinkWeight))>,
+            igp: IgpProcess,
             static_routes: P::Map<StaticRoute>,
             bgp_sessions: Vec<(RouterId, BgpSessionType)>,
             bgp_rib_in: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
@@ -1180,8 +1108,7 @@ impl<'de, P: Prefix> Deserialize<'de> for Router<P> {
             name: router.name,
             router_id: router.router_id,
             as_id: router.as_id,
-            neighbors: router.neighbors.into_iter().collect(),
-            igp_table: router.igp_table.into_iter().collect(),
+            igp: router.igp,
             static_routes: router.static_routes,
             bgp_sessions: router.bgp_sessions.into_iter().collect(),
             bgp_rib_in: router

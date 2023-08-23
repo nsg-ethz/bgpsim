@@ -120,17 +120,15 @@ fn main() {
     let flate_include = metadata
         .iter()
         .map(|m| {
-            format!("flate!(static GRAPHML_{0}: str from \"topology_zoo/{0}.graphml\");", m.name)
+            format!(
+                "flate!(static GRAPHML_{0}: str from \"topology_zoo/{0}.graphml\");",
+                m.name
+            )
         })
         .join("\n");
     let graphml_cases = metadata
         .iter()
-        .map(|m| {
-            format!(
-                "{}Self::{} => &*GRAPHML_{},",
-                tab, m.name, m.name
-            )
-        })
+        .map(|m| format!("{}Self::{} => &*GRAPHML_{},", tab, m.name, m.name))
         .join("\n");
 
     let variant_slug = include_str!("build/variant_slug.rs");

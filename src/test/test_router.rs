@@ -46,7 +46,7 @@ mod t2 {
         r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
         r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
         r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
-        r.igp_table = hashmap! {
+        r.igp.igp_table = hashmap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
@@ -368,7 +368,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_a.igp_table;
+        let acq = &r_a.igp.igp_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -387,7 +387,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_b.igp_table;
+        let acq = &r_b.igp.igp_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -406,7 +406,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_c.igp_table;
+        let acq = &r_c.igp.igp_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -474,7 +474,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_a.igp_table;
+        let acq = &r_a.igp.igp_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e, &r_f, &r_g, &r_h] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -496,7 +496,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_c.igp_table;
+        let acq = &r_c.igp.igp_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e, &r_f, &r_g, &r_h] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -613,7 +613,7 @@ mod ipv4 {
         r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
         r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
         r.set_bgp_session::<()>(3.into(), Some(IBgpClient)).unwrap();
-        r.igp_table = hashmap! {
+        r.igp.igp_table = hashmap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
@@ -684,13 +684,13 @@ mod ipv4 {
         r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
         r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
         r.set_bgp_session::<()>(3.into(), Some(IBgpClient)).unwrap();
-        r.igp_table = hashmap! {
+        r.igp.igp_table = hashmap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
             3.into()   => (vec![2.into()], 4.0),
         };
-        r.neighbors = hashmap! {
+        r.igp.neighbors = hashmap! {
             100.into() => 0.0,
             1.into() => 1.0,
             2.into() => 1.0

@@ -331,8 +331,8 @@ impl<P: Prefix> GeoTimingModel<P> {
         // get the next-hop of that router
         let new_path = if let Some(nh) = routers
             .get(&router)
-            .and_then(|r| r.igp_table.get(&target))
-            .and_then(|(nhs, _)| nhs.first())
+            .and_then(|r| r.igp.get(target))
+            .and_then(|nhs| nhs.first())
         {
             // next-hop is known
             if !path_cache.contains_key(&(*nh, target)) {

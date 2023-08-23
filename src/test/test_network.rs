@@ -243,7 +243,8 @@ mod t {
             assert_eq!(
                 net.get_device(*router)
                     .unwrap_internal()
-                    .get_igp_fw_table()
+                    .igp
+                    .get_table()
                     .len(),
                 0
             );
@@ -256,7 +257,7 @@ mod t {
         // now the igp forwarding table should be updated.
         for router in net.get_routers().iter() {
             let r = net.get_device(*router).unwrap_internal();
-            let fw_table = r.get_igp_fw_table();
+            let fw_table = r.igp.get_table();
             assert_eq!(fw_table.len(), 1);
             for (target, entry) in fw_table.iter() {
                 if *router == *target {
@@ -273,7 +274,7 @@ mod t {
         // now the igp forwarding table should be updated.
         for from in net.get_routers().iter() {
             let r = net.get_device(*from).unwrap_internal();
-            let fw_table = r.get_igp_fw_table();
+            let fw_table = r.igp.get_table();
             if *from == *R1 {
                 assert_eq!(fw_table.len(), 2);
                 for (to, entry) in fw_table.iter() {
@@ -303,7 +304,7 @@ mod t {
         // now the igp forwarding table should be updated.
         for from in net.get_routers().iter() {
             let r = net.get_device(*from).unwrap_internal();
-            let fw_table = r.get_igp_fw_table();
+            let fw_table = r.igp.get_table();
             if *from == *R1 {
                 assert_eq!(fw_table.len(), 2);
                 for (to, entry) in fw_table.iter() {
