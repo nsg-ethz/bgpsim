@@ -28,7 +28,11 @@ use petgraph::visit::EdgeRef;
 use serde::{Deserialize, Serialize};
 use std::{collections::HashMap, fmt::Write};
 
-#[derive(Debug, Default, Clone, PartialEq)]
+use super::sr_process::StaticRoute;
+
+/// IGP Routing Process that keeps a table of its direct neighbors, and a table of all other
+/// routers in the same AS and how to reach them.
+#[derive(Debug, Clone, PartialEq)]
 pub struct IgpProcess {
     /// Router Id
     pub(crate) router_id: RouterId,
@@ -48,9 +52,20 @@ impl IgpProcess {
         }
     }
 
-    /// Get the next-hops for a given internal router.
-    pub fn get(&self, dst: RouterId) -> Option<&[RouterId]> {
-        self.igp_table.get(&dst).map(|(nhs, _)| nhs.as_slice())
+    /// Get the next-hops for a given target. The target `dst` can either be a `RouterID` (which
+    /// will lookup the next hop in the IGP table), or a `StaticRoute` (which will lookup the target
+    /// either in the IGP table or in the set of neighbors), or directly an `IgpTarget`.
+    pub fn get(&self, dst: impl Into<IgpTarget>) -> Vec<RouterId> {
+        let dst: IgpTarget = dst.into();
+        match dst {
+            IgpTarget::Neighbor(dst) if self.neighbors.contains_key(&dst) => vec![dst],
+            IgpTarget::Igp(dst) => self
+                .igp_table
+                .get(&dst)
+                .map(|(nhs, _)| nhs.clone())
+                .unwrap_or_default(),
+            _ => Vec::new(),
+        }
     }
 
     /// Get the IGP cost for reaching a given internal router.
@@ -109,6 +124,45 @@ impl IgpProcess {
             } else {
                 self.igp_table.insert(target, (next_hops, weight));
             }
+        }
+    }
+}
+
+/// Target for a lookup into the IGP table
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IgpTarget {
+    /// Route to the router using a directly connected link
+    Neighbor(RouterId),
+    /// Route to the router using IGP (and ECMP)
+    Igp(RouterId),
+    /// Drop the traffic
+    Drop,
+}
+
+impl From<StaticRoute> for IgpTarget {
+    fn from(value: StaticRoute) -> Self {
+        match value {
+            StaticRoute::Direct(x) => Self::Neighbor(x),
+            StaticRoute::Indirect(x) => Self::Igp(x),
+            StaticRoute::Drop => Self::Drop,
+        }
+    }
+}
+
+impl From<RouterId> for IgpTarget {
+    fn from(value: RouterId) -> Self {
+        Self::Igp(value)
+    }
+}
+
+impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for IgpTarget {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n crate::network::Network<P, Q>) -> Self::Formatter {
+        match self {
+            IgpTarget::Neighbor(r) => format!("{} (neighbor)", r.fmt(net)),
+            IgpTarget::Igp(r) => r.fmt(net).to_string(),
+            IgpTarget::Drop => "drop".to_string(),
         }
     }
 }

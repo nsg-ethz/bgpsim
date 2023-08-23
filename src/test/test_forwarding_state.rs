@@ -391,7 +391,7 @@ mod ipv4 {
 
         assert_eq!(
             fw_state.get_paths(r2, prefix!("100.0.2.0/24" as)).unwrap(),
-            vec![vec![r2, r4, e4]]
+            vec![vec![r2, r3, r4, e4]]
         );
 
         assert_eq!(
@@ -401,7 +401,7 @@ mod ipv4 {
 
         assert_eq!(
             fw_state.get_paths(r2, prefix!("100.0.2.1/32" as)).unwrap(),
-            vec![vec![r2, r4, e4]]
+            vec![vec![r2, r3, r4, e4]]
         );
 
         assert_eq!(

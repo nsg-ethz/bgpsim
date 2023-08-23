@@ -282,7 +282,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     ) -> Result<String, ExportError> {
         let mut config = String::from("!\n! Static Routes\n!\n");
 
-        for (p, sr) in router.get_static_routes().iter() {
+        for (p, sr) in router.sr.get_table().iter() {
             for sr in self.static_route(net, addressor, *p, *sr)? {
                 config.push_str(&sr.build(self.target));
             }

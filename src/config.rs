@@ -889,7 +889,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                 ConfigExpr::StaticRoute { router, prefix, .. } => self
                     .get_device(*router)
                     .internal()
-                    .map(|r| r.static_routes.get(prefix).is_none())
+                    .map(|r| r.sr.get_table().get(prefix).is_none())
                     .unwrap_or(false),
                 ConfigExpr::LoadBalancing { router } => self
                     .get_device(*router)
@@ -926,7 +926,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                 ConfigExpr::StaticRoute { router, prefix, .. } => self
                     .get_device(*router)
                     .internal()
-                    .map(|r| r.static_routes.get(prefix).is_some())
+                    .map(|r| r.sr.get_table().get(prefix).is_some())
                     .unwrap_or(false),
                 ConfigExpr::LoadBalancing { router } => self
                     .get_device(*router)
@@ -1045,7 +1045,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
             }
 
             // get all static routes
-            for (prefix, target) in r.get_static_routes().iter() {
+            for (prefix, target) in r.sr.get_table().iter() {
                 c.add(ConfigExpr::StaticRoute {
                     router: *rid,
                     prefix: *prefix,

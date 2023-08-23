@@ -609,7 +609,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
-            .set_static_route(prefix, route))
+            .sr
+            .set(prefix, route))
     }
 
     /// Enable or disable Load Balancing on a single device in the network.

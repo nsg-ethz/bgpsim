@@ -45,7 +45,8 @@ mod bgp_process;
 mod igp_process;
 mod sr_process;
 
-use igp_process::IgpProcess;
+pub use igp_process::{IgpProcess, IgpTarget};
+pub use sr_process::{SrProcess, StaticRoute};
 
 /// Bgp Router
 #[derive(Debug)]
@@ -58,8 +59,8 @@ pub struct Router<P: Prefix> {
     as_id: AsId,
     /// The IGP routing process
     pub igp: IgpProcess,
-    /// Static Routes for Prefixes
-    pub(crate) static_routes: P::Map<StaticRoute>,
+    /// The Static Routing Process
+    pub sr: SrProcess<P>,
     /// hashmap of all bgp sessions
     pub(crate) bgp_sessions: HashMap<RouterId, BgpSessionType>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
@@ -92,7 +93,7 @@ impl<P: Prefix> Clone for Router<P> {
             router_id: self.router_id,
             as_id: self.as_id,
             igp: self.igp.clone(),
-            static_routes: self.static_routes.clone(),
+            sr: self.sr.clone(),
             bgp_sessions: self.bgp_sessions.clone(),
             bgp_rib_in: self.bgp_rib_in.clone(),
             bgp_rib: self.bgp_rib.clone(),
@@ -112,7 +113,7 @@ impl<P: Prefix> Router<P> {
             router_id,
             as_id,
             igp: IgpProcess::new(router_id),
-            static_routes: Default::default(),
+            sr: SrProcess::new(),
             bgp_sessions: HashMap::new(),
             bgp_rib_in: Default::default(),
             bgp_rib: Default::default(),
@@ -218,13 +219,14 @@ impl<P: Prefix> Router<P> {
     /// TODO: Make this function work with longest prefix map!
     pub fn get_fib(&self) -> P::Map<Vec<RouterId>> {
         let prefixes: Vec<_> = self
-            .static_routes
+            .sr
+            .get_table()
             .keys()
             .chain(self.bgp_rib.keys())
             .unique()
             .copied()
             .collect();
-        let mut result = P::Map::default();
+        let mut result: P::Map<Vec<RouterId>> = Default::default();
         for prefix in prefixes {
             let nhs = self.get_next_hop(prefix);
             if !nhs.is_empty() {
@@ -235,45 +237,27 @@ impl<P: Prefix> Router<P> {
     }
 
     /// Get the IGP next hop for a prefix. Prefixes are matched using longest prefix match.
+    ///
+    /// TODO: Make this function return a slice
     pub fn get_next_hop(&self, prefix: P) -> Vec<RouterId> {
-        fn sr_next_hops<P: Prefix>(r: &Router<P>, target: &StaticRoute) -> Vec<RouterId> {
-            match target {
-                StaticRoute::Direct(target) if r.igp.is_neighbor(*target) => vec![*target],
-                StaticRoute::Direct() => vec![],
-                StaticRoute::Indirect(target) => {
-                    r.igp.get(*target).map(|x| x.to_vec()).unwrap_or_default()
-                }
-                StaticRoute::Drop => vec![],
-            }
-        }
 
-        // first, check the static routes
-        let sr = self.static_routes.get_lpm(&prefix);
-        let bgp = self.bgp_rib.get_lpm(&prefix);
-        let next_hops = match (sr, bgp) {
-            (None, None) => vec![],
-            (Some((_, target)), None) => sr_next_hops(self, target),
-            (None, Some((_, entry))) => self
-                .igp
-                .get(entry.route.next_hop)
-                .expect("Only reachable entries are inserted in the BGP table!")
-                .to_vec(),
-            (Some((nh_sr, target)), Some((nh_bgp, _))) if nh_bgp.contains(nh_sr) => {
-                sr_next_hops(self, target)
-            }
-            (Some(_), Some((_, entry))) => self
-                .igp
-                .get(entry.route.next_hop)
-                .expect("Only reachable entries are inserted in the BGP table!")
-                .to_vec(),
+        // first, check sr, and then, check bgp. If both do not match, drop the traffic.
+        let target = if let Some(target) = self.sr.get(prefix) {
+            IgpTarget::from(target)
+        } else if let Some((_, entry)) = self.bgp_rib.get_lpm(&prefix) {
+            IgpTarget::Igp(entry.route.next_hop)
+        } else {
+            IgpTarget::Drop
         };
 
-        if self.do_load_balancing {
-            next_hops
-        } else if next_hops.is_empty() {
-            vec![]
+        // lookup the IGP target in the IGP process
+        let nhs = self.igp.get(target);
+
+        // perform load balancing
+        if self.do_load_balancing || nhs.is_empty() {
+            nhs
         } else {
-            vec![next_hops[0]]
+            vec![nhs[0]]
         }
     }
 
@@ -300,27 +284,8 @@ impl<P: Prefix> Router<P> {
     /// multiple paths exist with equal cost. load balancing will only work within OSPF. BGP
     /// Additional Paths is not yet implemented.
     pub(crate) fn set_load_balancing(&mut self, mut do_load_balancing: bool) -> bool {
-        // set the load balancing value
         std::mem::swap(&mut self.do_load_balancing, &mut do_load_balancing);
-
         do_load_balancing
-    }
-
-    /// Change or remove a static route from the router. This function returns the old static route
-    /// (if it exists).
-    #[allow(clippy::let_and_return)]
-    pub(crate) fn set_static_route(
-        &mut self,
-        prefix: P,
-        route: Option<StaticRoute>,
-    ) -> Option<StaticRoute> {
-        let old_route = if let Some(route) = route {
-            self.static_routes.insert(prefix, route)
-        } else {
-            self.static_routes.remove(&prefix)
-        };
-
-        old_route
     }
 
     /// Set a BGP session with a neighbor. If `session_type` is `None`, then any potentially
@@ -531,11 +496,6 @@ impl<P: Prefix> Router<P> {
         .get(&neighbor)
         .map(|x| x.as_slice())
         .unwrap_or_default()
-    }
-
-    /// Get an iterator over all outgoing route-maps
-    pub fn get_static_routes(&self) -> &P::Map<StaticRoute> {
-        &self.static_routes
     }
 
     /// Get an iterator over all Routes in the BGP table.
@@ -988,7 +948,7 @@ impl<P: Prefix> PartialEq for Router<P> {
             && self.router_id == other.router_id
             && self.as_id == other.as_id
             && self.igp == other.igp
-            && self.static_routes == other.static_routes
+            && self.sr == other.sr
             && self.bgp_sessions == other.bgp_sessions
             && self.bgp_rib == other.bgp_rib
             && self.bgp_route_maps_in == other.bgp_route_maps_in
@@ -1008,28 +968,6 @@ impl<P: Prefix> PartialEq for Router<P> {
     }
 }
 
-/// Static route description that can either point to the direct link to the target, or to use the
-/// IGP for getting the path to the target.
-#[derive(Debug, Clone, Hash, PartialEq, Eq, Copy, Serialize, Deserialize)]
-pub enum StaticRoute {
-    /// Use the direct edge. If the edge no longer exists, then a black-hole will be created.
-    Direct(RouterId),
-    /// Use IGP to route traffic towards that target.
-    Indirect(RouterId),
-    /// Drop all traffic for the given destination
-    Drop,
-}
-
-impl StaticRoute {
-    /// Get the target router (or None in case of `Self::Drop`)
-    pub fn router(&self) -> Option<RouterId> {
-        match self {
-            StaticRoute::Direct(r) | StaticRoute::Indirect(r) => Some(*r),
-            StaticRoute::Drop => None,
-        }
-    }
-}
-
 impl<P: Prefix> Serialize for Router<P> {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -1042,7 +980,7 @@ impl<P: Prefix> Serialize for Router<P> {
             router_id: RouterId,
             as_id: AsId,
             igp: IgpProcess,
-            static_routes: P::Map<StaticRoute>,
+            sr: SrProcess<P>,
             bgp_sessions: Vec<(RouterId, BgpSessionType)>,
             bgp_rib_in: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
             bgp_rib: P::Map<BgpRibEntry<P>>,
@@ -1057,7 +995,7 @@ impl<P: Prefix> Serialize for Router<P> {
             router_id: self.router_id,
             as_id: self.as_id,
             igp: self.igp.clone(),
-            static_routes: self.static_routes.clone(),
+            sr: self.sr.clone(),
             bgp_sessions: self.bgp_sessions.clone().into_iter().collect(),
             bgp_rib_in: self
                 .bgp_rib_in
@@ -1093,7 +1031,7 @@ impl<'de, P: Prefix> Deserialize<'de> for Router<P> {
             router_id: RouterId,
             as_id: AsId,
             igp: IgpProcess,
-            static_routes: P::Map<StaticRoute>,
+            sr: SrProcess<P>,
             bgp_sessions: Vec<(RouterId, BgpSessionType)>,
             bgp_rib_in: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
             bgp_rib: P::Map<BgpRibEntry<P>>,
@@ -1109,7 +1047,7 @@ impl<'de, P: Prefix> Deserialize<'de> for Router<P> {
             router_id: router.router_id,
             as_id: router.as_id,
             igp: router.igp,
-            static_routes: router.static_routes,
+            sr: router.sr,
             bgp_sessions: router.bgp_sessions.into_iter().collect(),
             bgp_rib_in: router
                 .bgp_rib_in

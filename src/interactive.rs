@@ -351,7 +351,7 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
             if !self.reuse_config {
                 r.do_load_balancing = r_source.do_load_balancing;
                 r.igp.neighbors = r_source.igp.neighbors.clone();
-                r.static_routes = r_source.static_routes.clone();
+                r.sr = r_source.sr.clone();
                 r.bgp_sessions = r_source.bgp_sessions.clone();
                 r.bgp_sessions = r_source.bgp_sessions.clone();
                 r.bgp_route_maps_in = r_source.bgp_route_maps_in.clone();

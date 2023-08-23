@@ -331,16 +331,16 @@ impl<P: Prefix> GeoTimingModel<P> {
         // get the next-hop of that router
         let new_path = if let Some(nh) = routers
             .get(&router)
-            .and_then(|r| r.igp.get(target))
-            .and_then(|nhs| nhs.first())
+            .map(|r| r.igp.get(target))
+            .and_then(|nhs| nhs.first().copied())
         {
             // next-hop is known
-            if !path_cache.contains_key(&(*nh, target)) {
+            if !path_cache.contains_key(&(nh, target)) {
                 // cache the result
-                self.recursive_compute_paths(*nh, target, loop_protection, routers, path_cache);
+                self.recursive_compute_paths(nh, target, loop_protection, routers, path_cache);
             }
             path_cache
-                .get(&(*nh, target))
+                .get(&(nh, target))
                 .unwrap()
                 .as_ref()
                 .map(|path| {

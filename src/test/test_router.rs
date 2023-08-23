@@ -709,7 +709,7 @@ mod ipv4 {
         .unwrap();
 
         // set a static route
-        r.set_static_route(p1, Some(StaticRoute::Direct(1.into())));
+        r.sr.set(p1, Some(StaticRoute::Direct(1.into())));
 
         // check that the next hop is generated properly.
         assert_eq!(
