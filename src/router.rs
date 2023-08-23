@@ -83,10 +83,6 @@ pub struct Router<P: Prefix> {
     /// cost. load balancing will only work within OSPF. BGP Additional Paths is not yet
     /// implemented.
     pub(crate) do_load_balancing: bool,
-    /// Stack to undo action from every event. Each processed event will push a new vector onto the
-    /// stack, containing all actions to perform in order to undo the event.
-    #[cfg(feature = "undo")]
-    pub(crate) undo_stack: Vec<Vec<UndoAction<P>>>,
 }
 
 impl<P: Prefix> Clone for Router<P> {
@@ -106,8 +102,6 @@ impl<P: Prefix> Clone for Router<P> {
             bgp_route_maps_in: self.bgp_route_maps_in.clone(),
             bgp_route_maps_out: self.bgp_route_maps_out.clone(),
             do_load_balancing: self.do_load_balancing,
-            #[cfg(feature = "undo")]
-            undo_stack: self.undo_stack.clone(),
         }
     }
 }
@@ -129,8 +123,6 @@ impl<P: Prefix> Router<P> {
             bgp_route_maps_in: HashMap::new(),
             bgp_route_maps_out: HashMap::new(),
             do_load_balancing: false,
-            #[cfg(feature = "undo")]
-            undo_stack: Vec::new(),
         }
     }
 
@@ -203,15 +195,10 @@ impl<P: Prefix> Router<P> {
 
     /// handle an `Event`. This function returns all events triggered by this function, and a
     /// boolean to check if there was an update or not.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn handle_event<T: Default>(
         &mut self,
         event: Event<P, T>,
     ) -> Result<EventOutcome<P, T>, DeviceError> {
-        // first, push a new entry onto the stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
         match event {
             Event::Bgp(_, from, to, bgp_event) if to == self.router_id => {
                 // first, check if the event was received from a bgp peer
@@ -234,15 +221,7 @@ impl<P: Prefix> Router<P> {
                     },
                     BgpEvent::Withdraw(prefix) => (self.remove_bgp_route(prefix, from), false),
                 };
-                let new_prefix = self.bgp_known_prefixes.insert(prefix);
-                if new_prefix {
-                    // add the undo action, but only if the prefix was not known before.
-                    #[cfg(feature = "undo")]
-                    self.undo_stack
-                        .last_mut()
-                        .unwrap()
-                        .push(UndoAction::DelKnownPrefix(prefix));
-                }
+                self.bgp_known_prefixes.insert(prefix);
 
                 // phase 2
                 let old = self.get_next_hop(prefix);
@@ -269,104 +248,6 @@ impl<P: Prefix> Router<P> {
                 let prefix = bgp_event.prefix();
                 let old = self.get_next_hop(prefix);
                 Ok((StepUpdate::new(prefix, old.clone(), old), vec![]))
-            }
-        }
-    }
-
-    /// Undo the last action.
-    ///
-    /// **Note**: This funtion is only available with the `undo` feature.
-    #[cfg(feature = "undo")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-    pub(crate) fn undo_event(&mut self) {
-        if let Some(actions) = self.undo_stack.pop() {
-            for action in actions {
-                match action {
-                    UndoAction::BgpRibIn(prefix, peer, Some(entry)) => {
-                        self.bgp_rib_in
-                            .get_mut_or_default(prefix)
-                            .insert(peer, entry);
-                    }
-                    UndoAction::BgpRibIn(prefix, peer, None) => {
-                        self.bgp_rib_in
-                            .get_mut(&prefix)
-                            .map(|rib| rib.remove(&peer));
-                    }
-                    UndoAction::BgpRib(prefix, Some(entry)) => {
-                        self.bgp_rib.insert(prefix, entry);
-                    }
-                    UndoAction::BgpRib(prefix, None) => {
-                        self.bgp_rib.remove(&prefix);
-                    }
-                    UndoAction::BgpRibOut(prefix, peer, Some(entry)) => {
-                        self.bgp_rib_out
-                            .get_mut_or_default(prefix)
-                            .insert(peer, entry);
-                    }
-                    UndoAction::BgpRibOut(prefix, peer, None) => {
-                        self.bgp_rib_out
-                            .get_mut(&prefix)
-                            .and_then(|x| x.remove(&peer));
-                    }
-                    UndoAction::BgpRouteMap(neighbor, Incoming, order, map) => {
-                        let maps = self.bgp_route_maps_in.entry(neighbor).or_default();
-                        match maps.binary_search_by(|p| p.order.cmp(&order)) {
-                            Ok(pos) => {
-                                if let Some(map) = map {
-                                    // replace the route-map at the selected position
-                                    maps[pos] = map;
-                                } else {
-                                    maps.remove(pos);
-                                    if maps.is_empty() {
-                                        self.bgp_route_maps_in.remove(&neighbor);
-                                    }
-                                }
-                            }
-                            Err(pos) => {
-                                maps.insert(pos, map.unwrap());
-                            }
-                        }
-                    }
-                    UndoAction::BgpRouteMap(neighbor, Outgoing, order, map) => {
-                        let maps = self.bgp_route_maps_out.entry(neighbor).or_default();
-                        match maps.binary_search_by(|p| p.order.cmp(&order)) {
-                            Ok(pos) => {
-                                if let Some(map) = map {
-                                    // replace the route-map at the selected position
-                                    maps[pos] = map;
-                                } else {
-                                    maps.remove(pos);
-                                    if maps.is_empty() {
-                                        self.bgp_route_maps_out.remove(&neighbor);
-                                    }
-                                }
-                            }
-                            Err(pos) => {
-                                maps.insert(pos, map.unwrap());
-                            }
-                        }
-                    }
-                    UndoAction::BgpSession(peer, Some(ty)) => {
-                        self.bgp_sessions.insert(peer, ty);
-                    }
-                    UndoAction::BgpSession(peer, None) => {
-                        self.bgp_sessions.remove(&peer);
-                    }
-                    UndoAction::IgpForwardingTable(t, n) => {
-                        self.igp_table = t;
-                        self.neighbors = n;
-                    }
-                    UndoAction::DelKnownPrefix(p) => {
-                        self.bgp_known_prefixes.remove(&p);
-                    }
-                    UndoAction::StaticRoute(prefix, Some(target)) => {
-                        self.static_routes.insert(prefix, target);
-                    }
-                    UndoAction::StaticRoute(prefix, None) => {
-                        self.static_routes.remove(&prefix);
-                    }
-                    UndoAction::SetLoadBalancing(value) => self.do_load_balancing = value,
-                }
             }
         }
     }
@@ -456,24 +337,15 @@ impl<P: Prefix> Router<P> {
     /// balancing is enabled, then the router will load balance packets towards a destination if
     /// multiple paths exist with equal cost. load balancing will only work within OSPF. BGP
     /// Additional Paths is not yet implemented.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn set_load_balancing(&mut self, mut do_load_balancing: bool) -> bool {
         // set the load balancing value
         std::mem::swap(&mut self.do_load_balancing, &mut do_load_balancing);
-
-        // prepare the undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .push(vec![UndoAction::SetLoadBalancing(do_load_balancing)]);
 
         do_load_balancing
     }
 
     /// Change or remove a static route from the router. This function returns the old static route
     /// (if it exists).
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     #[allow(clippy::let_and_return)]
     pub(crate) fn set_static_route(
         &mut self,
@@ -486,11 +358,6 @@ impl<P: Prefix> Router<P> {
             self.static_routes.remove(&prefix)
         };
 
-        // prepare the undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .push(vec![UndoAction::StaticRoute(prefix, old_route)]);
-
         old_route
     }
 
@@ -499,57 +366,26 @@ impl<P: Prefix> Router<P> {
     /// type. Finally, the BGP tables are updated, and events are generated. This function will
     /// return the old session type (if it exists). This function will also return the set of events
     /// triggered by this action.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn set_bgp_session<T: Default>(
         &mut self,
         target: RouterId,
         session_type: Option<BgpSessionType>,
     ) -> UpdateOutcome<BgpSessionType, P, T> {
-        // prepare the undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let old_type = if let Some(ty) = session_type {
             self.bgp_sessions.insert(target, ty)
         } else {
             for prefix in self.bgp_known_prefixes.iter() {
                 // remove the entry in the rib tables
-                if let Some(_rib) = self
-                    .bgp_rib_in
+                self.bgp_rib_in
                     .get_mut(prefix)
-                    .and_then(|rib| rib.remove(&target))
-                {
-                    // add the undo action
-                    #[cfg(feature = "undo")]
-                    self.undo_stack
-                        .last_mut()
-                        .unwrap()
-                        .push(UndoAction::BgpRibIn(*prefix, target, Some(_rib)))
-                }
-                if let Some(_rib) = self
-                    .bgp_rib_out
+                    .and_then(|rib| rib.remove(&target));
+                self.bgp_rib_out
                     .get_mut(prefix)
-                    .and_then(|x| x.remove(&target))
-                {
-                    // add the undo action
-                    #[cfg(feature = "undo")]
-                    self.undo_stack
-                        .last_mut()
-                        .unwrap()
-                        .push(UndoAction::BgpRibOut(*prefix, target, Some(_rib)))
-                }
+                    .and_then(|x| x.remove(&target));
             }
 
             self.bgp_sessions.remove(&target)
         };
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(UndoAction::BgpSession(target, old_type));
 
         // udpate the tables
         self.update_bgp_tables(true)
@@ -572,18 +408,12 @@ impl<P: Prefix> Router<P> {
     /// action.
     ///
     /// To remove a route map, use [`Router::remove_bgp_route_map`].
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn set_bgp_route_map<T: Default>(
         &mut self,
         neighbor: RouterId,
         direction: RouteMapDirection,
         mut route_map: RouteMap<P>,
     ) -> UpdateOutcome<RouteMap<P>, P, T> {
-        // prepare the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let _order = route_map.order;
         let old_map = match direction {
             Incoming => {
@@ -616,34 +446,16 @@ impl<P: Prefix> Router<P> {
             }
         };
 
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(UndoAction::BgpRouteMap(
-                neighbor,
-                direction,
-                _order,
-                old_map.clone(),
-            ));
-
         self.update_bgp_tables(true).map(|events| (old_map, events))
     }
 
     /// Update or remove multiple route-map items. Any existing route-map entry for the same
     /// neighbor in the same direction under the same order will be replaced. This function will
     /// also return all events triggered by this action.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn batch_update_route_maps<T: Default>(
         &mut self,
         updates: &[RouteMapEdit<P>],
     ) -> Result<Vec<Event<P, T>>, DeviceError> {
-        // prepare the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         for update in updates {
             let neighbor = update.neighbor;
             let direction = update.direction;
@@ -677,15 +489,6 @@ impl<P: Prefix> Router<P> {
             if maps.is_empty() {
                 maps_table.remove(&neighbor);
             }
-
-            // add the undo action
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(UndoAction::BgpRouteMap(
-                    neighbor, direction, order, _old_map,
-                ));
         }
 
         self.update_bgp_tables(true)
@@ -696,18 +499,12 @@ impl<P: Prefix> Router<P> {
     /// return all events triggered by this action.
     ///
     /// To add or update a route map, use [`Router::set_bgp_route_map`].
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn remove_bgp_route_map<T: Default>(
         &mut self,
         neighbor: RouterId,
         direction: RouteMapDirection,
         order: i16,
     ) -> UpdateOutcome<RouteMap<P>, P, T> {
-        // prepare the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let old_map = match direction {
             Incoming => {
                 let maps = match self.bgp_route_maps_in.get_mut(&neighbor) {
@@ -738,18 +535,6 @@ impl<P: Prefix> Router<P> {
                 old_map
             }
         };
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(UndoAction::BgpRouteMap(
-                neighbor,
-                direction,
-                order,
-                Some(old_map.clone()),
-            ));
 
         self.update_bgp_tables(true)
             .map(|events| (Some(old_map), events))
@@ -841,17 +626,11 @@ impl<P: Prefix> Router<P> {
 
     /// write forawrding table based on graph and return the set of events triggered by this action.
     /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn write_igp_forwarding_table<T: Default>(
         &mut self,
         graph: &IgpNetwork,
         ospf: &OspfState,
     ) -> Result<Vec<Event<P, T>>, DeviceError> {
-        // prepare the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         // clear the forwarding table
         let mut swap_table = HashMap::new();
         swap(&mut self.igp_table, &mut swap_table);
@@ -863,13 +642,6 @@ impl<P: Prefix> Router<P> {
             .filter(|(_, w)| w.is_finite())
             .collect();
         swap(&mut self.neighbors, &mut neighbors);
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(UndoAction::IgpForwardingTable(swap_table, neighbors));
 
         for target in graph.node_indices() {
             if target == self.router_id {
@@ -895,8 +667,6 @@ impl<P: Prefix> Router<P> {
 
     /// Update the bgp tables only. If `force_dissemination` is set to true, then this function will
     /// always perform route dissemionation, no matter if the route has changed.
-    ///
-    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn update_bgp_tables<T: Default>(
         &mut self,
         force_dissemination: bool,
@@ -952,8 +722,6 @@ impl<P: Prefix> Router<P> {
     /// arguments of this function are both the prefix and the neighbor. This function will then
     /// only only process this new BGP route and compare it to the currently best route. If it is
     /// better, then update `self.bgp_rib[prefix]` and return `Ok(true)`.
-    ///
-    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn run_bgp_decision_process_for_new_route(
         &mut self,
         prefix: P,
@@ -974,14 +742,7 @@ impl<P: Prefix> Router<P> {
             // case, even if the origin of both routes would be the same.
             (old, Some(new)) if new > old => {
                 // replace the old with the better, new route
-                let _old_entry = self.bgp_rib.insert(prefix, new);
-                // add the undo action
-                #[cfg(feature = "undo")]
-                self.undo_stack
-                    .last_mut()
-                    .unwrap()
-                    .push(UndoAction::BgpRib(prefix, _old_entry));
-
+                self.bgp_rib.insert(prefix, new);
                 Ok(true)
             }
             // However, if the origin of the old route is the same as the neighbor, then it must be
@@ -1003,8 +764,6 @@ impl<P: Prefix> Router<P> {
     /// only run bgp decision process (phase 2). This function may change
     /// `self.bgp_rib[prefix]`. This function returns `Ok(true)` if the selected route was changed
     /// (and the dissemination process should be executed).
-    ///
-    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn run_bgp_decision_process_for_prefix(&mut self, prefix: P) -> Result<bool, DeviceError> {
         // search the best route and compare
         let old_entry = self.bgp_rib.get(&prefix);
@@ -1026,12 +785,6 @@ impl<P: Prefix> Router<P> {
             } else {
                 self.bgp_rib.remove(&prefix)
             };
-            // add the undo action
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(UndoAction::BgpRib(prefix, _old_entry));
 
             Ok(true)
         } else {
@@ -1040,8 +793,6 @@ impl<P: Prefix> Router<P> {
     }
 
     /// only run bgp route dissemination (phase 3) and return the events triggered by the dissemination
-    ///
-    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn run_bgp_route_dissemination_for_prefix<T: Default>(
         &mut self,
         prefix: P,
@@ -1069,16 +820,9 @@ impl<P: Prefix> Router<P> {
             // be edited
             let event = if !will_advertise && current_route.is_some() {
                 // send a withdraw of the old route.
-                let _old = self
-                    .bgp_rib_out
+                self.bgp_rib_out
                     .get_mut(&prefix)
                     .and_then(|x| x.remove(peer));
-                // add the undo action
-                #[cfg(feature = "undo")]
-                self.undo_stack
-                    .last_mut()
-                    .unwrap()
-                    .push(UndoAction::BgpRibOut(prefix, *peer, _old));
                 Some(BgpEvent::Withdraw(prefix))
             } else {
                 // here, we know that will_advertise is true!
@@ -1095,30 +839,16 @@ impl<P: Prefix> Router<P> {
                     (Some(best_r), _) => {
                         // Route information was changed
                         // update the route
-                        let _old = self
-                            .bgp_rib_out
+                        self.bgp_rib_out
                             .get_mut_or_default(prefix)
                             .insert(*peer, best_r.clone());
-                        // add the undo action
-                        #[cfg(feature = "undo")]
-                        self.undo_stack
-                            .last_mut()
-                            .unwrap()
-                            .push(UndoAction::BgpRibOut(prefix, *peer, _old));
                         Some(BgpEvent::Update(best_r.route))
                     }
                     (None, Some(_)) => {
                         // Current route must be WITHDRAWN, since we do no longer know any route
-                        let _old = self
-                            .bgp_rib_out
+                        self.bgp_rib_out
                             .get_mut(&prefix)
                             .and_then(|x| x.remove(peer));
-                        // add the undo action
-                        #[cfg(feature = "undo")]
-                        self.undo_stack
-                            .last_mut()
-                            .unwrap()
-                            .push(UndoAction::BgpRibOut(prefix, *peer, _old));
                         Some(BgpEvent::Withdraw(prefix))
                     }
                     (None, None) => {
@@ -1144,8 +874,6 @@ impl<P: Prefix> Router<P> {
     ///
     /// This function returns the prefix, along with a boolean. If that boolean is `false`, then
     /// no route was inserted into the table because ORIGINATOR_ID equals the current router id.
-    ///
-    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn insert_bgp_route(
         &mut self,
         route: BgpRoute<P>,
@@ -1178,37 +906,18 @@ impl<P: Prefix> Router<P> {
         let prefix = new_entry.route.prefix;
 
         // insert the new entry
-        let _old_entry = self
-            .bgp_rib_in
+        self.bgp_rib_in
             .get_mut_or_default(prefix)
             .insert(from, new_entry);
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(UndoAction::BgpRibIn(prefix, from, _old_entry));
 
         Ok((prefix, true))
     }
 
     /// remove an existing bgp route in bgp_rib_in and returns the prefix for which the route was
     /// inserted.
-    ///
-    /// *Undo Functionality*: this function will push some actions to the last undo event.
     fn remove_bgp_route(&mut self, prefix: P, from: RouterId) -> P {
         // Remove the entry from the table
-        let _old_entry = self.bgp_rib_in.get_mut_or_default(prefix).remove(&from);
-
-        // add the undo action, but only if it did exist before.
-        #[cfg(feature = "undo")]
-        if let Some(r) = _old_entry {
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(UndoAction::BgpRibIn(prefix, from, Some(r)));
-        }
+        self.bgp_rib_in.get_mut_or_default(prefix).remove(&from);
 
         prefix
     }
@@ -1356,10 +1065,6 @@ impl<P: Prefix> PartialEq for Router<P> {
         {
             return false;
         }
-        // #[cfg(feature = "undo")]
-        // if self.undo_stack != other.undo_stack {
-        //     return false;
-        // }
         let prefix_union = self.bgp_known_prefixes.union(&other.bgp_known_prefixes);
         for prefix in prefix_union {
             assert_eq!(
@@ -1370,25 +1075,6 @@ impl<P: Prefix> PartialEq for Router<P> {
 
         true
     }
-}
-
-#[cfg(feature = "undo")]
-#[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
-pub(crate) enum UndoAction<P: Prefix> {
-    BgpRibIn(P, RouterId, Option<BgpRibEntry<P>>),
-    BgpRib(P, Option<BgpRibEntry<P>>),
-    BgpRibOut(P, RouterId, Option<BgpRibEntry<P>>),
-    BgpRouteMap(RouterId, RouteMapDirection, i16, Option<RouteMap<P>>),
-    BgpSession(RouterId, Option<BgpSessionType>),
-    IgpForwardingTable(
-        HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
-        HashMap<RouterId, LinkWeight>,
-    ),
-    DelKnownPrefix(P),
-    StaticRoute(P, Option<StaticRoute>),
-    SetLoadBalancing(bool),
 }
 
 /// Static route description that can either point to the direct link to the target, or to use the
@@ -1435,8 +1121,6 @@ impl<P: Prefix> Serialize for Router<P> {
             bgp_route_maps_in: Vec<(RouterId, Vec<RouteMap<P>>)>,
             bgp_route_maps_out: Vec<(RouterId, Vec<RouteMap<P>>)>,
             do_load_balancing: bool,
-            #[cfg(feature = "undo")]
-            undo_stack: Vec<Vec<UndoAction<P>>>,
         }
         SeRouter {
             name: self.name.clone(),
@@ -1463,8 +1147,6 @@ impl<P: Prefix> Serialize for Router<P> {
             bgp_route_maps_in: self.bgp_route_maps_in.clone().into_iter().collect(),
             bgp_route_maps_out: self.bgp_route_maps_out.clone().into_iter().collect(),
             do_load_balancing: self.do_load_balancing,
-            #[cfg(feature = "undo")]
-            undo_stack: self.undo_stack.clone(),
         }
         .serialize(serializer)
     }
@@ -1492,8 +1174,6 @@ impl<'de, P: Prefix> Deserialize<'de> for Router<P> {
             bgp_route_maps_in: Vec<(RouterId, Vec<RouteMap<P>>)>,
             bgp_route_maps_out: Vec<(RouterId, Vec<RouteMap<P>>)>,
             do_load_balancing: bool,
-            #[cfg(feature = "undo")]
-            undo_stack: Vec<Vec<UndoAction<P>>>,
         }
         let router = DeRouter::<P>::deserialize(deserializer)?;
         Ok(Self {
@@ -1519,8 +1199,6 @@ impl<'de, P: Prefix> Deserialize<'de> for Router<P> {
             bgp_route_maps_in: router.bgp_route_maps_in.into_iter().collect(),
             bgp_route_maps_out: router.bgp_route_maps_out.into_iter().collect(),
             do_load_balancing: router.do_load_balancing,
-            #[cfg(feature = "undo")]
-            undo_stack: router.undo_stack.into_iter().collect(),
         })
     }
 }

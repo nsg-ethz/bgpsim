@@ -190,7 +190,6 @@ impl<P: Prefix> Config<P> {
     /// occurs, the config will remain untouched.
     pub fn apply_patch(&mut self, patch: &ConfigPatch<P>) -> Result<(), ConfigError> {
         // clone the current config
-        // TODO this can be implemented more efficiently, by undoing the change in reverse.
         let mut config_before = self.expr.clone();
         for modifier in patch.modifiers.iter() {
             match self.apply_modifier(modifier) {

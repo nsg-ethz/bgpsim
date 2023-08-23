@@ -767,8 +767,6 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for NetworkError {
             NetworkError::InvalidBgpTable(r) => {
                 format!("Router {} has an invalid BGP table!", r.fmt(net))
             }
-            NetworkError::EmptyUndoStack => String::from("Undo stack is empty!"),
-            NetworkError::UndoError(s) => format!("Undo error occurred: {s}"),
             NetworkError::JsonError(e) => format!("Json error occurred: {e}"),
         }
     }

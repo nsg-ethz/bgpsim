@@ -75,20 +75,6 @@ static DEFAULT_STOP_AFTER: usize = 1_000_000;
 ///   if no longest-prefix matching is necessary, or if only a single prefix is simulated.
 /// - `Q`: The kind of [`EventQueue`] used in the network. The queue determines the order in which
 ///   events are processed.
-///
-/// ## Undo Functionality (feature `undo`)
-/// The undo stack is a 3-dim vector (`Vec<Vec<Vec<UndoAction>>>`). Each action
-/// (like advertising a new route) will add a new top-level element to the first vector. The second
-/// vector represents each event (and which things need to be applied to undo an event). This is
-/// usually just a single event (i.e., undo the last event on a device). However, some actions
-/// require multiple things to be undone at once (i.e., adding a link requires the removal of two
-/// directed link in `self.net`, or updating the IGP table requires the IGP tables to be updated on
-/// every router in the network). Therefore, the third vector captures each of these events.
-///
-/// You can undo an entire action by calling `Network::undo_action`. In the interactive mode, you can
-/// undo a single event by calling `crate::interactive::InteractiveNetwork::undo_step`. Finally,
-/// you can create an undo-mark by calling `Network::get_undo_mark`, and undo up to this mark
-/// using `Network::undo_to_mark`.
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound(
     serialize = "Q: serde::Serialize",
@@ -104,8 +90,6 @@ pub struct Network<P: Prefix = SimplePrefix, Q = BasicEventQueue<SimplePrefix>> 
     pub(crate) queue: Q,
     pub(crate) skip_queue: bool,
     pub(crate) verbose: bool,
-    #[cfg(feature = "undo")]
-    pub(crate) undo_stack: Vec<Vec<Vec<UndoAction>>>,
 }
 
 impl<P: Prefix, Q: Clone> Clone for Network<P, Q> {
@@ -123,8 +107,6 @@ impl<P: Prefix, Q: Clone> Clone for Network<P, Q> {
             queue: self.queue.clone(),
             skip_queue: self.skip_queue,
             verbose: self.verbose,
-            #[cfg(feature = "undo")]
-            undo_stack: self.undo_stack.clone(),
         }
     }
 }
@@ -148,25 +130,16 @@ impl<P: Prefix, Q> Network<P, Q> {
             queue,
             skip_queue: false,
             verbose: false,
-            #[cfg(feature = "undo")]
-            undo_stack: Vec::new(),
         }
     }
 
     /// Add a new router to the topology. Note, that the AS id is always set to `AsId(65001)`. This
     /// function returns the ID of the router, which can be used to reference it while confiugring
     /// the network.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn add_router(&mut self, name: impl Into<String>) -> RouterId {
         let new_router = Router::new(name.into(), self.net.add_node(()), AsId(65001));
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router);
-
-        // undo the action as an
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .push(vec![vec![UndoAction::RemoveRouter(router_id)]]);
 
         router_id
     }
@@ -174,8 +147,6 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// Add a new external router to the topology. An external router does not process any BGP
     /// messages, it just advertises routes from outside of the network. This function returns
     /// the ID of the router, which can be used to reference it while configuring the network.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn add_external_router(
         &mut self,
         name: impl Into<String>,
@@ -184,11 +155,6 @@ impl<P: Prefix, Q> Network<P, Q> {
         let new_router = ExternalRouter::new(name.into(), self.net.add_node(()), as_id.into());
         let router_id = new_router.router_id();
         self.external_routers.insert(router_id, new_router);
-
-        // undo the action as an
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .push(vec![vec![UndoAction::RemoveRouter(router_id)]]);
 
         router_id
     }
@@ -210,21 +176,10 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// # Ok(())
     /// # }
     /// ```
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn add_link(&mut self, source: RouterId, target: RouterId) {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         for (a, b) in [(source, target), (target, source)] {
             if !self.net.contains_edge(a, b) {
                 self.net.add_edge(a, b, LinkWeight::infinite());
-                #[cfg(feature = "undo")]
-                self.undo_stack
-                    .last_mut()
-                    .unwrap()
-                    .push(vec![UndoAction::UpdateIGP(a, b, None)]);
             }
         }
     }
@@ -429,26 +384,18 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             queue,
             skip_queue: self.skip_queue,
             verbose: self.verbose,
-            #[cfg(feature = "undo")]
-            undo_stack: self.undo_stack,
         })
     }
 
     /// Setup a BGP session between source and target. If `session_type` is `None`, then any
     /// existing session will be removed. Otherwise, any existing session will be replaced by the
     /// `session_type`.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn set_bgp_session(
         &mut self,
         source: RouterId,
         target: RouterId,
         session_type: Option<BgpSessionType>,
     ) -> Result<(), NetworkError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let is_source_external = self.external_routers.contains_key(&source);
         let is_target_external = self.external_routers.contains_key(&target);
         let (source_type, target_type) = match session_type {
@@ -535,13 +482,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             self.enqueue_events(events);
         }
 
-        // update the undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.last_mut().unwrap().push(vec![
-            UndoAction::UndoDevice(source),
-            UndoAction::UndoDevice(target),
-        ]);
-
         self.do_queue_maybe_skip()
     }
 
@@ -551,30 +491,17 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// `source`) is not affected.
     ///
     /// This function will also update the IGP forwarding table *and* run the simulation.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn set_link_weight(
         &mut self,
         source: RouterId,
         target: RouterId,
         mut weight: LinkWeight,
     ) -> Result<LinkWeight, NetworkError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let edge = self
             .net
             .find_edge(source, target)
             .ok_or(NetworkError::LinkNotFound(source, target))?;
         std::mem::swap(&mut self.net[edge], &mut weight);
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(vec![UndoAction::UpdateIGP(source, target, Some(weight))]);
 
         // update the forwarding tables and simulate the network.
         self.write_igp_fw_tables()?;
@@ -587,31 +514,18 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// sets the area of both links in both directions.
     ///
     /// This function will also update the IGP forwarding table *and* run the simulation.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn set_ospf_area(
         &mut self,
         source: RouterId,
         target: RouterId,
         area: impl Into<OspfArea>,
     ) -> Result<OspfArea, NetworkError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         // throw an error if the link does not exist.
         self.net
             .find_edge(source, target)
             .ok_or(NetworkError::LinkNotFound(source, target))?;
 
         let old_area = self.ospf.set_area(source, target, area);
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(vec![UndoAction::UpdateOspfArea(source, target, old_area)]);
 
         // update the forwarding tables and simulate the network.
         self.write_igp_fw_tables()?;
@@ -624,8 +538,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// run the simulation after updating the router.
     ///
     /// To remove a route map, use [`Network::remove_bgp_route_map`].
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn set_bgp_route_map(
         &mut self,
         router: RouterId,
@@ -633,22 +545,11 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         direction: RouteMapDirection,
         route_map: RouteMap<P>,
     ) -> Result<Option<RouteMap<P>>, NetworkError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let (old_map, events) = self
             .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
             .set_bgp_route_map(neighbor, direction, route_map)?;
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(vec![UndoAction::UndoDevice(router)]);
 
         self.enqueue_events(events);
         self.do_queue_maybe_skip()?;
@@ -659,8 +560,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// function will run the simulation after updating the router.
     ///
     /// To add a route map, use [`Network::set_bgp_route_map`].
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn remove_bgp_route_map(
         &mut self,
         router: RouterId,
@@ -668,22 +567,11 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         direction: RouteMapDirection,
         order: i16,
     ) -> Result<Option<RouteMap<P>>, NetworkError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let (old_map, events) = self
             .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
             .remove_bgp_route_map(neighbor, direction, order)?;
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(vec![UndoAction::UndoDevice(router)]);
 
         self.enqueue_events(events);
         self.do_queue_maybe_skip()?;
@@ -693,29 +581,16 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// Modify several route-maps on a single device at once. The router will first update all
     /// route-maps, than re-run route dissemination once, and trigger several events. This function
     /// will run the simulation afterwards (unless the network is in manual simulation mode.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn batch_update_route_maps(
         &mut self,
         router: RouterId,
         updates: &[RouteMapEdit<P>],
     ) -> Result<(), NetworkError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let events = self
             .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
             .batch_update_route_maps(updates)?;
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(vec![UndoAction::UndoDevice(router)]);
 
         self.enqueue_events(events);
         self.do_queue_maybe_skip()?;
@@ -723,20 +598,13 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     }
 
     /// Update or remove a static route on some router. This function will not cuase any
-    /// convergence, as the change is local only. But its action can still be undone.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
+    /// convergence, as the change is local only.
     pub fn set_static_route(
         &mut self,
         router: RouterId,
         prefix: P,
         route: Option<StaticRoute>,
     ) -> Result<Option<StaticRoute>, NetworkError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .push(vec![vec![UndoAction::UndoDevice(router)]]);
-
         Ok(self
             .routers
             .get_mut(&router)
@@ -745,8 +613,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     }
 
     /// Enable or disable Load Balancing on a single device in the network.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn set_load_balancing(
         &mut self,
         router: RouterId,
@@ -759,11 +625,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             .ok_or(NetworkError::DeviceNotFound(router))?
             .set_load_balancing(do_load_balancing);
 
-        // push undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .push(vec![vec![UndoAction::UndoDevice(router)]]);
-
         Ok(old_val)
     }
 
@@ -772,8 +633,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// eBGP neighbors will receive an update with the new route. If a neighbor is added later
     /// (after `advertise_external_route` is called), then this new neighbor will receive an update
     /// as well.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn advertise_external_route<A, C>(
         &mut self,
         source: RouterId,
@@ -787,10 +646,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         A::Item: Into<AsId>,
         C: IntoIterator<Item = u32>,
     {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let prefix: P = prefix.into();
         let as_path: Vec<AsId> = as_path.into_iter().map(|id| id.into()).collect();
 
@@ -805,31 +660,18 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             .ok_or(NetworkError::DeviceNotFound(source))?
             .advertise_prefix(prefix, as_path, med, community);
 
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(vec![UndoAction::UndoDevice(source)]);
-
         self.enqueue_events(events);
         self.do_queue_maybe_skip()
     }
 
     /// Retract an external route and let the network converge. The source must be a `RouterId` of
     /// an `ExternalRouter`. All current eBGP neighbors will receive a withdraw message.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn retract_external_route(
         &mut self,
         source: RouterId,
         prefix: impl Into<P>,
     ) -> Result<(), NetworkError> {
         let prefix: P = prefix.into();
-
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
 
         debug!("Retract {} on {}", prefix, self.get_router_name(source)?);
 
@@ -838,13 +680,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             .get_mut(&source)
             .ok_or(NetworkError::DeviceNotFound(source))?
             .withdraw_prefix(prefix);
-
-        // add the undo action
-        #[cfg(feature = "undo")]
-        self.undo_stack
-            .last_mut()
-            .unwrap()
-            .push(vec![UndoAction::UndoDevice(source)]);
 
         // run the queue
         self.enqueue_events(events);
@@ -855,17 +690,11 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// network topology. Afterwards, it will update the IGP forwarding table, and perform the BGP
     /// decision process, which will cause a convergence process. This function will also
     /// automatically handle the convergence process.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub fn remove_link(
         &mut self,
         router_a: RouterId,
         router_b: RouterId,
     ) -> Result<(), NetworkError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         debug!(
             "Simulate link failure: {} -- {}",
             self.get_router_name(router_a)?,
@@ -886,13 +715,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
                 .ok_or(NetworkError::LinkNotFound(router_b, router_a))?,
         );
 
-        // update the undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.last_mut().unwrap().push(vec![
-            UndoAction::UpdateIGP(router_a, router_b, _weight_a_b),
-            UndoAction::UpdateIGP(router_b, router_a, _weight_b_a),
-        ]);
-
         self.write_igp_fw_tables()
     }
 
@@ -900,13 +722,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// sessions. As a result, this operation may potentially create lots of BGP messages. Due to
     /// internal implementation, the network must be in automatic simulation mode. Calling this
     /// function will process all unhandled events!
-    ///
-    /// **Warning**: This function cannot be undone!
     pub fn remove_router(&mut self, router: RouterId) -> Result<(), NetworkError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        let undo_stack_depth = self.undo_stack.len();
-
         // turn the network into automatic simulation and handle all events.
         let old_skip = self.skip_queue;
         let old_stop_after = self.stop_after;
@@ -950,65 +766,10 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
 
         self.net.remove_node(router);
 
-        // clean up the stack
-        #[cfg(feature = "undo")]
-        while self.undo_stack.len() > undo_stack_depth {
-            self.undo_stack.pop();
-        }
-
         // reset the network mode
         self.skip_queue = old_skip;
         self.stop_after = old_stop_after;
 
-        Ok(())
-    }
-
-    /// Undo the last action performed on the network.
-    ///
-    /// **Note**: This funtion is only available with the `undo` feature.
-    #[cfg(feature = "undo")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-    pub fn undo_action(&mut self) -> Result<(), NetworkError> {
-        let num_actions = self.undo_stack.len();
-        if num_actions == 0 {
-            return Err(NetworkError::EmptyUndoStack);
-        }
-
-        // call undo_event until num_actions has decreased
-        while self.undo_stack.len() == num_actions {
-            self.undo_step()?;
-        }
-
-        Ok(())
-    }
-
-    /// Undo the last action performed on the network.
-    ///
-    /// **Note**: This funtion is only available with the `undo` feature.
-    #[cfg(feature = "undo")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-    pub fn get_undo_mark(&self) -> UndoMark {
-        UndoMark {
-            major: self.undo_stack.len(),
-        }
-    }
-
-    /// Undo the last action performed on the network.
-    ///
-    /// **Note**: This funtion is only available with the `undo` feature.
-    #[cfg(feature = "undo")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-    pub fn undo_to_mark(&mut self, mark: UndoMark) -> Result<(), NetworkError> {
-        loop {
-            // Check if the mark has been reached
-            let num_actions = self.undo_stack.len();
-            // check if the mark was reached
-            if mark.major < num_actions {
-                self.undo_action()?;
-            } else {
-                break;
-            }
-        }
         Ok(())
     }
 
@@ -1023,10 +784,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// The function returns Ok(true) if all events caused by the igp fw table write are handled
     /// correctly. Returns Ok(false) if the max number of iterations is exceeded, and returns an
     /// error if an event was not handled correctly.
-    ///
-    /// *Undo Functionality*: this function will push some events to the last undo action. Changes
-    /// to the IGP state of devices will be added to the last event of the last action, while the
-    /// queue updates will get their own event of the last action.
     pub(crate) fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
         // compute the ospf state
         let ospf_state = self
@@ -1036,15 +793,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         let mut events = vec![];
         for r in self.routers.values_mut() {
             events.append(&mut r.write_igp_forwarding_table(&self.net, &ospf_state)?);
-
-            // add the undo action
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .last_mut()
-                .unwrap()
-                .push(UndoAction::UndoDevice(r.router_id()));
         }
         self.enqueue_events(events);
         self.do_queue_maybe_skip()
@@ -1056,8 +804,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// be set by `self.set_msg_limit`).
     ///
     /// This function will not simulate anything if `self.skip_queue` is set to `true`.
-    ///
-    /// *Undo Functionality*: this function will push some actions to the last undo event.
     pub(crate) fn do_queue_maybe_skip(&mut self) -> Result<(), NetworkError> {
         // update the queue parameters
         self.queue.update_params(&self.routers, &self.net);
@@ -1146,11 +892,6 @@ where
             return false;
         }
 
-        // #[cfg(feature = "undo")]
-        // if self.undo_stack != other.undo_stack {
-        //     return false;
-        // }
-
         let self_ns = HashSet::<RouterId>::from_iter(self.net.node_indices());
         let other_ns = HashSet::<RouterId>::from_iter(other.net.node_indices());
         if self_ns != other_ns {
@@ -1173,31 +914,4 @@ where
 
         true
     }
-}
-
-/// Marker that caputres the information to undo to a specific point in time.
-#[cfg(feature = "undo")]
-#[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug)]
-pub struct UndoMark {
-    major: usize,
-}
-
-/// Undo action on the Network
-#[cfg(feature = "undo")]
-#[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) enum UndoAction {
-    /// Update an edge weight or remove the edge entirely.
-    UpdateIGP(RouterId, RouterId, Option<LinkWeight>),
-    /// Update the OSPF area of a link.
-    UpdateOspfArea(RouterId, RouterId, OspfArea),
-    /// Remove a router from the network
-    RemoveRouter(RouterId),
-    // /// Add a router to the network
-    // AddRouter(RouterId, Box<Router>),
-    // /// Add an external router to the network
-    // AddExternalRouter(RouterId, Box<ExternalRouter>),
-    /// Perform the undo action on a device
-    UndoDevice(RouterId),
 }

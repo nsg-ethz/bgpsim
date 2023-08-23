@@ -47,8 +47,6 @@ pub struct ExternalRouter<P: Prefix> {
     as_id: AsId,
     pub(crate) neighbors: HashSet<RouterId>,
     pub(crate) active_routes: P::Map<BgpRoute<P>>,
-    #[cfg(feature = "undo")]
-    pub(crate) undo_stack: Vec<Vec<UndoAction<P>>>,
 }
 
 impl<P: Prefix> PartialEq for ExternalRouter<P> {
@@ -58,7 +56,6 @@ impl<P: Prefix> PartialEq for ExternalRouter<P> {
             && self.as_id == other.as_id
             && self.neighbors == other.neighbors
             && self.active_routes.eq(&other.active_routes)
-        // && self.undo_stack == other.undo_stack
     }
 }
 
@@ -70,8 +67,6 @@ impl<P: Prefix> Clone for ExternalRouter<P> {
             as_id: self.as_id,
             neighbors: self.neighbors.clone(),
             active_routes: self.active_routes.clone(),
-            #[cfg(feature = "undo")]
-            undo_stack: self.undo_stack.clone(),
         }
     }
 }
@@ -85,51 +80,19 @@ impl<P: Prefix> ExternalRouter<P> {
             as_id,
             neighbors: HashSet::new(),
             active_routes: Default::default(),
-            #[cfg(feature = "undo")]
-            undo_stack: Vec::new(),
         }
     }
 
     /// Handle an `Event` and produce the necessary result. Always returns Ok((false, vec![])), to
     /// tell that the forwarding state has not changed.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn handle_event<T>(
         &mut self,
         event: Event<P, T>,
     ) -> Result<EventOutcome<P, T>, DeviceError> {
-        // push a new empty event to the stack.
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         if let Some(prefix) = event.prefix() {
             Ok((StepUpdate::new(prefix, vec![], vec![]), vec![]))
         } else {
             Ok((StepUpdate::default(), vec![]))
-        }
-    }
-
-    /// Undo the last event on the stack
-    #[cfg(feature = "undo")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-    pub(crate) fn undo_event(&mut self) {
-        if let Some(actions) = self.undo_stack.pop() {
-            for action in actions {
-                match action {
-                    UndoAction::AddBgpSession(peer) => {
-                        self.neighbors.insert(peer);
-                    }
-                    UndoAction::DelBgpSession(peer) => {
-                        self.neighbors.remove(&peer);
-                    }
-                    UndoAction::AdvertiseRoute(prefix, Some(route)) => {
-                        self.active_routes.insert(prefix, route);
-                    }
-                    UndoAction::AdvertiseRoute(prefix, None) => {
-                        self.active_routes.remove(&prefix);
-                    }
-                }
-            }
         }
     }
 
@@ -155,8 +118,6 @@ impl<P: Prefix> ExternalRouter<P> {
 
     /// Start advertizing a specific route. All neighbors (including future neighbors) will get an
     /// update message with the route.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn advertise_prefix<T: Default, I: IntoIterator<Item = u32>>(
         &mut self,
         prefix: P,
@@ -164,10 +125,6 @@ impl<P: Prefix> ExternalRouter<P> {
         med: Option<u32>,
         community: I,
     ) -> (BgpRoute<P>, Vec<Event<P, T>>) {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         let route = BgpRoute::new(self.router_id, prefix, as_path, med, community);
 
         let old_route = self.active_routes.insert(prefix, route.clone());
@@ -186,33 +143,13 @@ impl<P: Prefix> ExternalRouter<P> {
                 .map(|n| Event::Bgp(T::default(), self.router_id, *n, bgp_event.clone()))
                 .collect();
 
-            // update the undo stack
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(UndoAction::AdvertiseRoute(prefix, old_route));
-
             (route, events)
         }
     }
 
     /// Send a BGP WITHDRAW to all neighbors for the given prefix
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn withdraw_prefix<T: Default>(&mut self, prefix: P) -> Vec<Event<P, T>> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
-        if let Some(_old_route) = self.active_routes.remove(&prefix) {
-            // update the undo stack
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(UndoAction::AdvertiseRoute(prefix, Some(_old_route)));
-
+        if self.active_routes.remove(&prefix).is_some() {
             // only send the withdraw if the route actually did exist
             self.neighbors
                 .iter()
@@ -225,25 +162,13 @@ impl<P: Prefix> ExternalRouter<P> {
     }
 
     /// Add an ebgp session with an internal router. Generate all events.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn establish_ebgp_session<T: Default>(
         &mut self,
         router: RouterId,
     ) -> Result<Vec<Event<P, T>>, DeviceError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
         // if the session does not yet exist, push the new router into the list
         Ok(if self.neighbors.insert(router) {
             // session did not exist.
-            // update the undo stack
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(UndoAction::DelBgpSession(router));
             // send all prefixes to this router
             self.active_routes
                 .iter()
@@ -262,21 +187,8 @@ impl<P: Prefix> ExternalRouter<P> {
     }
 
     /// Close an existing eBGP session with an internal router.
-    ///
-    /// *Undo Functionality*: this function will push a new undo event to the queue.
     pub(crate) fn close_ebgp_session(&mut self, router: RouterId) -> Result<(), DeviceError> {
-        // prepare undo stack
-        #[cfg(feature = "undo")]
-        self.undo_stack.push(Vec::new());
-
-        if self.neighbors.remove(&router) {
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(UndoAction::AddBgpSession(router));
-        }
-
+        self.neighbors.remove(&router);
         Ok(())
     }
 
@@ -322,14 +234,4 @@ impl<P: Prefix> ExternalRouter<P> {
     pub(crate) fn set_as_id(&mut self, as_id: AsId) {
         self.as_id = as_id;
     }
-}
-
-#[cfg(feature = "undo")]
-#[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
-pub(crate) enum UndoAction<P: Prefix> {
-    AddBgpSession(RouterId),
-    DelBgpSession(RouterId),
-    AdvertiseRoute(P, Option<BgpRoute<P>>),
 }

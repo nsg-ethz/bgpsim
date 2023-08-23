@@ -24,7 +24,6 @@ required-features = ["topology_zoo", "rand_queue", "rand"]
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 [features]
-undo = []
 rand = ["dep:rand"]
 rand_queue = ["rand", "dep:rand_distr", "dep:priority-queue", "dep:geoutils"]
 topology_zoo = ["dep:xmltree", "dep:geoutils", "dep:include-flate"]

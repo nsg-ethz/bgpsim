@@ -52,10 +52,6 @@
 //!
 //! ## Optional Features
 //!
-//! - `undo`: This feature enables undo capabilities. Every change in the network is recorded and
-//!   can be reversed later, by calling `network::Network::undo_action` (or interactively by
-//!   calling `interactive::InteractiveNetwork::undo_step`. However, enabling this feature will
-//!   come at a significant performance cost, as every event needs to be recorded.
 //! - `rand`: This feature enables helper functions in the [`builder`] for generating random
 //!   configurations.
 //! - `rand_queue`: This feature enables the [`event::SimpleTimingModel`], and adds

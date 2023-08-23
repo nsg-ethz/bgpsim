@@ -342,32 +342,6 @@ mod t {
         net.set_link_weight(*R1, *R4, 1.0).unwrap_err();
     }
 
-    #[cfg(feature = "undo")]
-    #[test]
-    fn test_igp_table_undo<P: Prefix>() {
-        let mut net = get_test_net::<P>();
-        let net_hist_1 = net.clone();
-
-        // add and remove a configuration to set a single link weight to infinity.
-        net.set_link_weight(*R1, *R2, LinkWeight::infinite())
-            .unwrap();
-        let net_hist_2 = net.clone();
-
-        // configure a single link weight and check the result
-        net.set_link_weight(*R1, *R2, 5.0).unwrap();
-        let net_hist_3 = net.clone();
-
-        // configure a single link weight in reverse
-        net.set_link_weight(*R2, *R1, 5.0).unwrap();
-
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_2);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_1);
-    }
-
     #[test]
     fn test_bgp_connectivity<P: Prefix>() {
         let mut net = get_test_net_bgp::<P>();
@@ -399,29 +373,6 @@ mod t {
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *E4]);
-    }
-
-    #[cfg(feature = "undo")]
-    #[test]
-    fn test_bgp_connectivity_undo<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
-        let net_hist_1 = net.clone();
-
-        let p = P::from(0);
-
-        // advertise prefix on e1
-        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
-            .unwrap();
-        let net_hist_2 = net.clone();
-
-        // advertise prefix on e4
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
-            .unwrap();
-
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_2);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_1);
     }
 
     #[test]
@@ -570,38 +521,6 @@ mod t {
         test_route!(net, *R1, p, [*R1, *R3, *R4, *E4]);
     }
 
-    #[cfg(feature = "undo")]
-    #[test]
-    fn test_static_route_undo<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
-        let p = P::from(0);
-
-        // advertise both prefixes
-        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
-            .unwrap();
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
-            .unwrap();
-
-        // now, make sure that router R3 points to R4 for the prefix
-        let net_trace_1 = net.clone();
-        net.set_static_route(*R3, p, Some(Direct(*R4))).unwrap();
-        let net_trace_2 = net.clone();
-        net.set_static_route(*R2, p, Some(Direct(*R3))).unwrap();
-        let net_trace_3 = net.clone();
-        net.set_static_route(*R1, p, Some(Direct(*R4))).unwrap();
-        let net_trace_4 = net.clone();
-        net.set_static_route(*R1, p, Some(Indirect(*R4))).unwrap();
-
-        net.undo_action().unwrap();
-        assert_eq!(net, net_trace_4);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_trace_3);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_trace_2);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_trace_1);
-    }
-
     #[test]
     fn test_bgp_decision<P: Prefix>() {
         let mut net = get_test_net_bgp::<P>();
@@ -676,61 +595,6 @@ mod t {
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *E4]);
-    }
-
-    #[cfg(feature = "undo")]
-    #[test]
-    fn test_bgp_decision_undo<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
-        let net_hist_1 = net.clone();
-
-        let p = P::from(0);
-
-        // advertise both prefixes
-        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
-            .unwrap();
-        let net_hist_2 = net.clone();
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
-            .unwrap();
-        let net_hist_3 = net.clone();
-
-        // change the AS path
-        net.advertise_external_route(
-            *E4,
-            p,
-            vec![AsId(65104), AsId(65500), AsId(65201)],
-            None,
-            None,
-        )
-        .unwrap();
-        let net_hist_4 = net.clone();
-
-        // change back
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
-            .unwrap();
-        let net_hist_5 = net.clone();
-
-        // change the MED
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], Some(20), None)
-            .unwrap();
-        let net_hist_6 = net.clone();
-
-        // change back
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
-            .unwrap();
-
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_6);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_5);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_4);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_2);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_1);
     }
 
     #[test]
@@ -905,94 +769,6 @@ mod t {
         test_route!(net, *R4, p, [*R4, *E4]);
     }
 
-    #[cfg(feature = "undo")]
-    #[test]
-    fn test_route_maps_undo<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
-        let p = P::from(0);
-        let net_hist_1 = net.clone();
-
-        // advertise both prefixes
-        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
-            .unwrap();
-        let net_hist_2 = net.clone();
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
-            .unwrap();
-        let net_hist_3 = net.clone();
-
-        // now, deny all routes from E1
-        net.set_bgp_route_map(
-            *R1,
-            *E1,
-            Incoming,
-            RouteMap::new(10, Deny, vec![], vec![], Continue),
-        )
-        .unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-
-        // now, don't forward the route from E1 at R1, but keep it locally
-        net.set_bgp_route_map(
-            *R1,
-            *E1,
-            Outgoing,
-            RouteMap::new(10, Deny, vec![], vec![], Continue),
-        )
-        .unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-
-        // now, change the local pref for all to lower
-        net.set_bgp_route_map(
-            *R1,
-            *E1,
-            Incoming,
-            RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
-        )
-        .unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-
-        // now, change the local pref for all others to lower
-        net.set_bgp_route_map(
-            *R1,
-            *E1,
-            Outgoing,
-            RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
-        )
-        .unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-
-        // now, set the local pref higher only for R2, who would else pick R4
-        net.set_bgp_route_map(
-            *R1,
-            *R2,
-            Outgoing,
-            RouteMap::new(10, Allow, vec![], vec![Set::LocalPref(Some(200))], Continue),
-        )
-        .unwrap();
-        let net_hist_4 = net.clone();
-
-        // by additionally setting local pref to a lower value, all routers should choose R4, but in R2
-        // should choose R3 as a next hop
-        net.set_bgp_route_map(
-            *R1,
-            *E1,
-            Outgoing,
-            RouteMap::new(20, Allow, vec![], vec![Set::LocalPref(Some(50))], Continue),
-        )
-        .unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_4);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_2);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_1);
-    }
-
     #[test]
     fn test_link_failure<P: Prefix>() {
         let mut original_net = get_test_net_bgp::<P>();
@@ -1068,65 +844,6 @@ mod t {
         test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
-    }
-
-    #[cfg(feature = "undo")]
-    #[test]
-    fn test_link_failure_undo<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
-        let net_hist_1 = net.clone();
-
-        // advertise a prefix on both ends
-        let p = P::from(0);
-        net.advertise_external_route(
-            *E1,
-            p,
-            vec![AsId(65101), AsId(65103), AsId(65201)],
-            None,
-            None,
-        )
-        .unwrap();
-        let net_hist_2 = net.clone();
-        net.advertise_external_route(
-            *E4,
-            p,
-            vec![AsId(65104), AsId(65101), AsId(65103), AsId(65201)],
-            None,
-            None,
-        )
-        .unwrap();
-        let net_hist_3 = net.clone();
-
-        // simulate link failure internally, between R2 and R4, which should not change anything in the
-        // forwarding state.
-        net.remove_link(*R2, *R4).unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-
-        // simulate link failure externally, between R1 and E1, which should cause reconvergence.
-        net.remove_link(*R1, *E1).unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-
-        // simulate link failure externally, between E1 and R1, which should cause reconvergence.
-        net.remove_link(*E1, *R1).unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-
-        // simulate link failure internally between R2 and R3
-        net.remove_link(*R2, *R3).unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-
-        // retract the route
-        net.retract_external_route(*E4, p).unwrap();
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_3);
-
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_2);
-        net.undo_action().unwrap();
-        assert_eq!(net, net_hist_1);
     }
 
     #[test]

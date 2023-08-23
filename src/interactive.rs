@@ -20,8 +20,6 @@
 
 use log::debug;
 
-#[cfg(feature = "undo")]
-use crate::network::UndoAction;
 use crate::{
     event::{Event, EventQueue},
     formatter::NetworkFormatter,
@@ -75,13 +73,6 @@ where
     fn simulate_step(
         &mut self,
     ) -> Result<Option<(StepUpdate<P>, Event<P, Q::Priority>)>, NetworkError>;
-
-    /// Undo the last event in the network.
-    ///
-    /// **Note**: This funtion is only available with the `undo` feature.
-    #[cfg(feature = "undo")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-    fn undo_step(&mut self) -> Result<(), NetworkError>;
 
     /// Get a reference to the queue
     fn queue(&self) -> &Q;
@@ -142,79 +133,10 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
 
             self.enqueue_events(events);
 
-            // add the undo action
-            #[cfg(feature = "undo")]
-            self.undo_stack
-                .last_mut()
-                .unwrap()
-                .push(vec![UndoAction::UndoDevice(event.router())]);
-
             Ok(Some((step_update, event)))
         } else {
             Ok(None)
         }
-    }
-
-    #[cfg(feature = "undo")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-    fn undo_step(&mut self) -> Result<(), NetworkError> {
-        if let Some(event) = self.undo_stack.last_mut().and_then(|s| s.pop()) {
-            for e in event {
-                match e {
-                    UndoAction::UpdateIGP(source, target, Some(weight)) => {
-                        self.net.update_edge(source, target, weight);
-                    }
-                    UndoAction::UpdateIGP(source, target, None) => {
-                        self.net.remove_edge(
-                            self.net
-                                .find_edge(source, target)
-                                .ok_or(NetworkError::LinkNotFound(source, target))?,
-                        );
-                    }
-                    UndoAction::RemoveRouter(id) => {
-                        if self.net.edges(id).next().is_some() {
-                            return Err(NetworkError::UndoError(
-                                "Cannot remove the node as it is is still connected to other nodes"
-                                    .to_string(),
-                            ));
-                        }
-                        self.routers
-                            .remove(&id)
-                            .map(|_| ())
-                            .or_else(|| self.external_routers.remove(&id).map(|_| ()))
-                            .ok_or(NetworkError::DeviceNotFound(id))?;
-                        self.net.remove_node(id);
-                    }
-                    UndoAction::UpdateOspfArea(source, target, area) => {
-                        self.ospf.set_area(source, target, area);
-                    }
-                    // UndoAction::AddRouter(id, router) => {
-                    //     self.routers.insert(id, *router);
-                    // }
-                    // UndoAction::AddExternalRouter(id, router) => {
-                    //     self.external_routers.insert(id, *router);
-                    // }
-                    UndoAction::UndoDevice(id) => {
-                        self.get_device_mut(id).undo_event()?;
-                    }
-                }
-            }
-        } else {
-            assert!(self.undo_stack.is_empty());
-            return Err(NetworkError::EmptyUndoStack);
-        }
-
-        // if the last action is now empty, remove it
-        if self
-            .undo_stack
-            .last()
-            .map(|a| a.is_empty())
-            .unwrap_or(false)
-        {
-            self.undo_stack.pop();
-        }
-
-        Ok(())
     }
 
     fn queue(&self) -> &Q {
@@ -420,10 +342,6 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
             if !self.reuse_advertisements {
                 r.active_routes = r_source.active_routes.clone();
             }
-            #[cfg(feature = "undo")]
-            {
-                r.undo_stack = r_source.undo_stack.clone();
-            }
         }
 
         // handle all internal routers
@@ -450,17 +368,6 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
                 r.bgp_rib_out = r_source.bgp_rib_out.clone();
                 r.bgp_known_prefixes = r_source.bgp_known_prefixes.clone();
             }
-
-            #[cfg(feature = "undo")]
-            {
-                r.undo_stack = r_source.undo_stack.clone();
-            }
-        }
-
-        // clone the undo stacks
-        #[cfg(feature = "undo")]
-        {
-            new.undo_stack = source.undo_stack.clone();
         }
 
         new

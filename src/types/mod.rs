@@ -462,24 +462,6 @@ impl<'a, P: Prefix> NetworkDeviceMut<'a, P> {
             NetworkDeviceMut::None(id) => Err(NetworkError::DeviceNotFound(*id)),
         }
     }
-
-    /// Undo the last event on the network device. If the device does not exist, then raise an
-    /// error.
-    #[cfg(feature = "undo")]
-    #[cfg_attr(docsrs, doc(cfg(feature = "undo")))]
-    pub(crate) fn undo_event(&mut self) -> Result<(), NetworkError> {
-        match self {
-            NetworkDeviceMut::InternalRouter(r) => {
-                r.undo_event();
-                Ok(())
-            }
-            NetworkDeviceMut::ExternalRouter(r) => {
-                r.undo_event();
-                Ok(())
-            }
-            NetworkDeviceMut::None(id) => Err(NetworkError::DeviceNotFound(*id)),
-        }
-    }
 }
 
 /// Router Errors
@@ -537,12 +519,6 @@ pub enum NetworkError {
     /// The BGP table is invalid
     #[error("Invalid BGP table for router {0:?}")]
     InvalidBgpTable(RouterId),
-    /// Undo stack is empty
-    #[error("Undo stack is empty")]
-    EmptyUndoStack,
-    /// Some undo error happened.
-    #[error("Undo error: {0}")]
-    UndoError(String),
     /// Json error
     #[error("{0}")]
     JsonError(Box<serde_json::Error>),
@@ -573,7 +549,6 @@ impl PartialEq for NetworkError {
                 l0 == r0 && l1 == r1
             }
             (Self::InvalidBgpTable(l0), Self::InvalidBgpTable(r0)) => l0 == r0,
-            (Self::UndoError(l0), Self::UndoError(r0)) => l0 == r0,
             (Self::JsonError(l), Self::JsonError(r)) => l.to_string() == r.to_string(),
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }

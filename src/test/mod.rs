@@ -102,9 +102,6 @@ mod test_config;
 mod test_export;
 mod test_forwarding_state;
 mod test_network;
-#[cfg(feature = "undo")]
-#[cfg(feature = "rand_queue")]
-mod test_network_comlete_undo;
 mod test_network_complete;
 mod test_network_config;
 mod test_ospf;
