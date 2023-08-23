@@ -68,7 +68,7 @@ pub fn migration_button() -> Html {
 
     html! {
         <button {class} onclick={open_planner} {onmouseenter} {onmouseleave} id="migration-button">
-            <yew_lucide::LayoutList class="w-5 h-5 mr-2"/>
+            <yew_lucide::LayoutList class="w-5 h-5 mr-2 translate-y-0.5"/>
             { "Plan" }
             <div class={badge_class}>{progress} {"/"} {total}</div>
         </button>
