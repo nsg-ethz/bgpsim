@@ -23,7 +23,7 @@ use crate::{
     draw::arrows::get_curve_point,
     net::{use_pos_pair, Net},
     point::Point,
-    state::{ContextMenu, Hover, State},
+    state::{ContextMenu, Hover, State, Selected, Flash},
 };
 
 use super::{arrows::CurvedArrow, SvgColor};
@@ -129,8 +129,13 @@ pub fn RouteMap(props: &RmProps) -> Html {
     });
     let onmouseleave = dispatch.reduce_mut_callback(|s| s.clear_hover());
 
+    let onclick = dispatch.reduce_mut_callback(move |s| {
+        s.set_selected(Selected::Router(id, false));
+        s.set_flash(Flash::RouteMap(id, peer, direction));
+    });
+
     html! {
-        <svg fill="none" stroke-linecap="round" stroke-linejoint="round" class="text-main stroke-2 fill-none stroke-current hover:stroke-4 transition-svg ease-in-out" {onmouseenter} {onmouseleave} x={p.x()} y={p.y()}>
+        <svg fill="none" stroke-linecap="round" stroke-linejoint="round" class="text-main stroke-2 fill-none stroke-current hover:stroke-4 transition-svg ease-in-out" {onmouseenter} {onmouseleave} {onclick} x={p.x()} y={p.y()}>
             { arrow_path}
         </svg>
     }

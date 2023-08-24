@@ -68,8 +68,8 @@ pub fn LinkWeight(props: &Properties) -> Html {
     let w1 = weights.0.to_string();
     let w2 = weights.1.to_string();
     let node_distance = p1.dist(p2);
-    let dist = if node_distance > ROUTER_RADIUS * 12.0 {
-        ROUTER_RADIUS * 4.0
+    let dist = if node_distance > ROUTER_RADIUS * 15.0 {
+        ROUTER_RADIUS * 5.0
     } else {
         node_distance / 3.0
     };

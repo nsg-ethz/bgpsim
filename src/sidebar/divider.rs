@@ -77,7 +77,7 @@ pub struct ExpandableDividerProps {
 #[function_component(ExpandableDivider)]
 pub fn expandable_divider(props: &ExpandableDividerProps) -> Html {
     let given_shown = props.shown;
-    let last_given_shown = use_state(|| given_shown);
+    let last_given_shown = use_state(|| None);
     let shown = use_state(|| false);
     if *last_given_shown != given_shown {
         last_given_shown.set(given_shown);

@@ -154,7 +154,7 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
     }
 
     let flash = *flash == Some(Flash::LinkConfig(dst));
-    let base_class = "w-full transition duratoin-300 ease-in-out rounded-lg";
+    let base_class = "w-full transition duration-300 ease-in-out rounded-lg";
     let flash_class = "ring-4 ring-blue ring-offset-4";
     let class = if flash {
         classes!(base_class, flash_class)

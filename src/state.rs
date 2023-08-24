@@ -471,4 +471,5 @@ impl ContextMenu {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum Flash {
     LinkConfig(RouterId),
+    RouteMap(RouterId, RouterId, RouteMapDirection),
 }

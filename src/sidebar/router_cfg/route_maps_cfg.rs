@@ -28,7 +28,7 @@ use bgpsim::{
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::net::{Net, Pfx};
+use crate::{net::{Net, Pfx}, state::{State, Flash}};
 
 use super::super::{Divider, Element, ExpandableDivider, Select, TextField};
 use super::route_map_item_cfg::RouteMapCfg;
@@ -36,13 +36,17 @@ use super::route_map_item_cfg::RouteMapCfg;
 pub struct RouteMapsCfg {
     net: Rc<Net>,
     net_dispatch: Dispatch<Net>,
+    state: Rc<State>,
+    _state_dispatch: Dispatch<State>,
     rm_in_order_correct: bool,
     rm_out_order_correct: bool,
     rm_neighbor: Option<RouterId>,
+    flash_changed: bool,
 }
 
 pub enum Msg {
     StateNet(Rc<Net>),
+    State(Rc<State>),
     ChooseRMNeighbor(RouterId),
     UpdateRM(RouterId, i16, Option<RouteMap<Pfx>>, RouteMapDirection),
     ChangeRMOrder(RouterId, RouteMapDirection, String),
@@ -61,12 +65,16 @@ impl Component for RouteMapsCfg {
 
     fn create(ctx: &Context<Self>) -> Self {
         let net_dispatch = Dispatch::<Net>::subscribe(ctx.link().callback(Msg::StateNet));
+        let _state_dispatch = Dispatch::<State>::subscribe(ctx.link().callback(Msg::State));
         RouteMapsCfg {
             net: Default::default(),
             net_dispatch,
+            state: Default::default(),
+            _state_dispatch,
             rm_in_order_correct: true,
             rm_out_order_correct: true,
             rm_neighbor: None,
+            flash_changed: false,
         }
     }
 
@@ -117,6 +125,32 @@ impl Component for RouteMapsCfg {
 
             let help = html! {<p>{"Route maps are configured per neighbor. Select a neighbor to configure route-maps from that neighbor."}</p>};
 
+            let (shown_in, shown_out) = if let Some(Flash::RouteMap(src, _, dir)) = self.state.get_flash() {
+                if src == ctx.props().router {
+                    match dir {
+                        Incoming => (Some(true), None),
+                        Outgoing => (None, Some(true)),
+                    }
+                } else {
+                    (None, None)
+                }
+            } else {
+                (None, None)
+            };
+
+            let flash_class = "ring-4 ring-blue ring-offset-4";
+            let normal_class = "w-full p-0 m-0 transition duration-300 ease-in-out rounded-lg";
+            let in_box_class = if shown_in == Some(true) {
+                classes!(normal_class, flash_class)
+            } else {
+                classes!(normal_class)
+            };
+            let out_box_class = if shown_out == Some(true) {
+                classes!(normal_class, flash_class)
+            } else {
+                classes!(normal_class)
+            };
+
             html! {
                 <>
                     <Divider text={"BGP Route-Maps"} />
@@ -124,29 +158,33 @@ impl Component for RouteMapsCfg {
                         <Element text={"Neighbor"} {help}>
                             <Select<RouterId> text={neighbor.fmt(n).to_string()} options={bgp_peers} on_select={ctx.link().callback(Msg::ChooseRMNeighbor)} />
                         </Element>
-                        <ExpandableDivider text={String::from("Incoming Route Map")} padding_top={false} >
+                    <ExpandableDivider text={String::from("Incoming Route Map")} padding_top={false} shown={shown_in} >
                             <Element text={"New route map"} >
                                 <TextField text={""} placeholder={"order"} on_change={on_in_order_change} on_set={on_in_route_map_add} correct={self.rm_in_order_correct} button_text={"Add"}/>
                             </Element>
-                            {
-                                incoming_rms.into_iter().map(|(order, map)|  {
-                                    let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Incoming));
-                                    let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Incoming));
-                                    html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove}/> }
-                                }).collect::<Html>()
-                            }
+                            <div class={in_box_class}>
+                                {
+                                    incoming_rms.into_iter().map(|(order, map)|  {
+                                        let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Incoming));
+                                        let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Incoming));
+                                        html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove}/> }
+                                    }).collect::<Html>()
+                                }
+                            </div>
                         </ExpandableDivider>
-                        <ExpandableDivider text={String::from("Outgoing Route Map")} >
+                    <ExpandableDivider text={String::from("Outgoing Route Map")} shown={shown_out}>
                             <Element text={"New route map"} >
                                 <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"}/>
                             </Element>
-                            {
-                                outgoing_rms.into_iter().map(|(order, map)| {
-                                    let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Outgoing));
-                                    let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Outgoing));
-                                    html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove}/> }
-                                }).collect::<Html>()
-                            }
+                            <div class={out_box_class}>
+                                {
+                                    outgoing_rms.into_iter().map(|(order, map)| {
+                                        let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Outgoing));
+                                        let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Outgoing));
+                                        html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove}/> }
+                                    }).collect::<Html>()
+                                }
+                            </div>
                         </ExpandableDivider>
                     </div>
                 </>
@@ -161,6 +199,18 @@ impl Component for RouteMapsCfg {
         match msg {
             Msg::StateNet(n) => {
                 self.net = n;
+                true
+            }
+            Msg::State(state) => {
+                self.state = state;
+                if let Some(Flash::RouteMap(src, dst, _)) = self.state.get_flash() {
+                    if (!self.flash_changed) && router == src {
+                        self.flash_changed = true;
+                        self.rm_neighbor = Some(dst);
+                    }
+                } else {
+                    self.flash_changed = false;
+                }
                 true
             }
             Msg::ChooseRMNeighbor(neighbor) => {
