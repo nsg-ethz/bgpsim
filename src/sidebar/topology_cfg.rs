@@ -22,6 +22,7 @@ use bgpsim::{
     ospf::OspfArea,
     types::{LinkWeight, RouterId},
 };
+use web_sys::Element as WebElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -85,6 +86,7 @@ impl Component for TopologyCfg {
             .collect();
         let on_link_add = ctx.link().callback(Msg::AddLink);
         let on_link_remove = ctx.link().callback(Msg::RemoveLink);
+
         html! {
             <>
                 <Divider text={"Topology + OSPF"} />
@@ -147,6 +149,8 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
     let flash = use_selector(|state: &State| state.get_flash());
     let area_correct = use_state(|| true);
     let weight_correct = use_state(|| true);
+    let node_ref = use_node_ref();
+    let new_flash = use_state(|| true);
 
     // early exit if one of the links is towards an external router.
     if info.src_external || info.dst_external {
@@ -161,6 +165,15 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
     } else {
         classes!(base_class)
     };
+
+    if flash && *new_flash {
+        // new flash
+        new_flash.set(false);
+        let node: WebElement = node_ref.cast().unwrap();
+        node.scroll_into_view();
+    } else if !flash && !*new_flash {
+        new_flash.set(true);
+    }
 
     let element_text = info.element_text.clone();
 
@@ -190,7 +203,7 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
     });
 
     html! {
-        <div {class}>
+        <div {class} ref={node_ref}>
             <Element text={element_text}>
                 <div class="flex flex-col flex-1 space-y-2">
                     <Element text={"cost"} small={true} class={classes!("text-main-ia")}>

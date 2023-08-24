@@ -27,6 +27,7 @@ use bgpsim::{
 };
 use yew::prelude::*;
 use yewdux::prelude::*;
+use web_sys::Element as WebElement;
 
 use crate::{net::{Net, Pfx}, state::{State, Flash}};
 
@@ -42,6 +43,8 @@ pub struct RouteMapsCfg {
     rm_out_order_correct: bool,
     rm_neighbor: Option<RouterId>,
     flash_changed: bool,
+    in_ref: NodeRef,
+    out_ref: NodeRef,
 }
 
 pub enum Msg {
@@ -75,6 +78,8 @@ impl Component for RouteMapsCfg {
             rm_out_order_correct: true,
             rm_neighbor: None,
             flash_changed: false,
+            in_ref: NodeRef::default(),
+            out_ref: NodeRef::default(),
         }
     }
 
@@ -125,6 +130,9 @@ impl Component for RouteMapsCfg {
 
             let help = html! {<p>{"Route maps are configured per neighbor. Select a neighbor to configure route-maps from that neighbor."}</p>};
 
+            // Handle the flashing
+
+            let (in_ref, out_ref) = (self.in_ref.clone(), self.out_ref.clone());
             let (shown_in, shown_out) = if let Some(Flash::RouteMap(src, _, dir)) = self.state.get_flash() {
                 if src == ctx.props().router {
                     match dir {
@@ -162,7 +170,7 @@ impl Component for RouteMapsCfg {
                             <Element text={"New route map"} >
                                 <TextField text={""} placeholder={"order"} on_change={on_in_order_change} on_set={on_in_route_map_add} correct={self.rm_in_order_correct} button_text={"Add"}/>
                             </Element>
-                            <div class={in_box_class}>
+                            <div class={in_box_class} ref={in_ref}>
                                 {
                                     incoming_rms.into_iter().map(|(order, map)|  {
                                         let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Incoming));
@@ -176,7 +184,7 @@ impl Component for RouteMapsCfg {
                             <Element text={"New route map"} >
                                 <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"}/>
                             </Element>
-                            <div class={out_box_class}>
+                            <div class={out_box_class} ref={out_ref}>
                                 {
                                     outgoing_rms.into_iter().map(|(order, map)| {
                                         let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Outgoing));
@@ -203,10 +211,15 @@ impl Component for RouteMapsCfg {
             }
             Msg::State(state) => {
                 self.state = state;
-                if let Some(Flash::RouteMap(src, dst, _)) = self.state.get_flash() {
+                if let Some(Flash::RouteMap(src, dst, dir)) = self.state.get_flash() {
                     if (!self.flash_changed) && router == src {
                         self.flash_changed = true;
                         self.rm_neighbor = Some(dst);
+                        let node_ref: WebElement = match dir {
+                            Incoming => self.in_ref.cast().unwrap(),
+                            Outgoing => self.out_ref.cast().unwrap(),
+                        };
+                        node_ref.scroll_into_view();
                     }
                 } else {
                     self.flash_changed = false;
