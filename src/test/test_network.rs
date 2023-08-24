@@ -396,25 +396,29 @@ mod t {
         let r1_rib = net
             .get_device(*R1)
             .unwrap_internal()
-            .get_bgp_rib()
+            .bgp
+            .get_rib()
             .get(&p)
             .unwrap();
         let r2_rib = net
             .get_device(*R2)
             .unwrap_internal()
-            .get_bgp_rib()
+            .bgp
+            .get_rib()
             .get(&p)
             .unwrap();
         let r3_rib = net
             .get_device(*R3)
             .unwrap_internal()
-            .get_bgp_rib()
+            .bgp
+            .get_rib()
             .get(&p)
             .unwrap();
         let r4_rib = net
             .get_device(*R4)
             .unwrap_internal()
-            .get_bgp_rib()
+            .bgp
+            .get_rib()
             .get(&p)
             .unwrap();
 
@@ -439,25 +443,29 @@ mod t {
         let r1_rib = net
             .get_device(*R1)
             .unwrap_internal()
-            .get_bgp_rib()
+            .bgp
+            .get_rib()
             .get(&p)
             .unwrap();
         let r2_rib = net
             .get_device(*R2)
             .unwrap_internal()
-            .get_bgp_rib()
+            .bgp
+            .get_rib()
             .get(&p)
             .unwrap();
         let r3_rib = net
             .get_device(*R3)
             .unwrap_internal()
-            .get_bgp_rib()
+            .bgp
+            .get_rib()
             .get(&p)
             .unwrap();
         let r4_rib = net
             .get_device(*R4)
             .unwrap_internal()
-            .get_bgp_rib()
+            .bgp
+            .get_rib()
             .get(&p)
             .unwrap();
 

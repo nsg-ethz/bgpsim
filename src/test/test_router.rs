@@ -39,13 +39,13 @@ mod t2 {
         use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
 
         let mut r = Router::<P>::new("test".to_string(), 0.into(), AsId(65001));
-        r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
-        r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
-        r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
-        r.set_bgp_session::<()>(3.into(), Some(IBgpPeer)).unwrap();
-        r.set_bgp_session::<()>(4.into(), Some(IBgpClient)).unwrap();
-        r.set_bgp_session::<()>(5.into(), Some(IBgpClient)).unwrap();
-        r.set_bgp_session::<()>(6.into(), Some(IBgpClient)).unwrap();
+        r.bgp.set_session::<()>(100.into(), Some(EBgp)).unwrap();
+        r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+        r.bgp.set_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
+        r.bgp.set_session::<()>(3.into(), Some(IBgpPeer)).unwrap();
+        r.bgp.set_session::<()>(4.into(), Some(IBgpClient)).unwrap();
+        r.bgp.set_session::<()>(5.into(), Some(IBgpClient)).unwrap();
+        r.bgp.set_session::<()>(6.into(), Some(IBgpClient)).unwrap();
         r.igp.igp_table = hashmap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
@@ -57,6 +57,7 @@ mod t2 {
             10.into()  => (vec![1.into()], 6.0),
             11.into()  => (vec![1.into()], 15.0),
         };
+        r.bgp.igp_cost = r.igp.igp_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
 
         /////////////////////
         // external update //
@@ -81,7 +82,7 @@ mod t2 {
             .unwrap();
 
         // check that the router now has a route selected for 100 with the correct data
-        let entry = r.get_selected_bgp_route(P::from(200)).unwrap();
+        let entry = r.bgp.get_exact(P::from(200)).unwrap();
         assert_eq!(entry.from_type, EBgp);
         assert_eq!(entry.route.next_hop, 100.into());
         assert_eq!(entry.route.local_pref, Some(100));
@@ -123,7 +124,7 @@ mod t2 {
             .unwrap();
 
         // check that the router now has a route selected for 100 with the correct data
-        let entry = r.get_selected_bgp_route(P::from(201)).unwrap();
+        let entry = r.bgp.get_exact(P::from(201)).unwrap();
         assert_eq!(entry.from_type, IBgpPeer);
         assert_eq!(entry.route.next_hop, 11.into());
         assert_eq!(entry.route.local_pref, Some(50));
@@ -168,7 +169,7 @@ mod t2 {
             .unwrap();
 
         // check that
-        let entry = r.get_selected_bgp_route(P::from(200)).unwrap();
+        let entry = r.bgp.get_exact(P::from(200)).unwrap();
         assert_eq!(entry.from_type, EBgp);
         assert_eq!(entry.route.next_hop, 100.into());
         assert_eq!(events.len(), 0);
@@ -209,7 +210,7 @@ mod t2 {
             .unwrap();
 
         // check that the router now has a route selected for 100 with the correct data
-        let entry = r.get_selected_bgp_route(P::from(200)).unwrap().clone();
+        let entry = r.bgp.get_exact(P::from(200)).unwrap().clone();
         assert_eq!(entry.from_type, IBgpClient);
         assert_eq!(entry.route.next_hop, 5.into());
         assert_eq!(entry.route.local_pref, Some(150));
@@ -249,7 +250,7 @@ mod t2 {
             .unwrap();
 
         // check that the router now has a route selected for 100 with the correct data
-        let new_entry = r.get_selected_bgp_route(P::from(200)).unwrap();
+        let new_entry = r.bgp.get_exact(P::from(200)).unwrap();
         assert_eq!(new_entry, &entry);
         assert_eq!(events.len(), 0);
 
@@ -268,7 +269,7 @@ mod t2 {
 
         // check that the router now has a route selected for 100 with the correct data
         //eprintln!("{:#?}", r);
-        let new_entry = r.get_selected_bgp_route(P::from(200)).unwrap();
+        let new_entry = r.bgp.get_exact(P::from(200)).unwrap();
         assert_eq!(new_entry, &original_entry);
         assert_eq!(events.len(), 7);
         for event in events {
@@ -301,7 +302,7 @@ mod t2 {
             .unwrap();
 
         // check that the router now has a route selected for 100 with the correct data
-        assert!(r.get_selected_bgp_route(P::from(200)).is_none());
+        assert!(r.bgp.get_exact(P::from(200)).is_none());
         assert_eq!(events.len(), 6);
         for event in events {
             let p200 = P::from(200);
@@ -609,16 +610,18 @@ mod ipv4 {
     #[test]
     fn test_hierarchical_bgp() {
         let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), AsId(65001));
-        r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
-        r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
-        r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
-        r.set_bgp_session::<()>(3.into(), Some(IBgpClient)).unwrap();
+        r.bgp.set_session::<()>(100.into(), Some(EBgp)).unwrap();
+        r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+        r.bgp.set_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
+        r.bgp.set_session::<()>(3.into(), Some(IBgpClient)).unwrap();
         r.igp.igp_table = hashmap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
             3.into()   => (vec![2.into()], 4.0),
         };
+        r.bgp.igp_cost = r.igp.igp_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
+
 
         let p0: Ipv4Prefix = "10.0.0.0/16".parse::<Ipv4Net>().unwrap().into();
         let p1: Ipv4Prefix = "10.0.0.0/24".parse::<Ipv4Net>().unwrap().into();
@@ -664,13 +667,13 @@ mod ipv4 {
         }
 
         // check that the router now has a route selected for 100 with the correct data
-        let entry_p0 = r.get_selected_bgp_route(p0).unwrap();
+        let entry_p0 = r.bgp.get_exact(p0).unwrap();
         assert_eq!(entry_p0.from_type, EBgp);
         assert_eq!(entry_p0.route.as_path.len(), 5);
         assert_eq!(entry_p0.route.next_hop, 100.into());
         assert_eq!(entry_p0.route.local_pref, Some(100));
 
-        let entry_p1 = r.get_selected_bgp_route(p1).unwrap();
+        let entry_p1 = r.bgp.get_exact(p1).unwrap();
         assert_eq!(entry_p1.from_type, EBgp);
         assert_eq!(entry_p1.route.as_path.len(), 7);
         assert_eq!(entry_p1.route.next_hop, 100.into());
@@ -680,16 +683,17 @@ mod ipv4 {
     #[test]
     fn next_hop_static_route() {
         let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), AsId(65001));
-        r.set_bgp_session::<()>(100.into(), Some(EBgp)).unwrap();
-        r.set_bgp_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
-        r.set_bgp_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
-        r.set_bgp_session::<()>(3.into(), Some(IBgpClient)).unwrap();
+        r.bgp.set_session::<()>(100.into(), Some(EBgp)).unwrap();
+        r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+        r.bgp.set_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
+        r.bgp.set_session::<()>(3.into(), Some(IBgpClient)).unwrap();
         r.igp.igp_table = hashmap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
             3.into()   => (vec![2.into()], 4.0),
         };
+        r.bgp.igp_cost = r.igp.igp_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
         r.igp.neighbors = hashmap! {
             100.into() => 0.0,
             1.into() => 1.0,

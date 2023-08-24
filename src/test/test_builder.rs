@@ -55,7 +55,8 @@ mod t {
                     assert_eq!(
                         net.get_device(r)
                             .unwrap_internal()
-                            .get_bgp_session_type(other),
+                            .bgp
+                            .get_session_type(other),
                         expected_ty
                     );
                 }
@@ -83,7 +84,8 @@ mod t {
                         assert_eq!(
                             net.get_device(r)
                                 .unwrap_internal()
-                                .get_bgp_session_type(other),
+                                .bgp
+                                .get_session_type(other),
                             expected_ty
                         );
                     }
@@ -99,7 +101,8 @@ mod t {
                         assert_eq!(
                             net.get_device(r)
                                 .unwrap_internal()
-                                .get_bgp_session_type(other),
+                                .bgp
+                                .get_session_type(other),
                             expected_ty
                         );
                     }

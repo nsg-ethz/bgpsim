@@ -869,7 +869,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     .map(|x| x == OspfArea::BACKBONE)
                     .unwrap_or(false),
                 ConfigExpr::BgpSession { source, target, .. } => match self.get_device(*source) {
-                    NetworkDevice::InternalRouter(r) => !r.bgp_sessions.contains_key(target),
+                    NetworkDevice::InternalRouter(r) => r.bgp.get_session_type(*target).is_none(),
                     NetworkDevice::ExternalRouter(r) => !r.neighbors.contains(target),
                     NetworkDevice::None(_) => false,
                 },
@@ -882,7 +882,8 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     .get_device(*router)
                     .internal()
                     .map(|r| {
-                        r.get_bgp_route_map(*neighbor, *direction, map.order)
+                        r.bgp
+                            .get_route_map(*neighbor, *direction, map.order)
                             .is_none()
                     })
                     .unwrap_or(false),
@@ -906,7 +907,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     .map(|x| x != OspfArea::BACKBONE)
                     .unwrap_or(false),
                 ConfigExpr::BgpSession { source, target, .. } => match self.get_device(*source) {
-                    NetworkDevice::InternalRouter(r) => r.bgp_sessions.contains_key(target),
+                    NetworkDevice::InternalRouter(r) => r.bgp.get_session_type(*target).is_some(),
                     NetworkDevice::ExternalRouter(r) => r.neighbors.contains(target),
                     NetworkDevice::None(_) => false,
                 },
@@ -919,7 +920,8 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     .get_device(*router)
                     .internal()
                     .map(|r| {
-                        r.get_bgp_route_map(*neighbor, *direction, map.order)
+                        r.bgp
+                            .get_route_map(*neighbor, *direction, map.order)
                             .is_some()
                     })
                     .unwrap_or(false),
@@ -942,10 +944,10 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                         if !match (update.old.as_ref(), update.new.as_ref()) {
                             (None, None) => true,
                             (None, Some(rm)) => {
-                                r.get_bgp_route_map(neighbor, direction, rm.order).is_none()
+                                r.bgp.get_route_map(neighbor, direction, rm.order).is_none()
                             }
                             (Some(rm), _) => {
-                                r.get_bgp_route_map(neighbor, direction, rm.order).is_some()
+                                r.bgp.get_route_map(neighbor, direction, rm.order).is_some()
                             }
                         } {
                             return false;
@@ -989,7 +991,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
         // get all BGP sessions, all route maps and all static routes
         for (rid, r) in self.routers.iter() {
             // get all BGP sessions
-            for (neighbor, session_type) in r.get_bgp_sessions() {
+            for (neighbor, session_type) in r.bgp.get_sessions() {
                 match c.add(ConfigExpr::BgpSession {
                     source: *rid,
                     target: *neighbor,
@@ -1025,8 +1027,8 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
             }
 
             // get all route-maps
-            for neighbor in r.get_bgp_sessions().keys() {
-                for rm in r.get_bgp_route_maps(*neighbor, RouteMapDirection::Incoming) {
+            for neighbor in r.bgp.get_sessions().keys() {
+                for rm in r.bgp.get_route_maps(*neighbor, RouteMapDirection::Incoming) {
                     c.add(ConfigExpr::BgpRouteMap {
                         router: *rid,
                         neighbor: *neighbor,
@@ -1034,7 +1036,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                         map: rm.clone(),
                     })?;
                 }
-                for rm in r.get_bgp_route_maps(*neighbor, RouteMapDirection::Incoming) {
+                for rm in r.bgp.get_route_maps(*neighbor, RouteMapDirection::Incoming) {
                     c.add(ConfigExpr::BgpRouteMap {
                         router: *rid,
                         neighbor: *neighbor,

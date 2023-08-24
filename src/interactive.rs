@@ -352,10 +352,10 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
                 r.do_load_balancing = r_source.do_load_balancing;
                 r.igp.neighbors = r_source.igp.neighbors.clone();
                 r.sr = r_source.sr.clone();
-                r.bgp_sessions = r_source.bgp_sessions.clone();
-                r.bgp_sessions = r_source.bgp_sessions.clone();
-                r.bgp_route_maps_in = r_source.bgp_route_maps_in.clone();
-                r.bgp_route_maps_out = r_source.bgp_route_maps_out.clone();
+                r.bgp.sessions = r_source.bgp.sessions.clone();
+                r.bgp.sessions = r_source.bgp.sessions.clone();
+                r.bgp.route_maps_in = r_source.bgp.route_maps_in.clone();
+                r.bgp.route_maps_out = r_source.bgp.route_maps_out.clone();
             }
 
             if !self.reuse_igp_state {
@@ -363,10 +363,10 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
             }
 
             if !self.reuse_bgp_state {
-                r.bgp_rib_in = r_source.bgp_rib_in.clone();
-                r.bgp_rib = r_source.bgp_rib.clone();
-                r.bgp_rib_out = r_source.bgp_rib_out.clone();
-                r.bgp_known_prefixes = r_source.bgp_known_prefixes.clone();
+                r.bgp.rib_in = r_source.bgp.rib_in.clone();
+                r.bgp.rib = r_source.bgp.rib.clone();
+                r.bgp.rib_out = r_source.bgp.rib_out.clone();
+                r.bgp.known_prefixes = r_source.bgp.known_prefixes.clone();
             }
         }
 

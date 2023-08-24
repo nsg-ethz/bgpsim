@@ -458,7 +458,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
                 .routers
                 .get_mut(&source)
                 .ok_or(NetworkError::DeviceNotFound(source))?
-                .set_bgp_session(target, source_type)?;
+                .bgp
+                .set_session(target, source_type)?;
             self.enqueue_events(events);
         }
         // configure target
@@ -478,7 +479,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
                 .routers
                 .get_mut(&target)
                 .ok_or(NetworkError::DeviceNotFound(target))?
-                .set_bgp_session(source, target_type)?;
+                .bgp
+                .set_session(source, target_type)?;
             self.enqueue_events(events);
         }
 
@@ -549,7 +551,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
-            .set_bgp_route_map(neighbor, direction, route_map)?;
+            .bgp
+            .set_route_map(neighbor, direction, route_map)?;
 
         self.enqueue_events(events);
         self.do_queue_maybe_skip()?;
@@ -571,7 +574,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
-            .remove_bgp_route_map(neighbor, direction, order)?;
+            .bgp
+            .remove_route_map(neighbor, direction, order)?;
 
         self.enqueue_events(events);
         self.do_queue_maybe_skip()?;
@@ -590,6 +594,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             .routers
             .get_mut(&router)
             .ok_or(NetworkError::DeviceNotFound(router))?
+            .bgp
             .batch_update_route_maps(updates)?;
 
         self.enqueue_events(events);
@@ -734,7 +739,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         // get all IGP and BGP neighbors
         let (bgp_neighbors, internal): (Vec<RouterId>, bool) = match self.get_device(router) {
             NetworkDevice::InternalRouter(r) => {
-                (r.get_bgp_sessions().keys().copied().collect(), true)
+                (r.bgp.get_sessions().keys().copied().collect(), true)
             }
             NetworkDevice::ExternalRouter(r) => {
                 (r.get_bgp_sessions().iter().copied().collect(), false)
@@ -856,7 +861,10 @@ where
         // if we have passed all those tests, it is time to check if the BGP tables on the routers
         // are the same.
         for router in self.routers.keys() {
-            if !self.routers[router].compare_bgp_table(other.routers.get(router).unwrap()) {
+            if !self.routers[router]
+                .bgp
+                .compare_table(&other.routers.get(router).unwrap().bgp)
+            {
                 return false;
             }
         }

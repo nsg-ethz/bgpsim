@@ -97,7 +97,8 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
             .get_device(router)
             .internal()
             .map(|r| {
-                r.get_bgp_sessions()
+                r.bgp
+                    .get_sessions()
                     .iter()
                     // build all keys
                     .flat_map(|(n, _)| [(*n, RmDir::Incoming), (*n, RmDir::Outgoing)])
@@ -105,7 +106,8 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
                         (
                             (n, dir),
                             // build all values
-                            r.get_bgp_route_maps(n, dir)
+                            r.bgp
+                                .get_route_maps(n, dir)
                                 .iter()
                                 .map(|x| (x.order(), x.state()))
                                 .chain(once((i16::MAX, RouteMapState::Allow))) // add the last value
@@ -353,7 +355,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         router_bgp.network(addressor.internal_network());
 
         // create each neighbor
-        for (n, ty) in router.bgp_sessions.iter().sorted_by_key(|(x, _)| *x) {
+        for (n, ty) in router.bgp.get_sessions().iter().sorted_by_key(|(x, _)| *x) {
             let rm_name = rm_name(net, *n);
             router_bgp.neighbor(self.bgp_neigbor_config(net, addressor, *n, *ty, &rm_name)?);
 
@@ -439,11 +441,13 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
 
         // generate all route-maps, and stre them in the local structure, for easy modifications.
         let route_maps: HashMap<_, _> = if let Some(r) = net.get_device(self.router).internal() {
-            r.bgp_route_maps_in
+            r.bgp
+                .route_maps_in
                 .iter()
                 .map(|(n, maps)| ((*n, RmDir::Incoming), maps.clone()))
                 .chain(
-                    r.bgp_route_maps_out
+                    r.bgp
+                        .route_maps_out
                         .iter()
                         .map(|(n, maps)| ((*n, RmDir::Outgoing), maps.clone())),
                 )

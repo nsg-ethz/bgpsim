@@ -339,15 +339,11 @@ impl<P: Prefix> GeoTimingModel<P> {
                 // cache the result
                 self.recursive_compute_paths(nh, target, loop_protection, routers, path_cache);
             }
-            path_cache
-                .get(&(nh, target))
-                .unwrap()
-                .as_ref()
-                .map(|path| {
-                    std::iter::once(router)
-                        .chain(path.iter().copied())
-                        .collect_vec()
-                })
+            path_cache.get(&(nh, target)).unwrap().as_ref().map(|path| {
+                std::iter::once(router)
+                    .chain(path.iter().copied())
+                    .collect_vec()
+            })
         } else {
             // next-hop is unknown.
             None

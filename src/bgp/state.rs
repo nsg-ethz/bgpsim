@@ -322,11 +322,12 @@ impl<T> BgpStateGraph<T> {
             match net.get_device(id) {
                 NetworkDevice::InternalRouter(r) => {
                     // handle local RIB
-                    if let Some(entry) = r.get_selected_bgp_route(prefix) {
+                    if let Some(entry) = r.bgp.get_route(prefix) {
                         g.get_mut(&id).unwrap().node = Some((f(&entry.route), entry.from_id));
                     }
                     // handle RIB_OUT
-                    r.get_bgp_rib_out()
+                    r.bgp
+                        .get_rib_out()
                         .get(&prefix)
                         .into_iter()
                         .flatten()
