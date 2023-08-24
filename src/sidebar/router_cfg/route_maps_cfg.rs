@@ -146,7 +146,7 @@ impl Component for RouteMapsCfg {
                 (None, None)
             };
 
-            let flash_class = "ring-4 ring-blue ring-offset-4";
+            let flash_class = "ring-4 ring-blue ring-offset-4 ring-offset-base-2";
             let normal_class = "w-full p-0 m-0 transition duration-300 ease-in-out rounded-lg";
             let in_box_class = if shown_in == Some(true) {
                 classes!(normal_class, flash_class)
@@ -215,11 +215,12 @@ impl Component for RouteMapsCfg {
                     if (!self.flash_changed) && router == src {
                         self.flash_changed = true;
                         self.rm_neighbor = Some(dst);
-                        let node_ref: WebElement = match dir {
-                            Incoming => self.in_ref.cast().unwrap(),
-                            Outgoing => self.out_ref.cast().unwrap(),
-                        };
-                        node_ref.scroll_into_view();
+                        if let Some(node_ref) = match dir {
+                            Incoming => self.in_ref.cast::<WebElement>(),
+                            Outgoing => self.out_ref.cast::<WebElement>(),
+                        } {
+                            node_ref.scroll_into_view();
+                        }
                     }
                 } else {
                     self.flash_changed = false;
