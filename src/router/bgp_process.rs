@@ -749,6 +749,11 @@ impl<P: Prefix> BgpProcess<P> {
         // set the to_id to the target peer
         entry.to_id = Some(target_peer);
 
+        // clear the MED for eBGP sessions before applying the route-maps
+        if target_session_type.is_ebgp() {
+            entry.route.med = None;
+        }
+
         // apply bgp_route_map_out
         entry = match self.get_route_maps(target_peer, Outgoing).apply(entry) {
             Some(e) => e,
@@ -760,11 +765,12 @@ impl<P: Prefix> BgpProcess<P> {
 
         // if the peer type is external, overwrite the next hop and reset the local-pref. Also,
         // remove the ORIGINATOR_ID and the CLUSTER_LIST
-        if entry.from_type.is_ebgp() {
+        if target_session_type.is_ebgp() {
             entry.route.next_hop = self.router_id;
             entry.route.local_pref = None;
             entry.route.originator_id = None;
             entry.route.cluster_list = Vec::new();
+            entry.route.as_path.insert(0, self.as_id);
         }
 
         Ok(Some(entry))
