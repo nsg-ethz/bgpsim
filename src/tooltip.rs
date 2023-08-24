@@ -92,7 +92,8 @@ impl Component for Tooltip {
             Hover::Router(r) if self.state.layer() == Layer::RouteProp => {
                 if let Some(x) = self.net.net().get_device(r).internal() {
                     let rib = x
-                        .get_processed_bgp_rib()
+                        .bgp
+                        .get_processed_rib_in()
                         .into_children(
                             &self
                                 .state
@@ -121,7 +122,7 @@ impl Component for Tooltip {
                     .net()
                     .get_device(src)
                     .internal()
-                    .and_then(|r| r.get_bgp_session_type(dst))
+                    .and_then(|r| r.bgp.get_session_type(dst))
                     .unwrap_or(BgpSessionType::EBgp);
                 let ty = match ty {
                     BgpSessionType::IBgpPeer => "iBGP",

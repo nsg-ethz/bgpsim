@@ -134,7 +134,7 @@ impl RouterState {
         let (external, bgp_neighbors) = match n.get_device(id) {
             NetworkDevice::InternalRouter(r) => (
                 false,
-                r.get_bgp_sessions().keys().copied().sorted().collect(),
+                r.bgp.get_sessions().keys().copied().sorted().collect(),
             ),
             NetworkDevice::ExternalRouter(r) => (
                 true,

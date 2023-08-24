@@ -46,7 +46,7 @@ pub fn Propagation(props: &Properties) -> Html {
             net.net()
                 .get_device(*dst)
                 .internal()
-                .and_then(|r| r.get_selected_bgp_route(*prefix))
+                .and_then(|r| r.bgp.get_route(*prefix))
                 .map(|r| r.from_id == *src)
                 .unwrap_or(false)
         },

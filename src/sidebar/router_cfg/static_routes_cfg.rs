@@ -72,7 +72,8 @@ impl Component for StaticRoutesCfg {
         let on_new_sr_change = ctx.link().callback(Msg::NewStaticRouteChange);
         let on_new_sr = ctx.link().callback(Msg::InsertStaticRoute);
         let static_routes: Vec<_> = r
-            .get_static_routes()
+            .sr
+            .get_table()
             .iter()
             .map(|(k, v)| (*k, *v))
             .collect();
@@ -108,7 +109,7 @@ impl Component for StaticRoutesCfg {
                         .net()
                         .get_device(router)
                         .internal()
-                        .and_then(|r| r.get_static_routes().get(&p))
+                        .and_then(|r| r.sr.get_exact(p))
                         .is_none()
                 } else {
                     false

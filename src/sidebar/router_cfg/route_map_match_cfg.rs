@@ -81,7 +81,7 @@ impl Component for RouteMapMatchCfg {
             .net()
             .get_device(ctx.props().router)
             .internal()
-            .map(|r| r.get_bgp_sessions().keys().copied().collect())
+            .map(|r| r.bgp.get_sessions().keys().copied().collect())
             .unwrap_or_default();
 
         let kind_text = match_kind_text(&ctx.props().m);

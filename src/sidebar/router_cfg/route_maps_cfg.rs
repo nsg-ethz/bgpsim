@@ -92,7 +92,8 @@ impl Component for RouteMapsCfg {
                 .link()
                 .callback(move |x| Msg::AddRM(neighbor, Incoming, x));
             let incoming_rms: Vec<(i16, RouteMap<Pfx>)> = r
-                .get_bgp_route_maps(neighbor, Incoming)
+                .bgp
+                .get_route_maps(neighbor, Incoming)
                 .iter()
                 .map(|r| (r.order, r.clone()))
                 .collect();
@@ -106,7 +107,8 @@ impl Component for RouteMapsCfg {
                 .link()
                 .callback(move |x| Msg::AddRM(neighbor, Outgoing, x));
             let outgoing_rms: Vec<(i16, RouteMap<Pfx>)> = r
-                .get_bgp_route_maps(neighbor, Outgoing)
+                .bgp
+                .get_route_maps(neighbor, Outgoing)
                 .iter()
                 .map(|r| (r.order, r.clone()))
                 .collect();
@@ -170,7 +172,7 @@ impl Component for RouteMapsCfg {
                     self.rm_in_order_correct = o
                         .parse::<i16>()
                         .ok()
-                        .map(|o| r.get_bgp_route_map(neighbor, direction, o).is_none())
+                        .map(|o| r.bgp.get_route_map(neighbor, direction, o).is_none())
                         .unwrap_or(false);
                     true
                 }

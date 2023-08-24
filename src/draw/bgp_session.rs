@@ -102,7 +102,7 @@ pub fn RouteMap(props: &RmProps) -> Html {
             n.net()
                 .get_device(*id)
                 .internal()
-                .map(|r| r.get_bgp_route_maps(*peer, *direction).to_vec())
+                .map(|r| r.bgp.get_route_maps(*peer, *direction).to_vec())
                 .unwrap_or_default()
         },
         (id, peer, direction),

@@ -250,14 +250,14 @@ impl Net {
             .flat_map(|src| {
                 net.get_device(src)
                     .unwrap_internal()
-                    .get_bgp_sessions()
+                    .bgp.get_sessions()
                     .iter()
                     .map(|(target, ty)| (*target, *ty))
                     .filter_map(move |(dst, ty)| {
                         if ty == BgpSessionType::IBgpPeer {
                             net.get_device(dst)
                                 .internal()
-                                .and_then(|d| d.get_bgp_session_type(src))
+                                .and_then(|d| d.bgp.get_session_type(src))
                                 .and_then(|other_ty| match other_ty {
                                     BgpSessionType::IBgpPeer if src.index() > dst.index() => {
                                         Some((src, dst, BgpSessionType::IBgpPeer))
@@ -278,7 +278,7 @@ impl Net {
         for id in net.get_topology().node_indices() {
             match net.get_device(id) {
                 NetworkDevice::InternalRouter(r) => {
-                    if let Some(rib) = r.get_bgp_rib_in().get(&prefix) {
+                    if let Some(rib) = r.bgp.get_rib_in().get(&prefix) {
                         results.extend(
                             rib.iter()
                                 .map(|(src, entry)| (*src, id, entry.route.clone())),
@@ -291,7 +291,7 @@ impl Net {
                             .iter()
                             .filter_map(|n| net.get_device(*n).internal().map(|r| (*n, r)))
                             .filter_map(|(n, r)| {
-                                r.get_bgp_rib_out()
+                                r.bgp.get_rib_out()
                                     .get(&prefix)
                                     .and_then(|x| x.get(&id))
                                     .map(|r| (n, r))
@@ -336,7 +336,7 @@ impl Net {
             speed: 0.01,
             strong_gravity: false,
         };
-        let mut layout: Layout<f64> = Layout::from_graph(edges, nodes, None, settings);
+        let mut layout: Layout<f64> = Layout::from_graph(edges, nodes, None, None, settings);
 
         let mut delta = 1.0;
         let mut old_pos = pos.clone();
