@@ -28,11 +28,11 @@ use log::*;
 use serde::{Deserialize, Serialize};
 
 mod bgp_process;
-mod igp_process;
+mod ospf_process;
 mod sr_process;
 
 pub use bgp_process::BgpProcess;
-pub use igp_process::{IgpProcess, IgpTarget};
+pub use ospf_process::{OspfProcess, IgpTarget};
 pub use sr_process::{SrProcess, StaticRoute};
 
 /// Bgp Router
@@ -46,7 +46,7 @@ pub struct Router<P: Prefix> {
     /// AS Id of the router
     as_id: AsId,
     /// The IGP routing process
-    pub igp: IgpProcess,
+    pub ospf: OspfProcess,
     /// The Static Routing Process
     pub sr: SrProcess<P>,
     /// The BGP routing process
@@ -64,7 +64,7 @@ impl<P: Prefix> Clone for Router<P> {
             name: self.name.clone(),
             router_id: self.router_id,
             as_id: self.as_id,
-            igp: self.igp.clone(),
+            ospf: self.ospf.clone(),
             sr: self.sr.clone(),
             bgp: self.bgp.clone(),
             do_load_balancing: self.do_load_balancing,
@@ -78,7 +78,7 @@ impl<P: Prefix> Router<P> {
             name,
             router_id,
             as_id,
-            igp: IgpProcess::new(router_id),
+            ospf: OspfProcess::new(router_id),
             sr: SrProcess::new(),
             bgp: BgpProcess::new(router_id, as_id),
             do_load_balancing: false,
@@ -156,13 +156,13 @@ impl<P: Prefix> Router<P> {
         let target = if let Some(target) = self.sr.get(prefix) {
             IgpTarget::from(target)
         } else if let Some(nh) = self.bgp.get(prefix) {
-            IgpTarget::Igp(nh)
+            IgpTarget::Ospf(nh)
         } else {
             IgpTarget::Drop
         };
 
         // lookup the IGP target in the IGP process
-        let nhs = self.igp.get(target);
+        let nhs = self.ospf.get(target);
 
         // perform load balancing
         if self.do_load_balancing || nhs.is_empty() {
@@ -193,8 +193,8 @@ impl<P: Prefix> Router<P> {
         graph: &IgpNetwork,
         ospf: &OspfState,
     ) -> Result<Vec<Event<P, T>>, DeviceError> {
-        self.igp.update_table(graph, ospf);
-        self.bgp.update_igp(&self.igp);
+        self.ospf.update_table(graph, ospf);
+        self.bgp.update_igp(&self.ospf);
         self.bgp.update_tables(false)
     }
 

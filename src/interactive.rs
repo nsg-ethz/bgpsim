@@ -350,7 +350,7 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
 
             if !self.reuse_config {
                 r.do_load_balancing = r_source.do_load_balancing;
-                r.igp.neighbors = r_source.igp.neighbors.clone();
+                r.ospf.neighbors = r_source.ospf.neighbors.clone();
                 r.sr = r_source.sr.clone();
                 r.bgp.sessions = r_source.bgp.sessions.clone();
                 r.bgp.sessions = r_source.bgp.sessions.clone();
@@ -359,7 +359,7 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
             }
 
             if !self.reuse_igp_state {
-                r.igp.igp_table = r_source.igp.igp_table.clone();
+                r.ospf.ospf_table = r_source.ospf.ospf_table.clone();
             }
 
             if !self.reuse_bgp_state {

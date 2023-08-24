@@ -46,7 +46,7 @@ mod t2 {
         r.bgp.set_session::<()>(4.into(), Some(IBgpClient)).unwrap();
         r.bgp.set_session::<()>(5.into(), Some(IBgpClient)).unwrap();
         r.bgp.set_session::<()>(6.into(), Some(IBgpClient)).unwrap();
-        r.igp.igp_table = hashmap! {
+        r.ospf.ospf_table = hashmap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
@@ -57,7 +57,7 @@ mod t2 {
             10.into()  => (vec![1.into()], 6.0),
             11.into()  => (vec![1.into()], 15.0),
         };
-        r.bgp.igp_cost = r.igp.igp_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
+        r.bgp.igp_cost = r.ospf.ospf_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
 
         /////////////////////
         // external update //
@@ -369,7 +369,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_a.igp.igp_table;
+        let acq = &r_a.ospf.ospf_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -388,7 +388,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_b.igp.igp_table;
+        let acq = &r_b.ospf.ospf_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -407,7 +407,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_c.igp.igp_table;
+        let acq = &r_c.ospf.ospf_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -475,7 +475,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_a.igp.igp_table;
+        let acq = &r_a.ospf.ospf_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e, &r_f, &r_g, &r_h] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -497,7 +497,7 @@ mod t1 {
         };
 
         let exp = &expected_forwarding_table;
-        let acq = &r_c.igp.igp_table;
+        let acq = &r_c.ospf.ospf_table;
 
         for target in &[&r_a, &r_b, &r_c, &r_d, &r_e, &r_f, &r_g, &r_h] {
             assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
@@ -614,13 +614,13 @@ mod ipv4 {
         r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
         r.bgp.set_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
         r.bgp.set_session::<()>(3.into(), Some(IBgpClient)).unwrap();
-        r.igp.igp_table = hashmap! {
+        r.ospf.ospf_table = hashmap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
             3.into()   => (vec![2.into()], 4.0),
         };
-        r.bgp.igp_cost = r.igp.igp_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
+        r.bgp.igp_cost = r.ospf.ospf_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
 
 
         let p0: Ipv4Prefix = "10.0.0.0/16".parse::<Ipv4Net>().unwrap().into();
@@ -687,14 +687,14 @@ mod ipv4 {
         r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
         r.bgp.set_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
         r.bgp.set_session::<()>(3.into(), Some(IBgpClient)).unwrap();
-        r.igp.igp_table = hashmap! {
+        r.ospf.ospf_table = hashmap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
             3.into()   => (vec![2.into()], 4.0),
         };
-        r.bgp.igp_cost = r.igp.igp_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
-        r.igp.neighbors = hashmap! {
+        r.bgp.igp_cost = r.ospf.ospf_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
+        r.ospf.neighbors = hashmap! {
             100.into() => 0.0,
             1.into() => 1.0,
             2.into() => 1.0

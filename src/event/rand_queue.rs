@@ -331,7 +331,7 @@ impl<P: Prefix> GeoTimingModel<P> {
         // get the next-hop of that router
         let new_path = if let Some(nh) = routers
             .get(&router)
-            .map(|r| r.igp.get(target))
+            .map(|r| r.ospf.get(target))
             .and_then(|nhs| nhs.first().copied())
         {
             // next-hop is known

@@ -16,7 +16,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-//! IGP process of an internal router.
+//! Ospf process of an internal router.
 
 use crate::{
     formatter::NetworkFormatter,
@@ -30,24 +30,24 @@ use std::{collections::HashMap, fmt::Write};
 
 use super::sr_process::StaticRoute;
 
-/// IGP Routing Process that keeps a table of its direct neighbors, and a table of all other
+/// Ospf Routing Process that keeps a table of its direct neighbors, and a table of all other
 /// routers in the same AS and how to reach them.
 #[derive(Debug, Clone, PartialEq)]
-pub struct IgpProcess {
+pub struct OspfProcess {
     /// Router Id
     pub(crate) router_id: RouterId,
     /// forwarding table for IGP messages
-    pub(crate) igp_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+    pub(crate) ospf_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Neighbors of that node. This updates with any IGP update
     pub(crate) neighbors: HashMap<RouterId, LinkWeight>,
 }
 
-impl IgpProcess {
+impl OspfProcess {
     /// Create a new, empty IGP process.
     pub(crate) fn new(router_id: RouterId) -> Self {
         Self {
             router_id,
-            igp_table: Default::default(),
+            ospf_table: Default::default(),
             neighbors: Default::default(),
         }
     }
@@ -59,8 +59,8 @@ impl IgpProcess {
         let dst: IgpTarget = dst.into();
         match dst {
             IgpTarget::Neighbor(dst) if self.neighbors.contains_key(&dst) => vec![dst],
-            IgpTarget::Igp(dst) => self
-                .igp_table
+            IgpTarget::Ospf(dst) => self
+                .ospf_table
                 .get(&dst)
                 .map(|(nhs, _)| nhs.clone())
                 .unwrap_or_default(),
@@ -70,19 +70,19 @@ impl IgpProcess {
 
     /// Get the IGP cost for reaching a given internal router.
     pub fn get_cost(&self, dst: RouterId) -> Option<LinkWeight> {
-        self.igp_table.get(&dst).map(|(_, w)| *w)
+        self.ospf_table.get(&dst).map(|(_, w)| *w)
     }
 
     /// Get the next-hops and the IGP cost for reaching a given internal router.
     pub fn get_nhs_cost(&self, dst: RouterId) -> Option<(&[RouterId], LinkWeight)> {
-        self.igp_table
+        self.ospf_table
             .get(&dst)
             .map(|(nhs, w)| (nhs.as_slice(), *w))
     }
 
     /// Get a reference to the entire IGP table.
     pub fn get_table(&self) -> &HashMap<RouterId, (Vec<RouterId>, LinkWeight)> {
-        &self.igp_table
+        &self.ospf_table
     }
 
     /// Returns `true` if `dst` is a neighbor.
@@ -98,7 +98,7 @@ impl IgpProcess {
     /// Update the IGP table.
     pub(super) fn update_table(&mut self, graph: &IgpNetwork, ospf: &OspfState) {
         // clear the current table
-        self.igp_table.clear();
+        self.ospf_table.clear();
 
         self.neighbors = graph
             .edges(self.router_id)
@@ -109,7 +109,7 @@ impl IgpProcess {
         // iterate over all nodes in the IGP graph.
         for target in graph.node_indices() {
             if target == self.router_id {
-                self.igp_table.insert(target, (vec![], 0.0));
+                self.ospf_table.insert(target, (vec![], 0.0));
                 continue;
             }
 
@@ -119,10 +119,10 @@ impl IgpProcess {
                 // no next hops could be found using OSPF. Check if the target is directly
                 // connected.
                 if let Some(w) = self.neighbors.get(&target) {
-                    self.igp_table.insert(target, (vec![target], *w));
+                    self.ospf_table.insert(target, (vec![target], *w));
                 }
             } else {
-                self.igp_table.insert(target, (next_hops, weight));
+                self.ospf_table.insert(target, (next_hops, weight));
             }
         }
     }
@@ -134,7 +134,7 @@ pub enum IgpTarget {
     /// Route to the router using a directly connected link
     Neighbor(RouterId),
     /// Route to the router using IGP (and ECMP)
-    Igp(RouterId),
+    Ospf(RouterId),
     /// Drop the traffic
     Drop,
 }
@@ -143,7 +143,7 @@ impl From<StaticRoute> for IgpTarget {
     fn from(value: StaticRoute) -> Self {
         match value {
             StaticRoute::Direct(x) => Self::Neighbor(x),
-            StaticRoute::Indirect(x) => Self::Igp(x),
+            StaticRoute::Indirect(x) => Self::Ospf(x),
             StaticRoute::Drop => Self::Drop,
         }
     }
@@ -151,7 +151,7 @@ impl From<StaticRoute> for IgpTarget {
 
 impl From<RouterId> for IgpTarget {
     fn from(value: RouterId) -> Self {
-        Self::Igp(value)
+        Self::Ospf(value)
     }
 }
 
@@ -161,13 +161,13 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for IgpTarget {
     fn fmt(&'a self, net: &'n crate::network::Network<P, Q>) -> Self::Formatter {
         match self {
             IgpTarget::Neighbor(r) => format!("{} (neighbor)", r.fmt(net)),
-            IgpTarget::Igp(r) => r.fmt(net).to_string(),
+            IgpTarget::Ospf(r) => r.fmt(net).to_string(),
             IgpTarget::Drop => "drop".to_string(),
         }
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for IgpProcess {
+impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for OspfProcess {
     type Formatter = String;
 
     fn fmt(&'a self, net: &'n crate::network::Network<P, Q>) -> Self::Formatter {
@@ -178,7 +178,7 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for IgpProcess {
                 continue;
             }
             let (next_hops, cost, found) = self
-                .igp_table
+                .ospf_table
                 .get(&r)
                 .map(|(x, cost)| (x.as_slice(), cost, true))
                 .unwrap_or((Default::default(), &LinkWeight::INFINITY, false));
@@ -201,45 +201,45 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for IgpProcess {
     }
 }
 
-impl Serialize for IgpProcess {
+impl Serialize for OspfProcess {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
         S: serde::Serializer,
     {
         #[derive(Serialize)]
-        struct SeIgpProcess<'a> {
+        struct SeOspfProcess<'a> {
             router_id: RouterId,
-            igp_table: Vec<(&'a RouterId, &'a (Vec<RouterId>, LinkWeight))>,
+            ospf_table: Vec<(&'a RouterId, &'a (Vec<RouterId>, LinkWeight))>,
             neighbors: Vec<(&'a RouterId, &'a LinkWeight)>,
         }
-        SeIgpProcess {
+        SeOspfProcess {
             router_id: self.router_id,
-            igp_table: self.igp_table.iter().collect(),
+            ospf_table: self.ospf_table.iter().collect(),
             neighbors: self.neighbors.iter().collect(),
         }
         .serialize(serializer)
     }
 }
 
-impl<'de> Deserialize<'de> for IgpProcess {
+impl<'de> Deserialize<'de> for OspfProcess {
     fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
     where
         D: serde::Deserializer<'de>,
     {
         #[derive(Deserialize)]
-        struct DeIgpProcess {
+        struct DeOspfProcess {
             router_id: RouterId,
-            igp_table: Vec<(RouterId, (Vec<RouterId>, LinkWeight))>,
+            ospf_table: Vec<(RouterId, (Vec<RouterId>, LinkWeight))>,
             neighbors: Vec<(RouterId, LinkWeight)>,
         }
-        let DeIgpProcess {
+        let DeOspfProcess {
             router_id,
-            igp_table,
+            ospf_table,
             neighbors,
-        } = DeIgpProcess::deserialize(deserializer)?;
+        } = DeOspfProcess::deserialize(deserializer)?;
         Ok(Self {
             router_id,
-            igp_table: igp_table.into_iter().collect(),
+            ospf_table: ospf_table.into_iter().collect(),
             neighbors: neighbors.into_iter().collect(),
         })
     }

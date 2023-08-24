@@ -39,7 +39,7 @@ use std::{
     fmt::Write,
 };
 
-use super::IgpProcess;
+use super::OspfProcess;
 
 /// BGP Routing Process responsible for maintiaining all BGP tables, and performing route selection
 /// and dissemination>
@@ -73,7 +73,7 @@ pub struct BgpProcess<P: Prefix> {
 
 impl<P: Prefix> BgpProcess<P> {
     /// Generate a new, empty BgpProcess
-    pub fn new(router_id: RouterId, as_id: AsId) -> Self {
+    pub(crate) fn new(router_id: RouterId, as_id: AsId) -> Self {
         Self {
             router_id,
             as_id,
@@ -422,7 +422,7 @@ impl<P: Prefix> BgpProcess<P> {
     }
 
     /// Update the stored IGP weights to all internal routers.
-    pub(super) fn update_igp(&mut self, igp: &IgpProcess) {
+    pub(super) fn update_igp(&mut self, igp: &OspfProcess) {
         self.igp_cost = igp
             .get_table()
             .iter()
