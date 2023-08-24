@@ -56,6 +56,11 @@ impl<P: Prefix> SrProcess<P> {
         self.static_routes.get_lpm(&prefix).map(|(_, sr)| *sr)
     }
 
+    /// Get a static route if given for a given prefix. This operation will perform exact matching.
+    pub fn get_exact(&self, prefix: P) -> Option<StaticRoute> {
+        self.static_routes.get_lpm(&prefix).map(|(_, sr)| *sr)
+    }
+
     /// Get a reference to the entire static route table
     pub fn get_table(&self) -> &P::Map<StaticRoute> {
         &self.static_routes
