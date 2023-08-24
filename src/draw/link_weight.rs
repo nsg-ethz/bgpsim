@@ -65,9 +65,14 @@ pub fn LinkWeight(props: &Properties) -> Html {
         return html! {};
     }
 
-    let w1 = weights.1.to_string();
+    let w1 = weights.0.to_string();
     let w2 = weights.1.to_string();
-    let dist = ROUTER_RADIUS * 4.0;
+    let node_distance = p1.dist(p2);
+    let dist = if node_distance > ROUTER_RADIUS * 12.0 {
+        ROUTER_RADIUS * 4.0
+    } else {
+        node_distance / 3.0
+    };
     let t1 = p1.interpolate_absolute(p2, dist);
     let t2 = p2.interpolate_absolute(p1, dist);
 

@@ -93,6 +93,7 @@ impl Component for RouterCfg {
         };
 
         let name_text = router.fmt(n).to_string();
+        let as_text = format!("AS{}", r.as_id().0);
         let on_name_change = ctx.link().callback(Msg::OnNameChange);
         let on_name_set = ctx.link().callback(Msg::OnNameSet);
 
@@ -105,6 +106,9 @@ impl Component for RouterCfg {
                 <Divider text={format!("Router {name_text}")} />
                 <Element text={"Name"}>
                     <TextField text={name_text} on_change={on_name_change} on_set={on_name_set} correct={self.name_input_correct}/>
+                </Element>
+                <Element text={"AS Number"}>
+                    {as_text}
                 </Element>
                 if self.state.features().load_balancing {
                     <Element text={"load balancing"}>
