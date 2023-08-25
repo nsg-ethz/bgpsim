@@ -114,3 +114,5 @@ mod test_router;
 mod test_save_restore;
 #[cfg(feature = "topology_zoo")]
 mod test_topology_zoo;
+#[cfg(feature = "rand")]
+mod test_serde;

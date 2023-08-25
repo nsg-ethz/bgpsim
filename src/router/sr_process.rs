@@ -26,9 +26,10 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 /// Static Routing Process.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SrProcess<P: Prefix> {
     /// Static Routes for Prefixes
+    #[serde(with = "crate::serde::prefixmap")]
     pub(crate) static_routes: P::Map<StaticRoute>,
 }
 
@@ -97,38 +98,5 @@ impl StaticRoute {
             StaticRoute::Direct(r) | StaticRoute::Indirect(r) => Some(*r),
             StaticRoute::Drop => None,
         }
-    }
-}
-
-impl<P: Prefix> Serialize for SrProcess<P> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        #[derive(Serialize)]
-        struct SeSrProcess<'a, P: Prefix> {
-            static_routes: Vec<(&'a P, &'a StaticRoute)>,
-        }
-        SeSrProcess {
-            static_routes: self.static_routes.iter().collect(),
-        }
-        .serialize(serializer)
-    }
-}
-
-impl<'de, P: Prefix> Deserialize<'de> for SrProcess<P> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(bound(deserialize = "P: for<'a> Deserialize<'a>"))]
-        struct DeSrProcess<P: Prefix> {
-            static_routes: Vec<(P, StaticRoute)>,
-        }
-        let DeSrProcess { static_routes } = DeSrProcess::deserialize(deserializer)?;
-        Ok(Self {
-            static_routes: static_routes.into_iter().collect(),
-        })
     }
 }

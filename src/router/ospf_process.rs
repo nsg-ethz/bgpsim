@@ -32,13 +32,15 @@ use super::sr_process::StaticRoute;
 
 /// Ospf Routing Process that keeps a table of its direct neighbors, and a table of all other
 /// routers in the same AS and how to reach them.
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct OspfProcess {
     /// Router Id
     pub(crate) router_id: RouterId,
     /// forwarding table for IGP messages
+    #[serde(with = "crate::serde::vectorize")]
     pub(crate) ospf_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Neighbors of that node. This updates with any IGP update
+    #[serde(with = "crate::serde::vectorize")]
     pub(crate) neighbors: HashMap<RouterId, LinkWeight>,
 }
 
@@ -198,49 +200,5 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for OspfProcess {
             .unwrap();
         }
         result
-    }
-}
-
-impl Serialize for OspfProcess {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        #[derive(Serialize)]
-        struct SeOspfProcess<'a> {
-            router_id: RouterId,
-            ospf_table: Vec<(&'a RouterId, &'a (Vec<RouterId>, LinkWeight))>,
-            neighbors: Vec<(&'a RouterId, &'a LinkWeight)>,
-        }
-        SeOspfProcess {
-            router_id: self.router_id,
-            ospf_table: self.ospf_table.iter().collect(),
-            neighbors: self.neighbors.iter().collect(),
-        }
-        .serialize(serializer)
-    }
-}
-
-impl<'de> Deserialize<'de> for OspfProcess {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        struct DeOspfProcess {
-            router_id: RouterId,
-            ospf_table: Vec<(RouterId, (Vec<RouterId>, LinkWeight))>,
-            neighbors: Vec<(RouterId, LinkWeight)>,
-        }
-        let DeOspfProcess {
-            router_id,
-            ospf_table,
-            neighbors,
-        } = DeOspfProcess::deserialize(deserializer)?;
-        Ok(Self {
-            router_id,
-            ospf_table: ospf_table.into_iter().collect(),
-            neighbors: neighbors.into_iter().collect(),
-        })
     }
 }

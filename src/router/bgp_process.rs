@@ -43,31 +43,39 @@ use super::OspfProcess;
 
 /// BGP Routing Process responsible for maintiaining all BGP tables, and performing route selection
 /// and dissemination>
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct BgpProcess<P: Prefix> {
     /// The Router ID
     router_id: RouterId,
     /// The AS-ID of the router
     as_id: AsId,
     /// The cost to reach all internal routers
+    #[serde(with = "crate::serde::vectorize")]
     pub(crate) igp_cost: HashMap<RouterId, LinkWeight>,
     /// hashmap of all bgp sessions
+    #[serde(with = "crate::serde::vectorize")]
     pub(crate) sessions: HashMap<RouterId, BgpSessionType>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
     /// to another hashmap, which maps the received router id to the entry. This way, we can store
     /// one entry for every prefix and every session.
+    #[serde(with = "crate::serde::prefixmap_of_map")]
     pub(crate) rib_in: P::Map<HashMap<RouterId, BgpRibEntry<P>>>,
     /// Table containing all selected best routes. It is represented as a hashmap, mapping the
     /// prefixes to the table entry
+    #[serde(with = "crate::serde::prefixmap")]
     pub(crate) rib: P::Map<BgpRibEntry<P>>,
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
+    #[serde(with = "crate::serde::prefixmap_of_map")]
     pub(crate) rib_out: P::Map<HashMap<RouterId, BgpRibEntry<P>>>,
     /// BGP Route-Maps for Input
+    #[serde(with = "crate::serde::vectorize")]
     pub(crate) route_maps_in: HashMap<RouterId, Vec<RouteMap<P>>>,
     /// BGP Route-Maps for Output
+    #[serde(with = "crate::serde::vectorize")]
     pub(crate) route_maps_out: HashMap<RouterId, Vec<RouteMap<P>>>,
     /// Set of known bgp prefixes
+    #[serde(with = "crate::serde::prefixset")]
     pub(crate) known_prefixes: P::Set,
 }
 
@@ -858,100 +866,6 @@ fn should_export_route(
             | (_, BgpSessionType::EBgp)
             | (_, BgpSessionType::IBgpClient)
     )
-}
-
-impl<P: Prefix> Serialize for BgpProcess<P> {
-    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
-    where
-        S: serde::Serializer,
-    {
-        #[derive(Serialize)]
-        #[serde(bound(serialize = "P: for<'a> Deserialize<'a>"))]
-        struct SeBgpProcess<P: Prefix> {
-            router_id: RouterId,
-            as_id: AsId,
-            igp_cost: Vec<(RouterId, LinkWeight)>,
-            sessions: Vec<(RouterId, BgpSessionType)>,
-            rib_in: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
-            rib: P::Map<BgpRibEntry<P>>,
-            rib_out: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
-            known_prefixes: P::Set,
-            route_maps_in: Vec<(RouterId, Vec<RouteMap<P>>)>,
-            route_maps_out: Vec<(RouterId, Vec<RouteMap<P>>)>,
-        }
-        SeBgpProcess {
-            router_id: self.router_id,
-            as_id: self.as_id,
-            sessions: self.sessions.iter().map(|(r, s)| (*r, *s)).collect(),
-            igp_cost: self.igp_cost.iter().map(|(r, w)| (*r, *w)).collect(),
-            rib_in: self
-                .rib_in
-                .iter()
-                .map(|(p, x)| (*p, x.iter().map(|(r, rib)| (*r, rib.clone())).collect()))
-                .collect(),
-            rib: self.rib.clone(),
-            rib_out: self
-                .rib_out
-                .iter()
-                .map(|(p, x)| (*p, x.iter().map(|(r, rib)| (*r, rib.clone())).collect()))
-                .collect(),
-            known_prefixes: self.known_prefixes.clone(),
-            route_maps_in: self
-                .route_maps_in
-                .iter()
-                .map(|(r, rms)| (*r, rms.clone()))
-                .collect(),
-            route_maps_out: self
-                .route_maps_out
-                .iter()
-                .map(|(r, rms)| (*r, rms.clone()))
-                .collect(),
-        }
-        .serialize(serializer)
-    }
-}
-
-impl<'de, P: Prefix> Deserialize<'de> for BgpProcess<P> {
-    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
-    where
-        D: serde::Deserializer<'de>,
-    {
-        #[derive(Deserialize)]
-        #[serde(bound(deserialize = "P: for<'a> Deserialize<'a>"))]
-        struct DeBgpProcess<P: Prefix> {
-            router_id: RouterId,
-            as_id: AsId,
-            igp_cost: Vec<(RouterId, LinkWeight)>,
-            sessions: Vec<(RouterId, BgpSessionType)>,
-            rib_in: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
-            rib: P::Map<BgpRibEntry<P>>,
-            rib_out: P::Map<Vec<(RouterId, BgpRibEntry<P>)>>,
-            known_prefixes: P::Set,
-            route_maps_in: Vec<(RouterId, Vec<RouteMap<P>>)>,
-            route_maps_out: Vec<(RouterId, Vec<RouteMap<P>>)>,
-        }
-        let router = DeBgpProcess::<P>::deserialize(deserializer)?;
-        Ok(Self {
-            router_id: router.router_id,
-            as_id: router.as_id,
-            sessions: router.sessions.into_iter().collect(),
-            igp_cost: router.igp_cost.into_iter().collect(),
-            rib_in: router
-                .rib_in
-                .into_iter()
-                .map(|(p, x)| (p, x.into_iter().collect()))
-                .collect(),
-            rib: router.rib,
-            rib_out: router
-                .rib_out
-                .into_iter()
-                .map(|(p, x)| (p, x.into_iter().collect()))
-                .collect(),
-            known_prefixes: router.known_prefixes,
-            route_maps_in: router.route_maps_in.into_iter().collect(),
-            route_maps_out: router.route_maps_out.into_iter().collect(),
-        })
-    }
 }
 
 /// The outcome of a modification to the router. This is a result of a tuple value, where the first
