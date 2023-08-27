@@ -44,38 +44,31 @@ use super::OspfProcess;
 /// BGP Routing Process responsible for maintiaining all BGP tables, and performing route selection
 /// and dissemination>
 #[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
 pub struct BgpProcess<P: Prefix> {
     /// The Router ID
     router_id: RouterId,
     /// The AS-ID of the router
     as_id: AsId,
     /// The cost to reach all internal routers
-    #[serde(with = "crate::serde::vectorize")]
     pub(crate) igp_cost: HashMap<RouterId, LinkWeight>,
     /// hashmap of all bgp sessions
-    #[serde(with = "crate::serde::vectorize")]
     pub(crate) sessions: HashMap<RouterId, BgpSessionType>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
     /// to another hashmap, which maps the received router id to the entry. This way, we can store
     /// one entry for every prefix and every session.
-    #[serde(with = "crate::serde::prefixmap_of_map")]
     pub(crate) rib_in: P::Map<HashMap<RouterId, BgpRibEntry<P>>>,
     /// Table containing all selected best routes. It is represented as a hashmap, mapping the
     /// prefixes to the table entry
-    #[serde(with = "crate::serde::prefixmap")]
     pub(crate) rib: P::Map<BgpRibEntry<P>>,
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
-    #[serde(with = "crate::serde::prefixmap_of_map")]
     pub(crate) rib_out: P::Map<HashMap<RouterId, BgpRibEntry<P>>>,
     /// BGP Route-Maps for Input
-    #[serde(with = "crate::serde::vectorize")]
     pub(crate) route_maps_in: HashMap<RouterId, Vec<RouteMap<P>>>,
     /// BGP Route-Maps for Output
-    #[serde(with = "crate::serde::vectorize")]
     pub(crate) route_maps_out: HashMap<RouterId, Vec<RouteMap<P>>>,
     /// Set of known bgp prefixes
-    #[serde(with = "crate::serde::prefixset")]
     pub(crate) known_prefixes: P::Set,
 }
 

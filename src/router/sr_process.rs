@@ -29,7 +29,6 @@ use serde::{Deserialize, Serialize};
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct SrProcess<P: Prefix> {
     /// Static Routes for Prefixes
-    #[serde(with = "crate::serde::prefixmap")]
     pub(crate) static_routes: P::Map<StaticRoute>,
 }
 

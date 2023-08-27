@@ -37,10 +37,8 @@ pub struct OspfProcess {
     /// Router Id
     pub(crate) router_id: RouterId,
     /// forwarding table for IGP messages
-    #[serde(with = "crate::serde::vectorize")]
     pub(crate) ospf_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Neighbors of that node. This updates with any IGP update
-    #[serde(with = "crate::serde::vectorize")]
     pub(crate) neighbors: HashMap<RouterId, LinkWeight>,
 }
 
