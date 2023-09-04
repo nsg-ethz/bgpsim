@@ -24,6 +24,8 @@ mod t {
         prelude::BgpSessionType,
         types::{AsId, Prefix, SimplePrefix, SinglePrefix},
     };
+
+    #[cfg(feature = "rand")]
     use petgraph::Graph;
 
     #[test]
@@ -324,7 +326,6 @@ mod t {
     #[test]
     fn test_build_connected_graph<P: Prefix>() {
         use petgraph::algo::connected_components;
-        use petgraph::Graph;
 
         let mut i = 0;
         while i < 10 {
