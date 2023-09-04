@@ -985,7 +985,7 @@ impl<'a, P: Prefix> Iterator for InternalIndices<'a, P> {
     type Item = RouterId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((id, r)) = self.i.next() {
+        for (id, r) in self.i.by_ref() {
             if r.is_internal() {
                 return Some(*id);
             }
@@ -1011,7 +1011,7 @@ impl<'a, P: Prefix> Iterator for ExternalIndices<'a, P> {
     type Item = RouterId;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((id, r)) = self.i.next() {
+        for (id, r) in self.i.by_ref() {
             if r.is_external() {
                 return Some(*id);
             }
@@ -1051,7 +1051,7 @@ impl<'a, P: Prefix> Iterator for InternalRoutersIter<'a, P> {
     type Item = &'a Router<P>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(r) = self.i.next() {
+        for r in self.i.by_ref() {
             if let NetworkDevice::InternalRouter(r) = r {
                 return Some(r);
             }
@@ -1070,7 +1070,7 @@ impl<'a, P: Prefix> Iterator for ExternalRoutersIter<'a, P> {
     type Item = &'a ExternalRouter<P>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(r) = self.i.next() {
+        for r in self.i.by_ref() {
             if let NetworkDevice::ExternalRouter(r) = r {
                 return Some(r);
             }
@@ -1089,7 +1089,7 @@ impl<'a, P: Prefix> Iterator for InternalRoutersIterMut<'a, P> {
     type Item = &'a mut Router<P>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(r) = self.i.next() {
+        for r in self.i.by_ref() {
             if let NetworkDevice::InternalRouter(r) = r {
                 return Some(r);
             }
@@ -1108,7 +1108,7 @@ impl<'a, P: Prefix> Iterator for ExternalRoutersIterMut<'a, P> {
     type Item = &'a mut ExternalRouter<P>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some(r) = self.i.next() {
+        for r in self.i.by_ref() {
             if let NetworkDevice::ExternalRouter(r) = r {
                 return Some(r);
             }
