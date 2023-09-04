@@ -90,7 +90,7 @@ impl Component for Tooltip {
         let content: Html = match hover {
             Hover::Text(s) => s,
             Hover::Router(r) if self.state.layer() == Layer::RouteProp => {
-                if let Some(x) = self.net.net().get_device(r).internal() {
+                if let Ok(x) = self.net.net().get_internal_router(r) {
                     let rib = x
                         .bgp
                         .get_processed_rib_in()
@@ -120,8 +120,7 @@ impl Component for Tooltip {
                 let ty = self
                     .net
                     .net()
-                    .get_device(src)
-                    .internal()
+                    .get_internal_router(src).ok()
                     .and_then(|r| r.bgp.get_session_type(dst))
                     .unwrap_or(BgpSessionType::EBgp);
                 let ty = match ty {

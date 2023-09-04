@@ -99,8 +99,8 @@ impl LinkState {
     fn new(src: RouterId, dst: RouterId, net: &Net) -> Self {
         Self {
             area: net.net().get_ospf_area(src, dst).unwrap_or_default(),
-            in_ospf: net.net().get_device(src).is_internal()
-                && net.net().get_device(dst).is_internal(),
+            in_ospf: net.net().get_internal_router(src).is_ok()
+                && net.net().get_internal_router(dst).is_ok(),
         }
     }
 }

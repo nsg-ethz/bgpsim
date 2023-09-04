@@ -84,7 +84,7 @@ impl Component for StaticRouteEntryCfg {
             StaticRoute::Direct(target) | StaticRoute::Indirect(target) => self
                 .net
                 .net()
-                .get_router_name(target)
+                .get_device(target).map(|r| r.name())
                 .unwrap_or("Err")
                 .to_string(),
             StaticRoute::Drop => "Err".to_string(),
@@ -97,7 +97,7 @@ impl Component for StaticRouteEntryCfg {
                         r,
                         self.net
                             .net()
-                            .get_router_name(r)
+                            .get_device(r).map(|r| r.name())
                             .unwrap_or("Err")
                             .to_string(),
                     )

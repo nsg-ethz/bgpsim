@@ -73,7 +73,7 @@ pub fn NextHop(props: &Properties) -> Html {
 }
 
 fn get_next_hop(net: &Net, router: RouterId, prefix: Pfx) -> Vec<(RouterId, Point)> {
-    if let Some(r) = net.net().get_device(router).internal() {
+    if let Ok(r) = net.net().get_device(router).and_then(|r| r.internal_or_err()) {
         r.get_next_hop(prefix)
             .into_iter()
             .map(|r| (r, net.pos(r)))

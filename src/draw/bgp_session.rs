@@ -100,8 +100,7 @@ pub fn RouteMap(props: &RmProps) -> Html {
     let route_maps = use_selector_with_deps(
         |n: &Net, (id, peer, direction)| {
             n.net()
-                .get_device(*id)
-                .internal()
+                .get_internal_router(*id)
                 .map(|r| r.bgp.get_route_maps(*peer, *direction).to_vec())
                 .unwrap_or_default()
         },

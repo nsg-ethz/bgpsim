@@ -20,7 +20,7 @@ use std::{collections::HashSet, ops::Deref, rc::Rc};
 use bgpsim::{
     formatter::NetworkFormatter,
     prelude::BgpSessionType,
-    types::{NetworkDevice, RouterId},
+    types::{RouterId, NetworkDeviceRef},
 };
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -80,7 +80,7 @@ impl Component for BgpCfg {
             .node_indices()
             .filter(|r| {
                 *r != router
-                    && (n.get_device(*r).is_internal()
+                    && (n.get_internal_router(*r).is_ok()
                         || n.get_topology().contains_edge(router, *r))
             })
             .map(|r| (r, r.fmt(n).to_string(), sessions_dict.contains(&r)))
@@ -119,9 +119,9 @@ impl Component for BgpCfg {
             }
             Msg::AddBgpSession(dst) => {
                 let session_type = match self.net.net().get_device(dst) {
-                    NetworkDevice::InternalRouter(_) => BgpSessionType::IBgpPeer,
-                    NetworkDevice::ExternalRouter(_) => BgpSessionType::EBgp,
-                    NetworkDevice::None(_) => unreachable!(),
+                    Ok(NetworkDeviceRef::InternalRouter(_)) => BgpSessionType::IBgpPeer,
+                    Ok(NetworkDeviceRef::ExternalRouter(_)) => BgpSessionType::EBgp,
+                    Err(_) => unreachable!(),
                 };
                 self.net_dispatch.reduce_mut(move |n| {
                     n.net_mut()

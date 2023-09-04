@@ -176,7 +176,7 @@ pub struct RouterInfo {
 impl RouterInfo {
     pub fn new(id: RouterId, net: &Net) -> Self {
         let n = net.net();
-        let Some(r) = n.get_device(id).external() else {
+        let Ok(r) = n.get_external_router(id) else {
             return Self {
                 exists: false,
                 name: String::new(),
@@ -192,7 +192,7 @@ impl RouterInfo {
             .get_topology()
             .node_indices()
             .filter(|r| {
-                *r != id && n.get_device(*r).is_internal() && n.get_topology().contains_edge(id, *r)
+                *r != id && n.get_internal_router(*r).is_ok() && n.get_topology().contains_edge(id, *r)
             })
             .map(|r| (r, r.fmt(&n).to_string(), sessions.contains(&r)))
             .collect::<Vec<_>>();

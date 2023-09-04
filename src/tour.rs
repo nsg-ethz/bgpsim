@@ -343,7 +343,7 @@ impl Action {
                 Dispatch::<State>::new().reduce_mut(|state| state.set_layer(l.clone()));
             }
             Action::CreateFirstRouter => {
-                if net.net().get_routers().len() == 0 {
+                if net.net().internal_indices().next().is_none() {
                     Dispatch::<Net>::new().reduce_mut(|n| {
                         let id = n.net_mut().add_router("Zürich");
                         n.pos_mut().insert(id, Point::new(0.5, 0.5));
@@ -351,7 +351,7 @@ impl Action {
                 }
             }
             Action::SelectFirstRouter => {
-                let first_router = net.net().get_routers()[0];
+                let first_router = net.net().internal_indices().next().unwrap();
                 Dispatch::<State>::new().reduce_mut(move |state| {
                     state.set_selected(Selected::Router(first_router, false))
                 });

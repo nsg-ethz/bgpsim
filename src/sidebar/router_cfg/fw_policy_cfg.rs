@@ -336,7 +336,7 @@ fn node_to_path_condition(node: TreeNode, net: &Network<Pfx, Queue>) -> Option<P
             // collect path condition ending in an external router
             if path.len() == 2 && path[0] == Waypoint::Star {
                 if let Waypoint::Fix(r) = path[1] {
-                    if net.get_device(r).is_external() {
+                    if net.get_external_router(r).is_ok() {
                         return Some(PathCondition::Node(r));
                     }
                 }

@@ -39,8 +39,8 @@ pub fn LinkWeight(props: &Properties) -> Html {
     let external_info = use_selector_with_deps(
         |net: &Net, (src, dst)| {
             (
-                net.net().get_device(*src).is_external(),
-                net.net().get_device(*dst).is_external(),
+                net.net().get_external_router(*src).is_ok(),
+                net.net().get_external_router(*dst).is_ok(),
             )
         },
         (src, dst),

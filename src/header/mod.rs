@@ -188,9 +188,8 @@ fn add_new_router(net: &mut Net, internal: bool) {
         log::debug!("add external router");
         let used_as: HashSet<AsId> = net
             .net()
-            .get_external_routers()
-            .into_iter()
-            .map(|r| net.net().get_device(r).unwrap_external().as_id())
+            .external_indices()
+            .map(|r| net.net().get_external_router(r).unwrap().as_id())
             .collect();
         // safety: this unwrap is ok because of the infinite iterator!
         let as_id = (1..).map(AsId).find(|x| !used_as.contains(x)).unwrap();

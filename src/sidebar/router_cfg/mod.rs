@@ -86,7 +86,7 @@ impl Component for RouterCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let n = &self.net.net();
-        let r = if let Some(r) = n.get_device(router).internal() {
+        let r = if let Ok(r) = n.get_internal_router(router) {
             r
         } else {
             return html! {};

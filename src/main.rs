@@ -33,7 +33,10 @@ use context_menu::Menu;
 use draw::canvas::Canvas;
 use gloo_utils::window;
 use header::Header;
-use http_serde::{import_json_str, import_url};
+use http_serde::import_url;
+#[cfg(feature = "atomic_bgp")]
+use http_serde::import_json_str;
+#[cfg(feature = "atomic_bgp")]
 use net::Net;
 use sidebar::Sidebar;
 use state::State;

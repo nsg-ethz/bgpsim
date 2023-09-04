@@ -106,13 +106,12 @@ pub fn generate_latex(net: &Net) -> String {
         .join(", ");
 
     let internal_nodes = n
-        .get_routers()
-        .iter()
+        .internal_indices()
         .map(|r| {
             (
                 r,
-                p.get(r).cloned().unwrap_or_default(),
-                n.get_router_name(*r).unwrap_or_default().to_string(),
+                p.get(&r).cloned().unwrap_or_default(),
+                n.get_device(r).map(|r| r.name()).unwrap_or_default().to_string(),
             )
         })
         .map(|(r, p, n)| {
@@ -127,13 +126,12 @@ pub fn generate_latex(net: &Net) -> String {
         .join("\n");
 
     let external_nodes = n
-        .get_external_routers()
-        .iter()
+        .external_indices()
         .map(|r| {
             (
                 r,
-                p.get(r).cloned().unwrap_or_default(),
-                n.get_router_name(*r).unwrap_or_default().to_string(),
+                p.get(&r).cloned().unwrap_or_default(),
+                n.get_device(r).map(|r| r.name().to_string()).unwrap_or_default(),
             )
         })
         .map(|(r, p, n)| {
@@ -160,9 +158,9 @@ pub fn generate_latex(net: &Net) -> String {
             format!(
                 "    \\ifdefined\\prefix{}\n{}\n  \\fi",
                 p.to_string().replace(['.', '/'], "_"),
-                n.get_routers()
+                n.internal_indices()
                     .into_iter()
-                    .filter_map(|r| n.get_device(r).internal())
+                    .filter_map(|r| n.get_internal_router(r).ok())
                     .flat_map(|r| r.get_next_hop(*p).into_iter().map(|nh| (r.router_id(), nh)))
                     .map(|(src, dst)| format!(
                         r"      \draw[next hop] (r{}) -- (r{});",

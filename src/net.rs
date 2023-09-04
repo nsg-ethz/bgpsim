@@ -27,8 +27,7 @@ use bgpsim::{
     event::{Event, EventQueue},
     network::Network,
     policies::{FwPolicy, PolicyError},
-    router::Router,
-    types::{IgpNetwork, NetworkDevice, RouterId},
+    types::{IgpNetwork, NetworkDevice, RouterId, NetworkDeviceRef},
 };
 use forceatlas2::{Layout, Nodes, Settings};
 #[cfg(feature = "atomic_bgp")]
@@ -83,7 +82,7 @@ impl EventQueue<Pfx> for Queue {
     fn push(
         &mut self,
         event: Event<Pfx, Self::Priority>,
-        _: &HashMap<RouterId, Router<Pfx>>,
+        _: &HashMap<RouterId, NetworkDevice<Pfx>>,
         _: &IgpNetwork,
     ) {
         self.0.push_back(event)
@@ -109,7 +108,7 @@ impl EventQueue<Pfx> for Queue {
         self.0.clear()
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, Router<Pfx>>, _: &IgpNetwork) {}
+    fn update_params(&mut self, _: &HashMap<RouterId, NetworkDevice<Pfx>>, _: &IgpNetwork) {}
 
     unsafe fn clone_events(&self, _: Self) -> Self {
         self.clone()
@@ -245,18 +244,18 @@ impl Net {
     pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {
         let net_borrow = self.net.borrow();
         let net = net_borrow.deref();
-        net.get_routers()
-            .into_iter()
+        net.internal_indices()
             .flat_map(|src| {
-                net.get_device(src)
-                    .unwrap_internal()
-                    .bgp.get_sessions()
+                net.get_internal_router(src)
+                    .unwrap()
+                    .bgp
+                    .get_sessions()
                     .iter()
                     .map(|(target, ty)| (*target, *ty))
                     .filter_map(move |(dst, ty)| {
                         if ty == BgpSessionType::IBgpPeer {
-                            net.get_device(dst)
-                                .internal()
+                            net.get_internal_router(dst)
+                                .ok()
                                 .and_then(|d| d.bgp.get_session_type(src))
                                 .and_then(|other_ty| match other_ty {
                                     BgpSessionType::IBgpPeer if src.index() > dst.index() => {
@@ -277,7 +276,7 @@ impl Net {
         let mut results = Vec::new();
         for id in net.get_topology().node_indices() {
             match net.get_device(id) {
-                NetworkDevice::InternalRouter(r) => {
+                Ok(NetworkDeviceRef::InternalRouter(r)) => {
                     if let Some(rib) = r.bgp.get_rib_in().get(&prefix) {
                         results.extend(
                             rib.iter()
@@ -285,13 +284,14 @@ impl Net {
                         );
                     }
                 }
-                NetworkDevice::ExternalRouter(r) => {
+                Ok(NetworkDeviceRef::ExternalRouter(r)) => {
                     results.extend(
                         r.get_bgp_sessions()
                             .iter()
-                            .filter_map(|n| net.get_device(*n).internal().map(|r| (*n, r)))
+                            .filter_map(|n| net.get_internal_router(*n).ok().map(|r| (*n, r)))
                             .filter_map(|(n, r)| {
-                                r.bgp.get_rib_out()
+                                r.bgp
+                                    .get_rib_out()
                                     .get(&prefix)
                                     .and_then(|x| x.get(&id))
                                     .map(|r| (n, r))
@@ -299,7 +299,7 @@ impl Net {
                             .map(|(n, e)| (n, id, e.route.clone())),
                     );
                 }
-                NetworkDevice::None(_) => {}
+                Err(_) => {}
             }
         }
         results

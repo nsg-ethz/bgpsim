@@ -18,8 +18,7 @@
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use bgpsim::types::NetworkDevice;
-use bgpsim::{prelude::BgpSessionType, types::RouterId};
+use bgpsim::{prelude::BgpSessionType, types::NetworkDeviceRef, types::RouterId};
 use gloo_events::EventListener;
 use gloo_utils::window;
 use itertools::Itertools;
@@ -132,15 +131,15 @@ impl RouterState {
         let g = n.get_topology();
         let igp_neighbors: Vec<RouterId> = g.neighbors(id).sorted().collect();
         let (external, bgp_neighbors) = match n.get_device(id) {
-            NetworkDevice::InternalRouter(r) => (
+            Ok(NetworkDeviceRef::InternalRouter(r)) => (
                 false,
                 r.bgp.get_sessions().keys().copied().sorted().collect(),
             ),
-            NetworkDevice::ExternalRouter(r) => (
+            Ok(NetworkDeviceRef::ExternalRouter(r)) => (
                 true,
                 r.get_bgp_sessions().iter().copied().sorted().collect(),
             ),
-            NetworkDevice::None(_) => (false, Default::default()),
+            Err(_) => (false, Default::default()),
         };
 
         Self {

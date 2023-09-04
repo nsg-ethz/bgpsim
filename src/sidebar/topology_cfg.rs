@@ -73,7 +73,7 @@ impl Component for TopologyCfg {
             .node_indices()
             .filter(|r| {
                 *r != ctx.props().router
-                    && (!ctx.props().only_internal || self.net.net().get_device(*r).is_internal())
+                    && (!ctx.props().only_internal || self.net.net().get_internal_router(*r).is_ok())
             })
             .map(|r| (r, r.fmt(&self.net.net()).to_string(), neigh.contains(&r)))
             .collect();
@@ -110,8 +110,8 @@ impl Component for TopologyCfg {
                 true
             }
             Msg::AddLink(neighbor) => {
-                let self_external = self.net.net().get_device(router).is_external();
-                let neighbor_external = self.net.net().get_device(neighbor).is_external();
+                let self_external = self.net.net().get_external_router(router).is_ok();
+                let neighbor_external = self.net.net().get_external_router(neighbor).is_ok();
                 self.net_dispatch.reduce_mut(move |n| {
                     n.net_mut().add_link(router, neighbor);
                     let w = if self_external || neighbor_external {
@@ -232,8 +232,8 @@ impl LinkWeightInfo {
         let net = &net.net();
         Self {
             element_text: format!("→ {}", dst.fmt(net)),
-            src_external: net.get_device(src).is_external(),
-            dst_external: net.get_device(dst).is_external(),
+            src_external: net.get_external_router(src).is_ok(),
+            dst_external: net.get_external_router(dst).is_ok(),
             area: net
                 .get_ospf_area(src, dst)
                 .unwrap_or_else(|_| OspfArea::backbone()),

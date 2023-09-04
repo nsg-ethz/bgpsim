@@ -23,7 +23,7 @@ use bgpsim::{
         RouteMap, RouteMapBuilder,
         RouteMapDirection::{self, Incoming, Outgoing},
     },
-    types::{NetworkDevice, RouterId},
+    types::{RouterId, NetworkDeviceRef},
 };
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -86,7 +86,7 @@ impl Component for RouteMapsCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let n = &self.net.net();
-        let r = if let Some(r) = n.get_device(router).internal() {
+        let r = if let Ok(r) = n.get_internal_router(router) {
             r
         } else {
             return html! {};
@@ -232,7 +232,7 @@ impl Component for RouteMapsCfg {
                 true
             }
             Msg::ChangeRMOrder(neighbor, direction, o) => match self.net.net().get_device(router) {
-                NetworkDevice::InternalRouter(r) => {
+                Ok(NetworkDeviceRef::InternalRouter(r)) => {
                     self.rm_in_order_correct = o
                         .parse::<i16>()
                         .ok()
