@@ -399,7 +399,7 @@ impl From<NetworkError> for ExportError {
 }
 
 /// Return `ExportError::NotEnoughAddresses` if the option is `None`.
-pub(self) fn ip_err<T>(option: Option<T>) -> Result<T, ExportError> {
+fn ip_err<T>(option: Option<T>) -> Result<T, ExportError> {
     option.ok_or(ExportError::NotEnoughAddresses)
 }
 

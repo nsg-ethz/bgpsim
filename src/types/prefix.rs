@@ -441,7 +441,7 @@ impl<T> IntoIterator for SinglePrefixMap<T> {
     type IntoIter = Zip<Repeat<SinglePrefix>, std::option::IntoIter<T>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        std::iter::zip(repeat(SinglePrefix), self.0.into_iter())
+        std::iter::zip(repeat(SinglePrefix), self.0)
     }
 }
 
@@ -451,7 +451,7 @@ impl<'a, T> IntoIterator for &'a SinglePrefixMap<T> {
     type IntoIter = Zip<Repeat<&'a SinglePrefix>, std::option::IntoIter<&'a T>>;
 
     fn into_iter(self) -> Self::IntoIter {
-        std::iter::zip(repeat(&SINGLE_PREFIX), self.0.as_ref().into_iter())
+        std::iter::zip(repeat(&SINGLE_PREFIX), self.0.as_ref())
     }
 }
 

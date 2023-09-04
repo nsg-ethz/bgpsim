@@ -435,7 +435,7 @@ impl From<PathConditionCNF> for PathCondition {
                         // Then, chain the vt vector onto it, and generate a large OR expression
                         vf.into_iter()
                             .map(|e| PathCondition::Not(Box::new(e)))
-                            .chain(vt.into_iter())
+                            .chain(vt)
                             .collect(),
                     )
                 })
