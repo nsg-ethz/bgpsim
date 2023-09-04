@@ -121,7 +121,7 @@ pub fn Menu() -> Html {
     };
 
     // create the new position
-    let offset = use_state(|| Point::default());
+    let offset = use_state(Point::default);
     let point = context.point().unwrap_or_default();
     let mut pos = point + *offset;
     let menu_ref = use_node_ref();

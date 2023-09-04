@@ -231,7 +231,7 @@ fn prepare_onclick(
         // the default (false) path will result in returning that this router cannot be chosen.
         match conn {
             Connection::Link => {
-                if !r.igp_neighbors.binary_search(&src).is_ok() {
+                if r.igp_neighbors.binary_search(&src).is_err() {
                     let clear_selection =
                         state.reduce_mut_callback(move |s| s.set_selected(Selected::None));
                     let update_net = move |_: MouseEvent| {
@@ -247,7 +247,7 @@ fn prepare_onclick(
             }
             Connection::BgpSession(BgpSessionType::EBgp) => {
                 // check if the two are not already connected, and that one of them is external while the other is not.
-                if !r.bgp_neighbors.binary_search(&src).is_ok() && external != src_external {
+                if r.bgp_neighbors.binary_search(&src).is_err() && external != src_external {
                     let clear_selection =
                         state.reduce_mut_callback(move |s| s.set_selected(Selected::None));
                     let update_net = move |_: MouseEvent| {
@@ -261,7 +261,7 @@ fn prepare_onclick(
                 }
             }
             Connection::BgpSession(session_type) => {
-                if !r.bgp_neighbors.binary_search(&src).is_ok() && !external && !src_external {
+                if r.bgp_neighbors.binary_search(&src).is_err() && !external && !src_external {
                     let clear_selection =
                         state.reduce_mut_callback(move |s| s.set_selected(Selected::None));
                     let update_net = move |_: MouseEvent| {

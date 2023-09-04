@@ -274,7 +274,7 @@ pub fn Tour() -> Html {
     let skip_tour = Callback::from(move |_| step_c.set(STEPS.len()));
     let step_c = step.clone();
     let next_step = Callback::from(move |_| step_c.set(*step_c + 1));
-    let step_c = step.clone();
+    let step_c = step;
     let prev_step = Callback::from(move |_| step_c.set(*step_c - 1));
 
     html! {
@@ -340,7 +340,7 @@ impl Action {
         let net = net.as_ref();
         match self {
             Action::ChooseLayer(l) => {
-                Dispatch::<State>::new().reduce_mut(|state| state.set_layer(l.clone()));
+                Dispatch::<State>::new().reduce_mut(|state| state.set_layer(*l));
             }
             Action::CreateFirstRouter => {
                 if net.net().internal_indices().next().is_none() {

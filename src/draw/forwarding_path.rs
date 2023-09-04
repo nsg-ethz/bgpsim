@@ -139,14 +139,12 @@ fn get_paths(net: &Net, router: RouterId, prefix: Pfx) -> Vec<Vec<Point>> {
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
+#[derive(Default)]
 pub enum PathKind {
+    #[default]
     Normal,
     Valid,
     Invalid,
 }
 
-impl Default for PathKind {
-    fn default() -> Self {
-        PathKind::Normal
-    }
-}
+

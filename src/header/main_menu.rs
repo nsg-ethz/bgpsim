@@ -395,7 +395,7 @@ fn import_file(file_ref: NodeRef) -> Option<Closure<dyn Fn(ProgressEvent)>> {
         return None
     };
 
-    let Some(file_blob) = file.files().and_then(|l| l.get(0)).map(|x| Blob::from(x)) else {
+    let Some(file_blob) = file.files().and_then(|l| l.get(0)).map(Blob::from) else {
         log::error!("Could not get the file from the file list!");
         return None;
     };

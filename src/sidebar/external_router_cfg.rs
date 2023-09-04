@@ -58,7 +58,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
     }
 
     let on_name_change = callback!(name_input_correct -> move |new_name|  {
-        name_input_correct.set(Dispatch::<Net>::new().get().net().get_router_id(&new_name).is_err());
+        name_input_correct.set(Dispatch::<Net>::new().get().net().get_router_id(new_name).is_err());
     });
     let on_name_set = callback!(move |new_name| {
         Dispatch::<Net>::new().reduce_mut(move |n| {
@@ -97,7 +97,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
 
     let on_route_add_change = callback!(info, prefix_input_correct -> move |new_prefix: String| {
         prefix_input_correct.set(
-            Pfx::from_str(&new_prefix).map(|p| info.routes.iter().find(|(x, _)| x == &p).is_none()).unwrap_or(false)
+            Pfx::from_str(&new_prefix).map(|p| !info.routes.iter().any(|(x, _)| x == &p)).unwrap_or(false)
         );
     });
     let on_route_add = callback!(prefix_input_correct -> move |new_prefix: String| {

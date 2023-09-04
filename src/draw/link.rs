@@ -50,7 +50,7 @@ pub fn Link(props: &Properties) -> Html {
         |net, (src, dst)| LinkState::new(*src, *dst, net),
         (src, dst),
     );
-    let s = use_selector(|state| VisState::new(state));
+    let s = use_selector(VisState::new);
 
     let width = "stroke-1 peer-hover:stroke-6";
     let thick_width = "stroke-4 peer-hover:stroke-6";

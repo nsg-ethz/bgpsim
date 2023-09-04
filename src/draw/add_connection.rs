@@ -35,7 +35,7 @@ use crate::{
 pub fn AddConnection() -> Html {
     let event_callbacks = use_state(|| None);
     let selected = *use_selector(|s: &State| s.selected());
-    let mouse_pos = use_state(|| Point::default());
+    let mouse_pos = use_state(Point::default);
 
     let mut params = None;
 

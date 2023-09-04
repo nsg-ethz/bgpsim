@@ -32,7 +32,9 @@ pub mod router;
 pub mod text;
 
 #[derive(Clone, Copy, PartialEq, Eq, EnumIter, Debug)]
+#[derive(Default)]
 pub enum SvgColor {
+    #[default]
     BlueLight,
     PurpleLight,
     GreenLight,
@@ -47,11 +49,7 @@ pub enum SvgColor {
     Dark,
 }
 
-impl Default for SvgColor {
-    fn default() -> Self {
-        SvgColor::BlueLight
-    }
-}
+
 
 impl SvgColor {
     pub fn classes(&self) -> Classes {

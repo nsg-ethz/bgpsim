@@ -159,7 +159,6 @@ pub fn generate_latex(net: &Net) -> String {
                 "    \\ifdefined\\prefix{}\n{}\n  \\fi",
                 p.to_string().replace(['.', '/'], "_"),
                 n.internal_indices()
-                    .into_iter()
                     .filter_map(|r| n.get_internal_router(r).ok())
                     .flat_map(|r| r.get_next_hop(*p).into_iter().map(|nh| (r.router_id(), nh)))
                     .map(|(src, dst)| format!(
