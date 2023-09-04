@@ -120,45 +120,45 @@ impl<P: Prefix> PartialEq for BgpRoute<P> {
 
 impl<P: Prefix> Ord for BgpRoute<P> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl<P: Prefix> PartialOrd for BgpRoute<P> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         let s = self.clone_default();
         let o = other.clone_default();
 
         match s.local_pref.unwrap().cmp(&o.local_pref.unwrap()) {
             Ordering::Equal => {}
-            o => return Some(o),
+            o => return o,
         }
 
         match s.as_path.len().cmp(&o.as_path.len()) {
             Ordering::Equal => {}
-            Ordering::Greater => return Some(Ordering::Less),
-            Ordering::Less => return Some(Ordering::Greater),
+            Ordering::Greater => return Ordering::Less,
+            Ordering::Less => return Ordering::Greater,
         }
 
         if s.as_path.first() == o.as_path.first() {
             match s.med.unwrap().cmp(&o.med.unwrap()) {
                 Ordering::Equal => {}
-                Ordering::Greater => return Some(Ordering::Less),
-                Ordering::Less => return Some(Ordering::Greater),
+                Ordering::Greater => return Ordering::Less,
+                Ordering::Less => return Ordering::Greater,
             }
         }
 
         match s.cluster_list.len().cmp(&o.cluster_list.len()) {
             Ordering::Equal => {}
-            Ordering::Less => return Some(Ordering::Greater),
-            Ordering::Greater => return Some(Ordering::Less),
+            Ordering::Less => return Ordering::Greater,
+            Ordering::Greater => return Ordering::Less,
         }
 
         match s.next_hop.cmp(&o.next_hop) {
-            Ordering::Equal => Some(Ordering::Equal),
-            Ordering::Greater => Some(Ordering::Less),
-            Ordering::Less => Some(Ordering::Greater),
+            Ordering::Equal => Ordering::Equal,
+            Ordering::Greater => Ordering::Less,
+            Ordering::Less => Ordering::Greater,
         }
+    }
+}
+
+impl<P: Prefix> PartialOrd for BgpRoute<P> {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -187,23 +187,23 @@ pub enum BgpSessionType {
 
 impl Ord for BgpSessionType {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
-    }
-}
-
-impl PartialOrd for BgpSessionType {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         match (self, other) {
             (BgpSessionType::EBgp, BgpSessionType::EBgp)
             | (BgpSessionType::IBgpPeer, BgpSessionType::IBgpPeer)
             | (BgpSessionType::IBgpPeer, BgpSessionType::IBgpClient)
             | (BgpSessionType::IBgpClient, BgpSessionType::IBgpPeer)
-            | (BgpSessionType::IBgpClient, BgpSessionType::IBgpClient) => Some(Ordering::Equal),
+            | (BgpSessionType::IBgpClient, BgpSessionType::IBgpClient) => Ordering::Equal,
             (BgpSessionType::IBgpClient, BgpSessionType::EBgp)
-            | (BgpSessionType::IBgpPeer, BgpSessionType::EBgp) => Some(Ordering::Less),
+            | (BgpSessionType::IBgpPeer, BgpSessionType::EBgp) => Ordering::Less,
             (BgpSessionType::EBgp, BgpSessionType::IBgpPeer)
-            | (BgpSessionType::EBgp, BgpSessionType::IBgpClient) => Some(Ordering::Less),
+            | (BgpSessionType::EBgp, BgpSessionType::IBgpClient) => Ordering::Less,
         }
+    }
+}
+
+impl PartialOrd for BgpSessionType {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
     }
 }
 
@@ -269,7 +269,72 @@ pub struct BgpRibEntry<P: Prefix> {
 
 impl<P: Prefix> Ord for BgpRibEntry<P> {
     fn cmp(&self, other: &Self) -> Ordering {
-        self.partial_cmp(other).unwrap()
+        let s = self.route.clone_default();
+        let o = other.route.clone_default();
+
+        match self.weight.cmp(&other.weight) {
+            Ordering::Equal => {}
+            o => return o,
+        }
+
+        match s.local_pref.unwrap().cmp(&o.local_pref.unwrap()) {
+            Ordering::Equal => {}
+            o => return o,
+        }
+
+        match s.as_path.len().cmp(&o.as_path.len()) {
+            Ordering::Equal => {}
+            Ordering::Greater => return Ordering::Less,
+            Ordering::Less => return Ordering::Greater,
+        }
+
+        if s.as_path.first() == o.as_path.first() {
+            match s.med.unwrap().cmp(&o.med.unwrap()) {
+                Ordering::Equal => {}
+                Ordering::Greater => return Ordering::Less,
+                Ordering::Less => return Ordering::Greater,
+            }
+        }
+
+        if self.from_type.is_ebgp() && other.from_type.is_ibgp() {
+            return Ordering::Greater;
+        } else if self.from_type.is_ibgp() && other.from_type.is_ebgp() {
+            return Ordering::Less;
+        }
+
+        match self.igp_cost.unwrap().partial_cmp(&other.igp_cost.unwrap()) {
+            Some(Ordering::Equal) | None => {}
+            Some(Ordering::Greater) => return Ordering::Less,
+            Some(Ordering::Less) => return Ordering::Greater,
+        }
+
+        match s.next_hop.cmp(&o.next_hop) {
+            Ordering::Equal => {}
+            Ordering::Greater => return Ordering::Less,
+            Ordering::Less => return Ordering::Greater,
+        }
+
+        let s_from = s.originator_id.unwrap_or(self.from_id);
+        let o_from = o.originator_id.unwrap_or(other.from_id);
+        match s_from.cmp(&o_from) {
+            Ordering::Equal => {}
+            Ordering::Greater => return Ordering::Less,
+            Ordering::Less => return Ordering::Greater,
+        }
+
+        match s.cluster_list.len().cmp(&o.cluster_list.len()) {
+            Ordering::Equal => {}
+            Ordering::Greater => return Ordering::Less,
+            Ordering::Less => return Ordering::Greater,
+        }
+
+        match self.from_id.cmp(&other.from_id) {
+            Ordering::Equal => {}
+            Ordering::Greater => return Ordering::Less,
+            Ordering::Less => return Ordering::Greater,
+        }
+
+        Ordering::Equal
     }
 }
 
@@ -284,72 +349,7 @@ impl<P: Prefix> PartialEq for BgpRibEntry<P> {
 
 impl<P: Prefix> PartialOrd for BgpRibEntry<P> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        let s = self.route.clone_default();
-        let o = other.route.clone_default();
-
-        match self.weight.cmp(&other.weight) {
-            Ordering::Equal => {}
-            o => return Some(o),
-        }
-
-        match s.local_pref.unwrap().cmp(&o.local_pref.unwrap()) {
-            Ordering::Equal => {}
-            o => return Some(o),
-        }
-
-        match s.as_path.len().cmp(&o.as_path.len()) {
-            Ordering::Equal => {}
-            Ordering::Greater => return Some(Ordering::Less),
-            Ordering::Less => return Some(Ordering::Greater),
-        }
-
-        if s.as_path.first() == o.as_path.first() {
-            match s.med.unwrap().cmp(&o.med.unwrap()) {
-                Ordering::Equal => {}
-                Ordering::Greater => return Some(Ordering::Less),
-                Ordering::Less => return Some(Ordering::Greater),
-            }
-        }
-
-        if self.from_type.is_ebgp() && other.from_type.is_ibgp() {
-            return Some(Ordering::Greater);
-        } else if self.from_type.is_ibgp() && other.from_type.is_ebgp() {
-            return Some(Ordering::Less);
-        }
-
-        match self.igp_cost.unwrap().partial_cmp(&other.igp_cost.unwrap()) {
-            Some(Ordering::Equal) | None => {}
-            Some(Ordering::Greater) => return Some(Ordering::Less),
-            Some(Ordering::Less) => return Some(Ordering::Greater),
-        }
-
-        match s.next_hop.cmp(&o.next_hop) {
-            Ordering::Equal => {}
-            Ordering::Greater => return Some(Ordering::Less),
-            Ordering::Less => return Some(Ordering::Greater),
-        }
-
-        let s_from = s.originator_id.unwrap_or(self.from_id);
-        let o_from = o.originator_id.unwrap_or(other.from_id);
-        match s_from.cmp(&o_from) {
-            Ordering::Equal => {}
-            Ordering::Greater => return Some(Ordering::Less),
-            Ordering::Less => return Some(Ordering::Greater),
-        }
-
-        match s.cluster_list.len().cmp(&o.cluster_list.len()) {
-            Ordering::Equal => {}
-            Ordering::Greater => return Some(Ordering::Less),
-            Ordering::Less => return Some(Ordering::Greater),
-        }
-
-        match self.from_id.cmp(&other.from_id) {
-            Ordering::Equal => {}
-            Ordering::Greater => return Some(Ordering::Less),
-            Ordering::Less => return Some(Ordering::Greater),
-        }
-
-        Some(Ordering::Equal)
+        Some(self.cmp(other))
     }
 }
 

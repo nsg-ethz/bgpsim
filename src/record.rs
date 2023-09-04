@@ -254,8 +254,8 @@ impl<T> Ord for AlwaysEq<T> {
 }
 
 impl<T> PartialOrd for AlwaysEq<T> {
-    fn partial_cmp(&self, _other: &Self) -> Option<std::cmp::Ordering> {
-        Some(std::cmp::Ordering::Equal)
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        Some(self.cmp(other))
     }
 }
 
