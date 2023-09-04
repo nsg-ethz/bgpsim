@@ -31,7 +31,9 @@ use super::addressor;
 fn get_test_net<P: Prefix>(num_neighbors: usize) -> Network<P, BasicEventQueue<P>> {
     let mut net = Network::build_complete_graph(BasicEventQueue::new(), num_neighbors);
     let ext = net.add_external_router("external_router", AsId(100));
-    net.internal_indices().detach().for_each(|r| net.add_link(r, ext));
+    net.internal_indices()
+        .detach()
+        .for_each(|r| net.add_link(r, ext));
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
     net.build_link_weights(|_, _, _, _| 1.0, ()).unwrap();

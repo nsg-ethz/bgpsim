@@ -241,7 +241,8 @@ mod t {
         // check that all the fw tables are empty, because no update yet occurred
         for router in net.internal_indices() {
             assert_eq!(
-                net.get_device(router).unwrap()
+                net.get_device(router)
+                    .unwrap()
                     .unwrap_internal()
                     .ospf
                     .get_table()
@@ -394,28 +395,32 @@ mod t {
         test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
         let r1_rib = net
-            .get_device(*R1).unwrap()
+            .get_device(*R1)
+            .unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r2_rib = net
-            .get_device(*R2).unwrap()
+            .get_device(*R2)
+            .unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r3_rib = net
-            .get_device(*R3).unwrap()
+            .get_device(*R3)
+            .unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r4_rib = net
-            .get_device(*R4).unwrap()
+            .get_device(*R4)
+            .unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
@@ -441,28 +446,32 @@ mod t {
         test_route!(net, *R4, p, [*R4, *E4]);
 
         let r1_rib = net
-            .get_device(*R1).unwrap()
+            .get_device(*R1)
+            .unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r2_rib = net
-            .get_device(*R2).unwrap()
+            .get_device(*R2)
+            .unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r3_rib = net
-            .get_device(*R3).unwrap()
+            .get_device(*R3)
+            .unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r4_rib = net
-            .get_device(*R4).unwrap()
+            .get_device(*R4)
+            .unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()

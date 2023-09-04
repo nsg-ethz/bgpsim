@@ -25,7 +25,7 @@ use crate::{
     formatter::NetworkFormatter,
     network::Network,
     types::NetworkError,
-    types::{Prefix, StepUpdate},
+    types::{NetworkDevice, Prefix, StepUpdate},
 };
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
@@ -118,9 +118,14 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
             // log the job
             log::trace!("{}", event.fmt(self));
             // execute the event
-            let (step_update, events) = self
-                .get_device_mut(event.router())?
-                .handle_event(event.clone())?;
+            let (step_update, events) = match self
+                .routers
+                .get_mut(&event.router())
+                .ok_or(NetworkError::DeviceNotFound(event.router()))?
+            {
+                NetworkDevice::InternalRouter(r) => r.handle_event(event.clone()),
+                NetworkDevice::ExternalRouter(r) => r.handle_event(event.clone()),
+            }?;
 
             if self.verbose {
                 println!(

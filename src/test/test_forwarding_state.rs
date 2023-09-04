@@ -259,7 +259,8 @@ mod t {
             for router in routers.iter() {
                 for prefix in net.get_known_prefixes() {
                     assert_eq!(
-                        net.get_device(*router).unwrap()
+                        net.get_device(*router)
+                            .unwrap()
                             .unwrap_internal()
                             .get_next_hop(*prefix),
                         state.get_next_hops(*router, *prefix),

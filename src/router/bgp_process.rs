@@ -460,9 +460,9 @@ impl<P: Prefix> BgpProcess<P> {
                 (Some(x), None) if !x.is_empty() => true,
                 (None, Some(x)) if !x.is_empty() => true,
                 (Some(a), Some(b)) if a != b => true,
-                _ => false
+                _ => false,
             } {
-                return false
+                return false;
             }
         }
         let prefix_union = self.known_prefixes.union(&other.known_prefixes);
@@ -471,9 +471,9 @@ impl<P: Prefix> BgpProcess<P> {
                 (Some(x), None) if !x.is_empty() => true,
                 (None, Some(x)) if !x.is_empty() => true,
                 (Some(a), Some(b)) if a != b => true,
-                _ => false
+                _ => false,
             } {
-                return false
+                return false;
             }
         }
         true

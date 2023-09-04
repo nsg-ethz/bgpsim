@@ -17,10 +17,9 @@
 
 //! Module containing all type definitions
 
-use crate::event::EventOutcome;
 use crate::formatter::NetworkFormatter;
 use crate::{
-    bgp::BgpSessionType, event::Event, external_router::ExternalRouter, network::Network,
+    bgp::BgpSessionType, external_router::ExternalRouter, network::Network,
     router::Router,
 };
 use itertools::Itertools;
@@ -201,15 +200,6 @@ impl<P: Prefix> NetworkDevice<P> {
         }
     }
 
-    /// Get a mutable reference to the device. The returned `NetworkDeviceMut` is always either an
-    /// internal or an external router!
-    pub fn as_mut(&mut self) -> NetworkDeviceMut<'_, P> {
-        match self {
-            NetworkDevice::InternalRouter(r) => NetworkDeviceMut::InternalRouter(r),
-            NetworkDevice::ExternalRouter(r) => NetworkDeviceMut::ExternalRouter(r),
-        }
-    }
-
     /// Returns true if and only if self contains an internal router.
     pub fn is_internal(&self) -> bool {
         matches!(self, Self::InternalRouter(_))
@@ -382,188 +372,6 @@ impl<'a, P: Prefix> NetworkDeviceRef<'a, P> {
                 .iter()
                 .map(|r| (*r, BgpSessionType::EBgp))
                 .collect(),
-        }
-    }
-}
-
-/// # Network Device (similar to `Option`) containing a mutable reference.
-/// Enumerates all possible network devices. This struct behaves similar to an `Option`, but it
-/// knows two different `Some` values, the `InternalRouter` and the `ExternalRouter`. Thus, it
-/// knows three different `unwrap` functions, the `unwrap_internal`, `unwrap_external` and
-/// `unwrap_none` function, as well as `internal_or` and `external_or`.
-#[derive(Debug)]
-pub enum NetworkDeviceMut<'a, P: Prefix> {
-    /// Internal Router
-    InternalRouter(&'a mut Router<P>),
-    /// External Router
-    ExternalRouter(&'a mut ExternalRouter<P>),
-}
-
-#[cfg(not(tarpaulin_include))]
-impl<'a, P: Prefix> NetworkDeviceMut<'a, P> {
-    /// Returns the Router or **panics**, if the enum is not a `NetworkDeviceMut::InternalRouter`
-    #[track_caller]
-    pub fn unwrap_internal(self) -> &'a mut Router<P> {
-        match self {
-            Self::InternalRouter(r) => r,
-            Self::ExternalRouter(_) => {
-                panic!("`unwrap_internal()` called on a `NetworkDeviceMut::ExternalRouter`")
-            }
-        }
-    }
-
-    /// Returns the Router or **panics**, if the enum is not a `NetworkDeviceMut::ExternalRouter`
-    #[track_caller]
-    pub fn unwrap_external(self) -> &'a mut ExternalRouter<P> {
-        match self {
-            Self::InternalRouter(_) => {
-                panic!("`unwrap_external()` called on a `NetworkDeviceMut::InternalRouter`")
-            }
-            Self::ExternalRouter(r) => r,
-        }
-    }
-
-    /// Returns `()` or **panics** is the enum is not a `NetworkDevice::None`
-    #[track_caller]
-    pub fn unwrap_none(self) {
-        match self {
-            Self::InternalRouter(_) => {
-                panic!("`unwrap_none()` called on a `NetworkDevice::InternalRouter`")
-            }
-            Self::ExternalRouter(_) => {
-                panic!("`unwrap_none()` called on a `NetworkDevice::ExternalRouter`")
-            }
-        }
-    }
-
-    /// Returns true if and only if self contains an internal router.
-    pub fn is_internal(&self) -> bool {
-        matches!(self, Self::InternalRouter(_))
-    }
-
-    /// Returns true if and only if self contains an external router.
-    pub fn is_external(&self) -> bool {
-        matches!(self, Self::ExternalRouter(_))
-    }
-
-    /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `InternalRouter`.
-    pub fn internal(self) -> Option<&'a mut Router<P>> {
-        match self {
-            Self::InternalRouter(e) => Some(e),
-            _ => None,
-        }
-    }
-
-    /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `ExternalRouter`.
-    pub fn external(self) -> Option<&'a mut ExternalRouter<P>> {
-        match self {
-            Self::ExternalRouter(e) => Some(e),
-            _ => None,
-        }
-    }
-
-    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `InternalRouter`. If
-    /// `self` is not `InternalError`, then the provided error is returned.
-    pub fn internal_or<E: std::error::Error>(self, error: E) -> Result<&'a mut Router<P>, E> {
-        match self {
-            Self::InternalRouter(e) => Ok(e),
-            _ => Err(error),
-        }
-    }
-
-    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `ExternalRouter`. If
-    /// `self` is not `ExternalRouter`, then the provided error is returned.
-    pub fn external_or<E: std::error::Error>(
-        self,
-        error: E,
-    ) -> Result<&'a mut ExternalRouter<P>, E> {
-        match self {
-            Self::ExternalRouter(e) => Ok(e),
-            _ => Err(error),
-        }
-    }
-
-    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
-    /// `InternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`].
-    pub fn internal_or_err(self) -> Result<&'a mut Router<P>, NetworkError> {
-        match self {
-            Self::InternalRouter(r) => Ok(r),
-            Self::ExternalRouter(r) => Err(NetworkError::DeviceIsExternalRouter(r.router_id())),
-        }
-    }
-
-    /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
-    /// `ExternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`]
-    pub fn external_or_err(self) -> Result<&'a mut ExternalRouter<P>, NetworkError> {
-        match self {
-            Self::ExternalRouter(r) => Ok(r),
-            Self::InternalRouter(r) => Err(NetworkError::DeviceIsInternalRouter(r.router_id())),
-        }
-    }
-
-    /// Get the name of the device
-    pub fn name(&self) -> &str {
-        match self {
-            Self::InternalRouter(r) => r.name(),
-            Self::ExternalRouter(r) => r.name(),
-        }
-    }
-
-    /// Change the name of a device. If the device does not exist, return an error.
-    pub fn set_name(&mut self, name: impl Into<String>) {
-        match self {
-            Self::InternalRouter(r) => r.set_name(name.into()),
-            Self::ExternalRouter(r) => r.set_name(name.into()),
-        }
-    }
-
-    /// Get the AsId of the device. If the device does not exist, return an error.
-    pub fn as_id(&self) -> AsId {
-        match self {
-            Self::InternalRouter(r) => r.as_id(),
-            Self::ExternalRouter(r) => r.as_id(),
-        }
-    }
-
-    /// Get the AsId of the device. If the device does not exist, return an error.
-    pub fn router_id(&self) -> RouterId {
-        match self {
-            Self::InternalRouter(r) => r.router_id(),
-            Self::ExternalRouter(r) => r.router_id(),
-        }
-    }
-
-    /// Return a list of BGP neighbors of that device.
-    pub fn bgp_neighbors(&self) -> Vec<RouterId> {
-        match self {
-            Self::InternalRouter(r) => r.bgp.get_sessions().keys().copied().collect(),
-            Self::ExternalRouter(r) => r.get_bgp_sessions().iter().copied().collect(),
-        }
-    }
-
-    /// Return a list of BGP sessions (neighbor and session type towards that neighbor) of that
-    /// device.
-    pub fn bgp_sessions(&self) -> Vec<(RouterId, BgpSessionType)> {
-        match self {
-            Self::InternalRouter(r) => r.bgp.get_sessions().iter().map(|(r, t)| (*r, *t)).collect(),
-            Self::ExternalRouter(r) => r
-                .get_bgp_sessions()
-                .iter()
-                .map(|r| (*r, BgpSessionType::EBgp))
-                .collect(),
-        }
-    }
-
-    /// handle an `Event`. This function returns all events triggered by this function, and a
-    /// boolean to check if there was an update or not. If the device does not exist, then raise an
-    /// error.
-    pub(crate) fn handle_event<T: Default>(
-        &mut self,
-        event: Event<P, T>,
-    ) -> Result<EventOutcome<P, T>, NetworkError> {
-        match self {
-            NetworkDeviceMut::InternalRouter(r) => Ok(r.handle_event(event)?),
-            NetworkDeviceMut::ExternalRouter(r) => Ok(r.handle_event(event)?),
         }
     }
 }

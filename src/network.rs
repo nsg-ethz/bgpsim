@@ -31,8 +31,8 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut, NetworkDeviceRef,
-        NetworkError, Prefix, PrefixSet, RouterId, SimplePrefix,
+        AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceRef, NetworkError, Prefix,
+        PrefixSet, RouterId, SimplePrefix,
     },
 };
 
@@ -156,6 +156,23 @@ impl<P: Prefix, Q> Network<P, Q> {
         router_id
     }
 
+    /// Set the router name.
+    pub fn set_router_name(
+        &mut self,
+        router: RouterId,
+        name: impl Into<String>,
+    ) -> Result<(), NetworkError> {
+        match self
+            .routers
+            .get_mut(&router)
+            .ok_or(NetworkError::DeviceNotFound(router))?
+        {
+            NetworkDevice::InternalRouter(r) => r.set_name(name.into()),
+            NetworkDevice::ExternalRouter(r) => r.set_name(name.into()),
+        }
+        Ok(())
+    }
+
     /// This function creates an link in the network The link will have infinite weight for both
     /// directions. The network needs to be configured such that routers can use the link, since
     /// a link with infinte weight is treated as not connected. If the link does already exist,
@@ -252,22 +269,15 @@ impl<P: Prefix, Q> Network<P, Q> {
         }
     }
 
-    /// Return an iterator over all devices as mutable references.
-    pub fn devices_mut(&mut self) -> NetworkDevicesIterMut<'_, P> {
-        NetworkDevicesIterMut {
-            i: self.routers.values_mut(),
-        }
-    }
-
     /// Return an iterator over all internal routers as mutable references.
-    pub fn internal_routers_mut(&mut self) -> InternalRoutersIterMut<'_, P> {
+    pub(crate) fn internal_routers_mut(&mut self) -> InternalRoutersIterMut<'_, P> {
         InternalRoutersIterMut {
             i: self.routers.values_mut(),
         }
     }
 
     /// Return an iterator over all external routers as mutable references.
-    pub fn external_routers_mut(&mut self) -> ExternalRoutersIterMut<'_, P> {
+    pub(crate) fn external_routers_mut(&mut self) -> ExternalRoutersIterMut<'_, P> {
         ExternalRoutersIterMut {
             i: self.routers.values_mut(),
         }
@@ -286,16 +296,60 @@ impl<P: Prefix, Q> Network<P, Q> {
             .ok_or(NetworkError::DeviceNotFound(id))
     }
 
-    /// Returns a reference to the network device.
-    pub fn get_device_mut(
+    /// Returns a reference to an internal router
+    pub fn get_internal_router(&self, id: RouterId) -> Result<&Router<P>, NetworkError> {
+        match self
+            .routers
+            .get(&id)
+            .ok_or(NetworkError::DeviceNotFound(id))?
+        {
+            NetworkDevice::InternalRouter(r) => Ok(r),
+            NetworkDevice::ExternalRouter(_) => Err(NetworkError::DeviceIsExternalRouter(id)),
+        }
+    }
+
+    /// Returns a reference to an external router
+    pub fn get_external_router(&self, id: RouterId) -> Result<&ExternalRouter<P>, NetworkError> {
+        match self
+            .routers
+            .get(&id)
+            .ok_or(NetworkError::DeviceNotFound(id))?
+        {
+            NetworkDevice::InternalRouter(_) => Err(NetworkError::DeviceIsInternalRouter(id)),
+            NetworkDevice::ExternalRouter(r) => Ok(r),
+        }
+    }
+
+    /// Returns a reference to an internal router
+    pub(crate) fn get_internal_router_mut(
         &mut self,
         id: RouterId,
-    ) -> Result<NetworkDeviceMut<'_, P>, NetworkError> {
-        self.routers
+    ) -> Result<&mut Router<P>, NetworkError> {
+        match self
+            .routers
             .get_mut(&id)
-            .map(|x| x.as_mut())
-            .ok_or(NetworkError::DeviceNotFound(id))
+            .ok_or(NetworkError::DeviceNotFound(id))?
+        {
+            NetworkDevice::InternalRouter(r) => Ok(r),
+            NetworkDevice::ExternalRouter(_) => Err(NetworkError::DeviceIsExternalRouter(id)),
+        }
     }
+
+    /// Returns a reference to an external router
+    pub(crate) fn get_external_router_mut(
+        &mut self,
+        id: RouterId,
+    ) -> Result<&mut ExternalRouter<P>, NetworkError> {
+        match self
+            .routers
+            .get_mut(&id)
+            .ok_or(NetworkError::DeviceNotFound(id))?
+        {
+            NetworkDevice::InternalRouter(_) => Err(NetworkError::DeviceIsInternalRouter(id)),
+            NetworkDevice::ExternalRouter(r) => Ok(r),
+        }
+    }
+
     /// Get the RouterID with the given name. If multiple routers have the same name, then the first
     /// occurence of this name is returned. If the name was not found, an error is returned.
     pub fn get_router_id(&self, name: impl AsRef<str>) -> Result<RouterId, NetworkError> {
@@ -527,8 +581,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         route_map: RouteMap<P>,
     ) -> Result<Option<RouteMap<P>>, NetworkError> {
         let (old_map, events) = self
-            .get_device_mut(router)?
-            .internal_or_err()?
+            .get_internal_router_mut(router)?
             .bgp
             .set_route_map(neighbor, direction, route_map)?;
 
@@ -549,8 +602,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         order: i16,
     ) -> Result<Option<RouteMap<P>>, NetworkError> {
         let (old_map, events) = self
-            .get_device_mut(router)?
-            .internal_or_err()?
+            .get_internal_router_mut(router)?
             .bgp
             .remove_route_map(neighbor, direction, order)?;
 
@@ -568,8 +620,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         updates: &[RouteMapEdit<P>],
     ) -> Result<(), NetworkError> {
         let events = self
-            .get_device_mut(router)?
-            .internal_or_err()?
+            .get_internal_router_mut(router)?
             .bgp
             .batch_update_route_maps(updates)?;
 
@@ -587,8 +638,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         route: Option<StaticRoute>,
     ) -> Result<Option<StaticRoute>, NetworkError> {
         Ok(self
-            .get_device_mut(router)?
-            .internal_or_err()?
+            .get_internal_router_mut(router)?
             .sr
             .set(prefix, route))
     }
@@ -601,8 +651,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     ) -> Result<bool, NetworkError> {
         // update the device
         let old_val = self
-            .get_device_mut(router)?
-            .internal_or_err()?
+            .get_internal_router_mut(router)?
             .set_load_balancing(do_load_balancing);
 
         Ok(old_val)
@@ -639,8 +688,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
 
         // initiate the advertisement
         let (_, events) = self
-            .get_device_mut(source)?
-            .external_or_err()?
+            .get_external_router_mut(source)?
             .advertise_prefix(prefix, as_path, med, community);
 
         self.enqueue_events(events);
@@ -659,8 +707,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         debug!("Retract {} on {}", prefix, self.get_device(source)?.name());
 
         let events = self
-            .get_device_mut(source)?
-            .external_or_err()?
+            .get_external_router_mut(source)?
             .withdraw_prefix(prefix);
 
         // run the queue
@@ -1022,23 +1069,9 @@ impl<'a, P: Prefix> Iterator for ExternalRoutersIter<'a, P> {
     }
 }
 
-/// Iterator of all mutable devices in the network.
-#[derive(Debug)]
-pub struct NetworkDevicesIterMut<'a, P: Prefix> {
-    i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P>>,
-}
-
-impl<'a, P: Prefix> Iterator for NetworkDevicesIterMut<'a, P> {
-    type Item = NetworkDeviceMut<'a, P>;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        self.i.next().map(|x| x.as_mut())
-    }
-}
-
 /// Iterator of all internal routers in the network.
 #[derive(Debug)]
-pub struct InternalRoutersIterMut<'a, P: Prefix> {
+pub(crate) struct InternalRoutersIterMut<'a, P: Prefix> {
     i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P>>,
 }
 
@@ -1057,7 +1090,7 @@ impl<'a, P: Prefix> Iterator for InternalRoutersIterMut<'a, P> {
 
 /// Iterator of all external routers in the network.
 #[derive(Debug)]
-pub struct ExternalRoutersIterMut<'a, P: Prefix> {
+pub(crate) struct ExternalRoutersIterMut<'a, P: Prefix> {
     i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P>>,
 }
 

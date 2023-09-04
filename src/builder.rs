@@ -509,7 +509,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
             .map(|neighbor| {
                 let neighbor_name = self.get_device(neighbor)?.name().to_owned();
                 let id = self.add_external_router("tmp", AsId(42));
-                let r = self.get_device_mut(id)?.external_or_err()?;
+                let r = self.get_external_router_mut(id)?;
                 r.set_as_id(AsId(id.index() as u32));
                 r.set_name(format!("{}_ext_{}", neighbor_name, id.index()));
                 self.add_link(id, neighbor);
