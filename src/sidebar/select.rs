@@ -132,11 +132,7 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
                     .cast::<HtmlElement>()
                     .map(|div| div.client_height() + 28i32)
                     .unwrap_or(24);
-                if max_y - cur_y < height {
-                    self.pop_above = true;
-                } else {
-                    self.pop_above = false;
-                }
+                self.pop_above = max_y - cur_y < height;
                 true
             }
             Msg::HideMenu => {

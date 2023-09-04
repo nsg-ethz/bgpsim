@@ -165,7 +165,7 @@ fn maybe_initialize_state(net: Rc<Net>, net_dispatch: Dispatch<Net>) -> bool {
 }
 
 fn proceed_migration_with_delta(
-    net: &mut Net,
+    net: &Net,
     mut change: Vec<(usize, usize, usize, MigrationState)>,
     mut stage: usize,
     mut major: usize,
