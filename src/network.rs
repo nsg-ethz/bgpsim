@@ -173,6 +173,16 @@ impl<P: Prefix, Q> Network<P, Q> {
         Ok(())
     }
 
+    /// Set the AS ID of an external router.
+    pub fn set_as_id(
+        &mut self,
+        router: RouterId,
+        as_id: AsId,
+    ) -> Result<(), NetworkError> {
+        self.get_external_router_mut(router)?.set_as_id(as_id);
+        Ok(())
+    }
+
     /// This function creates an link in the network The link will have infinite weight for both
     /// directions. The network needs to be configured such that routers can use the link, since
     /// a link with infinte weight is treated as not connected. If the link does already exist,
