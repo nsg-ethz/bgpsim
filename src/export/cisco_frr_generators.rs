@@ -19,7 +19,7 @@
 
 use ipnet::Ipv4Net;
 use itertools::Itertools;
-use std::net::Ipv4Addr;
+use std::{net::Ipv4Addr, fmt::Write};
 
 use crate::{
     ospf::OspfArea,
@@ -466,12 +466,15 @@ exit
             addr = self
                 .ip_address
                 .iter()
-                .map(|(addr, state)| format!(
-                    "\n  {}ip address {}",
-                    if *state { "" } else { "no " },
-                    addr
-                ))
-                .collect::<String>(),
+                .fold(String::new(), |mut s, (addr, state)| {
+                    write!(
+                        &mut s,
+                        "\n  {}ip address {}",
+                        if *state { "" } else { "no " },
+                        addr
+                    ).unwrap();
+                    s
+                }),
             cost = match (self.cost, self.no_cost) {
                 (Some(cost), false) => format!("\n  ip ospf cost {cost}"),
                 (_, true) => String::from("\n  no ip ospf cost"),

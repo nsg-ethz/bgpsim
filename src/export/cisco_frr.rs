@@ -191,7 +191,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Generate the prefix-lists for all equivalence classes
-    fn pec_config<A: Addressor<P>>(&mut self, addressor: &mut A) -> String {
+    fn pec_config<A: Addressor<P>>(&mut self, addressor: &A) -> String {
         // early exit if there are no pecs
         if addressor.get_pecs().iter().next().is_none() {
             return String::new();
