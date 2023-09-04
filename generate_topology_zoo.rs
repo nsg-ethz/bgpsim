@@ -131,7 +131,7 @@ fn main() {
         .join("\n");
     let graphml_cases = metadata
         .iter()
-        .map(|m| format!("{}Self::{} => &*GRAPHML_{},", tab, m.name, m.name))
+        .map(|m| format!("{}Self::{} => &GRAPHML_{},", tab, m.name, m.name))
         .join("\n");
 
     let variant_slug = include_str!("build/variant_slug.rs");
