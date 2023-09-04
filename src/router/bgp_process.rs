@@ -456,20 +456,24 @@ impl<P: Prefix> BgpProcess<P> {
         }
         let neighbors: HashSet<_> = self.rib_out.keys().chain(other.rib_out.keys()).collect();
         for n in neighbors {
-            match (self.rib_out.get(n), other.rib_out.get(n)) {
-                (Some(x), None) if !x.is_empty() => return false,
-                (None, Some(x)) if !x.is_empty() => return false,
-                (Some(a), Some(b)) if a != b => return false,
-                _ => {}
+            if match (self.rib_out.get(n), other.rib_out.get(n)) {
+                (Some(x), None) if !x.is_empty() => true,
+                (None, Some(x)) if !x.is_empty() => true,
+                (Some(a), Some(b)) if a != b => true,
+                _ => false
+            } {
+                return false
             }
         }
         let prefix_union = self.known_prefixes.union(&other.known_prefixes);
         for prefix in prefix_union {
-            match (self.rib_in.get(prefix), other.rib_in.get(prefix)) {
-                (Some(x), None) if !x.is_empty() => return false,
-                (None, Some(x)) if !x.is_empty() => return false,
-                (Some(a), Some(b)) if a != b => return false,
-                _ => {}
+            if match (self.rib_in.get(prefix), other.rib_in.get(prefix)) {
+                (Some(x), None) if !x.is_empty() => true,
+                (None, Some(x)) if !x.is_empty() => true,
+                (Some(a), Some(b)) if a != b => true,
+                _ => false
+            } {
+                return false
             }
         }
         true
@@ -682,7 +686,6 @@ impl<P: Prefix> BgpProcess<P> {
 
     /// process incoming routes from bgp_rib_in
     fn process_rib_in_route(&self, mut entry: BgpRibEntry<P>) -> Option<BgpRibEntry<P>> {
-
         // apply bgp_route_map_in
         let neighbor = entry.from_id;
         entry = match self.get_route_maps(neighbor, Incoming).apply(entry) {

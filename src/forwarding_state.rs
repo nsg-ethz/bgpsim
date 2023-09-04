@@ -91,8 +91,8 @@ impl<P: Prefix> ForwardingState<P> {
             HashMap::with_capacity(net.num_devices());
 
         // initialize state
-        for rid in net.get_routers() {
-            let r = net.get_device(rid).unwrap_internal();
+        for r in net.internal_routers() {
+            let rid = r.router_id();
             let fib = r.get_fib();
 
             for (prefix, nhs) in fib.iter() {
@@ -110,15 +110,15 @@ impl<P: Prefix> ForwardingState<P> {
 
         // collect the external routers, and chagne the forwarding state such that we remember which
         // prefix they know a route to.
-        for r in net.get_external_routers() {
-            let st = state.entry(r).or_default();
-            for p in net.get_device(r).unwrap_external().advertised_prefixes() {
+        for r in net.external_routers() {
+            let st = state.entry(r.router_id()).or_default();
+            for p in r.advertised_prefixes() {
                 st.insert(*p, vec![*TO_DST]);
                 reversed
                     .entry(*TO_DST)
                     .or_default()
                     .get_mut_or_default(*p)
-                    .insert(r);
+                    .insert(r.router_id());
             }
         }
 

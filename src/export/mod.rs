@@ -29,7 +29,7 @@ use crate::{
     bgp::BgpRoute,
     config::ConfigModifier,
     network::Network,
-    types::{AsId, NonOverlappingPrefix, Prefix, RouterId},
+    types::{AsId, NetworkError, NonOverlappingPrefix, Prefix, RouterId},
 };
 
 mod cisco_frr;
@@ -355,6 +355,9 @@ pub enum ExportError {
     /// The two routers are not connected!
     #[error("Router {0:?} and {1:?} are not connected!")]
     RouterNotConnectedTo(RouterId, RouterId),
+    /// No router with the given ID does exist!
+    #[error("No router with ID {0:?} does exist.")]
+    InvalidRouterId(RouterId),
     /// Router is not an internal router
     #[error("Router {0:?} is not an internal router")]
     NotAnInternalRouter(RouterId),
@@ -382,6 +385,17 @@ pub enum ExportError {
     /// Did not expect a prefix equivalence class at this point.
     #[error("Did not expect a prefix equivalence class of {0}!")]
     UnexpectedPec(Ipv4Net),
+}
+
+impl From<NetworkError> for ExportError {
+    fn from(value: NetworkError) -> Self {
+        match value {
+            NetworkError::DeviceNotFound(r) => Self::InvalidRouterId(r),
+            NetworkError::DeviceIsExternalRouter(r) => Self::NotAnInternalRouter(r),
+            NetworkError::DeviceIsInternalRouter(r) => Self::NotAnExternalRouter(r),
+            e => panic!("Unexpected network error when generating configuration! {e}"),
+        }
+    }
 }
 
 /// Return `ExportError::NotEnoughAddresses` if the option is `None`.

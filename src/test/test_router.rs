@@ -57,7 +57,12 @@ mod t2 {
             10.into()  => (vec![1.into()], 6.0),
             11.into()  => (vec![1.into()], 15.0),
         };
-        r.bgp.igp_cost = r.ospf.ospf_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
+        r.bgp.igp_cost = r
+            .ospf
+            .ospf_table
+            .iter()
+            .map(|(r, (_, c))| (*r, *c))
+            .collect();
 
         /////////////////////
         // external update //
@@ -620,8 +625,12 @@ mod ipv4 {
             2.into()   => (vec![2.into()], 1.0),
             3.into()   => (vec![2.into()], 4.0),
         };
-        r.bgp.igp_cost = r.ospf.ospf_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
-
+        r.bgp.igp_cost = r
+            .ospf
+            .ospf_table
+            .iter()
+            .map(|(r, (_, c))| (*r, *c))
+            .collect();
 
         let p0: Ipv4Prefix = "10.0.0.0/16".parse::<Ipv4Net>().unwrap().into();
         let p1: Ipv4Prefix = "10.0.0.0/24".parse::<Ipv4Net>().unwrap().into();
@@ -693,7 +702,12 @@ mod ipv4 {
             2.into()   => (vec![2.into()], 1.0),
             3.into()   => (vec![2.into()], 4.0),
         };
-        r.bgp.igp_cost = r.ospf.ospf_table.iter().map(|(r, (_, c))| (*r, *c)).collect();
+        r.bgp.igp_cost = r
+            .ospf
+            .ospf_table
+            .iter()
+            .map(|(r, (_, c))| (*r, *c))
+            .collect();
         r.ospf.neighbors = hashmap! {
             100.into() => 0.0,
             1.into() => 1.0,

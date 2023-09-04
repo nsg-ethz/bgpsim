@@ -74,7 +74,7 @@ exit
 route-map neighbor-R0_ext_4-out permit 65535
 exit
 !
-router bgp 65535
+router bgp 65001
   bgp router-id 10.0.0.1
   neighbor 10.0.1.1 remote-as 65535
   neighbor 10.0.1.1 update-source lo

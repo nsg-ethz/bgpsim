@@ -81,7 +81,7 @@ use crate::{
     ospf::OspfArea,
     route_map::{RouteMap, RouteMapDirection},
     router::StaticRoute,
-    types::{ConfigError, LinkWeight, NetworkDevice, NetworkError, Prefix, PrefixMap, RouterId},
+    types::{ConfigError, LinkWeight, NetworkDeviceRef, NetworkError, Prefix, PrefixMap, RouterId},
 };
 
 use petgraph::algo::FloatMeasure;
@@ -869,9 +869,11 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     .map(|x| x == OspfArea::BACKBONE)
                     .unwrap_or(false),
                 ConfigExpr::BgpSession { source, target, .. } => match self.get_device(*source) {
-                    NetworkDevice::InternalRouter(r) => r.bgp.get_session_type(*target).is_none(),
-                    NetworkDevice::ExternalRouter(r) => !r.neighbors.contains(target),
-                    NetworkDevice::None(_) => false,
+                    Ok(NetworkDeviceRef::InternalRouter(r)) => {
+                        r.bgp.get_session_type(*target).is_none()
+                    }
+                    Ok(NetworkDeviceRef::ExternalRouter(r)) => !r.neighbors.contains(target),
+                    Err(_) => false,
                 },
                 ConfigExpr::BgpRouteMap {
                     router,
@@ -880,7 +882,8 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     map,
                 } => self
                     .get_device(*router)
-                    .internal()
+                    .ok()
+                    .and_then(|r| r.internal())
                     .map(|r| {
                         r.bgp
                             .get_route_map(*neighbor, *direction, map.order)
@@ -889,12 +892,14 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     .unwrap_or(false),
                 ConfigExpr::StaticRoute { router, prefix, .. } => self
                     .get_device(*router)
-                    .internal()
+                    .ok()
+                    .and_then(|r| r.internal())
                     .map(|r| r.sr.get_table().get(prefix).is_none())
                     .unwrap_or(false),
                 ConfigExpr::LoadBalancing { router } => self
                     .get_device(*router)
-                    .internal()
+                    .ok()
+                    .and_then(|r| r.internal())
                     .map(|r| !r.get_load_balancing())
                     .unwrap_or(false),
             },
@@ -907,9 +912,11 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     .map(|x| x != OspfArea::BACKBONE)
                     .unwrap_or(false),
                 ConfigExpr::BgpSession { source, target, .. } => match self.get_device(*source) {
-                    NetworkDevice::InternalRouter(r) => r.bgp.get_session_type(*target).is_some(),
-                    NetworkDevice::ExternalRouter(r) => r.neighbors.contains(target),
-                    NetworkDevice::None(_) => false,
+                    Ok(NetworkDeviceRef::InternalRouter(r)) => {
+                        r.bgp.get_session_type(*target).is_some()
+                    }
+                    Ok(NetworkDeviceRef::ExternalRouter(r)) => r.neighbors.contains(target),
+                    Err(_) => false,
                 },
                 ConfigExpr::BgpRouteMap {
                     router,
@@ -918,7 +925,8 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     map,
                 } => self
                     .get_device(*router)
-                    .internal()
+                    .ok()
+                    .and_then(|r| r.internal())
                     .map(|r| {
                         r.bgp
                             .get_route_map(*neighbor, *direction, map.order)
@@ -927,17 +935,19 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                     .unwrap_or(false),
                 ConfigExpr::StaticRoute { router, prefix, .. } => self
                     .get_device(*router)
-                    .internal()
+                    .ok()
+                    .and_then(|r| r.internal())
                     .map(|r| r.sr.get_table().get(prefix).is_some())
                     .unwrap_or(false),
                 ConfigExpr::LoadBalancing { router } => self
                     .get_device(*router)
-                    .internal()
+                    .ok()
+                    .and_then(|r| r.internal())
                     .map(|r| r.get_load_balancing())
                     .unwrap_or(false),
             },
             ConfigModifier::BatchRouteMapEdit { router, updates } => {
-                if let Some(r) = self.get_device(*router).internal() {
+                if let Some(r) = self.get_device(*router).ok().and_then(|r| r.internal()) {
                     for update in updates {
                         let neighbor = update.neighbor;
                         let direction = update.direction;
@@ -989,11 +999,12 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
         }
 
         // get all BGP sessions, all route maps and all static routes
-        for (rid, r) in self.routers.iter() {
-            // get all BGP sessions
+        for r in self.internal_routers() {
+            let rid = r.router_id();
+
             for (neighbor, session_type) in r.bgp.get_sessions() {
                 match c.add(ConfigExpr::BgpSession {
-                    source: *rid,
+                    source: rid,
                     target: *neighbor,
                     session_type: *session_type,
                 }) {
@@ -1004,7 +1015,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                             target,
                             session_type: old_session,
                         }) = c.get_mut(ConfigExprKey::BgpSession {
-                            speaker_a: *rid,
+                            speaker_a: rid,
                             speaker_b: *neighbor,
                         }) {
                             if *old_session == BgpSessionType::IBgpPeer
@@ -1016,7 +1027,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                             } else if *old_session == BgpSessionType::IBgpClient
                                 && *session_type == BgpSessionType::IBgpClient
                             {
-                                return Err(NetworkError::InconsistentBgpSession(*rid, *neighbor));
+                                return Err(NetworkError::InconsistentBgpSession(rid, *neighbor));
                             }
                         } else {
                             unreachable!()
@@ -1030,7 +1041,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
             for neighbor in r.bgp.get_sessions().keys() {
                 for rm in r.bgp.get_route_maps(*neighbor, RouteMapDirection::Incoming) {
                     c.add(ConfigExpr::BgpRouteMap {
-                        router: *rid,
+                        router: rid,
                         neighbor: *neighbor,
                         direction: RouteMapDirection::Incoming,
                         map: rm.clone(),
@@ -1038,7 +1049,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                 }
                 for rm in r.bgp.get_route_maps(*neighbor, RouteMapDirection::Incoming) {
                     c.add(ConfigExpr::BgpRouteMap {
-                        router: *rid,
+                        router: rid,
                         neighbor: *neighbor,
                         direction: RouteMapDirection::Outgoing,
                         map: rm.clone(),
@@ -1049,16 +1060,18 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
             // get all static routes
             for (prefix, target) in r.sr.get_table().iter() {
                 c.add(ConfigExpr::StaticRoute {
-                    router: *rid,
+                    router: rid,
                     prefix: *prefix,
                     target: *target,
                 })?;
             }
 
             // get all load balancing configs
-            for (id, r) in self.routers.iter() {
+            for r in self.internal_routers() {
                 if r.get_load_balancing() {
-                    c.add(ConfigExpr::LoadBalancing { router: *id })?;
+                    c.add(ConfigExpr::LoadBalancing {
+                        router: r.router_id(),
+                    })?;
                 }
             }
         }

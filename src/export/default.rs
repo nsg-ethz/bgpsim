@@ -256,7 +256,7 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
         Ok(match self.router_addrs.entry(router) {
             Entry::Occupied(e) => *e.get(),
             Entry::Vacant(e) => {
-                let net = ip_err(if let Some(r) = self.net.get_device(router).external() {
+                let net = ip_err(if let Some(r) = self.net.get_device(router)?.external() {
                     match self.external_router_addr_iters.entry(r.as_id()) {
                         Entry::Occupied(mut e) => e.get_mut().next(),
                         Entry::Vacant(e) => e
@@ -348,8 +348,8 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
                 (*addr, *net, *idx)
             }
             Entry::Vacant(e) => {
-                let ext_link = self.net.get_device(router).is_external()
-                    || self.net.get_device(neighbor).is_external();
+                let ext_link = self.net.get_device(router)?.is_external()
+                    || self.net.get_device(neighbor)?.is_external();
                 let net = *e.insert(ip_err(if ext_link {
                     self.external_link_addr_iter.next()
                 } else {
@@ -429,8 +429,8 @@ impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
         // Finally, check if the address belongs to an interface
         if let Some((link, _)) = self.link_addrs.iter().find(|(_, x)| x.contains(&net)) {
             let (a, b) = (link.0, link.1);
-            let a_int = self.net.get_device(a).is_internal();
-            let b_int = self.net.get_device(b).is_internal();
+            let a_int = self.net.get_device(a)?.is_internal();
+            let b_int = self.net.get_device(b)?.is_internal();
             return if a_int == b_int {
                 // either both are internal, or both are external. Return the router with the lower
                 // IP address.

@@ -76,15 +76,18 @@ fn main() {
         };
         let g = net.get_topology();
         // extract the properties
-        let num_internals = net.get_routers().len();
-        let num_externals = net.get_external_routers().len();
+        let num_internals = net.internal_indices().count();
+        let num_externals = net.external_indices().count();
         let num_routers = num_internals + num_externals;
         let num_edges = g.edge_count() / 2;
         let num_internal_edges = g
             .edge_indices()
             .map(|e| g.edge_endpoints(e).unwrap())
             .filter(|(a, b)| a < b)
-            .filter(|(a, b)| net.get_device(*a).is_internal() && net.get_device(*b).is_internal())
+            .filter(|(a, b)| {
+                net.get_device(*a).unwrap().is_internal()
+                    && net.get_device(*b).unwrap().is_internal()
+            })
             .count();
 
         metadata.push(TopologyMetadata {

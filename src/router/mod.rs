@@ -32,7 +32,7 @@ mod ospf_process;
 mod sr_process;
 
 pub use bgp_process::BgpProcess;
-pub use ospf_process::{OspfProcess, IgpTarget};
+pub use ospf_process::{IgpTarget, OspfProcess};
 pub use sr_process::{SrProcess, StaticRoute};
 
 /// Bgp Router

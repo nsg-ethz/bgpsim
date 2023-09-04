@@ -336,8 +336,8 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
     fn build_ibgp_full_mesh(&mut self) -> Result<(), NetworkError> {
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;
-        for src in self.get_routers() {
-            for dst in self.get_routers() {
+        for src in self.internal_indices().detach() {
+            for dst in self.internal_indices().detach() {
                 if src.index() <= dst.index() {
                     continue;
                 }
@@ -360,8 +360,8 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         let route_reflectors: HashSet<RouterId> = route_reflectors(self, a).into_iter().collect();
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;
-        for src in self.get_routers() {
-            for dst in self.get_routers() {
+        for src in self.internal_indices().detach() {
+            for dst in self.internal_indices().detach() {
                 if src.index() <= dst.index() {
                     continue;
                 }
@@ -389,9 +389,13 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;
 
-        for ext in self.get_external_routers() {
+        for ext in self.external_indices().detach() {
             for neighbor in Vec::from_iter(self.net.neighbors(ext)) {
-                if !self.get_device(neighbor).is_internal() {
+                if !self
+                    .get_device(neighbor)
+                    .map(|x| x.is_internal())
+                    .unwrap_or(true)
+                {
                     continue;
                 }
                 self.set_bgp_session(neighbor, ext, Some(BgpSessionType::EBgp))?;
@@ -478,7 +482,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         for (i, routers) in prefs.iter().enumerate() {
             let own_as_num = i + 1;
             for router in routers {
-                let router_as = self.get_device(*router).external_or_err()?.as_id();
+                let router_as = self.get_device(*router)?.external_or_err()?.as_id();
                 let as_path = repeat(router_as).take(own_as_num).chain(once(last_as));
                 self.advertise_external_route(*router, prefix, as_path, None, None)?;
             }
@@ -503,15 +507,15 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         let new_routers = connected_to(self, a)
             .into_iter()
             .map(|neighbor| {
-                let neighbor_name = self.get_router_name(neighbor).unwrap().to_owned();
+                let neighbor_name = self.get_device(neighbor)?.name().to_owned();
                 let id = self.add_external_router("tmp", AsId(42));
-                let r = self.get_device_mut(id).unwrap_external();
+                let r = self.get_device_mut(id)?.external_or_err()?;
                 r.set_as_id(AsId(id.index() as u32));
                 r.set_name(format!("{}_ext_{}", neighbor_name, id.index()));
                 self.add_link(id, neighbor);
-                id
+                Ok(id)
             })
-            .collect();
+            .collect::<Result<Vec<RouterId>, NetworkError>>()?;
 
         self.skip_queue = old_skip_queue;
         Ok(new_routers)
@@ -668,7 +672,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
     }
 
     fn build_connected_graph(&mut self) {
-        if self.get_routers().is_empty() {
+        if self.internal_indices().next().is_none() {
             return;
         }
 
@@ -713,7 +717,7 @@ pub fn k_random_nodes<P: Prefix, Q>(
     k: usize,
 ) -> impl Iterator<Item = RouterId> {
     let mut rng = thread_rng();
-    let mut internal_nodes = net.get_routers();
+    let mut internal_nodes = net.internal_indices().collect::<Vec<RouterId>>();
     internal_nodes.shuffle(&mut rng);
     internal_nodes.into_iter().take(k)
 }
@@ -727,7 +731,7 @@ pub fn k_random_nodes_seeded<P: Prefix, Q, Rng: RngCore>(
     args: (&mut Rng, usize),
 ) -> impl Iterator<Item = RouterId> {
     let (rng, k) = args;
-    let mut internal_nodes = net.get_routers();
+    let mut internal_nodes = net.internal_indices().collect::<Vec<RouterId>>();
     internal_nodes.sort();
     internal_nodes.shuffle(rng);
     internal_nodes.into_iter().take(k)
@@ -743,7 +747,7 @@ pub fn k_highest_degree_nodes<P: Prefix, Q>(
 ) -> impl Iterator<Item = RouterId> {
     #[cfg(feature = "rand")]
     let mut rng = thread_rng();
-    let mut internal_nodes = net.get_routers();
+    let mut internal_nodes = net.internal_indices().collect::<Vec<RouterId>>();
     #[cfg(feature = "rand")]
     internal_nodes.shuffle(&mut rng);
     let g = net.get_topology();
@@ -761,7 +765,7 @@ pub fn k_highest_degree_nodes_seeded<P: Prefix, Q, Rng: RngCore>(
     args: (&mut Rng, usize),
 ) -> impl Iterator<Item = RouterId> {
     let (rng, k) = args;
-    let mut internal_nodes = net.get_routers();
+    let mut internal_nodes = net.internal_indices().collect::<Vec<RouterId>>();
     internal_nodes.sort();
     internal_nodes.shuffle(rng);
     let g = net.get_topology();
@@ -778,10 +782,9 @@ pub fn constant_link_weight<P: Prefix, Q>(
     net: &Network<P, Q>,
     weight: LinkWeight,
 ) -> LinkWeight {
-    if net.get_device(src).is_internal() && net.get_device(dst).is_internal() {
-        weight
-    } else {
-        1.0
+    match (net.get_device(src), net.get_device(dst)) {
+        (Ok(src), Ok(dst)) if src.is_internal() && dst.is_internal() => weight,
+        _ => 1.0,
     }
 }
 
@@ -796,12 +799,13 @@ pub fn uniform_integer_link_weight<P: Prefix, Q>(
     net: &Network<P, Q>,
     range: (usize, usize),
 ) -> LinkWeight {
-    if net.get_device(src).is_internal() && net.get_device(dst).is_internal() {
-        let mut rng = thread_rng();
-        let dist = Uniform::from(range.0..range.1);
-        dist.sample(&mut rng) as LinkWeight
-    } else {
-        1.0
+    match (net.get_device(src), net.get_device(dst)) {
+        (Ok(src), Ok(dst)) if src.is_internal() && dst.is_internal() => {
+            let mut rng = thread_rng();
+            let dist = Uniform::from(range.0..range.1);
+            dist.sample(&mut rng) as LinkWeight
+        }
+        _ => 1.0,
     }
 }
 
@@ -818,11 +822,12 @@ pub fn uniform_integer_link_weight_seeded<P: Prefix, Q, Rng: RngCore>(
     rng: &mut Rng,
     range: (usize, usize),
 ) -> LinkWeight {
-    if net.get_device(src).is_internal() && net.get_device(dst).is_internal() {
-        let dist = Uniform::from(range.0..range.1);
-        dist.sample(rng) as LinkWeight
-    } else {
-        1.0
+    match (net.get_device(src), net.get_device(dst)) {
+        (Ok(src), Ok(dst)) if src.is_internal() && dst.is_internal() => {
+            let dist = Uniform::from(range.0..range.1);
+            dist.sample(rng) as LinkWeight
+        }
+        _ => 1.0,
     }
 }
 
@@ -837,12 +842,13 @@ pub fn uniform_link_weight<P: Prefix, Q>(
     net: &Network<P, Q>,
     range: (LinkWeight, LinkWeight),
 ) -> LinkWeight {
-    if net.get_device(src).is_internal() && net.get_device(dst).is_internal() {
-        let mut rng = thread_rng();
-        let dist = Uniform::from(range.0..range.1);
-        dist.sample(&mut rng)
-    } else {
-        1.0
+    match (net.get_device(src), net.get_device(dst)) {
+        (Ok(src), Ok(dst)) if src.is_internal() && dst.is_internal() => {
+            let mut rng = thread_rng();
+            let dist = Uniform::from(range.0..range.1);
+            dist.sample(&mut rng)
+        }
+        _ => 1.0,
     }
 }
 
@@ -859,11 +865,12 @@ pub fn uniform_link_weight_seeded<P: Prefix, Q, Rng: RngCore>(
     rng: &mut Rng,
     range: (LinkWeight, LinkWeight),
 ) -> LinkWeight {
-    if net.get_device(src).is_internal() && net.get_device(dst).is_internal() {
-        let dist = Uniform::from(range.0..range.1);
-        dist.sample(rng)
-    } else {
-        1.0
+    match (net.get_device(src), net.get_device(dst)) {
+        (Ok(src), Ok(dst)) if src.is_internal() && dst.is_internal() => {
+            let dist = Uniform::from(range.0..range.1);
+            dist.sample(rng)
+        }
+        _ => 1.0,
     }
 }
 
@@ -875,7 +882,7 @@ pub fn uniform_link_weight_seeded<P: Prefix, Q, Rng: RngCore>(
 /// **Warning**: If there exists less than `k` external routers, then this function will return
 /// only as many routes as there are external routers.
 pub fn equal_preferences<P: Prefix, Q>(net: &Network<P, Q>, k: usize) -> Vec<Vec<RouterId>> {
-    let mut routers = net.get_external_routers();
+    let mut routers = net.external_indices().collect::<Vec<RouterId>>();
     #[cfg(feature = "rand")]
     {
         let mut rng = thread_rng();
@@ -898,7 +905,7 @@ pub fn equal_preferences_seeded<P: Prefix, Q, Rng: RngCore>(
     args: (&mut Rng, usize),
 ) -> Vec<Vec<RouterId>> {
     let (rng, k) = args;
-    let mut routers = net.get_external_routers();
+    let mut routers = net.external_indices().collect::<Vec<RouterId>>();
     routers.sort();
     routers.shuffle(rng);
     routers.truncate(k);
@@ -915,19 +922,14 @@ pub fn equal_preferences_seeded<P: Prefix, Q, Rng: RngCore>(
 pub fn unique_preferences<P: Prefix, Q>(net: &Network<P, Q>, k: usize) -> Vec<Vec<RouterId>> {
     #[cfg(feature = "rand")]
     {
-        let mut routers = net.get_external_routers();
+        let mut routers = net.external_indices().collect::<Vec<RouterId>>();
         let mut rng = thread_rng();
         routers.shuffle(&mut rng);
         Vec::from_iter(routers.into_iter().take(k).map(|r| vec![r]))
     }
     #[cfg(not(feature = "rand"))]
     {
-        Vec::from_iter(
-            net.get_external_routers()
-                .into_iter()
-                .take(k)
-                .map(|r| vec![r]),
-        )
+        Vec::from_iter(net.external_indices().take(k).map(|r| vec![r]))
     }
 }
 
@@ -944,7 +946,7 @@ pub fn unique_preferences_seeded<P: Prefix, Q, Rng: RngCore>(
     args: (&mut Rng, usize),
 ) -> Vec<Vec<RouterId>> {
     let (rng, k) = args;
-    let mut routers = net.get_external_routers();
+    let mut routers = net.external_indices().collect::<Vec<RouterId>>();
     routers.sort();
     routers.shuffle(rng);
     Vec::from_iter(routers.into_iter().take(k).map(|r| vec![r]))
@@ -962,7 +964,7 @@ pub fn best_others_equal_preferences<P: Prefix, Q>(
     net: &Network<P, Q>,
     k: usize,
 ) -> Vec<Vec<RouterId>> {
-    let mut routers = net.get_external_routers();
+    let mut routers = net.external_indices().collect::<Vec<RouterId>>();
     #[cfg(feature = "rand")]
     {
         let mut rng = thread_rng();
@@ -991,7 +993,7 @@ pub fn best_others_equal_preferences_seeded<P: Prefix, Q, Rng: RngCore>(
     args: (&mut Rng, usize),
 ) -> Vec<Vec<RouterId>> {
     let (rng, k) = args;
-    let mut routers = net.get_external_routers();
+    let mut routers = net.external_indices().collect::<Vec<RouterId>>();
     routers.sort();
     routers.shuffle(rng);
     routers.truncate(k);
@@ -1009,7 +1011,7 @@ pub fn best_others_equal_preferences_seeded<P: Prefix, Q, Rng: RngCore>(
 /// deterministic. This function may be used with the function
 /// [`NetworkBuilder::build_external_routers`].
 pub fn extend_to_k_external_routers<P: Prefix, Q>(net: &Network<P, Q>, k: usize) -> Vec<RouterId> {
-    let num_externals = net.get_external_routers().len();
+    let num_externals = net.external_indices().count();
     let x = if num_externals >= k {
         0
     } else {
@@ -1017,9 +1019,9 @@ pub fn extend_to_k_external_routers<P: Prefix, Q>(net: &Network<P, Q>, k: usize)
     };
 
     #[cfg(feature = "rand")]
-    let mut internal_nodes = net.get_routers();
+    let mut internal_nodes = net.internal_indices().collect::<Vec<RouterId>>();
     #[cfg(not(feature = "rand"))]
-    let internal_nodes = net.get_routers();
+    let internal_nodes = net.internal_indices().collect::<Vec<RouterId>>();
 
     // shuffle if random is enabled
     #[cfg(feature = "rand")]
@@ -1043,14 +1045,14 @@ pub fn extend_to_k_external_routers_seeded<P: Prefix, Q, Rng: RngCore>(
     args: (&mut Rng, usize),
 ) -> Vec<RouterId> {
     let (rng, k) = args;
-    let num_externals = net.get_external_routers().len();
+    let num_externals = net.external_indices().count();
     let x = if num_externals >= k {
         0
     } else {
         k - num_externals
     };
 
-    let mut internal_nodes = net.get_routers();
+    let mut internal_nodes = net.internal_indices().collect::<Vec<RouterId>>();
     internal_nodes.sort();
     internal_nodes.shuffle(rng);
 

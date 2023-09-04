@@ -17,10 +17,7 @@
 
 //! Module containing the definitions for the event queues.
 
-use crate::{
-    router::Router,
-    types::{IgpNetwork, Prefix, RouterId},
-};
+use crate::types::{IgpNetwork, NetworkDevice, Prefix, RouterId};
 
 use geoutils::Location;
 use itertools::Itertools;
@@ -76,7 +73,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
     fn push(
         &mut self,
         mut event: Event<P, Self::Priority>,
-        _routers: &HashMap<RouterId, Router<P>>,
+        _routers: &HashMap<RouterId, NetworkDevice<P>>,
         _net: &IgpNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -140,7 +137,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, Router<P>>, _: &IgpNetwork) {}
+    fn update_params(&mut self, _: &HashMap<RouterId, NetworkDevice<P>>, _: &IgpNetwork) {}
 
     unsafe fn clone_events(&self, conquered: Self) -> Self {
         SimpleTimingModel {
@@ -311,7 +308,7 @@ impl<P: Prefix> GeoTimingModel<P> {
         router: RouterId,
         target: RouterId,
         loop_protection: &mut HashSet<RouterId>,
-        routers: &HashMap<RouterId, Router<P>>,
+        routers: &HashMap<RouterId, NetworkDevice<P>>,
         path_cache: &mut HashMap<(RouterId, RouterId), Option<Vec<RouterId>>>,
     ) {
         if router == target {
@@ -331,6 +328,7 @@ impl<P: Prefix> GeoTimingModel<P> {
         // get the next-hop of that router
         let new_path = if let Some(nh) = routers
             .get(&router)
+            .and_then(|r| r.as_ref().internal())
             .map(|r| r.ospf.get(target))
             .and_then(|nhs| nhs.first().copied())
         {
@@ -410,7 +408,7 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
     fn push(
         &mut self,
         mut event: Event<P, Self::Priority>,
-        _: &HashMap<RouterId, Router<P>>,
+        _: &HashMap<RouterId, NetworkDevice<P>>,
         _: &IgpNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -480,11 +478,11 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params(&mut self, routers: &HashMap<RouterId, Router<P>>, _: &IgpNetwork) {
+    fn update_params(&mut self, routers: &HashMap<RouterId, NetworkDevice<P>>, _: &IgpNetwork) {
         self.paths.clear();
         // update all paths
-        for src in routers.keys() {
-            for dst in routers.keys() {
+        for (src, _) in routers.iter().filter(|(_, r)| r.is_internal()) {
+            for (dst, _) in routers.iter().filter(|(_, r)| r.is_internal()) {
                 self.recursive_compute_paths(
                     *src,
                     *dst,

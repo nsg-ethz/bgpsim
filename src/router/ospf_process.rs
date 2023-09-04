@@ -173,7 +173,7 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for OspfProcess {
     fn fmt(&'a self, net: &'n crate::network::Network<P, Q>) -> Self::Formatter {
         let mut result = String::new();
         let f = &mut result;
-        for r in net.get_routers() {
+        for r in net.internal_indices() {
             if r == self.router_id {
                 continue;
             }

@@ -29,13 +29,13 @@ mod t {
     #[test]
     fn test_build_complete_graph<P: Prefix>() {
         let net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 0);
-        assert_eq!(net.get_routers().len(), 0);
-        assert_eq!(net.get_external_routers().len(), 0);
+        assert_eq!(net.device_indices().count(), 0);
+        assert_eq!(net.external_indices().count(), 0);
         assert_eq!(net.get_topology().edge_count(), 0);
         for n in [1, 2, 10] {
             let net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), n);
-            assert_eq!(net.get_routers().len(), n);
-            assert_eq!(net.get_external_routers().len(), 0);
+            assert_eq!(net.device_indices().count(), n);
+            assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.get_topology().edge_count(), n * (n - 1));
         }
     }
@@ -45,8 +45,8 @@ mod t {
         for n in [0, 1, 10] {
             let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), n);
             net.build_ibgp_full_mesh().unwrap();
-            for r in net.get_routers() {
-                for other in net.get_routers() {
+            for r in net.device_indices().detach() {
+                for other in net.device_indices().detach() {
                     let expected_ty = if r == other {
                         None
                     } else {
@@ -54,6 +54,7 @@ mod t {
                     };
                     assert_eq!(
                         net.get_device(r)
+                            .unwrap()
                             .unwrap_internal()
                             .bgp
                             .get_session_type(other),
@@ -71,9 +72,9 @@ mod t {
             let rrs = net
                 .build_ibgp_route_reflection(k_highest_degree_nodes, 3)
                 .unwrap();
-            for r in net.get_routers() {
+            for r in net.device_indices() {
                 if rrs.contains(&r) {
-                    for other in net.get_routers() {
+                    for other in net.device_indices() {
                         let expected_ty = if r == other {
                             None
                         } else if rrs.contains(&other) {
@@ -83,6 +84,7 @@ mod t {
                         };
                         assert_eq!(
                             net.get_device(r)
+                                .unwrap()
                                 .unwrap_internal()
                                 .bgp
                                 .get_session_type(other),
@@ -90,7 +92,7 @@ mod t {
                         );
                     }
                 } else {
-                    for other in net.get_routers() {
+                    for other in net.device_indices() {
                         let expected_ty = if r == other {
                             None
                         } else if rrs.contains(&other) {
@@ -100,6 +102,7 @@ mod t {
                         };
                         assert_eq!(
                             net.get_device(r)
+                                .unwrap()
                                 .unwrap_internal()
                                 .bgp
                                 .get_session_type(other),
@@ -128,18 +131,18 @@ mod t {
     #[test]
     fn test_build_external_rotuers<P: Prefix>() {
         let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
-        assert_eq!(net.get_external_routers().len(), 0);
+        assert_eq!(net.external_indices().count(), 0);
         net.add_external_router("R1", AsId(1));
-        assert_eq!(net.get_external_routers().len(), 1);
+        assert_eq!(net.external_indices().count(), 1);
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
-        assert_eq!(net.get_external_routers().len(), 3);
+        assert_eq!(net.external_indices().count(), 3);
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
-        assert_eq!(net.get_external_routers().len(), 3);
+        assert_eq!(net.external_indices().count(), 3);
         net.build_external_routers(k_highest_degree_nodes, 3)
             .unwrap();
-        assert_eq!(net.get_external_routers().len(), 6);
+        assert_eq!(net.external_indices().count(), 6);
     }
 
     #[test]
@@ -149,14 +152,14 @@ mod t {
             .unwrap();
         let r_last = net.add_external_router("test", AsId(1000));
         net.build_ebgp_sessions().unwrap();
-        for id in net.get_external_routers() {
-            let r = net.get_device(id).unwrap_external();
+        for id in net.external_indices() {
+            let r = net.get_device(id).unwrap().unwrap_external();
             if id == r_last {
                 assert!(r.get_bgp_sessions().is_empty());
             } else {
                 assert_eq!(r.get_bgp_sessions().len(), 1);
                 for peer in r.get_bgp_sessions() {
-                    assert!(net.get_device(*peer).is_internal());
+                    assert!(net.get_device(*peer).unwrap().is_internal());
                 }
             }
         }
@@ -173,15 +176,16 @@ mod t {
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
             let weight = g.edge_weight(e).unwrap();
-            if net.get_device(a).is_internal() && net.get_device(b).is_internal() {
+            if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
+            {
                 assert_eq!(*weight, 10.0);
             } else {
                 assert_eq!(*weight, 1.0);
             }
         }
 
-        for src in net.get_routers() {
-            let r = net.get_device(src).unwrap_internal();
+        for src in net.internal_indices() {
+            let r = net.get_device(src).unwrap().unwrap_internal();
             let igp_table = r.ospf.get_table();
             assert!(igp_table
                 .iter()
@@ -205,7 +209,8 @@ mod t {
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
             let weight = g.edge_weight(e).unwrap();
-            if net.get_device(a).is_internal() && net.get_device(b).is_internal() {
+            if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
+            {
                 assert!(*weight >= 10.0);
                 assert!(*weight <= 100.0);
             } else {
@@ -231,7 +236,8 @@ mod t {
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
             let weight = g.edge_weight(e).unwrap();
-            if net.get_device(a).is_internal() && net.get_device(b).is_internal() {
+            if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
+            {
                 assert!(*weight >= 10.0);
                 assert!(*weight <= 100.0);
                 assert!((*weight - weight.round()).abs() < LinkWeight::EPSILON);
@@ -270,7 +276,7 @@ mod t {
         assert_igp_reachability(&net);
 
         let mut fw_state = net.get_forwarding_state();
-        for src in net.get_routers() {
+        for src in net.internal_indices() {
             assert!(fw_state
                 .get_paths(src, p)
                 .unwrap()
@@ -282,7 +288,7 @@ mod t {
         net.retract_external_route(e1, p).unwrap();
 
         let mut fw_state = net.get_forwarding_state();
-        for src in net.get_routers() {
+        for src in net.internal_indices() {
             assert!(fw_state
                 .get_paths(src, p)
                 .unwrap()
@@ -294,7 +300,7 @@ mod t {
         net.retract_external_route(e2, p).unwrap();
 
         let mut fw_state = net.get_forwarding_state();
-        for src in net.get_routers() {
+        for src in net.internal_indices() {
             assert!(fw_state
                 .get_paths(src, p)
                 .unwrap()
@@ -306,7 +312,7 @@ mod t {
         net.retract_external_route(e3, p).unwrap();
 
         let mut fw_state = net.get_forwarding_state();
-        for src in net.get_routers() {
+        for src in net.internal_indices() {
             assert_eq!(
                 fw_state.get_paths(src, p),
                 Err(NetworkError::ForwardingBlackHole(vec![src]))
@@ -346,8 +352,8 @@ mod t {
     fn test_build_gnm<P: Prefix>() {
         for _ in 0..10 {
             let net = Network::<P, Queue<P>>::build_gnm(Queue::new(), 100, 100);
-            assert_eq!(net.get_routers().len(), 100);
-            assert_eq!(net.get_external_routers().len(), 0);
+            assert_eq!(net.internal_indices().count(), 100);
+            assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.get_topology().edge_count(), 100 * 2);
         }
     }
@@ -357,8 +363,8 @@ mod t {
     fn test_build_geometric_complete_graph<P: Prefix>() {
         for _ in 0..10 {
             let net = Network::<P, Queue<P>>::build_geometric(Queue::new(), 100, 2.0_f64.sqrt(), 2);
-            assert_eq!(net.get_routers().len(), 100);
-            assert_eq!(net.get_external_routers().len(), 0);
+            assert_eq!(net.internal_indices().count(), 100);
+            assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.get_topology().edge_count(), 100 * 99);
         }
     }
@@ -368,8 +374,8 @@ mod t {
     fn test_build_geometric_less_complete<P: Prefix>() {
         for _ in 0..10 {
             let net = Network::<P, Queue<P>>::build_geometric(Queue::new(), 100, 0.5, 2);
-            assert_eq!(net.get_routers().len(), 100);
-            assert_eq!(net.get_external_routers().len(), 0);
+            assert_eq!(net.internal_indices().count(), 100);
+            assert_eq!(net.external_indices().count(), 0);
             assert!(net.get_topology().edge_count() < 100 * 99);
             assert!(net.get_topology().edge_count() > 100 * 10);
         }
@@ -382,8 +388,8 @@ mod t {
 
         for _ in 0..10 {
             let net = Network::<P, Queue<P>>::build_barabasi_albert(Queue::new(), 100, 3);
-            assert_eq!(net.get_routers().len(), 100);
-            assert_eq!(net.get_external_routers().len(), 0);
+            assert_eq!(net.internal_indices().count(), 100);
+            assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.get_topology().edge_count(), (3 + (100 - 3) * 3) * 2);
             let g = Graph::from(net.get_topology().clone());
             assert_eq!(connected_components(&g), 1);
@@ -391,8 +397,8 @@ mod t {
     }
 
     fn assert_igp_reachability<P: Prefix, Q>(net: &Network<P, Q>) {
-        for src in net.get_routers() {
-            let r = net.get_device(src).unwrap_internal();
+        for src in net.internal_indices() {
+            let r = net.get_device(src).unwrap().unwrap_internal();
             let igp_table = r.ospf.get_table();
             assert!(igp_table
                 .iter()

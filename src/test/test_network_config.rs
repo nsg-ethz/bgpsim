@@ -980,7 +980,7 @@ mod t {
             .unwrap();
         net.manual_simulation();
 
-        assert_eq!(net.get_device(r2).unwrap_internal().get_next_hop(p), vec![]);
+        assert_eq!(net.get_device(r2).unwrap().unwrap_internal().get_next_hop(p), vec![]);
 
         let mut net2 = net.clone();
 

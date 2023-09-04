@@ -109,7 +109,7 @@ use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
 /// #   use bgpsim::builder::NetworkBuilder;
 /// #   let mut net = Network::build_complete_graph(BasicEventQueue::<P>::new(), 1);
 /// #   let router = net.add_external_router("external_router", AsId(100));
-/// #   net.get_routers().into_iter().for_each(|r| net.add_link(r, router));
+/// #   net.internal_indices().for_each(|r| net.add_link(r, router));
 /// #   net.build_ibgp_full_mesh()?;
 /// #   net.build_ebgp_sessions()?;
 /// #   net.build_link_weights(|_, _, _, _| 1.0, ())?;
@@ -198,9 +198,7 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
     /// Create a new instance of the ExaBGP config generator. This will initialize all
     /// routes. Further, it will
     pub fn new<Q>(net: &Network<P, Q>, router: RouterId) -> Result<Self, ExportError> {
-        let r = net
-            .get_device(router)
-            .external_or(ExportError::NotAnExternalRouter(router))?;
+        let r = net.get_device(router)?.external_or_err()?;
         Ok(Self {
             router,
             as_id: r.as_id(),

@@ -57,7 +57,9 @@ fn path_names<'n, P: Prefix, Q>(
     path: &[RouterId],
     net: &'n Network<P, Q>,
 ) -> Result<Vec<&'n str>, NetworkError> {
-    path.iter().map(|r| net.get_router_name(*r)).collect()
+    path.iter()
+        .map(|r| net.get_device(*r).map(|r| r.name()))
+        .collect()
 }
 
 macro_rules! test_route {
@@ -112,7 +114,7 @@ mod test_route_map;
 mod test_router;
 #[cfg(all(feature = "topology_zoo", feature = "rand"))]
 mod test_save_restore;
-#[cfg(feature = "topology_zoo")]
-mod test_topology_zoo;
 #[cfg(feature = "rand")]
 mod test_serde;
+#[cfg(feature = "topology_zoo")]
+mod test_topology_zoo;

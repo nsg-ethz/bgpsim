@@ -119,7 +119,7 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
             log::trace!("{}", event.fmt(self));
             // execute the event
             let (step_update, events) = self
-                .get_device_mut(event.router())
+                .get_device_mut(event.router())?
                 .handle_event(event.clone())?;
 
             if self.verbose {
@@ -334,8 +334,9 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
         }
 
         // handle all external routers
-        for (id, r) in new.external_routers.iter_mut() {
-            let r_source = source.external_routers.get(id).unwrap();
+        for r in new.external_routers_mut() {
+            let id = r.router_id();
+            let r_source = source.get_device(id).unwrap().external_or_err().unwrap();
             if !self.reuse_config {
                 r.neighbors = r_source.neighbors.clone();
             }
@@ -345,8 +346,9 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
         }
 
         // handle all internal routers
-        for (id, r) in new.routers.iter_mut() {
-            let r_source = source.routers.get(id).unwrap();
+        for r in new.internal_routers_mut() {
+            let id = r.router_id();
+            let r_source = source.get_device(id).unwrap().internal_or_err().unwrap();
 
             if !self.reuse_config {
                 r.do_load_balancing = r_source.do_load_balancing;

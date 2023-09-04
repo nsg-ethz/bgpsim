@@ -51,7 +51,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouterId {
     type Formatter = &'n str;
 
     fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
-        net.get_router_name(*self).unwrap_or("?")
+        match net.get_device(*self) {
+            Ok(r) => r.name(),
+            Err(_) => "?",
+        }
     }
 }
 

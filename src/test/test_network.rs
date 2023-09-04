@@ -215,21 +215,21 @@ mod t {
         assert_eq!(net.get_router_id("E1"), Ok(*E1));
         assert_eq!(net.get_router_id("E4"), Ok(*E4));
 
-        assert_eq!(net.get_router_name(*R1), Ok("R1"));
-        assert_eq!(net.get_router_name(*R2), Ok("R2"));
-        assert_eq!(net.get_router_name(*R3), Ok("R3"));
-        assert_eq!(net.get_router_name(*R4), Ok("R4"));
-        assert_eq!(net.get_router_name(*E1), Ok("E1"));
-        assert_eq!(net.get_router_name(*E4), Ok("E4"));
+        assert_eq!(net.get_device(*R1).map(|r| r.name()), Ok("R1"));
+        assert_eq!(net.get_device(*R2).map(|r| r.name()), Ok("R2"));
+        assert_eq!(net.get_device(*R3).map(|r| r.name()), Ok("R3"));
+        assert_eq!(net.get_device(*R4).map(|r| r.name()), Ok("R4"));
+        assert_eq!(net.get_device(*E1).map(|r| r.name()), Ok("E1"));
+        assert_eq!(net.get_device(*E4).map(|r| r.name()), Ok("E4"));
 
         net.get_router_id("e0").unwrap_err();
-        net.get_router_name(10.into()).unwrap_err();
+        net.get_device(10.into()).unwrap_err();
 
-        let mut routers = net.get_routers();
+        let mut routers = net.internal_indices().collect::<Vec<_>>();
         routers.sort();
         assert_eq!(routers, vec![*R1, *R2, *R3, *R4]);
 
-        let mut external_routers = net.get_external_routers();
+        let mut external_routers = net.external_indices().collect::<Vec<_>>();
         external_routers.sort();
         assert_eq!(external_routers, vec![*E1, *E4]);
     }
@@ -239,9 +239,9 @@ mod t {
         let mut net = get_test_net::<P>();
 
         // check that all the fw tables are empty, because no update yet occurred
-        for router in net.get_routers().iter() {
+        for router in net.internal_indices() {
             assert_eq!(
-                net.get_device(*router)
+                net.get_device(router).unwrap()
                     .unwrap_internal()
                     .ospf
                     .get_table()
@@ -255,12 +255,12 @@ mod t {
             .unwrap();
 
         // now the igp forwarding table should be updated.
-        for router in net.get_routers().iter() {
-            let r = net.get_device(*router).unwrap_internal();
+        for router in net.internal_indices() {
+            let r = net.get_device(router).unwrap().unwrap_internal();
             let fw_table = r.ospf.get_table();
             assert_eq!(fw_table.len(), 1);
             for (target, entry) in fw_table.iter() {
-                if *router == *target {
+                if router == *target {
                     assert_eq!(entry, &(vec![], 0.0));
                 } else {
                     unreachable!();
@@ -272,15 +272,15 @@ mod t {
         net.set_link_weight(*R1, *R2, 5.0).unwrap();
 
         // now the igp forwarding table should be updated.
-        for from in net.get_routers().iter() {
-            let r = net.get_device(*from).unwrap_internal();
+        for from in net.internal_indices() {
+            let r = net.get_device(from).unwrap().unwrap_internal();
             let fw_table = r.ospf.get_table();
-            if *from == *R1 {
+            if from == *R1 {
                 assert_eq!(fw_table.len(), 2);
                 for (to, entry) in fw_table.iter() {
-                    if *from == *R1 && *to == *R2 {
+                    if from == *R1 && *to == *R2 {
                         assert_eq!(entry, &(vec![*to], 5.0));
-                    } else if *from == *to {
+                    } else if from == *to {
                         assert_eq!(entry, &(vec![], 0.0));
                     } else {
                         unreachable!();
@@ -289,7 +289,7 @@ mod t {
             } else {
                 assert_eq!(fw_table.len(), 1);
                 for (target, entry) in fw_table.iter() {
-                    if *from == *target {
+                    if from == *target {
                         assert_eq!(entry, &(vec![], 0.0));
                     } else {
                         unreachable!();
@@ -302,26 +302,26 @@ mod t {
         net.set_link_weight(*R2, *R1, 5.0).unwrap();
 
         // now the igp forwarding table should be updated.
-        for from in net.get_routers().iter() {
-            let r = net.get_device(*from).unwrap_internal();
+        for from in net.internal_indices() {
+            let r = net.get_device(from).unwrap().unwrap_internal();
             let fw_table = r.ospf.get_table();
-            if *from == *R1 {
+            if from == *R1 {
                 assert_eq!(fw_table.len(), 2);
                 for (to, entry) in fw_table.iter() {
-                    if *from == *R1 && *to == *R2 {
+                    if from == *R1 && *to == *R2 {
                         assert_eq!(entry, &(vec![*to], 5.0));
-                    } else if *from == *to {
+                    } else if from == *to {
                         assert_eq!(entry, &(vec![], 0.0));
                     } else {
                         unreachable!();
                     }
                 }
-            } else if *from == *R2 {
+            } else if from == *R2 {
                 assert_eq!(fw_table.len(), 2);
                 for (to, entry) in fw_table.iter() {
-                    if *from == *R2 && *to == *R1 {
+                    if from == *R2 && *to == *R1 {
                         assert_eq!(entry, &(vec![*to], 5.0));
-                    } else if *from == *to {
+                    } else if from == *to {
                         assert_eq!(entry, &(vec![], 0.0));
                     } else {
                         unreachable!();
@@ -330,7 +330,7 @@ mod t {
             } else {
                 assert_eq!(fw_table.len(), 1);
                 for (target, entry) in fw_table.iter() {
-                    if *from == *target {
+                    if from == *target {
                         assert_eq!(entry, &(vec![], 0.0));
                     } else {
                         unreachable!();
@@ -350,10 +350,10 @@ mod t {
         let p = P::from(0);
 
         // check that all routes have a black hole
-        for router in net.get_routers().iter() {
+        for router in net.internal_indices() {
             assert_eq!(
-                net.get_forwarding_state().get_paths(*router, p),
-                Err(NetworkError::ForwardingBlackHole(vec![*router]))
+                net.get_forwarding_state().get_paths(router, p),
+                Err(NetworkError::ForwardingBlackHole(vec![router]))
             );
         }
 
@@ -394,28 +394,28 @@ mod t {
         test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
         let r1_rib = net
-            .get_device(*R1)
+            .get_device(*R1).unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r2_rib = net
-            .get_device(*R2)
+            .get_device(*R2).unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r3_rib = net
-            .get_device(*R3)
+            .get_device(*R3).unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r4_rib = net
-            .get_device(*R4)
+            .get_device(*R4).unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
@@ -441,28 +441,28 @@ mod t {
         test_route!(net, *R4, p, [*R4, *E4]);
 
         let r1_rib = net
-            .get_device(*R1)
+            .get_device(*R1).unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r2_rib = net
-            .get_device(*R2)
+            .get_device(*R2).unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r3_rib = net
-            .get_device(*R3)
+            .get_device(*R3).unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
             .get(&p)
             .unwrap();
         let r4_rib = net
-            .get_device(*R4)
+            .get_device(*R4).unwrap()
             .unwrap_internal()
             .bgp
             .get_rib()
@@ -486,10 +486,10 @@ mod t {
         let p = P::from(0);
 
         // check that all routes have a black hole
-        for router in net.get_routers().iter() {
+        for router in net.internal_indices() {
             assert_eq!(
-                net.get_forwarding_state().get_paths(*router, p),
-                Err(NetworkError::ForwardingBlackHole(vec![*router]))
+                net.get_forwarding_state().get_paths(router, p),
+                Err(NetworkError::ForwardingBlackHole(vec![router]))
             );
         }
 

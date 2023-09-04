@@ -86,15 +86,11 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         target: Target,
         ifaces: Vec<String>,
     ) -> Result<Self, ExportError> {
-        let as_id = net
-            .get_device(router)
-            .external()
-            .map(|x| x.as_id())
-            .unwrap_or(INTERNAL_AS);
+        let as_id = net.get_device(router)?.as_id();
 
         // initialize all route-maps
         let route_maps = net
-            .get_device(router)
+            .get_device(router)?
             .internal()
             .map(|r| {
                 r.bgp
@@ -228,7 +224,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     ) -> Result<String, ExportError> {
         let mut config = String::new();
         let r = self.router;
-        let is_internal = net.get_device(self.router).is_internal();
+        let is_internal = net.get_device(self.router)?.is_internal();
 
         config.push_str("!\n! Interfaces\n!\n");
         for edge in net.get_topology().edges(r).sorted_by_key(|x| x.id()) {
@@ -396,7 +392,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         let r = self.router;
         let mut bgp_neighbor = RouterBgpNeighbor::new(self.router_id_to_ip(n, net, addressor)?);
 
-        if let Some(neighbor) = net.get_device(n).external() {
+        if let Some(neighbor) = net.get_device(n)?.external() {
             bgp_neighbor.remote_as(neighbor.as_id());
             bgp_neighbor.update_source(self.iface(r, n, addressor)?);
         } else {
@@ -440,7 +436,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         };
 
         // generate all route-maps, and stre them in the local structure, for easy modifications.
-        let route_maps: HashMap<_, _> = if let Some(r) = net.get_device(self.router).internal() {
+        let route_maps: HashMap<_, _> = if let Some(r) = net.get_device(self.router)?.internal() {
             r.bgp
                 .route_maps_in
                 .iter()
@@ -652,7 +648,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         net: &Network<P, Q>,
         addressor: &mut A,
     ) -> Result<Ipv4Addr, ExportError> {
-        if net.get_device(r).is_internal() && net.get_device(self.router).is_internal() {
+        if net.get_device(r)?.is_internal() && net.get_device(self.router)?.is_internal() {
             addressor.router_address(r)
         } else {
             addressor.iface_address(r, self.router)
@@ -688,16 +684,16 @@ fn full_rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId, direction: 
         RmDir::Incoming => "in",
         RmDir::Outgoing => "out",
     };
-    if let Ok(name) = net.get_router_name(router) {
-        format!("neighbor-{name}-{dir}")
+    if let Ok(d) = net.get_device(router) {
+        format!("neighbor-{}-{dir}", d.name())
     } else {
         format!("neighbor-id-{}-{}", router.index(), dir)
     }
 }
 
 fn rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId) -> String {
-    if let Ok(name) = net.get_router_name(router) {
-        format!("neighbor-{name}")
+    if let Ok(d) = net.get_device(router) {
+        format!("neighbor-{}", d.name())
     } else {
         format!("neighbor-id-{}", router.index())
     }
@@ -710,9 +706,7 @@ impl<P: Prefix, A: Addressor<P>, Q> InternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
-        let router = net
-            .get_device(self.router)
-            .internal_or(ExportError::NotAnInternalRouter(self.router))?;
+        let router = net.get_device(self.router)?.internal_or_err()?;
 
         // if we are on cisco, enable the ospf and bgp feature
         config.push_str("!\n");
@@ -964,9 +958,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
-        let router = net
-            .get_device(self.router)
-            .external_or(ExportError::NotAnExternalRouter(self.router))?;
+        let router = net.get_device(self.router)?.external_or_err()?;
 
         // if we are on cisco, enable the ospf and bgp feature
         config.push_str("!\n");

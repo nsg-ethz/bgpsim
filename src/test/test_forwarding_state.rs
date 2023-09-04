@@ -250,7 +250,7 @@ mod t {
             )
             .unwrap();
 
-            let mut routers = net.get_routers();
+            let mut routers = net.internal_indices().collect::<Vec<_>>();
             routers.sort();
 
             let mut state = net.get_forwarding_state();
@@ -259,12 +259,12 @@ mod t {
             for router in routers.iter() {
                 for prefix in net.get_known_prefixes() {
                     assert_eq!(
-                        net.get_device(*router)
+                        net.get_device(*router).unwrap()
                             .unwrap_internal()
                             .get_next_hop(*prefix),
                         state.get_next_hops(*router, *prefix),
                         "Invalid next-hop at {} for prefix {}",
-                        net.get_router_name(*router).unwrap(),
+                        net.get_device(*router).unwrap().name(),
                         prefix
                     );
                 }

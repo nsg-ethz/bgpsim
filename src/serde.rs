@@ -19,7 +19,6 @@
 
 use std::collections::{BTreeSet, HashMap, HashSet};
 
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -27,7 +26,7 @@ use crate::{
     config::{ConfigExpr, ConfigModifier, NetworkConfig},
     event::EventQueue,
     network::Network,
-    types::{AsId, NetworkDevice, NetworkError, Prefix, PrefixMap, RouterId},
+    types::{AsId, NetworkDeviceRef, NetworkError, Prefix, PrefixMap, RouterId},
 };
 
 const JSON_FIELD_NAME_NETWORK: &str = "net";
@@ -64,19 +63,21 @@ where
     /// Create a json value containing the configuration.
     fn as_config_json_str(&self) -> serde_json::Value {
         let config = Vec::from_iter(self.get_config().unwrap().iter().cloned());
-        let node_indices = self.get_topology().node_indices().sorted();
-        let nodes: Vec<(RouterId, String, Option<AsId>)> = node_indices
-            .map(|id| match self.get_device(id) {
-                NetworkDevice::InternalRouter(r) => (id, r.name().to_string(), None),
-                NetworkDevice::ExternalRouter(r) => (id, r.name().to_string(), Some(r.as_id())),
-                NetworkDevice::None(_) => unreachable!(),
+        let mut nodes: Vec<(RouterId, String, Option<AsId>)> = self
+            .devices()
+            .map(|r| match r {
+                NetworkDeviceRef::InternalRouter(r) => (r.router_id(), r.name().to_string(), None),
+                NetworkDeviceRef::ExternalRouter(r) => {
+                    (r.router_id(), r.name().to_string(), Some(r.as_id()))
+                }
             })
             .collect();
+        nodes.sort_by_key(|(r, _, _)| *r);
+
         let routes: Vec<ExportRoutes<P>> = self
-            .get_external_routers()
-            .into_iter()
-            .filter_map(|r| Some((r, self.get_device(r).external()?)))
-            .flat_map(|(id, r)| {
+            .external_routers()
+            .flat_map(|r| {
+                let id = r.router_id();
                 r.get_advertised_routes().values().map(move |route| {
                     (
                         id,

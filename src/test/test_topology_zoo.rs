@@ -26,8 +26,8 @@ use crate::{
 fn test_all_single() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
         let n: Network<SinglePrefix, _> = topo.build(BasicEventQueue::new());
-        assert_eq!(n.get_routers().len(), topo.num_internals());
-        assert_eq!(n.get_external_routers().len(), topo.num_externals());
+        assert_eq!(n.internal_indices().count(), topo.num_internals());
+        assert_eq!(n.external_indices().count(), topo.num_externals());
         assert_eq!(n.get_topology().node_count(), topo.num_routers());
         assert_eq!(n.get_topology().edge_count() / 2, topo.num_edges());
     }
@@ -37,8 +37,8 @@ fn test_all_single() {
 fn test_all_simple() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
         let n: Network<SimplePrefix, _> = topo.build(BasicEventQueue::new());
-        assert_eq!(n.get_routers().len(), topo.num_internals());
-        assert_eq!(n.get_external_routers().len(), topo.num_externals());
+        assert_eq!(n.internal_indices().count(), topo.num_internals());
+        assert_eq!(n.external_indices().count(), topo.num_externals());
         assert_eq!(n.get_topology().node_count(), topo.num_routers());
         assert_eq!(n.get_topology().edge_count() / 2, topo.num_edges());
     }
@@ -48,15 +48,30 @@ fn test_all_simple() {
 fn test_extract() {
     let n: Network<SimplePrefix, _> = TopologyZoo::Epoch.build(BasicEventQueue::new());
 
-    assert_eq!(n.get_device(0.into()).unwrap_internal().name(), "PaloAlto");
     assert_eq!(
-        n.get_device(1.into()).unwrap_internal().name(),
+        n.get_device(0.into()).unwrap().unwrap_internal().name(),
+        "PaloAlto"
+    );
+    assert_eq!(
+        n.get_device(1.into()).unwrap().unwrap_internal().name(),
         "LosAngeles"
     );
-    assert_eq!(n.get_device(2.into()).unwrap_internal().name(), "Denver");
-    assert_eq!(n.get_device(3.into()).unwrap_internal().name(), "Chicago");
-    assert_eq!(n.get_device(4.into()).unwrap_internal().name(), "Vienna");
-    assert_eq!(n.get_device(5.into()).unwrap_internal().name(), "Atlanta");
+    assert_eq!(
+        n.get_device(2.into()).unwrap().unwrap_internal().name(),
+        "Denver"
+    );
+    assert_eq!(
+        n.get_device(3.into()).unwrap().unwrap_internal().name(),
+        "Chicago"
+    );
+    assert_eq!(
+        n.get_device(4.into()).unwrap().unwrap_internal().name(),
+        "Vienna"
+    );
+    assert_eq!(
+        n.get_device(5.into()).unwrap().unwrap_internal().name(),
+        "Atlanta"
+    );
 
     assert!(n.get_topology().find_edge(0.into(), 1.into()).is_some());
     assert!(n.get_topology().find_edge(0.into(), 2.into()).is_some());

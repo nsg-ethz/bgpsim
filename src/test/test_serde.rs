@@ -16,10 +16,10 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use crate::{
+    builder::*,
     event::BasicEventQueue,
     network::Network,
-    types::{Prefix, Ipv4Prefix, SinglePrefix, SimplePrefix},
-    builder::*,
+    types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
 };
 use serde_json::{from_str, to_string};
 
@@ -29,14 +29,19 @@ mod t {
 
     #[test]
     fn serialization_small<P: Prefix>() {
-        let mut net: Network<P, BasicEventQueue<P>> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 10);
+        let mut net: Network<P, BasicEventQueue<P>> =
+            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 10);
         net.build_ibgp_route_reflection(k_random_nodes, 3).unwrap();
         net.build_external_routers(k_random_nodes, 5).unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.build_link_weights(uniform_integer_link_weight, (10, 100)).unwrap();
-        net.build_advertisements(P::from(1), equal_preferences, 3).unwrap();
-        net.build_advertisements(P::from(2), equal_preferences, 3).unwrap();
-        net.build_advertisements(P::from(3), equal_preferences, 3).unwrap();
+        net.build_link_weights(uniform_integer_link_weight, (10, 100))
+            .unwrap();
+        net.build_advertisements(P::from(1), equal_preferences, 3)
+            .unwrap();
+        net.build_advertisements(P::from(2), equal_preferences, 3)
+            .unwrap();
+        net.build_advertisements(P::from(3), equal_preferences, 3)
+            .unwrap();
 
         let clone: Network<P, BasicEventQueue<P>> = from_str(&to_string(&net).unwrap()).unwrap();
         assert_eq!(net, clone);

@@ -31,8 +31,8 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut, NetworkError, Prefix,
-        PrefixSet, RouterId, SimplePrefix,
+        AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceMut, NetworkDeviceRef,
+        NetworkError, Prefix, PrefixSet, RouterId, SimplePrefix,
     },
 };
 
@@ -83,8 +83,7 @@ static DEFAULT_STOP_AFTER: usize = 1_000_000;
 pub struct Network<P: Prefix = SimplePrefix, Q = BasicEventQueue<SimplePrefix>> {
     pub(crate) net: IgpNetwork,
     pub(crate) ospf: Ospf,
-    pub(crate) routers: HashMap<RouterId, Router<P>>,
-    pub(crate) external_routers: HashMap<RouterId, ExternalRouter<P>>,
+    pub(crate) routers: HashMap<RouterId, NetworkDevice<P>>,
     pub(crate) known_prefixes: P::Set,
     pub(crate) stop_after: Option<usize>,
     pub(crate) queue: Q,
@@ -101,7 +100,6 @@ impl<P: Prefix, Q: Clone> Clone for Network<P, Q> {
             net: self.net.clone(),
             ospf: self.ospf.clone(),
             routers: self.routers.clone(),
-            external_routers: self.external_routers.clone(),
             known_prefixes: self.known_prefixes.clone(),
             stop_after: self.stop_after,
             queue: self.queue.clone(),
@@ -125,7 +123,6 @@ impl<P: Prefix, Q> Network<P, Q> {
             ospf: Ospf::new(),
             routers: HashMap::new(),
             known_prefixes: Default::default(),
-            external_routers: HashMap::new(),
             stop_after: Some(DEFAULT_STOP_AFTER),
             queue,
             skip_queue: false,
@@ -139,7 +136,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     pub fn add_router(&mut self, name: impl Into<String>) -> RouterId {
         let new_router = Router::new(name.into(), self.net.add_node(()), AsId(65001));
         let router_id = new_router.router_id();
-        self.routers.insert(router_id, new_router);
+        self.routers.insert(router_id, new_router.into());
 
         router_id
     }
@@ -154,7 +151,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     ) -> RouterId {
         let new_router = ExternalRouter::new(name.into(), self.net.add_node(()), as_id.into());
         let router_id = new_router.router_id();
-        self.external_routers.insert(router_id, new_router);
+        self.routers.insert(router_id, new_router.into());
 
         router_id
     }
@@ -206,7 +203,108 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// Return an OSPF state of the current network.
     pub fn get_ospf_state(&self) -> OspfState {
         self.ospf
-            .compute(&self.net, &self.external_routers.keys().copied().collect())
+            .compute(&self.net, &self.external_indices().collect())
+    }
+
+    /*
+     * Get routers and router IDs
+     */
+
+    /// Return an iterator over all device indices.
+    pub fn device_indices(&self) -> DeviceIndices<'_, P> {
+        DeviceIndices {
+            i: self.routers.keys(),
+        }
+    }
+
+    /// Return an iterator over all internal router indices.
+    pub fn internal_indices(&self) -> InternalIndices<'_, P> {
+        InternalIndices {
+            i: self.routers.iter(),
+        }
+    }
+
+    /// Return an iterator over all external router indices.
+    pub fn external_indices(&self) -> ExternalIndices<'_, P> {
+        ExternalIndices {
+            i: self.routers.iter(),
+        }
+    }
+
+    /// Return an iterator over all devices.
+    pub fn devices(&self) -> NetworkDevicesIter<'_, P> {
+        NetworkDevicesIter {
+            i: self.routers.values(),
+        }
+    }
+
+    /// Return an iterator over all internal routers.
+    pub fn internal_routers(&self) -> InternalRoutersIter<'_, P> {
+        InternalRoutersIter {
+            i: self.routers.values(),
+        }
+    }
+
+    /// Return an iterator over all external routers.
+    pub fn external_routers(&self) -> ExternalRoutersIter<'_, P> {
+        ExternalRoutersIter {
+            i: self.routers.values(),
+        }
+    }
+
+    /// Return an iterator over all devices as mutable references.
+    pub fn devices_mut(&mut self) -> NetworkDevicesIterMut<'_, P> {
+        NetworkDevicesIterMut {
+            i: self.routers.values_mut(),
+        }
+    }
+
+    /// Return an iterator over all internal routers as mutable references.
+    pub fn internal_routers_mut(&mut self) -> InternalRoutersIterMut<'_, P> {
+        InternalRoutersIterMut {
+            i: self.routers.values_mut(),
+        }
+    }
+
+    /// Return an iterator over all external routers as mutable references.
+    pub fn external_routers_mut(&mut self) -> ExternalRoutersIterMut<'_, P> {
+        ExternalRoutersIterMut {
+            i: self.routers.values_mut(),
+        }
+    }
+
+    /// Returns the number of devices in the topology
+    pub fn num_devices(&self) -> usize {
+        self.routers.len()
+    }
+
+    /// Returns a reference to the network device.
+    pub fn get_device(&self, id: RouterId) -> Result<NetworkDeviceRef<'_, P>, NetworkError> {
+        self.routers
+            .get(&id)
+            .map(|x| x.as_ref())
+            .ok_or(NetworkError::DeviceNotFound(id))
+    }
+
+    /// Returns a reference to the network device.
+    pub fn get_device_mut(
+        &mut self,
+        id: RouterId,
+    ) -> Result<NetworkDeviceMut<'_, P>, NetworkError> {
+        self.routers
+            .get_mut(&id)
+            .map(|x| x.as_mut())
+            .ok_or(NetworkError::DeviceNotFound(id))
+    }
+    /// Get the RouterID with the given name. If multiple routers have the same name, then the first
+    /// occurence of this name is returned. If the name was not found, an error is returned.
+    pub fn get_router_id(&self, name: impl AsRef<str>) -> Result<RouterId, NetworkError> {
+        self.routers
+            .iter()
+            .filter(|(_, r)| r.name() == name.as_ref())
+            .map(|(id, _)| *id)
+            .next()
+            .ok_or_else(|| NetworkError::DeviceNameNotFound(name.as_ref().to_string()))
     }
 
     // ********************
@@ -216,67 +314,6 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// Returns a reference to the network topology (PetGraph struct)
     pub fn get_topology(&self) -> &IgpNetwork {
         &self.net
-    }
-
-    /// Returns the number of devices in the topology
-    pub fn num_devices(&self) -> usize {
-        self.routers.len() + self.external_routers.len()
-    }
-
-    /// Returns a reference to the network device.
-    pub fn get_device(&self, id: RouterId) -> NetworkDevice<'_, P> {
-        match self.routers.get(&id) {
-            Some(r) => NetworkDevice::InternalRouter(r),
-            None => match self.external_routers.get(&id) {
-                Some(r) => NetworkDevice::ExternalRouter(r),
-                None => NetworkDevice::None(id),
-            },
-        }
-    }
-
-    /// Returns a reference to the network device.
-    pub(crate) fn get_device_mut(&mut self, id: RouterId) -> NetworkDeviceMut<'_, P> {
-        match self.routers.get_mut(&id) {
-            Some(r) => NetworkDeviceMut::InternalRouter(r),
-            None => match self.external_routers.get_mut(&id) {
-                Some(r) => NetworkDeviceMut::ExternalRouter(r),
-                None => NetworkDeviceMut::None(id),
-            },
-        }
-    }
-
-    /// Returns a list of all internal router IDs in the network
-    pub fn get_routers(&self) -> Vec<RouterId> {
-        self.routers.keys().cloned().collect()
-    }
-
-    /// Returns a list of all external router IDs in the network
-    pub fn get_external_routers(&self) -> Vec<RouterId> {
-        self.external_routers.keys().cloned().collect()
-    }
-
-    /// Get the RouterID with the given name. If multiple routers have the same name, then the first
-    /// occurence of this name is returned. If the name was not found, an error is returned.
-    pub fn get_router_id(&self, name: impl AsRef<str>) -> Result<RouterId, NetworkError> {
-        if let Some(id) = self
-            .routers
-            .values()
-            .filter(|r| r.name() == name.as_ref())
-            .map(|r| r.router_id())
-            .next()
-        {
-            Ok(id)
-        } else if let Some(id) = self
-            .external_routers
-            .values()
-            .filter(|r| r.name() == name.as_ref())
-            .map(|r| r.router_id())
-            .next()
-        {
-            Ok(id)
-        } else {
-            Err(NetworkError::DeviceNameNotFound(name.as_ref().to_string()))
-        }
     }
 
     /// Returns a hashset of all known prefixes
@@ -289,46 +326,6 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// running until converged.
     pub fn set_msg_limit(&mut self, stop_after: Option<usize>) {
         self.stop_after = stop_after;
-    }
-
-    /// Returns the name of the router, if the ID was found.
-    pub fn get_router_name(&self, router_id: RouterId) -> Result<&str, NetworkError> {
-        if let Some(r) = self.routers.get(&router_id) {
-            Ok(r.name())
-        } else if let Some(r) = self.external_routers.get(&router_id) {
-            Ok(r.name())
-        } else {
-            Err(NetworkError::DeviceNotFound(router_id))
-        }
-    }
-
-    /// Change the router name
-    pub fn set_router_name(
-        &mut self,
-        router_id: RouterId,
-        name: impl Into<String>,
-    ) -> Result<(), NetworkError> {
-        if let Some(r) = self.routers.get_mut(&router_id) {
-            r.set_name(name.into());
-            Ok(())
-        } else if let Some(r) = self.external_routers.get_mut(&router_id) {
-            r.set_name(name.into());
-            Ok(())
-        } else {
-            Err(NetworkError::DeviceNotFound(router_id))
-        }
-    }
-
-    /// Set the AS Id of an external router
-    pub fn set_as_id(
-        &mut self,
-        router_id: RouterId,
-        as_id: impl Into<AsId>,
-    ) -> Result<(), NetworkError> {
-        self.get_device_mut(router_id)
-            .external_or_err()?
-            .set_as_id(as_id.into());
-        Ok(())
     }
 
     /// Get the link weight of a specific link (directed). This function will raise a
@@ -378,7 +375,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             net: self.net,
             ospf: self.ospf,
             routers: self.routers,
-            external_routers: self.external_routers,
             known_prefixes: self.known_prefixes,
             stop_after: self.stop_after,
             queue,
@@ -396,8 +392,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         target: RouterId,
         session_type: Option<BgpSessionType>,
     ) -> Result<(), NetworkError> {
-        let is_source_external = self.external_routers.contains_key(&source);
-        let is_target_external = self.external_routers.contains_key(&target);
+        let is_source_external = self.get_device(source)?.is_external();
+        let is_target_external = self.get_device(target)?.is_external();
         let (source_type, target_type) = match session_type {
             Some(BgpSessionType::IBgpPeer) => {
                 if is_source_external || is_target_external {
@@ -442,47 +438,30 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         }?;
 
         // configure source
-        if is_source_external {
-            let r = self
-                .external_routers
-                .get_mut(&source)
-                .ok_or(NetworkError::DeviceNotFound(source))?;
-            if source_type.is_some() {
-                let events = r.establish_ebgp_session(target)?;
-                self.enqueue_events(events);
-            } else {
+        let events = match self.routers.get_mut(&source).unwrap() {
+            NetworkDevice::InternalRouter(r) => r.bgp.set_session(target, source_type)?.1,
+            NetworkDevice::ExternalRouter(r) if source_type.is_some() => {
+                r.establish_ebgp_session(target)?
+            }
+            NetworkDevice::ExternalRouter(r) => {
                 r.close_ebgp_session(target)?;
+                Vec::new()
             }
-        } else {
-            let (_, events) = self
-                .routers
-                .get_mut(&source)
-                .ok_or(NetworkError::DeviceNotFound(source))?
-                .bgp
-                .set_session(target, source_type)?;
-            self.enqueue_events(events);
-        }
+        };
+        self.enqueue_events(events);
+
         // configure target
-        if is_target_external {
-            let r = self
-                .external_routers
-                .get_mut(&target)
-                .ok_or(NetworkError::DeviceNotFound(target))?;
-            if target_type.is_some() {
-                let events = r.establish_ebgp_session(source)?;
-                self.enqueue_events(events);
-            } else {
-                r.close_ebgp_session(source)?;
+        let events = match self.routers.get_mut(&target).unwrap() {
+            NetworkDevice::InternalRouter(r) => r.bgp.set_session(source, target_type)?.1,
+            NetworkDevice::ExternalRouter(r) if target_type.is_some() => {
+                r.establish_ebgp_session(source)?
             }
-        } else {
-            let (_, events) = self
-                .routers
-                .get_mut(&target)
-                .ok_or(NetworkError::DeviceNotFound(target))?
-                .bgp
-                .set_session(source, target_type)?;
-            self.enqueue_events(events);
-        }
+            NetworkDevice::ExternalRouter(r) => {
+                r.close_ebgp_session(source)?;
+                Vec::new()
+            }
+        };
+        self.enqueue_events(events);
 
         self.do_queue_maybe_skip()
     }
@@ -548,9 +527,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         route_map: RouteMap<P>,
     ) -> Result<Option<RouteMap<P>>, NetworkError> {
         let (old_map, events) = self
-            .routers
-            .get_mut(&router)
-            .ok_or(NetworkError::DeviceNotFound(router))?
+            .get_device_mut(router)?
+            .internal_or_err()?
             .bgp
             .set_route_map(neighbor, direction, route_map)?;
 
@@ -571,9 +549,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         order: i16,
     ) -> Result<Option<RouteMap<P>>, NetworkError> {
         let (old_map, events) = self
-            .routers
-            .get_mut(&router)
-            .ok_or(NetworkError::DeviceNotFound(router))?
+            .get_device_mut(router)?
+            .internal_or_err()?
             .bgp
             .remove_route_map(neighbor, direction, order)?;
 
@@ -591,9 +568,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         updates: &[RouteMapEdit<P>],
     ) -> Result<(), NetworkError> {
         let events = self
-            .routers
-            .get_mut(&router)
-            .ok_or(NetworkError::DeviceNotFound(router))?
+            .get_device_mut(router)?
+            .internal_or_err()?
             .bgp
             .batch_update_route_maps(updates)?;
 
@@ -611,9 +587,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         route: Option<StaticRoute>,
     ) -> Result<Option<StaticRoute>, NetworkError> {
         Ok(self
-            .routers
-            .get_mut(&router)
-            .ok_or(NetworkError::DeviceNotFound(router))?
+            .get_device_mut(router)?
+            .internal_or_err()?
             .sr
             .set(prefix, route))
     }
@@ -626,9 +601,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     ) -> Result<bool, NetworkError> {
         // update the device
         let old_val = self
-            .routers
-            .get_mut(&router)
-            .ok_or(NetworkError::DeviceNotFound(router))?
+            .get_device_mut(router)?
+            .internal_or_err()?
             .set_load_balancing(do_load_balancing);
 
         Ok(old_val)
@@ -655,15 +629,18 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         let prefix: P = prefix.into();
         let as_path: Vec<AsId> = as_path.into_iter().map(|id| id.into()).collect();
 
-        debug!("Advertise {} on {}", prefix, self.get_router_name(source)?);
+        debug!(
+            "Advertise {} on {}",
+            prefix,
+            self.get_device(source)?.name()
+        );
         // insert the prefix into the hashset
         self.known_prefixes.insert(prefix);
 
         // initiate the advertisement
         let (_, events) = self
-            .external_routers
-            .get_mut(&source)
-            .ok_or(NetworkError::DeviceNotFound(source))?
+            .get_device_mut(source)?
+            .external_or_err()?
             .advertise_prefix(prefix, as_path, med, community);
 
         self.enqueue_events(events);
@@ -679,12 +656,11 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     ) -> Result<(), NetworkError> {
         let prefix: P = prefix.into();
 
-        debug!("Retract {} on {}", prefix, self.get_router_name(source)?);
+        debug!("Retract {} on {}", prefix, self.get_device(source)?.name());
 
         let events = self
-            .external_routers
-            .get_mut(&source)
-            .ok_or(NetworkError::DeviceNotFound(source))?
+            .get_device_mut(source)?
+            .external_or_err()?
             .withdraw_prefix(prefix);
 
         // run the queue
@@ -703,8 +679,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     ) -> Result<(), NetworkError> {
         debug!(
             "Simulate link failure: {} -- {}",
-            self.get_router_name(router_a)?,
-            self.get_router_name(router_b)?
+            self.get_device(router_a)?.name(),
+            self.get_device(router_b)?.name()
         );
 
         // Remove the link in one direction
@@ -737,15 +713,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         self.simulate()?;
 
         // get all IGP and BGP neighbors
-        let (bgp_neighbors, internal): (Vec<RouterId>, bool) = match self.get_device(router) {
-            NetworkDevice::InternalRouter(r) => {
-                (r.bgp.get_sessions().keys().copied().collect(), true)
-            }
-            NetworkDevice::ExternalRouter(r) => {
-                (r.get_bgp_sessions().iter().copied().collect(), false)
-            }
-            NetworkDevice::None(r) => return Err(NetworkError::DeviceNotFound(r)),
-        };
+        let bgp_neighbors = self.get_device(router)?.bgp_neighbors();
         let igp_neighbors: Vec<RouterId> = self.net.neighbors(router).collect();
 
         // remove all edges
@@ -764,11 +732,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         }
 
         // remove the node from the list
-        if internal {
-            self.routers.remove(&router);
-        } else {
-            self.external_routers.remove(&router);
-        }
+        self.routers.remove(&router);
 
         self.net.remove_node(router);
 
@@ -794,10 +758,13 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         // compute the ospf state
         let ospf_state = self
             .ospf
-            .compute(&self.net, &self.external_routers.keys().copied().collect());
+            .compute(&self.net, &self.external_indices().collect());
         // update igp table
         let mut events = vec![];
-        for r in self.routers.values_mut() {
+        for id in self.internal_indices().detach() {
+            let NetworkDevice::InternalRouter(r) = self.routers.get_mut(&id).unwrap() else {
+                unreachable!()
+            };
             events.append(&mut r.write_igp_forwarding_table(&self.net, &ospf_state)?);
         }
         self.enqueue_events(events);
@@ -847,8 +814,14 @@ where
             return false;
         }
 
-        if self.routers.keys().collect::<HashSet<_>>()
-            != other.routers.keys().collect::<HashSet<_>>()
+        if self.internal_indices().collect::<HashSet<_>>()
+            != other.internal_indices().collect::<HashSet<_>>()
+        {
+            return false;
+        }
+
+        if self.external_indices().collect::<HashSet<_>>()
+            != other.external_indices().collect::<HashSet<_>>()
         {
             return false;
         }
@@ -860,10 +833,13 @@ where
 
         // if we have passed all those tests, it is time to check if the BGP tables on the routers
         // are the same.
-        for router in self.routers.keys() {
-            if !self.routers[router]
+        for id in self.internal_indices() {
+            if !self
+                .get_device(id)
+                .unwrap()
+                .unwrap_internal()
                 .bgp
-                .compare_table(&other.routers.get(router).unwrap().bgp)
+                .compare_table(&other.get_device(id).unwrap().unwrap_internal().bgp)
             {
                 return false;
             }
@@ -886,10 +862,6 @@ where
     fn eq(&self, other: &Self) -> bool {
         use ordered_float::NotNan;
         if self.routers != other.routers {
-            return false;
-        }
-
-        if self.external_routers != other.external_routers {
             return false;
         }
 
@@ -922,5 +894,182 @@ where
         }
 
         true
+    }
+}
+
+/// Iterator of all devices in the network.
+#[derive(Debug)]
+pub struct DeviceIndices<'a, P: Prefix> {
+    i: std::collections::hash_map::Keys<'a, RouterId, NetworkDevice<P>>,
+}
+
+impl<'a, P: Prefix> Iterator for DeviceIndices<'a, P> {
+    type Item = RouterId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.i.next().copied()
+    }
+}
+
+impl<'a, P: Prefix> DeviceIndices<'a, P> {
+    /// Detach the iterator from the network itself
+    pub fn detach(self) -> std::vec::IntoIter<RouterId> {
+        self.collect::<Vec<RouterId>>().into_iter()
+    }
+}
+
+/// Iterator of all internal routers in the network.
+#[derive(Debug)]
+pub struct InternalIndices<'a, P: Prefix> {
+    i: std::collections::hash_map::Iter<'a, RouterId, NetworkDevice<P>>,
+}
+
+impl<'a, P: Prefix> Iterator for InternalIndices<'a, P> {
+    type Item = RouterId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((id, r)) = self.i.next() {
+            if r.is_internal() {
+                return Some(*id);
+            }
+        }
+        None
+    }
+}
+
+impl<'a, P: Prefix> InternalIndices<'a, P> {
+    /// Detach the iterator from the network itself
+    pub fn detach(self) -> std::vec::IntoIter<RouterId> {
+        self.collect::<Vec<RouterId>>().into_iter()
+    }
+}
+
+/// Iterator of all external routers in the network.
+#[derive(Debug)]
+pub struct ExternalIndices<'a, P: Prefix> {
+    i: std::collections::hash_map::Iter<'a, RouterId, NetworkDevice<P>>,
+}
+
+impl<'a, P: Prefix> Iterator for ExternalIndices<'a, P> {
+    type Item = RouterId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some((id, r)) = self.i.next() {
+            if r.is_external() {
+                return Some(*id);
+            }
+        }
+        None
+    }
+}
+
+impl<'a, P: Prefix> ExternalIndices<'a, P> {
+    /// Detach the iterator from the network itself
+    pub fn detach(self) -> std::vec::IntoIter<RouterId> {
+        self.collect::<Vec<RouterId>>().into_iter()
+    }
+}
+
+/// Iterator of all devices in the network.
+#[derive(Debug)]
+pub struct NetworkDevicesIter<'a, P: Prefix> {
+    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P>>,
+}
+
+impl<'a, P: Prefix> Iterator for NetworkDevicesIter<'a, P> {
+    type Item = NetworkDeviceRef<'a, P>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.i.next().map(|x| x.as_ref())
+    }
+}
+
+/// Iterator of all internal routers in the network.
+#[derive(Debug)]
+pub struct InternalRoutersIter<'a, P: Prefix> {
+    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P>>,
+}
+
+impl<'a, P: Prefix> Iterator for InternalRoutersIter<'a, P> {
+    type Item = &'a Router<P>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(r) = self.i.next() {
+            if let NetworkDevice::InternalRouter(r) = r {
+                return Some(r);
+            }
+        }
+        None
+    }
+}
+
+/// Iterator of all external routers in the network.
+#[derive(Debug)]
+pub struct ExternalRoutersIter<'a, P: Prefix> {
+    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P>>,
+}
+
+impl<'a, P: Prefix> Iterator for ExternalRoutersIter<'a, P> {
+    type Item = &'a ExternalRouter<P>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(r) = self.i.next() {
+            if let NetworkDevice::ExternalRouter(r) = r {
+                return Some(r);
+            }
+        }
+        None
+    }
+}
+
+/// Iterator of all mutable devices in the network.
+#[derive(Debug)]
+pub struct NetworkDevicesIterMut<'a, P: Prefix> {
+    i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P>>,
+}
+
+impl<'a, P: Prefix> Iterator for NetworkDevicesIterMut<'a, P> {
+    type Item = NetworkDeviceMut<'a, P>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.i.next().map(|x| x.as_mut())
+    }
+}
+
+/// Iterator of all internal routers in the network.
+#[derive(Debug)]
+pub struct InternalRoutersIterMut<'a, P: Prefix> {
+    i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P>>,
+}
+
+impl<'a, P: Prefix> Iterator for InternalRoutersIterMut<'a, P> {
+    type Item = &'a mut Router<P>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(r) = self.i.next() {
+            if let NetworkDevice::InternalRouter(r) = r {
+                return Some(r);
+            }
+        }
+        None
+    }
+}
+
+/// Iterator of all external routers in the network.
+#[derive(Debug)]
+pub struct ExternalRoutersIterMut<'a, P: Prefix> {
+    i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P>>,
+}
+
+impl<'a, P: Prefix> Iterator for ExternalRoutersIterMut<'a, P> {
+    type Item = &'a mut ExternalRouter<P>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        while let Some(r) = self.i.next() {
+            if let NetworkDevice::ExternalRouter(r) = r {
+                return Some(r);
+            }
+        }
+        None
     }
 }

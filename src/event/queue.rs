@@ -17,10 +17,7 @@
 
 //! Module containing the definitions for the event queues.
 
-use crate::{
-    router::Router,
-    types::{IgpNetwork, Prefix, RouterId},
-};
+use crate::types::{IgpNetwork, NetworkDevice, Prefix, RouterId};
 
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
@@ -37,7 +34,7 @@ pub trait EventQueue<P: Prefix> {
     fn push(
         &mut self,
         event: Event<P, Self::Priority>,
-        routers: &HashMap<RouterId, Router<P>>,
+        routers: &HashMap<RouterId, NetworkDevice<P>>,
         net: &IgpNetwork,
     );
 
@@ -59,7 +56,7 @@ pub trait EventQueue<P: Prefix> {
     /// Update the model parameters. This function will always be called after some externally
     /// triggered event occurs. It will still happen, even if the network was set to manual
     /// simulation.
-    fn update_params(&mut self, routers: &HashMap<RouterId, Router<P>>, net: &IgpNetwork);
+    fn update_params(&mut self, routers: &HashMap<RouterId, NetworkDevice<P>>, net: &IgpNetwork);
 
     /// Get the current time of the queue.
     fn get_time(&self) -> Option<f64>;
@@ -95,7 +92,7 @@ impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
     fn push(
         &mut self,
         event: Event<P, Self::Priority>,
-        _: &HashMap<RouterId, Router<P>>,
+        _: &HashMap<RouterId, NetworkDevice<P>>,
         _: &IgpNetwork,
     ) {
         self.0.push_back(event)
@@ -125,7 +122,7 @@ impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
         None
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, Router<P>>, _: &IgpNetwork) {}
+    fn update_params(&mut self, _: &HashMap<RouterId, NetworkDevice<P>>, _: &IgpNetwork) {}
 
     unsafe fn clone_events(&self, _: Self) -> Self {
         self.clone()

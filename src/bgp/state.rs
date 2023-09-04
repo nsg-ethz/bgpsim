@@ -28,7 +28,7 @@ use std::collections::{
 use crate::{
     bgp::BgpRoute,
     network::Network,
-    types::{NetworkDevice, Prefix, PrefixMap, RouterId},
+    types::{NetworkDeviceRef, Prefix, PrefixMap, RouterId},
 };
 
 /// BGP State, which contains information on how all routes of an individual prefix were propagated
@@ -318,9 +318,10 @@ impl<T> BgpStateGraph<T> {
             .map(|id| (id, BgpStateNode::default()))
             .collect::<HashMap<_, _>>();
 
-        for id in net.get_topology().node_indices() {
-            match net.get_device(id) {
-                NetworkDevice::InternalRouter(r) => {
+        for r in net.devices() {
+            let id = r.router_id();
+            match r {
+                NetworkDeviceRef::InternalRouter(r) => {
                     // handle local RIB
                     if let Some(entry) = r.bgp.get_route(prefix) {
                         g.get_mut(&id).unwrap().node = Some((f(&entry.route), entry.from_id));
@@ -339,7 +340,7 @@ impl<T> BgpStateGraph<T> {
                             g.get_mut(peer).unwrap().edges_in.insert(id);
                         });
                 }
-                NetworkDevice::ExternalRouter(r) => {
+                NetworkDeviceRef::ExternalRouter(r) => {
                     if let Some(route) = r.get_advertised_route(prefix) {
                         g.get_mut(&id).unwrap().node = Some((f(route), id));
                         r.get_bgp_sessions().iter().copied().for_each(|peer| {
@@ -348,7 +349,6 @@ impl<T> BgpStateGraph<T> {
                         });
                     }
                 }
-                NetworkDevice::None(_) => {}
             }
         }
 
