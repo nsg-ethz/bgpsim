@@ -161,13 +161,15 @@ struct VisualizationState {
 
 impl VisualizationState {
     fn new(id: RouterId, state: &State) -> Self {
-        let mut s = Self::default();
-        s.simple = state.features().simple;
-        s.glow = match state.hover() {
-            Hover::Router(r) | Hover::Policy(r, _) if r == id => true,
-            #[cfg(feature = "atomic_bgp")]
-            Hover::AtomicCommand(routers) if routers.contains(&id) => true,
-            _ => false,
+        let mut s = Self {
+            simple: state.features().simple,
+            glow: match state.hover() {
+                Hover::Router(r) | Hover::Policy(r, _) if r == id => true,
+                #[cfg(feature = "atomic_bgp")]
+                Hover::AtomicCommand(routers) if routers.contains(&id) => true,
+                _ => false,
+            },
+            ..Self::default()
         };
         match state.selected() {
             Selected::Router(x, _) if x == id => s.selected = true,

@@ -61,6 +61,7 @@ pub fn MainMenu(props: &Properties) -> Html {
     let (forced_theme, simple_mode, dark_mode) = (s.0, s.1, s.2);
     let url_network = use_state(|| None);
     let file_ref = use_node_ref();
+    #[allow(clippy::type_complexity)]
     let file_listener: UseStateHandle<Option<Closure<dyn Fn(ProgressEvent)>>> = use_state(|| None);
 
     // define all callbacks
@@ -336,8 +337,8 @@ fn rad(x: Location) -> LonLat {
     if lon < 0.0 {
         lon += 360.0;
     }
-    lon = lon * 3.1415926535 / 180.0;
-    lat = lat * 3.1415926535 / 180.0;
+    lon = lon * std::f64::consts::PI / 180.0;
+    lat = lat * std::f64::consts::PI / 180.0;
     LonLat::new(lon, lat)
 }
 
