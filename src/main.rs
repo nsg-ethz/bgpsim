@@ -60,6 +60,23 @@ macro_rules! callback {
     };
 }
 
+/// A macro that essentially makes a closure as follows:
+///
+/// ```ignore
+/// let a = String::new();
+/// move || a.push(1) // `a` does not implement the Copy trait!
+/// clone!(a -> move || a.push(1))
+/// ```
+#[macro_export]
+macro_rules! clone {
+    ( $( $x: ident),* -> $closure:expr ) => {
+        {
+            $(let $x = $x.clone();)*
+            $closure
+        }
+    }
+}
+
 #[function_component(App)]
 fn app() -> Html {
     let header_ref = use_node_ref();

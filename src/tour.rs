@@ -25,7 +25,7 @@ use yewdux::prelude::*;
 use crate::{
     net::Net,
     point::Point,
-    state::{Layer, Selected, State},
+    state::{Layer, Selected, State}, callback, clone,
 };
 
 const STEPS: &[TourStep] = &[
@@ -171,10 +171,8 @@ pub fn Tour() -> Html {
 
     // ensure that the box size is updated
     let help_win_ref = use_node_ref();
-    let help_win_ref_clone = help_win_ref.clone();
-    let box_size = use_reducer_eq(move || BoxSize::new(help_win_ref_clone));
-    let box_size_clone = box_size.clone();
-    use_effect(move || box_size_clone.dispatch(()));
+    let box_size = use_reducer_eq(clone!(help_win_ref -> move || BoxSize::new(help_win_ref)));
+    use_effect(clone!(box_size -> move || box_size.dispatch(())));
 
     if *tour_complete {
         step.set(0);
@@ -312,12 +310,9 @@ pub fn Tour() -> Html {
         .map(|s| html! {<p class="mb-3">{s}</p>})
         .collect();
 
-    let step_c = step.clone();
-    let skip_tour = Callback::from(move |_| step_c.set(STEPS.len()));
-    let step_c = step.clone();
-    let next_step = Callback::from(move |_| step_c.set(*step_c + 1));
-    let step_c = step;
-    let prev_step = Callback::from(move |_| step_c.set(*step_c - 1));
+    let skip_tour = callback!(step -> move |_| step.set(STEPS.len()));
+    let next_step = callback!(step -> move |_| step.set(*step + 1));
+    let prev_step = callback!(step -> move |_| step.set(*step - 1));
 
     html! {
         <>
