@@ -169,8 +169,9 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
     if flash && *new_flash {
         // new flash
         new_flash.set(false);
-        let node: WebElement = node_ref.cast().unwrap();
-        node.scroll_into_view();
+        if let Some(node) = node_ref.cast::<WebElement>() {
+            node.scroll_into_view();
+        }
     } else if !flash && !*new_flash {
         new_flash.set(true);
     }
