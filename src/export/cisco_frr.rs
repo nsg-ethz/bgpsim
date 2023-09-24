@@ -1151,10 +1151,10 @@ fn rm_match_prefix_list<P: Prefix>(rm: &RouteMap<P>) -> Option<P::Set> {
 
     for cond in rm.conds.iter() {
         if let RouteMapMatch::Prefix(pl) = cond {
-            if prefixes.is_none() {
-                prefixes = Some(pl.clone());
+            if let Some(prefixes) = &mut prefixes {
+                prefixes.retain(|p| pl.contains(p));
             } else {
-                prefixes.as_mut().unwrap().retain(|p| pl.contains(p));
+                prefixes = Some(pl.clone())
             }
         }
     }
