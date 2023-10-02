@@ -430,7 +430,6 @@ enum Action {
     ShowQueue,
     #[cfg(feature = "atomic_bgp")]
     ShowMigration,
-    #[cfg(feature = "atomic_bgp")]
     ShowSpecification,
     SelectNothing,
 }

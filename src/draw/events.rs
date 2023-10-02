@@ -16,15 +16,15 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use bgpsim::{
-    bgp::BgpEvent as BgpsimBgpEvent, event::Event, prelude::InteractiveNetwork, types::RouterId,
+    bgp::BgpEvent as BgpsimBgpEvent, event::{Event, EventQueue}, prelude::InteractiveNetwork, types::RouterId,
 };
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::{use_pos, Net, Pfx},
+    net::{use_pos, Net, Pfx, Queue},
     point::Point,
-    state::{Hover, State},
+    state::{Hover, State}, callback,
 };
 
 const BASE_OFFSET: Point = Point { x: -45.0, y: -30.0 };
@@ -90,10 +90,23 @@ struct BgpEventProps {
 fn bgp_event(props: &BgpEventProps) -> Html {
     let (state, dispatch) = use_store::<State>();
     let (src, dst, i) = (props.src, props.dst, props.i);
+    let executable = use_selector_with_deps(|net: &Net, id| is_executable(net.net().queue(), *id), i);
 
     let onmouseenter = dispatch
         .reduce_mut_callback(move |state| state.set_hover(Hover::Message(src, dst, i, true)));
     let onmouseleave = dispatch.reduce_mut_callback(move |state| state.set_hover(Hover::None));
+    let (onclick, mouse_style) = if *executable {
+        (callback!(i -> move |_| {
+            Dispatch::<Net>::new().reduce_mut(move |n| {
+                let mut net = n.net_mut();
+                net.queue_mut().swap_to_front(i);
+                net.simulate_step().unwrap();
+            });
+            Dispatch::<State>::new().reduce_mut(move |s| s.set_hover(Hover::None));
+        }), "cursor-pointer")
+    } else {
+        (callback!(|_| {}), "cursor-not-allowed")
+    };
 
     let hovered = state.hover() == Hover::Message(src, dst, props.i, true)
         || state.hover() == Hover::Message(src, dst, props.i, false);
@@ -114,6 +127,7 @@ fn bgp_event(props: &BgpEventProps) -> Html {
     } else {
         "stroke-red fill-base-2 stroke-2"
     };
+    let frame_class = classes!(frame_class, mouse_style);
 
     let x = props.p.x();
     let y = props.p.y();
@@ -128,7 +142,7 @@ fn bgp_event(props: &BgpEventProps) -> Html {
         let d_plus_2 = format!("M {x} {y} m 16 19 h 6");
         html! {
             <g>
-                <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave}></path>
+                <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave} {onclick}></path>
                 <path {class} fill="none" d={d_lid}></path>
                 <path {class} fill="none" d={d_plus_1}></path>
                 <path {class} fill="none" d={d_plus_2}></path>
@@ -139,7 +153,7 @@ fn bgp_event(props: &BgpEventProps) -> Html {
         let d_x_2 = format!("M {x} {y} m 21 17 -4 4");
         html! {
             <g>
-                <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave}></path>
+                <path class={frame_class} d={d_frame} {onmouseenter} {onmouseleave} {onclick}></path>
                 <path {class} fill="none" d={d_lid}></path>
                 <path {class} fill="none" d={d_x_1}></path>
                 <path {class} fill="none" d={d_x_2}></path>
@@ -159,4 +173,18 @@ fn get_event_pos(p_dst: Point, n: usize, overlap: bool) -> Point {
 fn will_overlap(p_dst: Point, count: usize) -> bool {
     let last = get_event_pos(p_dst, count - 1, false);
     last.x < 0.0 || last.y < 0.0
+}
+
+fn is_executable(queue: &Queue, pos: usize) -> bool {
+    if pos >= queue.len() {
+        return false;
+    }
+    if let Some(Event::Bgp(_, src, dst, _)) = queue.get(pos) {
+        for k in 0..pos {
+            if matches!(queue.get(k), Some(Event::Bgp(_, s, d, _)) if (src, dst) == (s, d)) {
+                return false;
+            }
+        }
+    }
+    true
 }
