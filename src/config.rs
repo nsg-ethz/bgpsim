@@ -1045,7 +1045,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
                         map: rm.clone(),
                     })?;
                 }
-                for rm in r.bgp.get_route_maps(*neighbor, RouteMapDirection::Incoming) {
+                for rm in r.bgp.get_route_maps(*neighbor, RouteMapDirection::Outgoing) {
                     c.add(ConfigExpr::BgpRouteMap {
                         router: rid,
                         neighbor: *neighbor,
