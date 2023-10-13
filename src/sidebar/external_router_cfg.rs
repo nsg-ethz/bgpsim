@@ -52,6 +52,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
     let asid_input_correct = use_state(|| true);
     let prefix_input_correct = use_state(|| true);
     let simple = use_selector(|state: &State| state.features().simple);
+    let show_ospf = use_selector(|state: &State| state.features().ospf);
 
     if !info.exists {
         return html!();
@@ -141,7 +142,9 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
             <Element text={"AS Number"}>
                 <TextField text={as_text} on_change={on_asid_change} on_set={on_asid_set} correct={*asid_input_correct}/>
             </Element>
-            <TopologyCfg router={id} only_internal={true} />
+            if *show_ospf {
+                <TopologyCfg router={id} only_internal={true} />
+            }
             <Divider text={"BGP"} />
             <Element text={"Neighbors"} class={Classes::from("mt-0.5")}>
                 <MultiSelect<RouterId> options={info.bgp_options.clone()} on_add={on_session_add} on_remove={on_session_remove} />
@@ -184,7 +187,7 @@ impl RouterInfo {
                 bgp_options: Vec::new(),
                 routes: Vec::new(),
                 advertised_prefixes: HashSet::new(),
-            }
+            };
         };
 
         let sessions = r.get_bgp_sessions();
@@ -192,7 +195,9 @@ impl RouterInfo {
             .get_topology()
             .node_indices()
             .filter(|r| {
-                *r != id && n.get_internal_router(*r).is_ok() && n.get_topology().contains_edge(id, *r)
+                *r != id
+                    && n.get_internal_router(*r).is_ok()
+                    && n.get_topology().contains_edge(id, *r)
             })
             .map(|r| (r, r.fmt(&n).to_string(), sessions.contains(&r)))
             .collect::<Vec<_>>();

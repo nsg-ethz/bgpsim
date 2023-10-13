@@ -120,7 +120,8 @@ impl Component for Tooltip {
                 let ty = self
                     .net
                     .net()
-                    .get_internal_router(src).ok()
+                    .get_internal_router(src)
+                    .ok()
                     .and_then(|r| r.bgp.get_session_type(dst))
                     .unwrap_or(BgpSessionType::EBgp);
                 let ty = match ty {

@@ -20,7 +20,7 @@ use std::{collections::HashSet, ops::Deref, rc::Rc};
 use bgpsim::{
     formatter::NetworkFormatter,
     prelude::BgpSessionType,
-    types::{RouterId, NetworkDeviceRef},
+    types::{NetworkDeviceRef, RouterId},
 };
 use yew::prelude::*;
 use yewdux::prelude::*;

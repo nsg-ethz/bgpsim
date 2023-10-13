@@ -23,7 +23,7 @@ use crate::{
     draw::arrows::get_curve_point,
     net::{use_pos_pair, Net},
     point::Point,
-    state::{ContextMenu, Hover, State, Selected, Flash},
+    state::{ContextMenu, Flash, Hover, Selected, State},
 };
 
 use super::{arrows::CurvedArrow, SvgColor};

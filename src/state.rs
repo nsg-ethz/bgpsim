@@ -23,7 +23,7 @@ use bgpsim::{
 };
 use gloo_events::EventListener;
 use gloo_timers::callback::Timeout;
-use gloo_utils::{document, window, format::JsValueSerdeExt};
+use gloo_utils::{document, format::JsValueSerdeExt, window};
 use serde::{Deserialize, Serialize};
 use std::rc::Rc;
 use strum_macros::EnumIter;
@@ -53,6 +53,7 @@ pub struct State {
     pub disable_hover: bool,
     flash: Option<Flash>,
     flash_timeout: Mrc<Option<Timeout>>,
+    blog_mode: bool,
 }
 
 impl Default for State {
@@ -70,6 +71,7 @@ impl Default for State {
             disable_hover: false,
             flash: None,
             flash_timeout: Mrc::new(None),
+            blog_mode: false,
         }
     }
 }
@@ -100,6 +102,14 @@ impl Default for Features {
 impl Eq for State {}
 
 impl State {
+    pub fn blog_mode(&self) -> bool {
+        self.blog_mode
+    }
+
+    pub fn set_blog_mode(&mut self, mode: bool) {
+        self.blog_mode = mode
+    }
+
     pub fn features(&self) -> &Features {
         &self.features
     }
@@ -316,10 +326,12 @@ fn theme_message(event: &Event) {
         if let Ok(content) = data.into_serde::<ThemeMessage>() {
             log::info!("Switching theme according to the received event!");
             let dark_mode = content.dark;
-            Dispatch::<State>::new().reduce_mut(move |s| if dark_mode {
-                s.set_dark_mode();
-            } else {
-                s.set_light_mode();
+            Dispatch::<State>::new().reduce_mut(move |s| {
+                if dark_mode {
+                    s.set_dark_mode();
+                } else {
+                    s.set_light_mode();
+                }
             });
         }
     }

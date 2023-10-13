@@ -23,13 +23,16 @@ use bgpsim::{
         RouteMap, RouteMapBuilder,
         RouteMapDirection::{self, Incoming, Outgoing},
     },
-    types::{RouterId, NetworkDeviceRef},
+    types::{NetworkDeviceRef, RouterId},
 };
+use web_sys::Element as WebElement;
 use yew::prelude::*;
 use yewdux::prelude::*;
-use web_sys::Element as WebElement;
 
-use crate::{net::{Net, Pfx}, state::{State, Flash}};
+use crate::{
+    net::{Net, Pfx},
+    state::{Flash, State},
+};
 
 use super::super::{Divider, Element, ExpandableDivider, Select, TextField};
 use super::route_map_item_cfg::RouteMapCfg;
@@ -133,18 +136,19 @@ impl Component for RouteMapsCfg {
             // Handle the flashing
 
             let (in_ref, out_ref) = (self.in_ref.clone(), self.out_ref.clone());
-            let (shown_in, shown_out) = if let Some(Flash::RouteMap(src, _, dir)) = self.state.get_flash() {
-                if src == ctx.props().router {
-                    match dir {
-                        Incoming => (Some(true), None),
-                        Outgoing => (None, Some(true)),
+            let (shown_in, shown_out) =
+                if let Some(Flash::RouteMap(src, _, dir)) = self.state.get_flash() {
+                    if src == ctx.props().router {
+                        match dir {
+                            Incoming => (Some(true), None),
+                            Outgoing => (None, Some(true)),
+                        }
+                    } else {
+                        (None, None)
                     }
                 } else {
                     (None, None)
-                }
-            } else {
-                (None, None)
-            };
+                };
 
             let flash_class = "ring-4 ring-blue ring-offset-4 ring-offset-base-2";
             let normal_class = "w-full p-0 m-0 transition duration-300 ease-in-out rounded-lg";

@@ -22,20 +22,21 @@ use bgpsim::{
     interactive::InteractiveNetwork,
     topology_zoo::TopologyZoo,
 };
+use geoutils::Location;
 use itertools::Itertools;
+use mapproj::{cylindrical::mer::Mer, CenteredProjection, LonLat, Projection};
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::{Blob, FileReader, HtmlElement, HtmlInputElement};
 use yew::prelude::*;
 use yewdux::prelude::*;
-use mapproj::{CenteredProjection, cylindrical::mer::Mer, LonLat, Projection};
-use geoutils::Location;
 
 use crate::{
     callback,
     http_serde::{export_url, import_json_str},
     net::{Net, Queue},
+    point::Point,
     sidebar::Toggle,
-    state::State, point::Point,
+    state::State,
 };
 
 #[derive(Properties, PartialEq)]
@@ -360,7 +361,8 @@ fn import_topology_zoo(topo: TopologyZoo) {
         let mut proj = CenteredProjection::new(Mer::new());
         proj.set_proj_center_from_lonlat(&center);
         for r in net.get_topology().node_indices() {
-            let p = geo.get(&r)
+            let p = geo
+                .get(&r)
                 .map(|pos| rad(*pos))
                 .unwrap_or_else(|| center.clone());
             let xy = proj.proj_lonlat(&p).unwrap();
@@ -393,7 +395,7 @@ fn import_topology_zoo(topo: TopologyZoo) {
 fn import_file(file_ref: NodeRef) -> Option<Closure<dyn Fn(ProgressEvent)>> {
     let Some(file) = file_ref.cast::<HtmlInputElement>() else {
         log::error!("Could not get the input element!");
-        return None
+        return None;
     };
 
     let Some(file_blob) = file.files().and_then(|l| l.get(0)).map(Blob::from) else {

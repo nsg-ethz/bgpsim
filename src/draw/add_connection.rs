@@ -51,7 +51,7 @@ pub fn AddConnection() -> Html {
             Dispatch::<State>::new().reduce_mut(|state| state.disable_hover = false);
             event_callbacks.set(None);
         }
-        return html!{}
+        return html! {};
     };
 
     // add the event listener if necessary

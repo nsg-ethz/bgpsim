@@ -60,8 +60,9 @@ pub fn migration_button() -> Html {
         classes!(badge_class, "bg-blue")
     };
 
-    let onmouseenter = state_dispatch
-        .reduce_mut_callback(|s| s.set_hover(Hover::Help(html! {{"Show the reconfiguration plan."}})));
+    let onmouseenter = state_dispatch.reduce_mut_callback(|s| {
+        s.set_hover(Hover::Help(html! {{"Show the reconfiguration plan."}}))
+    });
     let onmouseleave = state_dispatch.reduce_mut_callback(|s| s.set_hover(Hover::None));
 
     let open_planner = state_dispatch.reduce_mut_callback(|s| s.set_selected(Selected::Migration));

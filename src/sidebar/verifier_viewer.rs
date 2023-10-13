@@ -84,7 +84,7 @@ pub fn property_viewer(props: &PropertyViewerProps) -> Html {
     );
 
     let Some((repr, sat)) = spec.deref().clone() else {
-        return html!()
+        return html!();
     };
     let sym = if sat {
         html!(<yew_lucide::Check class="w-6 h-6 text-green"/>)

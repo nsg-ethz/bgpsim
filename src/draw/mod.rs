@@ -31,8 +31,7 @@ pub mod propagation;
 pub mod router;
 pub mod text;
 
-#[derive(Clone, Copy, PartialEq, Eq, EnumIter, Debug)]
-#[derive(Default)]
+#[derive(Clone, Copy, PartialEq, Eq, EnumIter, Debug, Default)]
 pub enum SvgColor {
     #[default]
     BlueLight,
@@ -48,8 +47,6 @@ pub enum SvgColor {
     Light,
     Dark,
 }
-
-
 
 impl SvgColor {
     pub fn classes(&self) -> Classes {

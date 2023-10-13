@@ -73,7 +73,8 @@ impl Component for TopologyCfg {
             .node_indices()
             .filter(|r| {
                 *r != ctx.props().router
-                    && (!ctx.props().only_internal || self.net.net().get_internal_router(*r).is_ok())
+                    && (!ctx.props().only_internal
+                        || self.net.net().get_internal_router(*r).is_ok())
             })
             .map(|r| (r, r.fmt(&self.net.net()).to_string(), neigh.contains(&r)))
             .collect();

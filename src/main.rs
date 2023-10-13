@@ -33,9 +33,9 @@ use context_menu::Menu;
 use draw::canvas::Canvas;
 use gloo_utils::window;
 use header::Header;
-use http_serde::import_url;
 #[cfg(feature = "atomic_bgp")]
 use http_serde::import_json_str;
+use http_serde::import_url;
 #[cfg(feature = "atomic_bgp")]
 use net::Net;
 use sidebar::Sidebar;
@@ -142,9 +142,9 @@ fn entry() -> Html {
                         "sprint" => {
                             import_json_str(include_str!("../scenarios/sprint_atomic.json"))
                         }
-                        "hibernia" => {
-                            import_json_str(include_str!("../scenarios/hibernia_canada_atomic.json"))
-                        }
+                        "hibernia" => import_json_str(include_str!(
+                            "../scenarios/hibernia_canada_atomic.json"
+                        )),
                         "compuserve" => {
                             import_json_str(include_str!("../scenarios/compuserve_atomic.json"))
                         }

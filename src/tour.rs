@@ -23,9 +23,10 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
+    callback, clone,
     net::Net,
     point::Point,
-    state::{Layer, Selected, State}, callback, clone,
+    state::{Layer, Selected, State},
 };
 
 const STEPS: &[TourStep] = &[
@@ -202,7 +203,11 @@ pub fn Tour() -> Html {
     }
 
     let (highlight, popup_pos, paragraphs) = match current_step {
-        TourStep::Text {paragraphs, actions, ..} => {
+        TourStep::Text {
+            paragraphs,
+            actions,
+            ..
+        } => {
             for action in actions.iter() {
                 action.apply(&net);
             }
@@ -398,7 +403,7 @@ enum TourStep {
 impl TourStep {
     fn is_enabled(&self, net: &std::rc::Rc<Net>) -> bool {
         let chameleon_only = match self {
-            Self::Text{ chameleon_only, ..} => *chameleon_only,
+            Self::Text { chameleon_only, .. } => *chameleon_only,
             Self::Element { chameleon_only, .. } => *chameleon_only,
         };
         #[cfg(feature = "atomic_bgp")]

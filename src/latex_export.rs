@@ -111,7 +111,10 @@ pub fn generate_latex(net: &Net) -> String {
             (
                 r,
                 p.get(&r).cloned().unwrap_or_default(),
-                n.get_device(r).map(|r| r.name()).unwrap_or_default().to_string(),
+                n.get_device(r)
+                    .map(|r| r.name())
+                    .unwrap_or_default()
+                    .to_string(),
             )
         })
         .map(|(r, p, n)| {
@@ -131,7 +134,9 @@ pub fn generate_latex(net: &Net) -> String {
             (
                 r,
                 p.get(&r).cloned().unwrap_or_default(),
-                n.get_device(r).map(|r| r.name().to_string()).unwrap_or_default(),
+                n.get_device(r)
+                    .map(|r| r.name().to_string())
+                    .unwrap_or_default(),
             )
         })
         .map(|(r, p, n)| {

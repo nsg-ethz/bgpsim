@@ -27,7 +27,7 @@ use bgpsim::{
     event::{Event, EventQueue},
     network::Network,
     policies::{FwPolicy, PolicyError},
-    types::{IgpNetwork, NetworkDevice, RouterId, NetworkDeviceRef},
+    types::{IgpNetwork, NetworkDevice, NetworkDeviceRef, RouterId},
 };
 use forceatlas2::{Layout, Nodes, Settings};
 #[cfg(feature = "atomic_bgp")]

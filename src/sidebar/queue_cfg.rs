@@ -172,7 +172,8 @@ pub fn QueueSwapPos(props: &QueueSwapProps) -> Html {
     let bot_ref = props.next_ref.clone();
     let onclick = Callback::from(move |_| {
         // first, get the elements. Top will still be the top element after swapping.
-        let (Some(top), Some(bot)) = (top_ref.cast::<HtmlElement>(), bot_ref.cast::<HtmlElement>()) else {
+        let (Some(top), Some(bot)) = (top_ref.cast::<HtmlElement>(), bot_ref.cast::<HtmlElement>())
+        else {
             return;
         };
         // then, compute the y delta

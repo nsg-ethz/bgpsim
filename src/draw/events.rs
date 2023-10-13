@@ -16,15 +16,19 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use bgpsim::{
-    bgp::BgpEvent as BgpsimBgpEvent, event::{Event, EventQueue}, prelude::InteractiveNetwork, types::RouterId,
+    bgp::BgpEvent as BgpsimBgpEvent,
+    event::{Event, EventQueue},
+    prelude::InteractiveNetwork,
+    types::RouterId,
 };
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
+    callback,
     net::{use_pos, Net, Pfx, Queue},
     point::Point,
-    state::{Hover, State}, callback,
+    state::{Hover, State},
 };
 
 const BASE_OFFSET: Point = Point { x: -45.0, y: -30.0 };
@@ -90,20 +94,24 @@ struct BgpEventProps {
 fn bgp_event(props: &BgpEventProps) -> Html {
     let (state, dispatch) = use_store::<State>();
     let (src, dst, i) = (props.src, props.dst, props.i);
-    let executable = use_selector_with_deps(|net: &Net, id| is_executable(net.net().queue(), *id), i);
+    let executable =
+        use_selector_with_deps(|net: &Net, id| is_executable(net.net().queue(), *id), i);
 
     let onmouseenter = dispatch
         .reduce_mut_callback(move |state| state.set_hover(Hover::Message(src, dst, i, true)));
     let onmouseleave = dispatch.reduce_mut_callback(move |state| state.set_hover(Hover::None));
     let (onclick, mouse_style) = if *executable {
-        (callback!(i -> move |_| {
-            Dispatch::<Net>::new().reduce_mut(move |n| {
-                let mut net = n.net_mut();
-                net.queue_mut().swap_to_front(i);
-                net.simulate_step().unwrap();
-            });
-            Dispatch::<State>::new().reduce_mut(move |s| s.set_hover(Hover::None));
-        }), "cursor-pointer")
+        (
+            callback!(i -> move |_| {
+                Dispatch::<Net>::new().reduce_mut(move |n| {
+                    let mut net = n.net_mut();
+                    net.queue_mut().swap_to_front(i);
+                    net.simulate_step().unwrap();
+                });
+                Dispatch::<State>::new().reduce_mut(move |s| s.set_hover(Hover::None));
+            }),
+            "cursor-pointer",
+        )
     } else {
         (callback!(|_| {}), "cursor-not-allowed")
     };

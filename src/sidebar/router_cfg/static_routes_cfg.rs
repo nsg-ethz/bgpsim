@@ -71,12 +71,7 @@ impl Component for StaticRoutesCfg {
 
         let on_new_sr_change = ctx.link().callback(Msg::NewStaticRouteChange);
         let on_new_sr = ctx.link().callback(Msg::InsertStaticRoute);
-        let static_routes: Vec<_> = r
-            .sr
-            .get_table()
-            .iter()
-            .map(|(k, v)| (*k, *v))
-            .collect();
+        let static_routes: Vec<_> = r.sr.get_table().iter().map(|(k, v)| (*k, *v)).collect();
         let existing_sr: Rc<HashSet<Pfx>> =
             Rc::new(static_routes.iter().map(|(p, _)| *p).collect());
 
