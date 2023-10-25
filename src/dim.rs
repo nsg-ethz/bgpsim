@@ -32,8 +32,8 @@ pub struct Dim {
 impl Default for Dim {
     fn default() -> Self {
         Self {
-            width: 300.0,
-            height: 300.0,
+            width: 600.0,
+            height: 600.0,
             margin_top: 48.0,
         }
     }

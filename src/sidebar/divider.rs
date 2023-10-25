@@ -123,11 +123,20 @@ pub fn expandable_divider(props: &ExpandableDividerProps) -> Html {
 pub struct ExpandableSectionProps {
     pub text: String,
     pub children: Children,
+    pub shown: Option<bool>,
 }
 
 #[function_component(ExpandableSection)]
 pub fn expandable_section(props: &ExpandableSectionProps) -> Html {
+    let given_shown = props.shown;
+    let last_given_shown = use_state(|| None);
     let shown = use_state(|| false);
+    if *last_given_shown != given_shown {
+        last_given_shown.set(given_shown);
+        if let Some(s) = given_shown {
+            shown.set(s);
+        }
+    }
     let onclick = {
         let shown = shown.clone();
         Callback::from(move |_| shown.set(!*shown))

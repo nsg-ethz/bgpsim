@@ -54,8 +54,11 @@ pub fn Canvas(props: &Properties) -> Html {
     let header_ref_1 = props.header_ref.clone();
     let header_ref_2 = props.header_ref.clone();
 
+    let small_mode = use_selector(|state: &State| state.small_mode);
+    log::warn!("small_mode: {small_mode}");
+
     // re-compute the size once
-    use_effect(move || {
+    use_effect_with_deps(move |_| {
         let mt = header_ref_1
             .cast::<HtmlElement>()
             .map(|div| (div.client_height() + div.offset_top()) as f64);
@@ -64,12 +67,10 @@ pub fn Canvas(props: &Properties) -> Html {
             .map(|div| (div.client_width() as f64, div.client_height() as f64));
         if let (Some(mt), Some((w, h))) = (mt, size) {
             Dispatch::<Net>::new().reduce_mut(move |net| {
-                net.dim.margin_top = mt;
-                net.dim.width = w;
-                net.dim.height = h;
+                net.set_dimension(w, h, mt);
             });
         }
-    });
+    }, *small_mode);
 
     let _onresize = use_memo(
         move |()| {
@@ -83,9 +84,7 @@ pub fn Canvas(props: &Properties) -> Html {
                     .map(|div| (div.client_width() as f64, div.client_height() as f64))
                     .unwrap();
                 Dispatch::<Net>::new().reduce_mut(move |net| {
-                    net.dim.margin_top = mt;
-                    net.dim.width = w;
-                    net.dim.height = h;
+                    net.set_dimension(w, h, mt);
                 });
             })
         },

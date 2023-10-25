@@ -4,7 +4,7 @@ import json
 import sys
 
 filename = sys.argv[1]
-ip = "100.0.1.0/24"
+ip = "100.0.0.0/24"
 if len(sys.argv) >= 3:
     ip = sys.argv[2]
 

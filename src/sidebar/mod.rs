@@ -46,19 +46,23 @@ use migration_viewer::MigrationViewer;
 use queue_cfg::QueueCfg;
 use router_cfg::RouterCfg;
 use verifier_viewer::VerifierViewer;
+use gloo_utils::window;
+use gloo_events::EventListener;
 
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::state::{Selected, State};
 
+const SMALL_WIDTH: f64 = 1000.0;
+
 #[function_component]
 pub fn Sidebar() -> Html {
-    let state = use_selector(|state: &State| state.selected());
+    let state = use_selector(|state: &State| (state.selected(), state.small_mode, state.sidebar_shown));
 
     log::debug!("render Sidebar");
 
-    let content = match *state {
+    let content = match state.0 {
         Selected::None | Selected::CreateConnection(_, _, _) => html! {
             <div class="h-full w-full flex flex-col justify-center items-center">
                 <p class="text-main-ia italic"> { "nothing selected!" } </p>
@@ -72,11 +76,71 @@ pub fn Sidebar() -> Html {
         Selected::Verifier => html! { <VerifierViewer /> },
     };
 
-    html! {
-        <div class="w-[30rem] h-full max-h-full pl-3 pr-6 pt-4 pb-8 align-middle overflow-auto">
-            <div class="w-full h-full max-h-full px-4 bg-base-1 shadow-lg flex flex-col rounded-lg overflow-scroll" id="sidebar">
-                { content }
+    let _ = use_effect(|| {
+            // compute it once
+            let win = window();
+            let width = win.inner_width().unwrap().as_f64().unwrap();
+            let small_mode = width < SMALL_WIDTH;
+            Dispatch::<State>::new().reduce_mut(move |state| {
+                state.small_mode = small_mode
+            });
+    });
+
+    let _onresize = use_memo(
+        move |()| {
+            EventListener::new(&window(), "resize", move |_| {
+                let win = window();
+                let width = win.inner_width().unwrap().as_f64().unwrap();
+                let small_mode = width < SMALL_WIDTH;
+                Dispatch::<State>::new().reduce_mut(move |state| {
+                    if state.small_mode != small_mode {
+                        state.small_mode = small_mode;
+                        state.sidebar_shown = false;
+                    }
+                });
+            })
+        },
+        (),
+    );
+
+    if state.1 {
+        let base_class = "absolute z-10 h-full w-[28rem] top-0 right-0 pt-4 pb-4 pr-4 transition duration-300 ease-in-out pointer-events-auto";
+        let class = if state.2 {
+            classes!(base_class)
+        } else {
+            classes!(base_class, "translate-x-[20rem]")
+        };
+
+        let onclick = Dispatch::<State>::new().reduce_mut_callback(|state| state.sidebar_shown = !state.sidebar_shown);
+
+        html! {
+            <>
+                <div class="w-48 h-full max-h-full pl-3 pr-6 align-middle overflow-auto"></div>
+                <div class="absolute w-full h-full overflow-hidden pointer-events-none">
+                    <div {class}>
+                        <div class="w-full max-h-full h-full bg-base-1 shadow-lg rounded-lg " id="sidebar">
+                            <div class="h-full w-full max-h-full flex flex-col overflow-scroll px-4">
+                                { content }
+                            </div>
+                            <div class="absolute bottom-8 -left-5 rounded-full p-2 bg-blue drop-shadow-lg text-base-1 cursor-pointer" {onclick}>
+                                if state.2 {
+                                    <yew_lucide::ChevronRight class="w-6 h-6" />
+                                } else {
+                                    <yew_lucide::ChevronLeft class="w-6 h-6" />
+                                }
+                            </div>
+                        </div>
+                    </div>
+                </div>
+            </>
+        }
+    } else {
+        html! {
+            <div class="w-[30rem] h-full max-h-full pl-3 pr-6 pt-4 pb-8 align-middle overflow-auto">
+                <div class="w-full h-full max-h-full px-4 bg-base-1 shadow-lg flex flex-col rounded-lg overflow-scroll" id="sidebar">
+                    { content }
+                </div>
             </div>
-        </div>
+        }
     }
 }

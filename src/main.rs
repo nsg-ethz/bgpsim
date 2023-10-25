@@ -118,6 +118,14 @@ fn entry() -> Html {
                     }
                 }
 
+                // handle blog mode
+                if params.has("blog") || params.has("b") {
+                    Dispatch::<State>::new().reduce_mut(|s| {
+                        s.set_blog_mode(true);
+                        s.set_tour_complete();
+                    });
+                }
+
                 if let Some(d) = params.get("data") {
                     import_url(d);
                 }
@@ -147,6 +155,9 @@ fn entry() -> Html {
                         )),
                         "compuserve" => {
                             import_json_str(include_str!("../scenarios/compuserve_atomic.json"))
+                        }
+                        "manrs" => {
+                            import_json_str(include_str!("../scenarios/manrs_chameleon.json"))
                         }
                         s => log::error!("Unknown scenario: {s}"),
                     }

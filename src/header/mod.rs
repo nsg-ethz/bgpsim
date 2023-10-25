@@ -24,6 +24,7 @@ mod verifier;
 use std::{collections::HashSet, rc::Rc, str::FromStr};
 
 use bgpsim::types::AsId;
+use gloo_utils::window;
 use strum::IntoEnumIterator;
 use web_sys::HtmlInputElement;
 use yew::prelude::*;
@@ -54,9 +55,13 @@ fn migration_button() -> Html {
 #[function_component(Header)]
 pub fn header(props: &Properties) -> Html {
     let simple = use_selector(|state: &State| state.features().simple);
+    let blog_mode = use_selector(|state: &State| state.blog_mode());
     html! {
         <>
             <MainMenu node_ref={props.node_ref.clone()}/>
+            if *blog_mode {
+                <RefreshButton />
+            }
             <div class="absolute w-full p-4 pointer-events-none flex space-x-6">
                 <div class="ml-20 flex-1 flex space-x-4">
                     if !*simple {
@@ -72,6 +77,18 @@ pub fn header(props: &Properties) -> Html {
                 <InteractivePlayer />
             </div>
         </>
+    }
+}
+
+#[function_component(RefreshButton)]
+fn refresh_button() -> Html {
+    let class = "absolute rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue text-base-1 hover:bg-blue-dark focus:bg-blue active:bg-blue-darker transition duration-150 ease-in-out";
+    let onclick = Callback::from(|_| {
+        window().location().reload().unwrap();
+    });
+
+    html! {
+        <button {class} {onclick}> <yew_lucide::RotateCw class="w-6 h-6" /> </button>
     }
 }
 

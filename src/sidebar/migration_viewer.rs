@@ -144,7 +144,13 @@ pub fn AtomicCommandStageViewer(props: &AtomicCommandStageProps) -> Html {
         title.to_string()
     };
 
-    let stage_shown = use_state(|| Option::<bool>::None);
+    let blog_mode = use_selector(|s: &State| s.blog_mode());
+    let default_expand = if *blog_mode {
+        Some(true)
+    } else {
+        None
+    };
+    let stage_shown = use_state(|| default_expand);
     let button = if let (true, true, Some(text)) = (*active, *executable, button) {
         let shown = stage_shown.clone();
         let onclick = Dispatch::<Net>::new().reduce_mut_callback(move |net| {
@@ -169,7 +175,7 @@ pub fn AtomicCommandStageViewer(props: &AtomicCommandStageProps) -> Html {
         html! {
             <div class="w-full flex">
                 <div class="flex-1"></div>
-                <div class="cursor-pointer underline decoration-base-5 text-base-5 hover:decoration-blue hover:underline-2 hover:text-blue transition duration-150 ease-in-out" {onclick}>{text}</div>
+                <div class="cursor-pointer underline decoration-main-ia text-main-ia hover:decoration-blue hover:underline-2 hover:text-blue transition duration-150 ease-in-out" {onclick}>{text}</div>
             </div>
         }
     } else {
@@ -218,8 +224,16 @@ pub fn AtomicCommandGroupViewer(props: &AtomicCommandGroupProps) -> Html {
         format!("Round {}", major + 1)
     };
 
+    let blog_mode = use_selector(|s: &State| s.blog_mode());
+    let default_expand = if *blog_mode {
+        Some(true)
+    } else {
+        None
+    };
+    let round_shown = use_state(|| default_expand);
+
     html! {
-        <ExpandableSection {text}>
+        <ExpandableSection {text} shown={*round_shown}>
             <div class="flex flex-col space-y-4 pb-4">
                 { content }
             </div>

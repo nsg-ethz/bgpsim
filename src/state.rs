@@ -54,6 +54,8 @@ pub struct State {
     flash: Option<Flash>,
     flash_timeout: Mrc<Option<Timeout>>,
     blog_mode: bool,
+    pub small_mode: bool,
+    pub sidebar_shown: bool
 }
 
 impl Default for State {
@@ -72,6 +74,8 @@ impl Default for State {
             flash: None,
             flash_timeout: Mrc::new(None),
             blog_mode: false,
+            small_mode: false,
+            sidebar_shown: false,
         }
     }
 }
@@ -139,6 +143,7 @@ impl State {
     }
 
     pub fn set_selected(&mut self, selected: Selected) {
+        self.sidebar_shown = true;
         self.selected = selected
     }
 

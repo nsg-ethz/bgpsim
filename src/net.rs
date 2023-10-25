@@ -164,6 +164,12 @@ impl Net {
         self.net.borrow_mut()
     }
 
+    pub fn set_dimension(&mut self, width: f64, height: f64, margin_top: f64) {
+        self.dim.width = width;
+        self.dim.height = height;
+        self.dim.margin_top = margin_top;
+    }
+
     pub fn pos_ref(&self) -> impl Deref<Target = HashMap<RouterId, Point>> + '_ {
         self.pos.borrow()
     }
