@@ -15,6 +15,15 @@
   border: transparent;
 }
 
+:root {
+    font-size: 11px;
+}
+@-moz-document url-prefix() {
+    :root {
+        font-size: 14px;
+    }
+}
+
 @tailwind components;
 @tailwind utilities;
 
