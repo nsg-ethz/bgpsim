@@ -52,7 +52,7 @@ pub fn migration_button() -> Html {
         .sum::<usize>()
         + major;
 
-    let class = "rounded-full z-10 p-2 px-4 drop-shadow hover:drop-shadow-lg bg-base-1 text-main hover:text-main pointer-events-auto ease-in-out duration-150 transition flex flex-row";
+    let class = "rounded-full w-[6.5rem] z-10 p-2 px-4 drop-shadow hover:drop-shadow-lg bg-base-1 text-main hover:text-main pointer-events-auto ease-in-out duration-150 transition flex flex-row";
     let badge_class = "absolute inline-block top-2 right-2 bottom-auto left-auto translate-x-2/4 -translate-y-1/2 scale-x-100 scale-y-100 py-1 px-2.5 text-xs leading-none text-center whitespace-nowrap align-baseline font-bold text-base-1 rounded-full z-10";
     let badge_class = if total == progress {
         classes!(badge_class, "bg-green")

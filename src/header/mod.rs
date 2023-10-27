@@ -94,8 +94,8 @@ fn refresh_button() -> Html {
 
 #[function_component(LayerSelection)]
 fn layer_selection() -> Html {
-    let button_class = "flex flex-1 w-40 rounded-full z-10 p-2 px-4 drop-shadow bg-base-1 text-main hover:text-main transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
-    let content_class = "absolute mt-2 z-10 w-40 flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-base-1 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
+    let button_class = "flex flex-1 w-[10.5rem] rounded-full z-10 p-2 px-4 drop-shadow bg-base-1 text-main hover:text-main transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
+    let content_class = "absolute mt-2 z-10 w-[10.5rem] flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-base-1 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
     let bg_class = "absolute z-10 -top-4 -left-20 h-screen w-screen bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-150 ease-in-out";
 
     let shown = use_state(|| false);
