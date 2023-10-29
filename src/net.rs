@@ -153,22 +153,33 @@ impl Net {
 
         let links = self
             .links
+            .keys()
+            .map(|(a, b)| {
+                if a.to_string() < b.to_string() {
+                    (a.clone(), b.clone())
+                } else {
+                    (b.clone(), a.clone())
+                }
+            })
+            .collect::<HashSet<_>>()
+            .into_iter()
+            .map(|(a, b)| {
+                quote! {
+                    _net.add_link(#a, #b);
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let weights = self
+            .links
             .iter()
             .map(|((src, dst), (weight, _))| {
                 if self.links.contains_key(&(dst.clone(), src.clone())) {
-                    if src > dst {
-                        quote! {
-                            _net.set_link_weight(#src, #dst, #weight).unwrap();
-                        }
-                    } else {
-                        quote! {
-                            _net.add_link(#src, #dst);
-                            _net.set_link_weight(#src, #dst, #weight).unwrap();
-                        }
+                    quote! {
+                        _net.set_link_weight(#src, #dst, #weight).unwrap();
                     }
                 } else {
                     quote! {
-                        _net.add_link(#src, #dst);
                         _net.set_link_weight(#src, #dst, #weight).unwrap();
                         _net.set_link_weight(#dst, #src, #weight).unwrap();
                     }
@@ -251,6 +262,7 @@ impl Net {
                 let mut _net: #ty = ::bgpsim::prelude::Network::new(#queue);
                 #(#nodes)*
                 #(#links)*
+                #(#weights)*
                 #(#sessions)*
                 #(#routes)*
                 #returns
