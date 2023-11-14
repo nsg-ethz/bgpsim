@@ -211,7 +211,7 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
 ///
 /// // let mut net = ...
 /// let original_net = net.clone();
-/// net.retract_external_route(ext, prefix)?;
+/// net.withdraw_external_route(ext, prefix)?;
 /// assert_ne!(net, original_net);
 /// let net = unsafe {
 ///     original_net.partial_clone()

@@ -855,7 +855,7 @@ mod t {
         test_route!(net, *R4, p, [*R4, *R3, *R1, *E1]);
 
         let mut net = original_net;
-        net.retract_external_route(*E4, p).unwrap();
+        net.withdraw_external_route(*E4, p).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);

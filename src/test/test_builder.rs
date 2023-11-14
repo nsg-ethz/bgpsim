@@ -285,7 +285,7 @@ mod t {
         }
 
         // withdraw e1
-        net.retract_external_route(e1, p).unwrap();
+        net.withdraw_external_route(e1, p).unwrap();
 
         let mut fw_state = net.get_forwarding_state();
         for src in net.internal_indices() {
@@ -297,7 +297,7 @@ mod t {
         }
 
         // withdraw e1
-        net.retract_external_route(e2, p).unwrap();
+        net.withdraw_external_route(e2, p).unwrap();
 
         let mut fw_state = net.get_forwarding_state();
         for src in net.internal_indices() {
@@ -309,7 +309,7 @@ mod t {
         }
 
         // withdraw e1
-        net.retract_external_route(e3, p).unwrap();
+        net.withdraw_external_route(e3, p).unwrap();
 
         let mut fw_state = net.get_forwarding_state();
         for src in net.internal_indices() {

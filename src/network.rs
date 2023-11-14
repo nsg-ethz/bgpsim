@@ -703,16 +703,18 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         self.do_queue_maybe_skip()
     }
 
-    /// Retract an external route and let the network converge. The source must be a `RouterId` of
+    /// Withdraw an external route and let the network converge. The source must be a `RouterId` of
     /// an `ExternalRouter`. All current eBGP neighbors will receive a withdraw message.
-    pub fn retract_external_route(
+    ///
+    /// This function will do nothing if the router does not advertise this prefix.
+    pub fn withdraw_external_route(
         &mut self,
         source: RouterId,
         prefix: impl Into<P>,
     ) -> Result<(), NetworkError> {
         let prefix: P = prefix.into();
 
-        debug!("Retract {} on {}", prefix, self.get_device(source)?.name());
+        debug!("Withdraw {} on {}", prefix, self.get_device(source)?.name());
 
         let events = self
             .get_external_router_mut(source)?

@@ -71,7 +71,7 @@ pub fn setup_experiment<Q: EventQueue<P>>(
 
     // execute the event
     net.manual_simulation();
-    net.retract_external_route(withdraw_at, P)?;
+    net.withdraw_external_route(withdraw_at, P)?;
 
     // compute the fw state diff
     let fw_state_after = net.get_forwarding_state();

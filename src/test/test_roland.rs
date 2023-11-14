@@ -72,7 +72,7 @@ fn roland_pacificwave() {
 
         // simulate the event
         let mut recording = net
-            .record(|net| net.retract_external_route(advertisements[0][0], prefix))
+            .record(|net| net.withdraw_external_route(advertisements[0][0], prefix))
             .unwrap();
 
         // check the initial state
@@ -129,7 +129,7 @@ fn roland_pacificwave_manual() {
 
     // execute the event
     t.manual_simulation();
-    t.retract_external_route(advertisements[0][0], prefix)
+    t.withdraw_external_route(advertisements[0][0], prefix)
         .unwrap();
 
     // compute the fw state diff
@@ -220,7 +220,7 @@ fn roland_arpanet() {
 
         // simulate the event
         let mut recording = net
-            .record(|net| net.retract_external_route(advertisements[0][0], prefix))
+            .record(|net| net.withdraw_external_route(advertisements[0][0], prefix))
             .unwrap();
 
         // check the initial state
@@ -279,7 +279,7 @@ fn roland_arpanet_manual() {
     let fw_state_before = t.get_forwarding_state();
 
     // execute the event
-    t.retract_external_route(advertisements[0][0], prefix)
+    t.withdraw_external_route(advertisements[0][0], prefix)
         .unwrap();
 
     // compute the fw state diff
@@ -384,7 +384,7 @@ fn roland_arpanet_complete() {
     let fw_state_before = t.get_forwarding_state();
 
     // execute the function
-    t.retract_external_route(advertisements[0][0], prefix)
+    t.withdraw_external_route(advertisements[0][0], prefix)
         .unwrap();
 
     // get the forwarding state difference and start generating the trace
