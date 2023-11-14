@@ -113,7 +113,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
     let on_route_update = callback!(move |(prefix, route): (Pfx, BgpRoute<Pfx>)| {
         Dispatch::<Net>::new().reduce_mut(move |net| {
             if prefix != route.prefix {
-                let _ = net.net_mut().retract_external_route(id, prefix);
+                let _ = net.net_mut().withdraw_external_route(id, prefix);
             }
             let _ = net.net_mut().advertise_external_route(
                 id,
@@ -126,7 +126,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
     });
     let on_route_delete = callback!(move |prefix| {
         Dispatch::<Net>::new().reduce_mut(move |net| {
-            let _ = net.net_mut().retract_external_route(id, prefix);
+            let _ = net.net_mut().withdraw_external_route(id, prefix);
         })
     });
 
