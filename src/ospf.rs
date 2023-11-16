@@ -373,6 +373,13 @@ pub struct OspfState {
 }
 
 impl OspfState {
+    /// Get an iterator over all internal routers.
+    pub fn routers<'a>(
+        &'a self,
+    ) -> std::iter::Copied<std::collections::hash_map::Keys<'a, RouterId, HashSet<OspfArea>>> {
+        self.lut_router_areas.keys().copied()
+    }
+
     /// Get the set of all OSPF areas that the `router` is part of.
     pub fn get_areas(&self, router: RouterId) -> Option<&HashSet<OspfArea>> {
         self.lut_router_areas.get(&router)

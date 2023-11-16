@@ -1034,7 +1034,7 @@ mod t {
             neighbor: r2,
             direction: Outgoing,
             map: RouteMapBuilder::new()
-                .order(10)
+                .order(50)
                 .deny()
                 .match_community(10)
                 .build(),
