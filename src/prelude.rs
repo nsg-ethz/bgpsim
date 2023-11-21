@@ -19,9 +19,11 @@ pub use crate::bgp::{BgpRoute, BgpSessionType};
 pub use crate::event::BasicEventQueue;
 pub use crate::formatter::NetworkFormatter;
 pub use crate::interactive::InteractiveNetwork;
+pub use crate::builder::NetworkBuilder;
+pub use crate::config::NetworkConfig;
 pub use crate::network::Network;
 pub use crate::record::RecordNetwork;
 pub use crate::types::{
-    AsId, Ipv4Prefix, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix,
+    AsId, Ipv4Prefix, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix, LinkWeight
 };
 pub use bgpsim_macros::*;
