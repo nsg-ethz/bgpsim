@@ -424,6 +424,8 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         }
         // update the forwarding tables and simulate the network.
         self.write_igp_fw_tables()?;
+        self.refresh_bgp_sessions()?;
+        self.do_queue_maybe_skip()?;
 
         self.skip_queue = old_skip_queue;
         Ok(())
@@ -457,6 +459,8 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         }
         // update the forwarding tables and simulate the network.
         self.write_igp_fw_tables()?;
+        self.refresh_bgp_sessions()?;
+        self.do_queue_maybe_skip()?;
 
         self.skip_queue = old_skip_queue;
         Ok(())

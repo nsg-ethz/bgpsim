@@ -36,10 +36,11 @@ use crate::{
 
 use log::*;
 use petgraph::{
-    algo::FloatMeasure,
+    algo::{tarjan_scc, FloatMeasure},
     visit::{EdgeRef, IntoEdgeReferences},
 };
 use serde::{Deserialize, Serialize};
+use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 1_000_000;
@@ -73,6 +74,7 @@ static DEFAULT_STOP_AFTER: usize = 1_000_000;
 ///   if no longest-prefix matching is necessary, or if only a single prefix is simulated.
 /// - `Q`: The kind of [`EventQueue`] used in the network. The queue determines the order in which
 ///   events are processed.
+#[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound(
     serialize = "Q: serde::Serialize",
@@ -82,6 +84,8 @@ pub struct Network<P: Prefix = SimplePrefix, Q = BasicEventQueue<SimplePrefix>> 
     pub(crate) net: IgpNetwork,
     pub(crate) ospf: Ospf,
     pub(crate) routers: HashMap<RouterId, NetworkDevice<P>>,
+    #[serde_as(as = "Vec<(_, _)>")]
+    pub(crate) bgp_sessions: HashMap<(RouterId, RouterId), Option<BgpSessionType>>,
     pub(crate) known_prefixes: P::Set,
     pub(crate) stop_after: Option<usize>,
     pub(crate) queue: Q,
@@ -98,6 +102,7 @@ impl<P: Prefix, Q: Clone> Clone for Network<P, Q> {
             net: self.net.clone(),
             ospf: self.ospf.clone(),
             routers: self.routers.clone(),
+            bgp_sessions: self.bgp_sessions.clone(),
             known_prefixes: self.known_prefixes.clone(),
             stop_after: self.stop_after,
             queue: self.queue.clone(),
@@ -120,6 +125,7 @@ impl<P: Prefix, Q> Network<P, Q> {
             net: IgpNetwork::new(),
             ospf: Ospf::new(),
             routers: HashMap::new(),
+            bgp_sessions: HashMap::new(),
             known_prefixes: Default::default(),
             stop_after: Some(DEFAULT_STOP_AFTER),
             queue,
@@ -172,11 +178,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     }
 
     /// Set the AS ID of an external router.
-    pub fn set_as_id(
-        &mut self,
-        router: RouterId,
-        as_id: AsId,
-    ) -> Result<(), NetworkError> {
+    pub fn set_as_id(&mut self, router: RouterId, as_id: AsId) -> Result<(), NetworkError> {
         self.get_external_router_mut(router)?.set_as_id(as_id);
         Ok(())
     }
@@ -437,6 +439,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             net: self.net,
             ospf: self.ospf,
             routers: self.routers,
+            bgp_sessions: self.bgp_sessions,
             known_prefixes: self.known_prefixes,
             stop_after: self.stop_after,
             queue,
@@ -499,32 +502,12 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             None => Ok((None, None)),
         }?;
 
-        // configure source
-        let events = match self.routers.get_mut(&source).unwrap() {
-            NetworkDevice::InternalRouter(r) => r.bgp.set_session(target, source_type)?.1,
-            NetworkDevice::ExternalRouter(r) if source_type.is_some() => {
-                r.establish_ebgp_session(target)?
-            }
-            NetworkDevice::ExternalRouter(r) => {
-                r.close_ebgp_session(target)?;
-                Vec::new()
-            }
-        };
-        self.enqueue_events(events);
+        // set the bgp sessions locally in the network.
+        self.bgp_sessions.insert((source, target), source_type);
+        self.bgp_sessions.insert((target, source), target_type);
 
-        // configure target
-        let events = match self.routers.get_mut(&target).unwrap() {
-            NetworkDevice::InternalRouter(r) => r.bgp.set_session(source, target_type)?.1,
-            NetworkDevice::ExternalRouter(r) if target_type.is_some() => {
-                r.establish_ebgp_session(source)?
-            }
-            NetworkDevice::ExternalRouter(r) => {
-                r.close_ebgp_session(source)?;
-                Vec::new()
-            }
-        };
-        self.enqueue_events(events);
-
+        // refresh the active BGP sessions in the network
+        self.refresh_bgp_sessions()?;
         self.do_queue_maybe_skip()
     }
 
@@ -548,6 +531,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
 
         // update the forwarding tables and simulate the network.
         self.write_igp_fw_tables()?;
+        self.refresh_bgp_sessions()?;
+        self.do_queue_maybe_skip()?;
 
         Ok(weight)
     }
@@ -572,6 +557,8 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
 
         // update the forwarding tables and simulate the network.
         self.write_igp_fw_tables()?;
+        self.refresh_bgp_sessions()?;
+        self.do_queue_maybe_skip()?;
 
         Ok(old_area)
     }
@@ -645,10 +632,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         prefix: P,
         route: Option<StaticRoute>,
     ) -> Result<Option<StaticRoute>, NetworkError> {
-        Ok(self
-            .get_internal_router_mut(router)?
-            .sr
-            .set(prefix, route))
+        Ok(self.get_internal_router_mut(router)?.sr.set(prefix, route))
     }
 
     /// Enable or disable Load Balancing on a single device in the network.
@@ -754,7 +738,10 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
                 .ok_or(NetworkError::LinkNotFound(router_b, router_a))?,
         );
 
-        self.write_igp_fw_tables()
+        self.write_igp_fw_tables()?;
+        self.refresh_bgp_sessions()?;
+        self.do_queue_maybe_skip()?;
+        Ok(())
     }
 
     /// Remove a router from the network. This operation will remove all connected links and BGP
@@ -767,7 +754,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         let old_stop_after = self.stop_after;
         self.skip_queue = false;
         self.stop_after = None;
-        self.simulate()?;
+        self.do_queue_maybe_skip()?;
 
         // get all IGP and BGP neighbors
         let bgp_neighbors = self.get_device(router)?.bgp_neighbors();
@@ -790,12 +777,16 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
 
         // remove the node from the list
         self.routers.remove(&router);
-
         self.net.remove_node(router);
+
+        // simulate all remaining events
+        self.do_queue_maybe_skip()?;
 
         // reset the network mode
         self.skip_queue = old_skip;
         self.stop_after = old_stop_after;
+
+        // Refresh BGP sessions
 
         Ok(())
     }
@@ -804,13 +795,51 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     // * Local Functions *
     // *******************
 
+    /// Check the connectivity for all BGP sessions, and enable or disable them accordingly. This
+    /// function will enqueue events **without** executing them.
+    pub(crate) fn refresh_bgp_sessions(&mut self) -> Result<(), NetworkError> {
+        // compute the connected components of the network.
+        let mut g = self.net.clone();
+        g.retain_edges(|g, e| g.edge_weight(e).map(|w| w.is_finite()).unwrap_or(false));
+        let scc = tarjan_scc(&g)
+            .into_iter()
+            .enumerate()
+            .flat_map(|(i, c)| c.into_iter().map(move |r| (r, i)))
+            .collect::<HashMap<RouterId, usize>>();
+
+        let effective_sessions: Vec<_> = self
+            .bgp_sessions
+            .iter()
+            .map(|((source, target), ty)| {
+                let source_c = scc.get(source);
+                let target_c = scc.get(target);
+                let reachable = source_c.is_some() && target_c.is_some() && source_c == target_c;
+                (*source, *target, reachable.then_some(*ty).flatten())
+            })
+            .collect();
+
+        for (source, target, ty) in effective_sessions {
+            let events = match self.routers.get_mut(&source) {
+                Some(NetworkDevice::InternalRouter(r)) => r.bgp.set_session(target, ty)?.1,
+                Some(NetworkDevice::ExternalRouter(r)) if ty.is_some() => {
+                    r.establish_ebgp_session(target)?
+                }
+                Some(NetworkDevice::ExternalRouter(r)) => {
+                    r.close_ebgp_session(target)?;
+                    Vec::new()
+                }
+                _ => Vec::new(),
+            };
+            self.enqueue_events(events);
+        }
+        Ok(())
+    }
+
     /// Write the igp forwarding tables for all internal routers. As soon as this is done, recompute
     /// the BGP table. and run the algorithm. This will happen all at once, in a very unpredictable
-    /// manner. If you want to do this more predictable, use `write_ibgp_fw_table`.
+    /// manner.
     ///
-    /// The function returns Ok(true) if all events caused by the igp fw table write are handled
-    /// correctly. Returns Ok(false) if the max number of iterations is exceeded, and returns an
-    /// error if an event was not handled correctly.
+    /// The events are enqueued, but not executed.
     pub(crate) fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
         // compute the ospf state
         let ospf_state = self
@@ -825,7 +854,7 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             events.append(&mut r.write_igp_forwarding_table(&self.net, &ospf_state)?);
         }
         self.enqueue_events(events);
-        self.do_queue_maybe_skip()
+        Ok(())
     }
 
     /// Simulate the network behavior, given the current event queue. This function will execute all
