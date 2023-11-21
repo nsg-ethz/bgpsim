@@ -154,6 +154,8 @@ mod t2 {
             .unwrap();
         let mut ip = addressor(&net);
 
+        println!("{:?}", net.get_device(ext).unwrap().unwrap_external().get_bgp_sessions());
+
         let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
         let cfg = gen.generate_config(&net, &mut ip).unwrap();
         assert_eq!(cfg, include_str!("config_2n.ini"));

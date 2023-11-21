@@ -42,7 +42,7 @@ mod t {
             .unwrap();
 
         let clone: Network<P, BasicEventQueue<P>> = from_str(&to_string(&net).unwrap()).unwrap();
-        assert_eq!(net, clone);
+        assert!(net == clone);
     }
 
     #[instantiate_tests(<SinglePrefix>)]

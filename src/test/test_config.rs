@@ -410,9 +410,6 @@ mod t2 {
             c.apply_modifier(&Remove(bgp_session!(r0, r1, IBgpPeer)))
                 .unwrap_err();
             assert_eq!(c.len(), 1);
-            c.apply_modifier(&Remove(bgp_session!(r1, r0, EBgp)))
-                .unwrap_err();
-            assert_eq!(c.len(), 1);
             c.apply_modifier(&Remove(bgp_session!(r0, r1, EBgp)))
                 .unwrap();
             assert_eq!(c.len(), 0);

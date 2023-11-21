@@ -44,6 +44,7 @@ mod t {
     fn test_build_ibgp_full_mesh<P: Prefix>() {
         for n in [0, 1, 10] {
             let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), n);
+            net.build_link_weights(constant_link_weight, 1.0).unwrap();
             net.build_ibgp_full_mesh().unwrap();
             for r in net.device_indices().detach() {
                 for other in net.device_indices().detach() {
@@ -69,6 +70,7 @@ mod t {
     fn test_build_ibgp_rr<P: Prefix>() {
         for n in [0, 1, 10] {
             let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), n);
+            net.build_link_weights(constant_link_weight, 1.0).unwrap();
             let rrs = net
                 .build_ibgp_route_reflection(k_highest_degree_nodes, 3)
                 .unwrap();
@@ -150,6 +152,7 @@ mod t {
         let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
+        net.build_link_weights(constant_link_weight, 1.0).unwrap();
         let r_last = net.add_external_router("test", AsId(1000));
         net.build_ebgp_sessions().unwrap();
         for id in net.external_indices() {

@@ -81,7 +81,7 @@ macro_rules! test_bad_route {
         );
         pretty_assertions::assert_eq!(acq, exp)
     };
-    (black_hole, $n: expr, $source: expr, $prefix: expr, black_hole, $exp: expr) => {
+    (black_hole, $n: expr, $source: expr, $prefix: expr, $exp: expr) => {
         let exp = crate::test::path_result_str(
             Err(crate::types::NetworkError::ForwardingBlackHole(
                 $exp.to_vec(),
@@ -102,6 +102,7 @@ mod test_config;
 mod test_export;
 mod test_forwarding_state;
 mod test_network;
+mod test_link_failure;
 mod test_network_complete;
 mod test_network_config;
 mod test_ospf;

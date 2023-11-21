@@ -303,7 +303,7 @@ impl<P: Prefix> PartialEq for Config<P> {
 
 /// # Single configuration expression
 /// The expression sets a specific thing in the network.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
 pub enum ConfigExpr<P: Prefix> {
     /// Sets the link weight of a single link (directional)
@@ -363,6 +363,95 @@ pub enum ConfigExpr<P: Prefix> {
         /// Router where to enable the load balancing
         router: RouterId,
     },
+}
+
+impl<P: Prefix + PartialEq> PartialEq for ConfigExpr<P> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (
+                ConfigExpr::IgpLinkWeight {
+                    source: s1,
+                    target: t1,
+                    weight: w1,
+                },
+                ConfigExpr::IgpLinkWeight {
+                    source: s2,
+                    target: t2,
+                    weight: w2,
+                },
+            ) => (s1, t1, w1) == (s2, t2, w2),
+            (
+                ConfigExpr::OspfArea {
+                    source: s1,
+                    target: t1,
+                    area: a1,
+                },
+                ConfigExpr::OspfArea {
+                    source: s2,
+                    target: t2,
+                    area: a2,
+                },
+            ) => (s1, t1, a1) == (s2, t2, a2),
+            (
+                ConfigExpr::BgpSession {
+                    source: s1,
+                    target: t1,
+                    session_type: ty1,
+                },
+                ConfigExpr::BgpSession {
+                    source: s2,
+                    target: t2,
+                    session_type: ty2,
+                },
+            ) => match (ty1, ty2) {
+                (BgpSessionType::IBgpPeer, BgpSessionType::IBgpPeer)
+                | (BgpSessionType::EBgp, BgpSessionType::EBgp) => {
+                    (s1, t1) == (s2, t2) || (s1, t1) == (t2, s2)
+                }
+                (BgpSessionType::IBgpClient, BgpSessionType::IBgpClient) => (s1, t1) == (s2, t2),
+                (BgpSessionType::IBgpClient, BgpSessionType::IBgpPeer) => (s1, t1) == (t2, s2),
+                (BgpSessionType::IBgpPeer, BgpSessionType::IBgpClient) => (s1, t1) == (t2, s2),
+                _ => false,
+            },
+            (
+                ConfigExpr::BgpRouteMap {
+                    router: r1,
+                    neighbor: n1,
+                    direction: d1,
+                    map: m1,
+                },
+                ConfigExpr::BgpRouteMap {
+                    router: r2,
+                    neighbor: n2,
+                    direction: d2,
+                    map: m2,
+                },
+            ) => (r1, n1, d1, m1) == (r2, n2, d2, m2),
+            (
+                ConfigExpr::StaticRoute {
+                    router: r1,
+                    prefix: p1,
+                    target: t1,
+                },
+                ConfigExpr::StaticRoute {
+                    router: r2,
+                    prefix: p2,
+                    target: t2,
+                },
+            ) => (r1, p1, t1) == (r2, p2, t2),
+            (
+                ConfigExpr::LoadBalancing { router: r1 },
+                ConfigExpr::LoadBalancing { router: r2 },
+            ) => r1 == r2,
+            // Here, we match explicitly all other types, so that we never forget adding a new one!
+            (ConfigExpr::IgpLinkWeight { .. }, _)
+            | (ConfigExpr::OspfArea { .. }, _)
+            | (ConfigExpr::BgpSession { .. }, _)
+            | (ConfigExpr::BgpRouteMap { .. }, _)
+            | (ConfigExpr::StaticRoute { .. }, _)
+            | (ConfigExpr::LoadBalancing { .. }, _) => false
+        }
+    }
 }
 
 impl<P: Prefix> ConfigExpr<P> {
@@ -996,44 +1085,53 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
             }
         }
 
-        // get all BGP sessions, all route maps and all static routes
+        // get all BGP sessions
+        for ((source, target), session_type) in &self.bgp_sessions {
+            // skip removed sessions.
+            let Some(session_type) = session_type else {
+                continue;
+            };
+
+            let (src, dst, session_type) = (*source, *target, *session_type);
+
+            // try to add the session to the configuration.
+            match c.add(ConfigExpr::BgpSession {
+                source: src,
+                target: dst,
+                session_type,
+            }) {
+                Ok(_) => {}
+                Err(ConfigError::ConfigExprOverload) => {
+                    let Some(ConfigExpr::BgpSession {
+                        source,
+                        target,
+                        session_type: old_session,
+                    }) = c.get_mut(ConfigExprKey::BgpSession {
+                        speaker_a: src,
+                        speaker_b: dst,
+                    })
+                    else {
+                        unreachable!()
+                    };
+
+                    if *old_session == BgpSessionType::IBgpPeer
+                        && session_type == BgpSessionType::IBgpClient
+                    {
+                        std::mem::swap(source, target);
+                        *old_session = BgpSessionType::IBgpClient;
+                    } else if *old_session == BgpSessionType::IBgpClient
+                        && session_type == BgpSessionType::IBgpClient
+                    {
+                        return Err(NetworkError::InconsistentBgpSession(src, dst));
+                    }
+                }
+                Err(ConfigError::ConfigModifier) => unreachable!(),
+            }
+        }
+
+        // get all route maps and all static routes
         for r in self.internal_routers() {
             let rid = r.router_id();
-
-            for (neighbor, session_type) in r.bgp.get_sessions() {
-                match c.add(ConfigExpr::BgpSession {
-                    source: rid,
-                    target: *neighbor,
-                    session_type: *session_type,
-                }) {
-                    Ok(_) => {}
-                    Err(ConfigError::ConfigExprOverload) => {
-                        if let Some(ConfigExpr::BgpSession {
-                            source,
-                            target,
-                            session_type: old_session,
-                        }) = c.get_mut(ConfigExprKey::BgpSession {
-                            speaker_a: rid,
-                            speaker_b: *neighbor,
-                        }) {
-                            if *old_session == BgpSessionType::IBgpPeer
-                                && *session_type == BgpSessionType::IBgpClient
-                            {
-                                // remove the old key and add the new one
-                                std::mem::swap(source, target);
-                                *old_session = BgpSessionType::IBgpClient;
-                            } else if *old_session == BgpSessionType::IBgpClient
-                                && *session_type == BgpSessionType::IBgpClient
-                            {
-                                return Err(NetworkError::InconsistentBgpSession(rid, *neighbor));
-                            }
-                        } else {
-                            unreachable!()
-                        }
-                    }
-                    Err(ConfigError::ConfigModifier) => unreachable!(),
-                }
-            }
 
             // get all route-maps
             for neighbor in r.bgp.get_sessions().keys() {
