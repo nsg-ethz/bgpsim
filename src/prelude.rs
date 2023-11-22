@@ -16,14 +16,14 @@
 //! Convenience re-export of common members.
 
 pub use crate::bgp::{BgpRoute, BgpSessionType};
-pub use crate::event::BasicEventQueue;
-pub use crate::formatter::NetworkFormatter;
-pub use crate::interactive::InteractiveNetwork;
 pub use crate::builder::NetworkBuilder;
 pub use crate::config::NetworkConfig;
+pub use crate::event::{BasicEventQueue, EventQueue};
+pub use crate::formatter::NetworkFormatter;
+pub use crate::interactive::InteractiveNetwork;
 pub use crate::network::Network;
 pub use crate::record::RecordNetwork;
 pub use crate::types::{
-    AsId, Ipv4Prefix, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix, LinkWeight
+    AsId, Ipv4Prefix, LinkWeight, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix,
 };
 pub use bgpsim_macros::*;
