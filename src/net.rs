@@ -24,9 +24,11 @@ use std::{
 pub use bgpsim::types::Ipv4Prefix as Pfx;
 use bgpsim::{
     bgp::{BgpRoute, BgpSessionType},
+    config::ConfigExpr,
     event::{Event, EventQueue},
     network::Network,
     policies::{FwPolicy, PolicyError},
+    prelude::NetworkConfig,
     types::{IgpNetwork, NetworkDevice, NetworkDeviceRef, RouterId},
 };
 use forceatlas2::{Layout, Nodes, Settings};
@@ -247,32 +249,33 @@ impl Net {
             && self.migration_major().map(|x| x == step).unwrap_or(false)
     }
 
-    pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType)> {
+    /// Return all BGP sessions of the network. The final bool describes whether the session
+    /// is active or inactive.
+    pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType, bool)> {
         let net_borrow = self.net.borrow();
         let net = net_borrow.deref();
-        net.internal_indices()
-            .flat_map(|src| {
-                net.get_internal_router(src)
-                    .unwrap()
-                    .bgp
-                    .get_sessions()
-                    .iter()
-                    .map(|(target, ty)| (*target, *ty))
-                    .filter_map(move |(dst, ty)| {
-                        if ty == BgpSessionType::IBgpPeer {
-                            net.get_internal_router(dst)
-                                .ok()
-                                .and_then(|d| d.bgp.get_session_type(src))
-                                .and_then(|other_ty| match other_ty {
-                                    BgpSessionType::IBgpPeer if src.index() > dst.index() => {
-                                        Some((src, dst, BgpSessionType::IBgpPeer))
-                                    }
-                                    _ => None,
-                                })
-                        } else {
-                            Some((src, dst, ty))
-                        }
-                    })
+        let config = net.get_config().unwrap();
+        config
+            .expr
+            .into_values()
+            .filter_map(|e| match e {
+                ConfigExpr::BgpSession {
+                    source,
+                    target,
+                    session_type,
+                } => Some((source, target, session_type)),
+                _ => None,
+            })
+            .map(|(src, dst, ty)| {
+                (
+                    src,
+                    dst,
+                    ty,
+                    net.get_device(src)
+                        .ok()
+                        .and_then(|r| r.bgp_session_type(dst))
+                        .is_some(),
+                )
             })
             .collect()
     }

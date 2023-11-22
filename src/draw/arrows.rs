@@ -119,6 +119,8 @@ pub struct CurvedArrowProps {
     pub sub_radius: bool,
     #[prop_or_default]
     pub bidirectional: bool,
+    #[prop_or_default]
+    pub weak: bool,
     pub on_mouse_enter: Option<Callback<MouseEvent>>,
     pub on_mouse_leave: Option<Callback<MouseEvent>>,
     pub on_click: Option<Callback<MouseEvent>>,
@@ -138,8 +140,9 @@ pub fn curved_arrow(props: &CurvedArrowProps) -> Html {
         }
     );
     let rev_marker_end = marker_end.clone();
+    let width = if props.weak { "stroke-2" } else { "stroke-4" };
     let class = classes! {
-        "stroke-current", "stroke-4", "drop-shadows-md", "peer-hover:drop-shadows-lg", "pointer-events-none",
+        "stroke-current", width, "drop-shadows-md", "peer-hover:drop-shadows-lg", "pointer-events-none",
         "transition-svg", "duration-150", "ease-in-out", "peer-hover:stroke-6",
         props.color.peer_classes(),
         props.class.clone().unwrap_or_default(),

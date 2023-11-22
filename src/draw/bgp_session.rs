@@ -33,6 +33,7 @@ pub struct Properties {
     pub src: RouterId,
     pub dst: RouterId,
     pub session_type: BgpSessionType,
+    pub active: bool,
 }
 
 #[function_component]
@@ -40,11 +41,13 @@ pub fn BgpSession(props: &Properties) -> Html {
     let (src, dst) = (props.src, props.dst);
 
     let (p1, p2) = use_pos_pair(src, dst);
-    let color = match props.session_type {
-        BgpSessionType::IBgpPeer => SvgColor::BlueLight,
-        BgpSessionType::IBgpClient => SvgColor::PurpleLight,
-        BgpSessionType::EBgp => SvgColor::RedLight,
+    let color = match (props.session_type, props.active) {
+        (_, false) => SvgColor::Gray,
+        (BgpSessionType::IBgpPeer, _) => SvgColor::BlueLight,
+        (BgpSessionType::IBgpClient, _) => SvgColor::PurpleLight,
+        (BgpSessionType::EBgp, _) => SvgColor::RedLight,
     };
+    let weak = !props.active;
 
     let simple = use_selector(|state: &State| state.features().simple);
 
@@ -70,7 +73,7 @@ pub fn BgpSession(props: &Properties) -> Html {
 
     html! {
         <>
-            <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} {on_context_menu} {bidirectional} />
+            <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {on_mouse_enter} {on_mouse_leave} {on_click} {on_context_menu} {bidirectional} {weak} />
             <RouteMap id={src} peer={dst} direction={RouteMapDirection::Incoming} angle={15.0} />
             <RouteMap id={src} peer={dst} direction={RouteMapDirection::Outgoing} angle={15.0} />
             <RouteMap id={dst} peer={src} direction={RouteMapDirection::Incoming} angle={-15.0} />

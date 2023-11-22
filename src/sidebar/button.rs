@@ -63,7 +63,8 @@ impl Component for Button {
             | Some(SvgColor::RedDark)
             | Some(SvgColor::YellowDark)
             | Some(SvgColor::Light)
-            | Some(SvgColor::Dark) => todo!(),
+            | Some(SvgColor::Dark)
+            | Some(SvgColor::Gray) => todo!(),
             None => Classes::from("bg-base-1 text-main border-base-5 focus:border-blue"),
         };
         let class = classes!(

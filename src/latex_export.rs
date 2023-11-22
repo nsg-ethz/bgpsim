@@ -192,7 +192,8 @@ pub fn generate_latex(net: &Net) -> String {
     let bgp_sessions = net
         .get_bgp_sessions()
         .into_iter()
-        .map(|(src, dst, ty)| {
+        .filter(|(_, _, _, active)| *active)
+        .map(|(src, dst, ty, _)| {
             format!(
                 r"    \draw[{}] (r{}) to[bend left=20] (r{});",
                 match ty {

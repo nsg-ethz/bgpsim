@@ -222,7 +222,7 @@ pub fn CanvasBgpConfig() -> Html {
     match state.as_ref() {
         Layer::Bgp => sessions
             .iter()
-            .map(|(a, b, k)| html!(<BgpSession src={*a} dst={*b} session_type={*k} />))
+            .map(|(a, b, k, active)| html!(<BgpSession src={*a} dst={*b} session_type={*k} active={*active} />))
             .collect(),
         _ => html!(),
     }

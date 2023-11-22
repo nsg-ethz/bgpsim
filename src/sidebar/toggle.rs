@@ -55,7 +55,7 @@ impl Component for Toggle {
             SvgColor::YellowLight | SvgColor::YellowDark => {
                 "peer-checked:bg-yellow peer-checked:hover:bg-yellow-dark"
             }
-            SvgColor::Light | SvgColor::Dark => "peer-checked:bg-base-4 peer-checked:hover:bg-main",
+            SvgColor::Light | SvgColor::Dark | SvgColor::Gray => "peer-checked:bg-base-4 peer-checked:hover:bg-main",
         };
         let unchecked_class = match ctx.props().unchecked_color.unwrap_or(SvgColor::Light) {
             SvgColor::BlueLight | SvgColor::BlueDark => "bg-blue hover:bg-blue-dark",
@@ -63,7 +63,7 @@ impl Component for Toggle {
             SvgColor::GreenLight | SvgColor::GreenDark => "bg-green hover:bg-green-dark",
             SvgColor::RedLight | SvgColor::RedDark => "bg-red hover:bg-red-dark",
             SvgColor::YellowLight | SvgColor::YellowDark => "bg-yellow hover:bg-yellow-dark",
-            SvgColor::Light | SvgColor::Dark => "bg-base-4 hover:bg-base-5",
+            SvgColor::Light | SvgColor::Dark | SvgColor::Gray => "bg-base-4 hover:bg-base-5",
         };
         let class = classes!(
             "w-11",

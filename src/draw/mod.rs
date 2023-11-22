@@ -46,6 +46,7 @@ pub enum SvgColor {
     YellowDark,
     Light,
     Dark,
+    Gray,
 }
 
 impl SvgColor {
@@ -63,6 +64,7 @@ impl SvgColor {
             SvgColor::YellowDark => classes! {"text-yellow-dark", "hover:text-yellow-dark"},
             SvgColor::Light => classes! {"text-main-ia", "hover:text-main-ia"},
             SvgColor::Dark => classes! {"text-main", "hover:text-main-ia"},
+            SvgColor::Gray => classes! {"text-base-4", "hover:text-text-base-5"},
         }
     }
 
@@ -80,6 +82,7 @@ impl SvgColor {
             SvgColor::YellowDark => classes! {"text-yellow-dark", "peer-hover:text-yellow-dark"},
             SvgColor::Light => classes! {"text-main-ia", "peer-hover:text-main-ia"},
             SvgColor::Dark => classes! {"text-main", "peer-hover:text-main-ia"},
+            SvgColor::Gray => classes! {"text-base-4", "peer-hover:text-base-5"},
         }
     }
 
@@ -97,6 +100,7 @@ impl SvgColor {
             SvgColor::YellowDark => "arrow-tip-yellow-dark",
             SvgColor::Light => "arrow-tip-base-5",
             SvgColor::Dark => "arrow-tip-main",
+            SvgColor::Gray => "arrow-tip-gray",
         }
     }
 
@@ -114,6 +118,7 @@ impl SvgColor {
             SvgColor::YellowDark => "arrow-tip-yellow-dark",
             SvgColor::Light => "arrow-tip-main",
             SvgColor::Dark => "arrow-tip-main",
+            SvgColor::Gray => "arrow-tip-gray",
         }
     }
 }

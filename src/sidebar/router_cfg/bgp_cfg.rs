@@ -208,7 +208,7 @@ fn get_sessions(
     let mut bgp_sessions: Vec<(RouterId, String, BgpSessionTypeSymmetric)> = net
         .get_bgp_sessions()
         .into_iter()
-        .filter_map(|(src, dst, ty)| match ty {
+        .filter_map(|(src, dst, ty, _)| match ty {
             BgpSessionType::IBgpPeer if src == router => Some((
                 dst,
                 dst.fmt(n).to_string(),
