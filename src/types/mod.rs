@@ -17,8 +17,7 @@
 
 use crate::formatter::NetworkFormatter;
 use crate::{
-    bgp::BgpSessionType, external_router::ExternalRouter, network::Network,
-    router::Router,
+    bgp::BgpSessionType, external_router::ExternalRouter, network::Network, router::Router,
 };
 use itertools::Itertools;
 use petgraph::prelude::*;
@@ -370,6 +369,18 @@ impl<'a, P: Prefix> NetworkDeviceRef<'a, P> {
                 .iter()
                 .map(|r| (*r, BgpSessionType::EBgp))
                 .collect(),
+        }
+    }
+
+    /// Get the BGP session type to a neighbor. If the session does not exist, or the two routers
+    /// cannot communicate (i.e., the session is inactive), then `None` is returned.
+    pub fn bgp_session_type(&self, neighbor: RouterId) -> Option<BgpSessionType> {
+        match self {
+            NetworkDeviceRef::InternalRouter(r) => r.bgp.get_session_type(neighbor),
+            NetworkDeviceRef::ExternalRouter(r) => r
+                .get_bgp_sessions()
+                .contains(&neighbor)
+                .then_some(BgpSessionType::EBgp),
         }
     }
 }
