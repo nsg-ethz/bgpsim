@@ -32,7 +32,10 @@ use bgpsim::{
     topology_zoo::TopologyZoo,
     types::{IgpNetwork, NetworkDevice, NetworkDeviceRef, RouterId},
 };
-use forceatlas2::{Layout, Nodes, Settings};
+
+use fdg_sim::{
+    glam::Vec3, Dimensions, ForceGraph, ForceGraphHelper, Simulation, SimulationParameters,
+};
 #[cfg(feature = "atomic_bgp")]
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -318,45 +321,52 @@ impl Net {
             let net = self.net.borrow();
             let mut pos_borrow = self.pos.borrow_mut();
             let pos = pos_borrow.deref_mut();
-            // while self.spring_step() {}
             let g = net.get_topology();
-            let edges = g
-                .edge_indices()
-                .map(|e| g.edge_endpoints(e).unwrap())
-                .map(|(a, b)| (a.index(), b.index()))
-                .filter(|(a, b)| a < b)
-                .collect();
-            let num_nodes = g
+
+            let mut force_graph: ForceGraph<(), ()> = ForceGraph::default();
+            let node_lut = g
                 .node_indices()
-                .map(|x| x.index())
-                .max()
-                .map(|x| x + 2)
-                .unwrap_or(0);
-            let nodes = Nodes::Degree(num_nodes);
-            let settings = Settings {
-                chunk_size: None,
-                dimensions: 2,
-                dissuade_hubs: false,
-                ka: 1.0,
-                kg: 1.0,
-                kr: 1.0,
-                lin_log: false,
-                prevent_overlapping: None,
-                speed: 0.01,
-                strong_gravity: false,
-            };
-            let mut layout: Layout<f64> = Layout::from_graph(edges, nodes, None, None, settings);
+                .map(|x| {
+                    if let Some(pos) = pos.get(&x) {
+                        (
+                            x,
+                            force_graph.add_force_node_with_coords(
+                                x.index().to_string(),
+                                (),
+                                Vec3 {
+                                    x: pos.x as f32,
+                                    y: pos.y as f32,
+                                    z: 0f32,
+                                },
+                            ),
+                        )
+                    } else {
+                        (x, force_graph.add_force_node(x.index().to_string(), ()))
+                    }
+                })
+                .collect::<HashMap<_, _>>();
+            g.edge_indices()
+                .filter_map(|e| g.edge_endpoints(e))
+                .map(|(a, b)| (node_lut[&a], node_lut[&b]))
+                .for_each(|(a, b)| {
+                    force_graph.add_edge(a, b, ());
+                });
+            let mut params = SimulationParameters::default();
+            params.dimensions = Dimensions::Two;
+            let mut simulation = Simulation::from_graph(force_graph, params);
 
             for _ in 0..N_ITER {
-                layout.iteration();
+                simulation.update(0.035);
             }
 
-            for (r, p) in pos.iter_mut() {
-                let computed_points = layout.points.get(r.index());
-                p.x = computed_points[0];
-                p.y = computed_points[1];
+            let result_graph = simulation.get_graph();
+            for n in result_graph.node_weights() {
+                let r = RouterId::from(n.name.parse::<u32>().unwrap());
+                let p = n.location;
+                let p = Point::new(p.x as f64, p.y as f64);
+                pos.insert(r, p);
             }
-        };
+        }
 
         self.topology_zoo = None;
         self.normalize_pos();
