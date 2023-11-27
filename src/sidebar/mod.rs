@@ -115,7 +115,7 @@ pub fn Sidebar() -> Html {
 
         html! {
             <>
-                <div class="w-48 h-full max-h-full pl-3 pr-6 align-middle overflow-auto"></div>
+                <div class="w-[8.5rem] h-full max-h-full pl-3 pr-6 align-middle overflow-auto"></div>
                 <div class="absolute w-full h-full overflow-hidden pointer-events-none">
                     <div {class}>
                         <div class="w-full max-h-full h-full bg-base-0 shadow-lg rounded-lg " id="sidebar">
