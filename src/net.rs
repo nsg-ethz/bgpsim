@@ -29,6 +29,7 @@ use bgpsim::{
     network::Network,
     policies::{FwPolicy, PolicyError},
     prelude::NetworkConfig,
+    topology_zoo::TopologyZoo,
     types::{IgpNetwork, NetworkDevice, NetworkDeviceRef, RouterId},
 };
 use forceatlas2::{Layout, Nodes, Settings};
@@ -128,6 +129,7 @@ pub struct Net {
     pub pos: Mrc<HashMap<RouterId, Point>>,
     pub spec: Mrc<HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>>,
     pub dim: Dim,
+    pub topology_zoo: Option<TopologyZoo>,
     recorder: Option<Network<Pfx, Queue>>,
     speed: Mrc<HashMap<RouterId, Point>>,
     #[cfg(feature = "atomic_bgp")]
@@ -143,6 +145,7 @@ impl Default for Net {
             pos: Default::default(),
             spec: Default::default(),
             dim: Default::default(),
+            topology_zoo: None,
             #[cfg(feature = "atomic_bgp")]
             migration: Default::default(),
             #[cfg(feature = "atomic_bgp")]
@@ -153,9 +156,7 @@ impl Default for Net {
     }
 }
 
-const BATCH: usize = 100;
-const SMOL: f64 = 0.00001;
-const MAX_N_ITER: usize = 1000;
+const N_ITER: usize = 1000;
 
 impl Net {
     pub fn net(&self) -> impl Deref<Target = Network<Pfx, Queue>> + '_ {
@@ -167,9 +168,7 @@ impl Net {
     }
 
     pub fn set_dimension(&mut self, width: f64, height: f64, margin_top: f64) {
-        self.dim.width = width;
-        self.dim.height = height;
-        self.dim.margin_top = margin_top;
+        self.dim.set_dimensions(width, height, margin_top);
     }
 
     pub fn pos_ref(&self) -> impl Deref<Target = HashMap<RouterId, Point>> + '_ {
@@ -315,153 +314,83 @@ impl Net {
     }
 
     pub fn spring_layout(&mut self) {
-        let net = self.net.borrow();
-        let mut pos_borrow = self.pos.borrow_mut();
-        let pos = pos_borrow.deref_mut();
-        // while self.spring_step() {}
-        let g = net.get_topology();
-        let edges = g
-            .edge_indices()
-            .map(|e| g.edge_endpoints(e).unwrap())
-            .map(|(a, b)| (a.index(), b.index()))
-            .filter(|(a, b)| a < b)
-            .collect();
-        let num_nodes = g
-            .node_indices()
-            .map(|x| x.index())
-            .max()
-            .map(|x| x + 1)
-            .unwrap_or(0);
-        let nodes = Nodes::Degree(num_nodes);
-        let settings = Settings {
-            chunk_size: None,
-            dimensions: 2,
-            dissuade_hubs: false,
-            ka: 1.0,
-            kg: 1.0,
-            kr: 1.0,
-            lin_log: false,
-            prevent_overlapping: None,
-            speed: 0.01,
-            strong_gravity: false,
-        };
-        let mut layout: Layout<f64> = Layout::from_graph(edges, nodes, None, None, settings);
+        {
+            let net = self.net.borrow();
+            let mut pos_borrow = self.pos.borrow_mut();
+            let pos = pos_borrow.deref_mut();
+            // while self.spring_step() {}
+            let g = net.get_topology();
+            let edges = g
+                .edge_indices()
+                .map(|e| g.edge_endpoints(e).unwrap())
+                .map(|(a, b)| (a.index(), b.index()))
+                .filter(|(a, b)| a < b)
+                .collect();
+            let num_nodes = g
+                .node_indices()
+                .map(|x| x.index())
+                .max()
+                .map(|x| x + 2)
+                .unwrap_or(0);
+            let nodes = Nodes::Degree(num_nodes);
+            let settings = Settings {
+                chunk_size: None,
+                dimensions: 2,
+                dissuade_hubs: false,
+                ka: 1.0,
+                kg: 1.0,
+                kr: 1.0,
+                lin_log: false,
+                prevent_overlapping: None,
+                speed: 0.01,
+                strong_gravity: false,
+            };
+            let mut layout: Layout<f64> = Layout::from_graph(edges, nodes, None, None, settings);
 
-        let mut delta = 1.0;
-        let mut old_pos = pos.clone();
-        let mut n_iter = 0;
-
-        while delta > SMOL && n_iter < MAX_N_ITER {
-            n_iter += 1;
-            for _ in 0..BATCH {
+            for _ in 0..N_ITER {
                 layout.iteration();
             }
-
-            std::mem::swap(&mut old_pos, pos);
 
             for (r, p) in pos.iter_mut() {
                 let computed_points = layout.points.get(r.index());
                 p.x = computed_points[0];
                 p.y = computed_points[1];
             }
-
-            Self::normalize_pos(pos);
-            delta = Self::compute_delta(&old_pos, pos);
-        }
-    }
-
-    fn normalize_pos(pos: &mut HashMap<RouterId, Point>) {
-        // scale all numbers to be in the expected range
-        let min_x = pos
-            .values()
-            .map(|p| p.x)
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(0.0);
-        let max_x = pos
-            .values()
-            .map(|p| p.x)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(1.0);
-        let min_y = pos
-            .values()
-            .map(|p| p.y)
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(0.0);
-        let max_y = pos
-            .values()
-            .map(|p| p.y)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(1.0);
-
-        let scale_x = 1.0 / (max_x - min_x);
-        let offset_x = -min_x;
-        let scale_y = 1.0 / (max_y - min_y);
-        let offset_y = -min_y;
-
-        for p in pos.values_mut() {
-            p.x = (p.x + offset_x) * scale_x;
-            p.y = (p.y + offset_y) * scale_y;
-        }
-    }
-
-    /// Normalize the positions of the nodes only by scaling both x and y (without stretching) and centering.
-    pub fn normalize_pos_scale_only(&mut self) {
-        // scale all numbers to be in the expected range
-        let min_x = self
-            .pos_ref()
-            .values()
-            .map(|p| p.x)
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(0.0);
-        let max_x = self
-            .pos_ref()
-            .values()
-            .map(|p| p.x)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(1.0);
-        let min_y = self
-            .pos_ref()
-            .values()
-            .map(|p| p.y)
-            .min_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(0.0);
-        let max_y = self
-            .pos_ref()
-            .values()
-            .map(|p| p.y)
-            .max_by(|a, b| a.partial_cmp(b).unwrap())
-            .unwrap_or(1.0);
-
-        let scale_x = 1.0 / (max_x - min_x);
-        let offset_x = -min_x;
-        let scale_y = 1.0 / (max_y - min_y);
-        let offset_y = -min_y;
-
-        let (scale, dx, dy) = if scale_x > scale_y {
-            // max_tx =
-            // min_tx = 0
-            // unused =
-            // offset = (1.0 - (max_x - min_x) * scale_y) / 2
-            //
-            // transformation: (x - min_x) * scale_y + offset
-            let dx = (1.0 - (max_x - min_x) * scale_y) * 0.5;
-            (scale_y, dx, 0.0)
-        } else {
-            let dy = (1.0 - (max_y - min_y) * scale_x) * 0.5;
-            (scale_x, 0.0, dy)
         };
 
-        for p in self.pos_mut().values_mut() {
-            p.x = (p.x + offset_x) * scale + dx;
-            p.y = (p.y + offset_y) * scale + dy;
-        }
+        self.topology_zoo = None;
+        self.normalize_pos();
     }
 
-    fn compute_delta(old: &HashMap<RouterId, Point>, new: &HashMap<RouterId, Point>) -> f64 {
-        old.iter()
-            .map(|(r, p)| (p, new.get(r).unwrap()))
-            .map(|(p1, p2)| p1.dist2(*p2))
-            .sum::<f64>()
+    pub fn normalize_pos(&mut self) {
+        let (min_x, max_x, min_y, max_y);
+        {
+            let pos = self.pos_ref();
+            // scale all numbers to be in the expected range
+            min_x = pos
+                .values()
+                .map(|p| p.x)
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or(0.0);
+            max_x = pos
+                .values()
+                .map(|p| p.x)
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or(1.0);
+            min_y = pos
+                .values()
+                .map(|p| p.y)
+                .min_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or(0.0);
+            max_y = pos
+                .values()
+                .map(|p| p.y)
+                .max_by(|a, b| a.partial_cmp(b).unwrap())
+                .unwrap_or(1.0);
+        }
+
+        self.dim
+            .set_t_data(Point::new(min_x, min_y), Point::new(max_x, max_y));
     }
 
     /// export the current file and download it.
@@ -479,6 +408,8 @@ impl Net {
         self.net = n.net;
         self.pos = n.pos;
         self.spec = n.spec;
+        self.topology_zoo = n.topology_zoo;
+        self.normalize_pos();
         #[cfg(feature = "atomic_bgp")]
         {
             self.migration = n.migration;

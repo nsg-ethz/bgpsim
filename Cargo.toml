@@ -1,6 +1,6 @@
 [package]
 name = "bgpsim-web"
-version = "0.12.0"
+version = "0.13.0"
 edition = "2021"
 
 [features]
@@ -39,3 +39,13 @@ ipnet = "2.7.0"
 gloo-events = "0.1.2"
 mapproj = "0.3"
 geoutils = "0.5.1"
+gloo-net = "0.4.0"
+wasm-bindgen-futures = "0.4"
+
+[build-dependencies]
+bgpsim = { path = "../bgpsim", features = ["topology_zoo"] }
+mapproj = "0.3"
+geoutils = "0.5.1"
+geojson = "0.24.1"
+serde_json = "1.0"
+itertools = "0.10"

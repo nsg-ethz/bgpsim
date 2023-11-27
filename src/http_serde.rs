@@ -140,6 +140,12 @@ pub fn export_json_str(compact: bool) -> String {
     .unwrap();
 
     let obj = network.as_object_mut().unwrap();
+    if let Some(topo) = net.topology_zoo {
+        obj.insert(
+            "topology_zoo".to_string(),
+            serde_json::to_value(topo).unwrap(),
+        );
+    }
     obj.insert("pos".to_string(), serde_json::to_value(p).unwrap());
     obj.insert("spec".to_string(), serde_json::to_value(spec).unwrap());
     obj.insert(
@@ -206,11 +212,15 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
         .get("settings")
         .and_then(|v| serde_json::from_value::<Settings>(v.clone()).ok())
         .unwrap_or_default();
+    let topology_zoo = content
+        .get("topology_zoo")
+        .and_then(|v| serde_json::from_value(v.clone()).ok());
 
     let mut imported_net = Net::default();
     imported_net.net = Mrc::new(net);
     imported_net.pos = Mrc::new(pos);
     imported_net.spec = Mrc::new(spec);
+    imported_net.topology_zoo = topology_zoo;
     #[cfg(feature = "atomic_bgp")]
     {
         if let Some(migration) = content.get("migration") {
@@ -239,6 +249,8 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
     }
     if rerun_layout {
         imported_net.spring_layout();
+    } else {
+        imported_net.normalize_pos();
     }
     Ok((imported_net, settings))
 }

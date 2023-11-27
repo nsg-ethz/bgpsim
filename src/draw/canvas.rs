@@ -58,19 +58,22 @@ pub fn Canvas(props: &Properties) -> Html {
     log::warn!("small_mode: {small_mode}");
 
     // re-compute the size once
-    use_effect_with_deps(move |_| {
-        let mt = header_ref_1
-            .cast::<HtmlElement>()
-            .map(|div| (div.client_height() + div.offset_top()) as f64);
-        let size = div_ref_1
-            .cast::<HtmlDivElement>()
-            .map(|div| (div.client_width() as f64, div.client_height() as f64));
-        if let (Some(mt), Some((w, h))) = (mt, size) {
-            Dispatch::<Net>::new().reduce_mut(move |net| {
-                net.set_dimension(w, h, mt);
-            });
-        }
-    }, *small_mode);
+    use_effect_with_deps(
+        move |_| {
+            let mt = header_ref_1
+                .cast::<HtmlElement>()
+                .map(|div| (div.client_height() + div.offset_top()) as f64);
+            let size = div_ref_1
+                .cast::<HtmlDivElement>()
+                .map(|div| (div.client_width() as f64, div.client_height() as f64));
+            if let (Some(mt), Some((w, h))) = (mt, size) {
+                Dispatch::<Net>::new().reduce_mut(move |net| {
+                    net.set_dimension(w, h, mt);
+                });
+            }
+        },
+        *small_mode,
+    );
 
     let _onresize = use_memo(
         move |()| {
@@ -92,7 +95,7 @@ pub fn Canvas(props: &Properties) -> Html {
     );
 
     html! {
-        <div class="h-full w-full" ref={div_ref}>
+        <div class="flex-1 h-full" ref={div_ref}>
             <svg width="100%" height="100%">
                 <ArrowMarkers />
                 <CanvasLinks />

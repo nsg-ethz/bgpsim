@@ -37,6 +37,7 @@ module.exports = {
                 current: 'currentColor',
 
                 'base': {
+                    0: 'rgb(var(--color-base0) / <alpha-value>)',
                     1: 'rgb(var(--color-base1) / <alpha-value>)',
                     2: 'rgb(var(--color-base2) / <alpha-value>)',
                     3: 'rgb(var(--color-base3) / <alpha-value>)',

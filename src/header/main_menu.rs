@@ -24,7 +24,7 @@ use bgpsim::{
 };
 use geoutils::Location;
 use itertools::Itertools;
-use mapproj::{cylindrical::mer::Mer, CenteredProjection, LonLat, Projection};
+use mapproj::{cylindrical::mer::Mer, LonLat, Projection};
 use wasm_bindgen::{prelude::Closure, JsCast};
 use web_sys::{Blob, FileReader, HtmlElement, HtmlInputElement};
 use yew::prelude::*;
@@ -107,7 +107,7 @@ pub fn MainMenu(props: &Properties) -> Html {
         html! {<yew_lucide::Moon />}
     };
 
-    let button_class = "absolute rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue text-base-1 hover:bg-blue-dark focus:bg-blue active:bg-blue-darker transition duration-150 ease-in-out";
+    let button_class = "absolute z-10 rounded-full mt-4 ml-4 p-2 drop-shadow bg-blue text-base-1 hover:bg-blue-dark focus:bg-blue active:bg-blue-darker transition duration-150 ease-in-out";
     let bg_class = "absolute z-20 h-screen w-screen bg-black bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-300 ease-in-out";
     let sidebar_class = "absolute z-20 h-screen -left-96 w-96 bg-base-1 peer-checked:opacity-100 pointer-events-none peer-checked:pointer-events-auto peer-checked:translate-x-full transition duration-300 ease-in-out overflow-auto";
     let link_class = "border-b border-base-4 hover:border-blue-dark hover:text-blue-dark transition duration-150 ease-in-out";
@@ -358,8 +358,7 @@ fn import_topology_zoo(topo: TopologyZoo) {
     if !geo.is_empty() {
         let points = geo.values().collect_vec();
         let center = rad(Location::center(&points));
-        let mut proj = CenteredProjection::new(Mer::new());
-        proj.set_proj_center_from_lonlat(&center);
+        let proj = Mer::new();
         for r in net.get_topology().node_indices() {
             let p = geo
                 .get(&r)
@@ -368,10 +367,11 @@ fn import_topology_zoo(topo: TopologyZoo) {
             let xy = proj.proj_lonlat(&p).unwrap();
             pos.insert(r, Point::new(xy.x(), -xy.y()));
         }
-        // Net::normalize_pos(&mut pos);
     }
 
     Dispatch::<Net>::new().reduce_mut(move |n| {
+        // set the topolgy
+        n.topology_zoo = Some(topo);
         // set the network
         *n.net.borrow_mut() = net;
         // reset the spec
@@ -387,7 +387,7 @@ fn import_topology_zoo(topo: TopologyZoo) {
             n.spring_layout();
         } else {
             *n.pos.borrow_mut() = pos;
-            n.normalize_pos_scale_only();
+            n.normalize_pos();
         }
     })
 }

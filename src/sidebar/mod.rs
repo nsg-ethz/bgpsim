@@ -41,13 +41,13 @@ pub use text_field::TextField;
 pub use toggle::Toggle;
 
 use external_router_cfg::ExternalRouterCfg;
+use gloo_events::EventListener;
+use gloo_utils::window;
 #[cfg(feature = "atomic_bgp")]
 use migration_viewer::MigrationViewer;
 use queue_cfg::QueueCfg;
 use router_cfg::RouterCfg;
 use verifier_viewer::VerifierViewer;
-use gloo_utils::window;
-use gloo_events::EventListener;
 
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -58,7 +58,8 @@ const SMALL_WIDTH: f64 = 1000.0;
 
 #[function_component]
 pub fn Sidebar() -> Html {
-    let state = use_selector(|state: &State| (state.selected(), state.small_mode, state.sidebar_shown));
+    let state =
+        use_selector(|state: &State| (state.selected(), state.small_mode, state.sidebar_shown));
 
     log::debug!("render Sidebar");
 
@@ -77,13 +78,11 @@ pub fn Sidebar() -> Html {
     };
 
     let _ = use_effect(|| {
-            // compute it once
-            let win = window();
-            let width = win.inner_width().unwrap().as_f64().unwrap();
-            let small_mode = width < SMALL_WIDTH;
-            Dispatch::<State>::new().reduce_mut(move |state| {
-                state.small_mode = small_mode
-            });
+        // compute it once
+        let win = window();
+        let width = win.inner_width().unwrap().as_f64().unwrap();
+        let small_mode = width < SMALL_WIDTH;
+        Dispatch::<State>::new().reduce_mut(move |state| state.small_mode = small_mode);
     });
 
     let _onresize = use_memo(
@@ -111,14 +110,15 @@ pub fn Sidebar() -> Html {
             classes!(base_class, "translate-x-[20rem]")
         };
 
-        let onclick = Dispatch::<State>::new().reduce_mut_callback(|state| state.sidebar_shown = !state.sidebar_shown);
+        let onclick = Dispatch::<State>::new()
+            .reduce_mut_callback(|state| state.sidebar_shown = !state.sidebar_shown);
 
         html! {
             <>
                 <div class="w-48 h-full max-h-full pl-3 pr-6 align-middle overflow-auto"></div>
                 <div class="absolute w-full h-full overflow-hidden pointer-events-none">
                     <div {class}>
-                        <div class="w-full max-h-full h-full bg-base-1 shadow-lg rounded-lg " id="sidebar">
+                        <div class="w-full max-h-full h-full bg-base-0 shadow-lg rounded-lg " id="sidebar">
                             <div class="h-full w-full max-h-full flex flex-col overflow-scroll px-4">
                                 { content }
                             </div>
@@ -137,7 +137,7 @@ pub fn Sidebar() -> Html {
     } else {
         html! {
             <div class="w-[30rem] h-full max-h-full pl-3 pr-6 pt-4 pb-8 align-middle overflow-auto">
-                <div class="w-full h-full max-h-full px-4 bg-base-1 shadow-lg flex flex-col rounded-lg overflow-scroll" id="sidebar">
+                <div class="w-full h-full max-h-full px-4 bg-base-0 shadow-lg flex flex-col rounded-lg overflow-scroll" id="sidebar">
                     { content }
                 </div>
             </div>

@@ -126,7 +126,7 @@ struct RouterState {
 
 impl RouterState {
     fn new(id: RouterId, net: &Net) -> Self {
-        let dim_scale = net.dim.canvas_size();
+        let dim_scale = net.dim.scale();
         let n = net.net();
         let g = n.get_topology();
         let igp_neighbors: Vec<RouterId> = g.neighbors(id).sorted().collect();

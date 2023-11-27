@@ -26,6 +26,7 @@ pub mod events;
 pub mod forwarding_path;
 pub mod link;
 pub mod link_weight;
+pub mod mapping;
 pub mod next_hop;
 pub mod propagation;
 pub mod router;

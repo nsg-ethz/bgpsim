@@ -30,7 +30,7 @@ mod state;
 mod tooltip;
 mod tour;
 use context_menu::Menu;
-use draw::canvas::Canvas;
+use draw::{canvas::Canvas, mapping::Map};
 use gloo_utils::window;
 use header::Header;
 #[cfg(feature = "atomic_bgp")]
@@ -82,7 +82,8 @@ fn app() -> Html {
     let header_ref = use_node_ref();
 
     html! {
-        <div class="flex w-screen h-screen max-h-screen max-w-screen bg-base-2 overflow-hidden text-main">
+        <div class="relative w-screen h-screen max-h-screen max-w-screen bg-base-2 overflow-hidden text-main">
+          <div class="absolute w-full h-full flex">
             <Tooltip />
             <Menu />
             <div class="relative flex-1 h-full p-0">
@@ -90,7 +91,9 @@ fn app() -> Html {
               <Canvas header_ref={header_ref.clone()} />
             </div>
             <Sidebar />
-            <Tour />
+          </div>
+          <Map />
+          <Tour />
         </div>
     }
 }
@@ -163,7 +166,7 @@ fn entry() -> Html {
                     }
                     // scale appropriately
                     let net_dispatch = Dispatch::<Net>::new();
-                    net_dispatch.reduce_mut(|n| n.normalize_pos_scale_only());
+                    net_dispatch.reduce_mut(|n| n.normalize_pos());
                 }
             }
 

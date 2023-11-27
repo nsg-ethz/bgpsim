@@ -29,6 +29,7 @@
 
 @layer base {
   :root {
+    --color-base0: 255 255 255;
     --color-base1: 255 255 255;
     --color-base2: var(--color-zinc-50);
     --color-base3: var(--color-zinc-100);
@@ -64,6 +65,7 @@
   }
 
   [data-dark-mode] {
+    --color-base0: var(--color-zinc-900);
     --color-base1: var(--color-zinc-850);
     --color-base2: var(--color-zinc-800);
     --color-base3: var(--color-zinc-700);
