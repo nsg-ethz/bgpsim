@@ -15,7 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use bgpsim::{
     builder::{constant_link_weight, NetworkBuilder},
@@ -355,15 +355,25 @@ fn import_topology_zoo(topo: TopologyZoo) {
     let mut geo = topo.geo_location();
     geo.retain(|_, pos| pos.latitude() != 0.0 || pos.longitude() != 0.0);
     let mut pos = HashMap::new();
+    let mut fixed = HashSet::new();
+    let mut run_layout = true;
     if !geo.is_empty() {
+        run_layout = false;
         let points = geo.values().collect_vec();
         let center = rad(Location::center(&points));
         let proj = Mer::new();
         for r in net.get_topology().node_indices() {
-            let p = geo
-                .get(&r)
-                .map(|pos| rad(*pos))
-                .unwrap_or_else(|| center.clone());
+            let p = match geo.get(&r).map(|pos| rad(*pos)) {
+                Some(p) => {
+                    fixed.insert(r);
+                    p
+                }
+                None => {
+                    run_layout = true;
+                    let offset = r.index() as f64 / 100.0;
+                    LonLat::new(center.lon() + offset, center.lat() + offset)
+                }
+            };
             let xy = proj.proj_lonlat(&p).unwrap();
             pos.insert(r, Point::new(xy.x(), -xy.y()));
         }
@@ -383,11 +393,14 @@ fn import_topology_zoo(topo: TopologyZoo) {
         }
 
         // set the position
-        if geo.is_empty() {
-            n.spring_layout();
-        } else {
+        if !geo.is_empty() {
             *n.pos.borrow_mut() = pos;
             n.normalize_pos();
+        }
+
+        // run the layout if necessary
+        if run_layout {
+            n.spring_layout_with_fixed(fixed);
         }
     })
 }

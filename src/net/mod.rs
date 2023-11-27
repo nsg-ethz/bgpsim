@@ -15,8 +15,10 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+mod spring_layout;
+
 use std::{
-    collections::{vec_deque::Iter, HashMap, VecDeque},
+    collections::{vec_deque::Iter, HashMap, HashSet, VecDeque},
     ops::{Deref, DerefMut},
     rc::Rc,
 };
@@ -33,9 +35,6 @@ use bgpsim::{
     types::{IgpNetwork, NetworkDevice, NetworkDeviceRef, RouterId},
 };
 
-use fdg_sim::{
-    glam::Vec3, Dimensions, ForceGraph, ForceGraphHelper, Simulation, SimulationParameters,
-};
 #[cfg(feature = "atomic_bgp")]
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -158,8 +157,6 @@ impl Default for Net {
         }
     }
 }
-
-const N_ITER: usize = 1000;
 
 impl Net {
     pub fn net(&self) -> impl Deref<Target = Network<Pfx, Queue>> + '_ {
@@ -316,60 +313,21 @@ impl Net {
         results
     }
 
-    pub fn spring_layout(&mut self) {
+    pub fn spring_layout_with_fixed(&mut self, fixed: HashSet<RouterId>) {
         {
             let net = self.net.borrow();
             let mut pos_borrow = self.pos.borrow_mut();
             let pos = pos_borrow.deref_mut();
             let g = net.get_topology();
-
-            let mut force_graph: ForceGraph<(), ()> = ForceGraph::default();
-            let node_lut = g
-                .node_indices()
-                .map(|x| {
-                    if let Some(pos) = pos.get(&x) {
-                        (
-                            x,
-                            force_graph.add_force_node_with_coords(
-                                x.index().to_string(),
-                                (),
-                                Vec3 {
-                                    x: pos.x as f32,
-                                    y: pos.y as f32,
-                                    z: 0f32,
-                                },
-                            ),
-                        )
-                    } else {
-                        (x, force_graph.add_force_node(x.index().to_string(), ()))
-                    }
-                })
-                .collect::<HashMap<_, _>>();
-            g.edge_indices()
-                .filter_map(|e| g.edge_endpoints(e))
-                .map(|(a, b)| (node_lut[&a], node_lut[&b]))
-                .for_each(|(a, b)| {
-                    force_graph.add_edge(a, b, ());
-                });
-            let mut params = SimulationParameters::default();
-            params.dimensions = Dimensions::Two;
-            let mut simulation = Simulation::from_graph(force_graph, params);
-
-            for _ in 0..N_ITER {
-                simulation.update(0.035);
-            }
-
-            let result_graph = simulation.get_graph();
-            for n in result_graph.node_weights() {
-                let r = RouterId::from(n.name.parse::<u32>().unwrap());
-                let p = n.location;
-                let p = Point::new(p.x as f64, p.y as f64);
-                pos.insert(r, p);
-            }
+            spring_layout::spring_layout(g, pos, fixed);
         }
 
-        self.topology_zoo = None;
         self.normalize_pos();
+    }
+
+    pub fn spring_layout(&mut self) {
+        self.spring_layout_with_fixed(Default::default());
+        self.topology_zoo = None;
     }
 
     pub fn normalize_pos(&mut self) {
