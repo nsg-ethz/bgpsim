@@ -81,6 +81,11 @@ impl Dim {
         self.t_screen.inverse(p)
     }
 
+    /// Get the size of the canvas (including the border)
+    pub fn true_size(&self) -> Point {
+        self.size
+    }
+
     /// Get the size of the canvas (excluding the border)
     pub fn canvas_size(&self) -> Point {
         self.size - Point::new(2.0 * BORDER, 2.0 * BORDER + self.margin_top)
@@ -94,9 +99,39 @@ impl Dim {
         self.t.offset
     }
 
+    /// The offset is relative in screen position, and the scaling is done here.
+    pub fn add_offset(&mut self, point: Point) {
+        self.t_data.offset += point / self.t.scale();
+        self.recompute();
+    }
+
+    pub fn ref_square(&self) -> (Point, Point) {
+        let min = self.t_data.offset;
+        let max = self.t_data.scale + min;
+        (self.t.transform(min), self.t.transform(max))
+    }
+
+    /// The zoom point is in screen position, and the scaling is done here.
+    pub fn zoom(&mut self, steps: f64, _zoom_point: Point) {
+        let zoom_factor = f64::powf(1.1, steps);
+
+        self.t_data.scale.x *= zoom_factor;
+        self.t_data.scale.y *= zoom_factor;
+
+        self.recompute()
+    }
+
     /// Get the canvas offset, e.g., Point(BORDER, BORDER)
     pub fn canvas_offset(&self) -> Point {
         self.t_screen.offset
+    }
+
+    /// Get the bounding box of the network coordinate system that is visible
+    pub fn visible_net_bbox(&self) -> Bbox {
+        Bbox {
+            min: self.t.inverse(Point::new(0, 0)),
+            max: self.t.inverse(self.size),
+        }
     }
 }
 
@@ -172,10 +207,10 @@ impl Transformation {
         let (min, max) = (self.offset, self.scale + self.offset);
         let (min_norm, max_norm) = (self.inverse(min), self.inverse(max));
         let s = if self.ratio() < other.ratio() {
-            log::debug!("fit on height");
+            // fit on height
             other.scale.y / (max_norm - min_norm).y
         } else {
-            log::debug!("fit on width");
+            // fit on width
             other.scale.x / (max_norm - min_norm).x
         };
         let other_scale = Point::new(s, s);
@@ -186,4 +221,21 @@ impl Transformation {
 
         Self { scale, offset }
     }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct Bbox {
+    pub min: Point,
+    pub max: Point,
+}
+
+impl Bbox {
+    pub fn overlaps(&self, other: &Bbox) -> bool {
+        overlaps(self.min.x, self.max.x, other.min.x, other.max.x)
+            && overlaps(self.min.y, self.max.y, other.min.y, other.max.y)
+    }
+}
+
+fn overlaps(a_min: f64, a_max: f64, b_min: f64, b_max: f64) -> bool {
+    f64::max(a_min, b_min) < f64::min(a_max, b_max)
 }

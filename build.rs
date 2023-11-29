@@ -19,128 +19,114 @@
 
 use std::{
     env,
-    fs::{create_dir_all, write},
+    f64::consts::PI,
+    fs::{create_dir_all, remove_file, OpenOptions},
+    io::{BufWriter, Write},
+    iter::repeat,
     path::PathBuf,
 };
 
-use bgpsim::topology_zoo::TopologyZoo;
 use geojson::{Feature, GeoJson, Value};
 use geoutils::Location;
-use itertools::Itertools;
 use mapproj::{cylindrical::mer::Mer, LonLat, Projection};
 
-const ACCURACY: f64 = 300.0;
+const RESOLUTION: f64 = 200.0;
+const LOD: [f64; 3] = [0.5 * PI, 0.1 * PI, 0.0];
+const GRID_ROWS: usize = 5;
+const GRID_COLS: usize = 20;
 
 fn main() {
     println!("cargo:rerun-if-changed=maps/countries.geojson");
 
     let out_dir = env::var("CARGO_MANIFEST_DIR").unwrap();
-    let mut root = PathBuf::from(out_dir);
-    root.push("maps");
-    root.push("geodata");
-    create_dir_all(&root).unwrap();
+    let mut path = PathBuf::from(out_dir);
+    path.push("maps");
+    path.push("mapping");
+    create_dir_all(&path).unwrap();
 
     let countries_geojson = include_str!("maps/countries.geojson");
-    let lines = Line::from_geojson(countries_geojson.parse::<GeoJson>().unwrap());
+    let lines = read_geojson(countries_geojson.parse::<GeoJson>().unwrap());
+
+    let p = Mer::new();
+    let proj = |l: &Vec<Location>| project(l, &p);
+    let lines: Vec<Line> = lines.iter().map(proj).map(Line::new).collect();
 
     println!("{} lines", lines.len());
-    for line in &lines {
-        println!("{line:?}");
+    let mut global_bbox = lines.first().unwrap().bbox;
+    lines.iter().for_each(|l| {
+        global_bbox &= l.bbox;
+    });
+
+    let chunks: Vec<Chunk> = (0..GRID_ROWS)
+        .flat_map(|row| (0..GRID_COLS).zip(repeat(row)))
+        .filter_map(|(col, row)| Chunk::from_lines(&lines, global_bbox, (col, row)))
+        .collect();
+
+    println!(
+        "{} chunks with {} lines",
+        chunks.len(),
+        chunks.iter().map(|c| c.lines.len()).sum::<usize>()
+    );
+    let _ = lines;
+
+    // store each file
+    for (i, chunk) in chunks.iter().enumerate() {
+        for (lod, scale) in LOD.iter().enumerate() {
+            let min_dist = scale / RESOLUTION;
+            let chunk = chunk.compress(min_dist);
+            path.push(format!("{i}:{lod}.cbor"));
+            if path.exists() {
+                remove_file(&path).unwrap();
+            }
+            let f = OpenOptions::new()
+                .write(true)
+                .create_new(true)
+                .open(&path)
+                .unwrap();
+            ciborium::into_writer(&chunk, f).unwrap();
+            path.pop();
+        }
     }
 
-    // iterate over each topology
-    for topo in TopologyZoo::topologies_increasing_nodes() {
-        let data = build_topo(topo, &lines);
-
-        let s = serde_json::to_string(&data).unwrap();
-        root.push(format!("{topo}.json"));
-        write(&root, s).unwrap();
-        root.pop();
+    // store the index
+    path.pop();
+    path.push("index.rs");
+    if path.exists() {
+        remove_file(&path).unwrap();
     }
+    let mut f = BufWriter::new(
+        OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&path)
+            .unwrap(),
+    );
+    write!(&mut f, "const LOD: [f64; {}] = {:?};\n", LOD.len(), LOD).unwrap();
+    write!(&mut f, "const INDEX: [Bbox; {}] = [\n", chunks.len()).unwrap();
+    for chunk in chunks {
+        let min = chunk.bbox.min;
+        let max = chunk.bbox.max;
+        write!(
+            &mut f,
+            "    Bbox {{ min: Point {{ x: {}f64, y: {}f64 }}, max: Point {{ x: {}f64, y: {}f64 }} }},\n",
+            min.x, min.y, max.x, max.y
+        )
+        .unwrap()
+    }
+    write!(&mut f, "];").unwrap();
 }
 
-fn build_topo(topo: &TopologyZoo, lines: &[Line]) -> Vec<Vec<[f64; 2]>> {
-    let Some(bbox) = topo_bounding_box(topo) else {
-        return Vec::new();
-    };
-
-    // get the lines that overlap
-    let overlapping_lines = lines.iter().filter(|x| x.bbox.overlap(&bbox));
-
-    // project all points down to a 2d plane.
-    let proj = Mer::new();
-    let projected_lines = overlapping_lines.map(|l| project(&l.points, &proj));
-
-    // compress all lines
-    let min_dist = bbox.projected_size(&proj) / ACCURACY;
-    let compressed_lines = projected_lines.filter_map(|l| compress(l, min_dist));
-
-    // return the results
-    compressed_lines.collect()
-}
-
-fn topo_bounding_box(topo: &TopologyZoo) -> Option<Bbox> {
-    let loc = topo
-        .geo_location()
-        .into_values()
-        .filter(|x| x.latitude() != 0.0 || x.longitude() != 0.0)
-        .collect::<Vec<_>>();
-
-    if loc.len() < 2 {
-        return None;
-    }
-
-    let mut loc = loc.into_iter();
-    let mut bbox = Bbox::from(loc.next().unwrap());
-    for coord in loc {
-        bbox &= coord;
-    }
-
-    Some(bbox)
-}
-
-fn project<P: Projection>(points: &[Location], proj: &P) -> Vec<[f64; 2]> {
+fn project<P: Projection>(points: &[Location], proj: &P) -> Vec<Point> {
     points
         .iter()
         .map(|p| {
             let xy = proj.proj_lonlat(&rad(*p)).unwrap();
-            [xy.x(), -xy.y()]
-        })
-        .collect()
-}
-
-fn compress(points: Vec<[f64; 2]>, min_dist: f64) -> Option<Vec<[f64; 2]>> {
-    let min_dist_sq = min_dist * min_dist;
-    let num_p = points.len();
-    let mut x = *points.first()?;
-
-    let points = points
-        .into_iter()
-        .enumerate()
-        .filter(|(i, p)| {
-            if *i == 0 || i + 1 == num_p {
-                x = *p;
-                true
-            } else {
-                let dx = p[0] - x[0];
-                let dy = p[1] - x[1];
-                let dist = dx * dx + dy * dy;
-                if dist > min_dist_sq {
-                    x = *p;
-                    true
-                } else {
-                    false
-                }
+            Point {
+                x: xy.x(),
+                y: -xy.y(),
             }
         })
-        .map(|(_, p)| p)
-        .collect_vec();
-
-    if points.len() < 2 {
-        None
-    } else {
-        Some(points)
-    }
+        .collect()
 }
 
 fn rad(x: Location) -> LonLat {
@@ -155,77 +141,73 @@ fn rad(x: Location) -> LonLat {
 }
 
 #[derive(Clone, Copy)]
+struct Point {
+    x: f64,
+    y: f64,
+}
+
+#[derive(Clone, Copy)]
 struct Bbox {
-    min_lat: f64,
-    max_lat: f64,
-    min_lon: f64,
-    max_lon: f64,
+    min: Point,
+    max: Point,
 }
 
 impl std::fmt::Debug for Bbox {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("Bbox")
-            .field("lat", &format!("{:.3}..{:.3}", self.min_lat, self.max_lat))
-            .field("lon", &format!("{:.3}..{:.3}", self.min_lon, self.max_lon))
+            .field("x", &format!("{:.3}..{:.3}", self.min.x, self.max.x))
+            .field("y", &format!("{:.3}..{:.3}", self.min.y, self.max.y))
             .finish()
     }
 }
 
-impl From<Location> for Bbox {
-    fn from(value: Location) -> Self {
+impl From<Point> for Bbox {
+    fn from(value: Point) -> Self {
         Self {
-            min_lat: value.latitude(),
-            max_lat: value.latitude(),
-            min_lon: value.longitude(),
-            max_lon: value.longitude(),
+            min: value,
+            max: value,
         }
     }
 }
 
-impl Bbox {
-    fn overlap(&self, other: &Self) -> bool {
-        self.max_lat > other.min_lat && self.max_lon > other.min_lon
-    }
-
-    fn projected_size<P: Projection>(&self, proj: &P) -> f64 {
-        let min = rad(Location::new(self.min_lat, self.min_lon));
-        let max = rad(Location::new(self.max_lat, self.max_lon));
-        let p_min = proj.proj_lonlat(&min).unwrap();
-        let p_max = proj.proj_lonlat(&max).unwrap();
-
-        let dx = (p_min.x() - p_max.x()).abs();
-        let dy = (p_min.y() - p_max.y()).abs();
-
-        f64::max(dx, dy)
-    }
-}
-
-impl std::ops::BitAndAssign<Location> for Bbox {
-    fn bitand_assign(&mut self, rhs: Location) {
-        self.min_lat = self.min_lat.min(rhs.latitude());
-        self.max_lat = self.max_lat.max(rhs.latitude());
-        self.min_lon = self.min_lon.min(rhs.longitude());
-        self.max_lon = self.max_lon.max(rhs.longitude());
+impl std::ops::BitAndAssign<Point> for Bbox {
+    fn bitand_assign(&mut self, rhs: Point) {
+        self.min.x = self.min.x.min(rhs.x);
+        self.min.y = self.min.y.min(rhs.y);
+        self.max.x = self.max.x.max(rhs.x);
+        self.max.y = self.max.y.max(rhs.y);
     }
 }
 
 impl std::ops::BitAndAssign<Bbox> for Bbox {
     fn bitand_assign(&mut self, rhs: Bbox) {
-        self.min_lat = self.min_lat.min(rhs.min_lat);
-        self.max_lat = self.max_lat.max(rhs.max_lat);
-        self.min_lon = self.min_lon.min(rhs.min_lon);
-        self.max_lon = self.max_lon.max(rhs.max_lon);
+        self.min.x = self.min.x.min(rhs.min.x);
+        self.min.y = self.min.y.min(rhs.min.y);
+        self.max.x = self.max.x.max(rhs.max.x);
+        self.max.y = self.max.y.max(rhs.max.y);
     }
 }
 
-fn loc(pos: impl AsRef<[f64]>) -> Location {
+impl Bbox {
+    fn mid(&self) -> Point {
+        Point {
+            x: (self.min.x + self.max.x) * 0.5,
+            y: (self.min.y + self.max.y) * 0.5,
+        }
+    }
+}
+
+fn input_loc(pos: impl AsRef<[f64]>) -> Location {
     let pos = pos.as_ref();
-    Location::new(pos[1], pos[0].clamp(-179.99999999, 179.99999999))
+    Location::new(
+        pos[1].clamp(-89.999999, 89.999999),
+        pos[0].clamp(-179.999999, 179.999999),
+    )
 }
 
 struct Line {
     bbox: Bbox,
-    points: Vec<Location>,
+    points: Vec<Point>,
 }
 
 impl std::fmt::Debug for Line {
@@ -237,51 +219,128 @@ impl std::fmt::Debug for Line {
     }
 }
 
-impl FromIterator<Location> for Line {
-    fn from_iter<T: IntoIterator<Item = Location>>(iter: T) -> Self {
+impl FromIterator<Point> for Line {
+    fn from_iter<T: IntoIterator<Item = Point>>(iter: T) -> Self {
         Self::new(Vec::from_iter(iter))
     }
 }
 
 impl Line {
-    pub fn new(points: Vec<Location>) -> Self {
+    pub fn new(points: Vec<Point>) -> Self {
         let mut bbox = Bbox::from(points[0]);
         for p in &points[1..] {
             bbox &= *p;
         }
         Self { bbox, points }
     }
+}
 
-    pub fn from_geojson(d: GeoJson) -> Vec<Line> {
-        let GeoJson::FeatureCollection(countries) = d else {
-            panic!("Invalid country.geojson")
-        };
-        countries
-            .features
-            .into_iter()
-            .flat_map(Self::from_feature)
-            .collect()
+struct Chunk {
+    bbox: Bbox,
+    lines: Vec<Vec<Point>>,
+}
+
+impl Chunk {
+    fn from_lines(from: &[Line], global_box: Bbox, chunk: (usize, usize)) -> Option<Self> {
+        let mut bbox = None;
+        let mut lines = Vec::new();
+
+        let scale_col = global_box.max.x - global_box.min.x;
+        let offset_col = global_box.min.x;
+        let scale_row = global_box.max.y - global_box.min.y;
+        let offset_row = global_box.min.y;
+
+        for line in from {
+            let Point { x, y } = line.bbox.mid();
+            let col = (((x - offset_col) / scale_col) * GRID_COLS as f64).floor() as usize;
+            let row = (((y - offset_row) / scale_row) * GRID_ROWS as f64).floor() as usize;
+            assert!(col < GRID_COLS);
+            assert!(row < GRID_ROWS);
+            if (col, row) == chunk {
+                // matches!
+                if bbox.is_none() {
+                    bbox = Some(line.bbox);
+                }
+                *bbox.as_mut().unwrap() &= line.bbox;
+                lines.push(line.points.clone());
+            }
+        }
+
+        Some(Self { bbox: bbox?, lines })
     }
 
-    pub fn from_feature(f: Feature) -> Vec<Line> {
-        let Feature {
-            geometry: Some(geometry),
-            ..
-        } = f
-        else {
-            panic!("Invalid country.geojson")
-        };
-
-        let polygon = match geometry.value {
-            Value::Polygon(polygon) => vec![polygon],
-            Value::MultiPolygon(multi) => multi,
-            _ => panic!("Invalid country.geojson"),
-        };
-
-        polygon
-            .into_iter()
-            .flatten()
-            .map(|x| x.iter().map(loc).collect::<Line>())
+    fn compress(&self, min_dist: f64) -> Vec<Vec<(f64, f64)>> {
+        self.lines
+            .iter()
+            .filter_map(|l| compressed(l, min_dist))
             .collect()
     }
+}
+
+/// Compress the data
+fn compressed(points: &[Point], min_dist: f64) -> Option<Vec<(f64, f64)>> {
+    let min_dist_sq = min_dist * min_dist;
+    let num_p = points.len();
+    let mut x = *points.first()?;
+
+    let points: Vec<(f64, f64)> = points
+        .iter()
+        .enumerate()
+        .filter(|(i, p)| {
+            if *i == 0 || i + 1 == num_p {
+                x = **p;
+                true
+            } else {
+                let dx = p.x - x.x;
+                let dy = p.y - x.y;
+                let dist = dx * dx + dy * dy;
+                if dist > min_dist_sq {
+                    x = **p;
+                    true
+                } else {
+                    false
+                }
+            }
+        })
+        .map(|(_, p)| (p.x, p.y))
+        .collect();
+
+    if points.len() < 2 {
+        None
+    } else {
+        Some(points)
+    }
+}
+
+pub fn read_geojson(d: GeoJson) -> Vec<Vec<Location>> {
+    let GeoJson::FeatureCollection(countries) = d else {
+        panic!("Invalid country.geojson")
+    };
+    countries
+        .features
+        .into_iter()
+        .flat_map(read_feature)
+        .collect()
+}
+
+pub fn read_feature(f: Feature) -> Vec<Vec<Location>> {
+    let Feature {
+        geometry: Some(geometry),
+        ..
+    } = f
+    else {
+        panic!("Invalid country.geojson")
+    };
+
+    let polygon = match geometry.value {
+        Value::Polygon(polygon) => vec![polygon],
+        Value::MultiPolygon(multi) => multi,
+        _ => panic!("Invalid country.geojson"),
+    };
+
+    polygon
+        .into_iter()
+        .flatten()
+        .map(|x| x.iter().map(input_loc).collect())
+        .collect()
 }

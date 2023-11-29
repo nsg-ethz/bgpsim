@@ -48,8 +48,6 @@ pub fn Router(props: &Properties) -> Html {
     let p = use_pos(id);
     let state = Dispatch::<State>::new();
 
-    log::debug!("render router {}", id.index());
-
     // generate the onclick event depending on the state (if we are in create-connection mode).
     let (onclick, clickable) = prepare_onclick(id, &r, &s, &state);
     let onmouseenter = state.reduce_mut_callback(move |s| s.set_hover(Hover::Router(id)));
@@ -201,6 +199,8 @@ fn prepare_move(
             "mousemove",
             move |e: &Event| {
                 let e = e.dyn_ref::<web_sys::MouseEvent>().unwrap();
+                e.stop_propagation();
+                e.stop_immediate_propagation();
                 let client_p = Point::new(e.client_x(), e.client_y());
                 let mut move_p = move_p.lock().unwrap();
                 let delta = (client_p - *move_p) / scale;

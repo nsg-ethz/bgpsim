@@ -16,11 +16,13 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 use std::ops::Deref;
+use std::sync::{Arc, Mutex};
 
 use bgpsim::types::RouterId;
 use gloo_events::EventListener;
 use gloo_utils::window;
 use itertools::Itertools;
+use wasm_bindgen::JsCast;
 use web_sys::{HtmlDivElement, HtmlElement};
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -33,12 +35,14 @@ use super::link::Link;
 use super::link_weight::LinkWeight;
 use super::next_hop::NextHop;
 use super::router::Router;
+use crate::callback;
 use crate::draw::add_connection::AddConnection;
 use crate::draw::arrows::CurvedArrow;
 use crate::draw::forwarding_path::ForwardingPath;
 use crate::draw::propagation::Propagation;
 use crate::draw::SvgColor;
 use crate::net::{use_pos_pair, Net};
+use crate::point::Point;
 use crate::state::{Hover, Layer, State};
 
 #[derive(Properties, PartialEq)]
@@ -54,8 +58,9 @@ pub fn Canvas(props: &Properties) -> Html {
     let header_ref_1 = props.header_ref.clone();
     let header_ref_2 = props.header_ref.clone();
 
-    let small_mode = use_selector(|state: &State| state.small_mode);
-    log::warn!("small_mode: {small_mode}");
+    let modes = use_selector(|state: &State| (state.small_mode, state.blog_mode()));
+    let small_mode = modes.0;
+    let blog_mode = modes.1;
 
     // re-compute the size once
     use_effect_with_deps(
@@ -72,7 +77,7 @@ pub fn Canvas(props: &Properties) -> Html {
                 });
             }
         },
-        *small_mode,
+        small_mode,
     );
 
     let _onresize = use_memo(
@@ -94,9 +99,25 @@ pub fn Canvas(props: &Properties) -> Html {
         (),
     );
 
+    let onmousemove = use_state(|| None);
+    let (onmousedown, onmouseup) = if !blog_mode {
+        prepare_move(onmousemove)
+    } else {
+        (callback!(|_| ()), callback!(|_| ()))
+    };
+    let onwheel = callback!(|e: WheelEvent| {
+        let e_mouse = e.dyn_ref::<web_sys::MouseEvent>().unwrap();
+        // check if mouse is down
+        if e_mouse.buttons() == 0 {
+            let delta = e.delta_y() / 40.0;
+            let point = Point::new(e_mouse.client_x(), e_mouse.client_y());
+            Dispatch::<Net>::new().reduce_mut(move |net| net.dim.zoom(delta, point))
+        }
+    });
+
     html! {
-        <div class="flex-1 h-full" ref={div_ref}>
-            <svg width="100%" height="100%">
+        <div class="flex-1 h-full overflow-hidden" ref={div_ref}>
+            <svg width="100%" height="100%" {onmousedown} {onmouseup} {onwheel}>
                 <ArrowMarkers />
                 <CanvasLinks />
                 <CanvasRouters />
@@ -110,6 +131,40 @@ pub fn Canvas(props: &Properties) -> Html {
             </svg>
         </div>
     }
+}
+
+fn prepare_move(
+    onmousemove: UseStateHandle<Option<EventListener>>,
+) -> (Callback<MouseEvent>, Callback<MouseEvent>) {
+    let onmousemove_c = onmousemove.clone();
+    let onmousedown = Callback::from(move |e: MouseEvent| {
+        log::debug!("pressed: {}", e.button());
+        if e.button() != 0 {
+            return;
+        }
+        Dispatch::<State>::new().reduce_mut(|state| state.disable_hover = true);
+        let move_p = Arc::new(Mutex::new(Point::new(e.client_x(), e.client_y())));
+        // create the onmousemove event
+        onmousemove_c.set(Some(EventListener::new(
+            &window(),
+            "mousemove",
+            move |e: &Event| {
+                let e = e.dyn_ref::<web_sys::MouseEvent>().unwrap();
+                let client_p = Point::new(e.client_x(), e.client_y());
+                let mut move_p = move_p.lock().unwrap();
+                let delta = *move_p - client_p;
+                *move_p = client_p;
+                Dispatch::<Net>::new().reduce_mut(move |n| {
+                    n.dim.add_offset(delta);
+                });
+            },
+        )))
+    });
+    let onmouseup = Callback::from(move |_| {
+        onmousemove.set(None);
+    });
+
+    (onmousedown, onmouseup)
 }
 
 #[function_component]

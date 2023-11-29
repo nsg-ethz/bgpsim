@@ -26,7 +26,7 @@ gloo-timers = "0.2.4"
 gloo-utils = "0.1.4"
 petgraph = "0.6"
 itertools = "0.10"
-wasm-bindgen = "=0.2.83"
+wasm-bindgen = "0.2"
 strum = "0.24"
 strum_macros = "0.24"
 serde = { version = "1", features = ["derive"] }
@@ -41,11 +41,12 @@ geoutils = "0.5.1"
 gloo-net = "0.4.0"
 wasm-bindgen-futures = "0.4"
 fdg-sim = "0.9.1"
+ciborium = "0.2"
 
 [build-dependencies]
 bgpsim = { path = "../bgpsim", features = ["topology_zoo"] }
 mapproj = "0.3"
 geoutils = "0.5.1"
 geojson = "0.24.1"
-serde_json = "1.0"
+ciborium = "0.2"
 itertools = "0.10"

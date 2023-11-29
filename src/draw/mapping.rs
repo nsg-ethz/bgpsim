@@ -21,61 +21,173 @@ use gloo_net::http::Request;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
-use crate::{net::Net, point::Point};
+use crate::{dim::Bbox, net::Net, point::Point};
+
+// This macro defines two variables:
+// const LOD: [f64; M] = ...;
+// const INDEX: [Bbox; N] = ...;
+include!("../../maps/index.rs");
+const NUM_LOD: usize = LOD.len();
 
 #[function_component]
 pub fn Map() -> Html {
-    let topo = use_selector(|net: &Net| net.topology_zoo);
-    let (net, _) = use_store::<Net>();
-    let lines = use_state(|| vec![]);
+    let show = use_selector(|net: &Net| net.topology_zoo.is_some());
+    let show = *show;
+
+    let lines = INDEX
+        .iter()
+        .enumerate()
+        .map(|(i, bbox)| {
+            let bbox = *bbox;
+            html! {
+                <Lines {i} {show} {bbox} />
+            }
+        })
+        .collect::<Html>();
+
+    html! {
+        <svg width="100%" height="100%">
+            { lines}
+        </svg>
+    }
+}
+
+#[derive(Debug, Properties, PartialEq)]
+pub struct Properties {
+    i: usize,
+    show: bool,
+    bbox: Bbox,
+}
+
+fn current_lod(bbox: Bbox) -> usize {
+    let size = f64::max(bbox.max.x - bbox.min.x, bbox.max.y - bbox.min.y);
+    let mut lod = 0;
+    while LOD[lod] > size {
+        lod += 1;
+    }
+    lod
+}
+
+#[function_component]
+pub fn Lines(props: &Properties) -> Html {
+    let lines = use_state::<[Option<Vec<(Vec<Point>, Bbox)>>; NUM_LOD], _>(|| Default::default());
+    let dim = use_selector(|net: &Net| net.dim);
+    let screen_bbox = dim.visible_net_bbox();
+    let shown = props.show && screen_bbox.overlaps(&props.bbox);
+    let max_lod = current_lod(screen_bbox);
+    let next_lod = lines.iter().position(|x| x.is_none()).unwrap_or(NUM_LOD);
 
     {
         let lines = lines.clone();
         use_effect_with_deps(
-            move |topo| {
-                let Some(topo) = *topo else {
-                    lines.set(Vec::new());
-                    return;
-                };
-                let lines = lines.clone();
-                wasm_bindgen_futures::spawn_local(async move {
-                    match Request::get(&format!("/geodata/{topo}.json")).send().await {
-                        Ok(res) => match res.json::<Vec<Vec<[f64; 2]>>>().await {
-                            Ok(data) => lines.set(data),
-                            Err(e) => log::warn!("Cannot read response! {e}"),
-                        },
-                        Err(e) => {
-                            log::warn!("Request failed! {e}")
-                        }
-                    }
-                });
+            move |(show, i, max_lod, next_lod)| {
+                fetch_line_if_necessary(*show, *i, *max_lod, *next_lod, lines)
             },
-            *topo,
+            (shown, props.i, max_lod, next_lod),
         );
     }
 
-    log::info!("render {} map lines for {:?}", lines.len(), topo);
-    let dim = net.dim;
-
-    let lines: Html = lines
-        .iter()
-        .map(|line| {
-            let transformed = line.iter().map(|[x, y]| dim.get(Point::new(*x, *y)));
-            let mut d: String = transformed
-                .enumerate()
-                .map(|(i, p)| format!("{} {} {} ", if i == 0 { "M" } else { "L" }, p.x(), p.y()))
-                .collect();
-            // close path in the end
-            d.push('Z');
-            html! {
-                <path class="stroke-base-4 stroke-2 fill-base-1" {d} />
-            }
-        })
-        .collect();
-
-    html! {
-        <svg width="100%" height="100%">
-            {lines}
-        </svg>
+    // Check if we need to draw
+    if next_lod == 0 || !shown {
+        html!()
+    } else {
+        let lod = usize::min(next_lod - 1, max_lod);
+        let lod_lines = &(*lines)[lod];
+        if let Some(lod_lines) = lod_lines {
+            // cocatenate all lines
+            lod_lines
+                .iter()
+                .filter(|(_, bbox)| bbox.overlaps(&screen_bbox))
+                .map(|(lod_line, _)| {
+                    // compute the line
+                    let transformed = lod_line.iter().map(|p| dim.get(*p));
+                    let mut d: String = transformed
+                        .enumerate()
+                        .map(|(i, p)| {
+                            format!("{} {} {} ", if i == 0 { "M" } else { "L" }, p.x(), p.y())
+                        })
+                        .collect();
+                    // close path in the end
+                    d.push('Z');
+                    html! { <path class="stroke-base-4 stroke-2 fill-base-1" {d} /> }
+                })
+                .collect()
+        } else {
+            html!()
+        }
     }
+}
+
+fn fetch_line_if_necessary(
+    show: bool,
+    i: usize,
+    max_lod: usize,
+    next_lod: usize,
+    lines: UseStateHandle<[Option<Vec<(Vec<Point>, Bbox)>>; NUM_LOD]>,
+) {
+    if !show {
+        // we don't need the data
+        return;
+    };
+    if next_lod > max_lod {
+        // we already have the data
+        return;
+    }
+    wasm_bindgen_futures::spawn_local(async move {
+        if let Some(lod_data) = fetch_lines(i, next_lod).await {
+            let mut data = (*lines).clone();
+            data[next_lod] = Some(lod_data);
+            lines.set(data);
+        }
+    });
+}
+
+async fn fetch_lines(i: usize, lod: usize) -> Option<Vec<(Vec<Point>, Bbox)>> {
+    match Request::get(&format!("/mapping/{i}:{lod}.cbor"))
+        .send()
+        .await
+    {
+        Ok(res) => match res.binary().await {
+            Ok(data) => match ciborium::from_reader::<Vec<Vec<(f64, f64)>>, &[u8]>(&data) {
+                Ok(data) => {
+                    let lod_data: Vec<(Vec<Point>, Bbox)> = data
+                        .into_iter()
+                        .map(|l| l.into_iter().map(|(x, y)| Point { x, y }).collect())
+                        .map(compute_bbox)
+                        .collect();
+                    Some(lod_data)
+                }
+                Err(e) => {
+                    log::warn!("Cannot parse the line! {e}");
+                    None
+                }
+            },
+            Err(e) => {
+                log::warn!("Cannot read response! {e}");
+                None
+            }
+        },
+        Err(e) => {
+            log::warn!("Request failed! {e}");
+            None
+        }
+    }
+}
+
+fn compute_bbox(line: Vec<Point>) -> (Vec<Point>, Bbox) {
+    let mut x_min = f64::INFINITY;
+    let mut x_max = f64::NEG_INFINITY;
+    let mut y_min = f64::INFINITY;
+    let mut y_max = f64::NEG_INFINITY;
+    for p in &line {
+        x_min = x_min.min(p.x);
+        x_max = x_max.max(p.x);
+        y_min = y_min.min(p.y);
+        y_max = y_max.max(p.y);
+    }
+    let bbox = Bbox {
+        min: Point { x: x_min, y: y_min },
+        max: Point { x: x_max, y: y_max },
+    };
+    (line, bbox)
 }
