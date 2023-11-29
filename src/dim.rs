@@ -112,13 +112,23 @@ impl Dim {
     }
 
     /// The zoom point is in screen position, and the scaling is done here.
-    pub fn zoom(&mut self, steps: f64, _zoom_point: Point) {
-        let zoom_factor = f64::powf(1.1, steps);
+    pub fn zoom(&mut self, steps: f64, zoom_point: Point) {
+        // store the old point of the mouse in geo-coordinates
+        let old = self.t.inverse(zoom_point);
 
+        // apply the transformation
+        let zoom_factor = f64::powf(1.1, steps);
         self.t_data.scale.x *= zoom_factor;
         self.t_data.scale.y *= zoom_factor;
+        self.recompute();
 
-        self.recompute()
+        // get the new point of the mouse in geo-coordinates
+        let new = self.t.inverse(zoom_point);
+
+        // now, we need to shift such that the new will again be positioned at old
+        let offset = new - old;
+        self.t_data.offset -= offset;
+        self.recompute();
     }
 
     /// Get the canvas offset, e.g., Point(BORDER, BORDER)
