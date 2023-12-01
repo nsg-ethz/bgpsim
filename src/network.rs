@@ -457,54 +457,21 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         target: RouterId,
         session_type: Option<BgpSessionType>,
     ) -> Result<(), NetworkError> {
-        let is_source_external = self.get_device(source)?.is_external();
-        let is_target_external = self.get_device(target)?.is_external();
-        let (source_type, target_type) = match session_type {
-            Some(BgpSessionType::IBgpPeer) => {
-                if is_source_external || is_target_external {
-                    Err(NetworkError::InvalidBgpSessionType(
-                        source,
-                        target,
-                        BgpSessionType::IBgpPeer,
-                    ))
-                } else {
-                    Ok((
-                        Some(BgpSessionType::IBgpPeer),
-                        Some(BgpSessionType::IBgpPeer),
-                    ))
-                }
-            }
-            Some(BgpSessionType::IBgpClient) => {
-                if is_source_external || is_target_external {
-                    Err(NetworkError::InvalidBgpSessionType(
-                        source,
-                        target,
-                        BgpSessionType::IBgpClient,
-                    ))
-                } else {
-                    Ok((
-                        Some(BgpSessionType::IBgpClient),
-                        Some(BgpSessionType::IBgpPeer),
-                    ))
-                }
-            }
-            Some(BgpSessionType::EBgp) => {
-                if !(is_source_external || is_target_external) {
-                    Err(NetworkError::InvalidBgpSessionType(
-                        source,
-                        target,
-                        BgpSessionType::EBgp,
-                    ))
-                } else {
-                    Ok((Some(BgpSessionType::EBgp), Some(BgpSessionType::EBgp)))
-                }
-            }
-            None => Ok((None, None)),
-        }?;
+        self._set_bgp_session(source, target, session_type)?;
 
-        // set the bgp sessions locally in the network.
-        self.bgp_sessions.insert((source, target), source_type);
-        self.bgp_sessions.insert((target, source), target_type);
+        // refresh the active BGP sessions in the network
+        self.refresh_bgp_sessions()?;
+        self.do_queue_maybe_skip()
+    }
+
+    /// Set BGP sessions from an iterator.
+    pub fn set_bgp_session_from<I>(&mut self, sessions: I) -> Result<(), NetworkError>
+    where
+        I: IntoIterator<Item = (RouterId, RouterId, Option<BgpSessionType>)>,
+    {
+        for (source, target, session_type) in sessions.into_iter() {
+            self._set_bgp_session(source, target, session_type)?;
+        }
 
         // refresh the active BGP sessions in the network
         self.refresh_bgp_sessions()?;
@@ -794,6 +761,65 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     // *******************
     // * Local Functions *
     // *******************
+
+    /// Private function that sets the session, but does not yet compute which sessions are actually
+    /// active, and it does not run the queue
+    fn _set_bgp_session(
+        &mut self,
+        source: RouterId,
+        target: RouterId,
+        session_type: Option<BgpSessionType>,
+    ) -> Result<(), NetworkError> {
+        let is_source_external = self.get_device(source)?.is_external();
+        let is_target_external = self.get_device(target)?.is_external();
+        let (source_type, target_type) = match session_type {
+            Some(BgpSessionType::IBgpPeer) => {
+                if is_source_external || is_target_external {
+                    Err(NetworkError::InvalidBgpSessionType(
+                        source,
+                        target,
+                        BgpSessionType::IBgpPeer,
+                    ))
+                } else {
+                    Ok((
+                        Some(BgpSessionType::IBgpPeer),
+                        Some(BgpSessionType::IBgpPeer),
+                    ))
+                }
+            }
+            Some(BgpSessionType::IBgpClient) => {
+                if is_source_external || is_target_external {
+                    Err(NetworkError::InvalidBgpSessionType(
+                        source,
+                        target,
+                        BgpSessionType::IBgpClient,
+                    ))
+                } else {
+                    Ok((
+                        Some(BgpSessionType::IBgpClient),
+                        Some(BgpSessionType::IBgpPeer),
+                    ))
+                }
+            }
+            Some(BgpSessionType::EBgp) => {
+                if !(is_source_external || is_target_external) {
+                    Err(NetworkError::InvalidBgpSessionType(
+                        source,
+                        target,
+                        BgpSessionType::EBgp,
+                    ))
+                } else {
+                    Ok((Some(BgpSessionType::EBgp), Some(BgpSessionType::EBgp)))
+                }
+            }
+            None => Ok((None, None)),
+        }?;
+
+        // set the bgp sessions locally in the network.
+        self.bgp_sessions.insert((source, target), source_type);
+        self.bgp_sessions.insert((target, source), target_type);
+        Ok(())
+    }
 
     /// Check the connectivity for all BGP sessions, and enable or disable them accordingly. This
     /// function will enqueue events **without** executing them.

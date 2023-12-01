@@ -21,6 +21,7 @@ use std::{
     iter::{once, repeat},
 };
 
+use itertools::Itertools;
 #[cfg(feature = "rand")]
 use rand::{
     distributions::{Distribution, Uniform},
@@ -332,18 +333,13 @@ pub trait NetworkBuilder<P, Q> {
 
 impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
     fn build_ibgp_full_mesh(&mut self) -> Result<(), NetworkError> {
-        let old_skip_queue = self.skip_queue;
-        self.skip_queue = false;
-        for src in self.internal_indices().detach() {
-            for dst in self.internal_indices().detach() {
-                if src.index() <= dst.index() {
-                    continue;
-                }
-                self.set_bgp_session(src, dst, Some(BgpSessionType::IBgpPeer))?;
-            }
-        }
-        self.skip_queue = old_skip_queue;
-        Ok(())
+        let sessions = self
+            .internal_indices()
+            .detach()
+            .tuple_combinations()
+            .map(|(a, b)| (a, b, Some(BgpSessionType::IBgpPeer)));
+
+        self.set_bgp_session_from(sessions)
     }
 
     fn build_ibgp_route_reflection<F, A, R>(
@@ -356,8 +352,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         R: IntoIterator<Item = RouterId>,
     {
         let route_reflectors: HashSet<RouterId> = route_reflectors(self, a).into_iter().collect();
-        let old_skip_queue = self.skip_queue;
-        self.skip_queue = false;
+        let mut sessions = Vec::new();
         for src in self.internal_indices().detach() {
             for dst in self.internal_indices().detach() {
                 if src.index() <= dst.index() {
@@ -366,27 +361,19 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
                 let src_is_rr = route_reflectors.contains(&src);
                 let dst_is_rr = route_reflectors.contains(&dst);
                 match (src_is_rr, dst_is_rr) {
-                    (true, true) => {
-                        self.set_bgp_session(src, dst, Some(BgpSessionType::IBgpPeer))?
-                    }
-                    (true, false) => {
-                        self.set_bgp_session(src, dst, Some(BgpSessionType::IBgpClient))?
-                    }
-                    (false, true) => {
-                        self.set_bgp_session(dst, src, Some(BgpSessionType::IBgpClient))?
-                    }
-                    (false, false) => self.set_bgp_session(src, dst, None)?,
+                    (true, true) => sessions.push((src, dst, Some(BgpSessionType::IBgpPeer))),
+                    (true, false) => sessions.push((src, dst, Some(BgpSessionType::IBgpClient))),
+                    (false, true) => sessions.push((dst, src, Some(BgpSessionType::IBgpClient))),
+                    (false, false) => sessions.push((src, dst, None)),
                 }
             }
         }
-        self.skip_queue = old_skip_queue;
+        self.set_bgp_session_from(sessions)?;
         Ok(route_reflectors)
     }
 
     fn build_ebgp_sessions(&mut self) -> Result<(), NetworkError> {
-        let old_skip_queue = self.skip_queue;
-        self.skip_queue = false;
-
+        let mut sessions = Vec::new();
         for ext in self.external_indices().detach() {
             for neighbor in Vec::from_iter(self.net.neighbors(ext)) {
                 if !self
@@ -396,12 +383,10 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
                 {
                     continue;
                 }
-                self.set_bgp_session(neighbor, ext, Some(BgpSessionType::EBgp))?;
+                sessions.push((neighbor, ext, Some(BgpSessionType::EBgp)));
             }
         }
-
-        self.skip_queue = old_skip_queue;
-        Ok(())
+        self.set_bgp_session_from(sessions)
     }
 
     fn build_link_weights<F, A>(&mut self, mut link_weight: F, a: A) -> Result<(), NetworkError>
