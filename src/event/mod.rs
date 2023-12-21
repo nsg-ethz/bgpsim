@@ -58,6 +58,13 @@ impl<P: Prefix, T> Event<P, T> {
         }
     }
 
+    /// Get a reference to the priority of this event.
+    pub fn priority_mut(&mut self) -> &mut T {
+        match self {
+            Event::Bgp(p, _, _, _) => p,
+        }
+    }
+
     /// Returns true if the event is a bgp message
     pub fn is_bgp_event(&self) -> bool {
         matches!(self, Event::Bgp(_, _, _, _))
