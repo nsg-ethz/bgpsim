@@ -30,7 +30,7 @@
 use crate::{
     event::{Event, EventOutcome},
     ospf::OspfState,
-    types::{AsId, DeviceError, IgpNetwork, Prefix, PrefixMap, RouterId, StepUpdate},
+    types::{AsId, DeviceError, PhysicalNetwork, Prefix, PrefixMap, RouterId, StepUpdate},
 };
 use itertools::Itertools;
 use log::*;
@@ -199,7 +199,7 @@ impl<P: Prefix> Router<P> {
     /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables.
     pub(crate) fn write_igp_forwarding_table<T: Default>(
         &mut self,
-        graph: &IgpNetwork,
+        graph: &PhysicalNetwork,
         ospf: &OspfState,
     ) -> Result<Vec<Event<P, T>>, DeviceError> {
         self.ospf.update_table(graph, ospf);

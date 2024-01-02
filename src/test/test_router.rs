@@ -23,7 +23,7 @@ use crate::{
     external_router::*,
     ospf::Ospf,
     router::*,
-    types::{AsId, IgpNetwork, Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
+    types::{AsId, Ipv4Prefix, PhysicalNetwork, Prefix, SimplePrefix, SinglePrefix},
 };
 
 use maplit::{hashmap, hashset};
@@ -332,7 +332,7 @@ mod t1 {
 
     #[test]
     fn test_fw_table_simple<P: Prefix>() {
-        let mut net: IgpNetwork = IgpNetwork::new();
+        let mut net: PhysicalNetwork = PhysicalNetwork::new();
         let mut r_a = Router::<P>::new("A".to_string(), net.add_node(()), AsId(65001));
         let mut r_b = Router::<P>::new("B".to_string(), net.add_node(()), AsId(65001));
         let mut r_c = Router::<P>::new("C".to_string(), net.add_node(()), AsId(65001));
@@ -419,7 +419,7 @@ mod t1 {
 
     #[test]
     fn test_igp_fw_table_complex<P: Prefix>() {
-        let mut net: IgpNetwork = IgpNetwork::new();
+        let mut net: PhysicalNetwork = PhysicalNetwork::new();
         let mut r_a = Router::<P>::new("A".to_string(), net.add_node(()), AsId(65001));
         let r_b = Router::<P>::new("B".to_string(), net.add_node(()), AsId(65001));
         let mut r_c = Router::<P>::new("C".to_string(), net.add_node(()), AsId(65001));

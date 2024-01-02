@@ -93,7 +93,7 @@ where
 /// Link Weight for the IGP graph
 pub type LinkWeight = f64;
 /// IGP Network graph
-pub type IgpNetwork = StableGraph<(), LinkWeight, Directed, IndexType>;
+pub type PhysicalNetwork = StableGraph<(), LinkWeight, Directed, IndexType>;
 
 /// How does the next hop change after a BGP event has been processed?
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]

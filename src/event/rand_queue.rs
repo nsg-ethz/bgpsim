@@ -15,7 +15,7 @@
 
 //! Module containing the definitions for the event queues.
 
-use crate::types::{IgpNetwork, NetworkDevice, Prefix, RouterId};
+use crate::types::{NetworkDevice, PhysicalNetwork, Prefix, RouterId};
 
 use geoutils::Location;
 use itertools::Itertools;
@@ -72,7 +72,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         &mut self,
         mut event: Event<P, Self::Priority>,
         _routers: &HashMap<RouterId, NetworkDevice<P>>,
-        _net: &IgpNetwork,
+        _net: &PhysicalNetwork,
     ) {
         let mut next_time = self.current_time;
         let mut rng = thread_rng();
@@ -135,7 +135,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, NetworkDevice<P>>, _: &IgpNetwork) {}
+    fn update_params(&mut self, _: &HashMap<RouterId, NetworkDevice<P>>, _: &PhysicalNetwork) {}
 
     unsafe fn clone_events(&self, conquered: Self) -> Self {
         SimpleTimingModel {
@@ -407,7 +407,7 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         &mut self,
         mut event: Event<P, Self::Priority>,
         _: &HashMap<RouterId, NetworkDevice<P>>,
-        _: &IgpNetwork,
+        _: &PhysicalNetwork,
     ) {
         let mut next_time = self.current_time;
         let mut rng = thread_rng();
@@ -476,7 +476,11 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params(&mut self, routers: &HashMap<RouterId, NetworkDevice<P>>, _: &IgpNetwork) {
+    fn update_params(
+        &mut self,
+        routers: &HashMap<RouterId, NetworkDevice<P>>,
+        _: &PhysicalNetwork,
+    ) {
         self.paths.clear();
         // update all paths
         for (src, _) in routers.iter().filter(|(_, r)| r.is_internal()) {

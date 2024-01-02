@@ -29,7 +29,7 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        AsId, IgpNetwork, LinkWeight, NetworkDevice, NetworkDeviceRef, NetworkError, Prefix,
+        AsId, LinkWeight, NetworkDevice, NetworkDeviceRef, NetworkError, PhysicalNetwork, Prefix,
         PrefixSet, RouterId, SimplePrefix,
     },
 };
@@ -83,7 +83,7 @@ pub const INTERNAL_AS: AsId = AsId(65535);
     deserialize = "P: for<'a> serde::Deserialize<'a>, Q: for<'a> serde::Deserialize<'a>"
 ))]
 pub struct Network<P: Prefix = SimplePrefix, Q = BasicEventQueue<SimplePrefix>> {
-    pub(crate) net: IgpNetwork,
+    pub(crate) net: PhysicalNetwork,
     pub(crate) ospf: Ospf,
     pub(crate) routers: HashMap<RouterId, NetworkDevice<P>>,
     #[serde_as(as = "Vec<(_, _)>")]
@@ -124,7 +124,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// Generate an empty Network
     pub fn new(queue: Q) -> Self {
         Self {
-            net: IgpNetwork::new(),
+            net: PhysicalNetwork::new(),
             ospf: Ospf::new(),
             routers: HashMap::new(),
             bgp_sessions: HashMap::new(),
@@ -378,7 +378,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     // ********************
 
     /// Returns a reference to the network topology (PetGraph struct)
-    pub fn get_topology(&self) -> &IgpNetwork {
+    pub fn get_topology(&self) -> &PhysicalNetwork {
         &self.net
     }
 

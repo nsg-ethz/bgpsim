@@ -30,7 +30,7 @@
 use crate::{
     formatter::NetworkFormatter,
     ospf::OspfState,
-    types::{IgpNetwork, LinkWeight, Prefix, RouterId},
+    types::{LinkWeight, PhysicalNetwork, Prefix, RouterId},
 };
 use itertools::Itertools;
 use petgraph::visit::EdgeRef;
@@ -105,7 +105,7 @@ impl OspfProcess {
     }
 
     /// Update the IGP table.
-    pub(super) fn update_table(&mut self, graph: &IgpNetwork, ospf: &OspfState) {
+    pub(super) fn update_table(&mut self, graph: &PhysicalNetwork, ospf: &OspfState) {
         // clear the current table
         self.ospf_table.clear();
 
