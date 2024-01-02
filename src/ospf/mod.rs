@@ -28,8 +28,12 @@ use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
 
 use crate::{
+    event::Event,
     forwarding_state::ForwardingState,
-    types::{IgpNetwork, IndexType, LinkWeight, RouterId, SimplePrefix},
+    types::{
+        IndexType, LinkWeight, NetworkDevice, NetworkError, PhysicalNetwork, Prefix, RouterId,
+        SimplePrefix,
+    },
 };
 
 pub(crate) const MAX_WEIGHT: LinkWeight = LinkWeight::MAX / 16.0;
@@ -115,6 +119,52 @@ impl From<isize> for OspfArea {
     }
 }
 
+/// Interface for different kinds of OSPF implementations
+pub trait OspfImpl {
+    /// Type used for the global network-wide coordinator
+    type Global: GlobalOspfImpl;
+    /// Type used for the router-local process
+    type Local: LocalOspfImpl;
+}
+
+/// Global OSPF implementation
+pub trait GlobalOspfImpl:
+    std::fmt::Debug + Default + Clone + for<'de> Deserialize<'de> + Serialize
+{
+    /// Set the area of a link (bidirectional), and return the old area.
+    fn set_area<P: Prefix, T>(
+        &mut self,
+        a: RouterId,
+        b: RouterId,
+        area: OspfArea,
+        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+    ) -> Result<(Vec<Event<P, T>>, Option<OspfArea>), NetworkError>;
+
+    /// Returns the OSPF area of a link (bidirectional).
+    fn get_area(&self, a: RouterId, b: RouterId) -> Option<OspfArea>;
+
+    /// Set the weight of a link (directional) and return the old area.
+    fn set_weight<P: Prefix, T>(
+        &mut self,
+        a: RouterId,
+        b: RouterId,
+        weight: LinkWeight,
+        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+    ) -> Result<(Vec<Event<P, T>>, Option<LinkWeight>), NetworkError>;
+
+    /// Get the weight of a link (directional).
+    fn get_weight(&self, a: RouterId, b: RouterId) -> Option<LinkWeight>;
+
+    /// Can `src` reach `dst` in the current state?
+    fn is_reachable(&self, a: RouterId, b: RouterId) -> bool;
+}
+
+/// Local OSPF implementation
+pub trait LocalOspfImpl:
+    std::fmt::Debug + Default + Clone + for<'de> Deserialize<'de> + Serialize
+{
+}
+
 /// Data struture capturing the distributed OSPF state.
 #[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
 pub(crate) struct Ospf {
@@ -166,7 +216,7 @@ impl Ospf {
     /// 6. Redistribute all destinations from the backbone into all areas, extending the APSP of
     ///    that stub-area in the process. We will not export any routes that the ABR can reach
     ///    inside of its own area. We will not modify the graph, but only the APSP.
-    pub fn compute(&self, g: &IgpNetwork, external_nodes: &HashSet<RouterId>) -> OspfState {
+    pub fn compute(&self, g: &PhysicalNetwork, external_nodes: &HashSet<RouterId>) -> OspfState {
         let lut_router_areas: HashMap<RouterId, HashSet<OspfArea>> = g
             .node_indices()
             .filter(|r| !external_nodes.contains(r))
@@ -279,7 +329,6 @@ impl Ospf {
 
         // now, the backbone has collected all of its routes. Finally, advertise all routes from the
         // backbone into all stub areas.
-        // for each of these border routers, advertise their area(s) into the the backbone
         for abr in area_border_routers.iter().copied() {
             // compute the table for the backbone part.
             // from abr (properly dealing with non-connected areas).
