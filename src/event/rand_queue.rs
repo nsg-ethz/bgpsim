@@ -76,26 +76,26 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
     ) {
         let mut next_time = self.current_time;
         let mut rng = thread_rng();
-        // match on the event
-        match event {
-            Event::Bgp(ref mut t, src, dst, _) => {
-                let key = (src, dst);
-                // compute the next time
-                let beta = self.model.get_mut(&key).unwrap_or(&mut self.default_params);
-                next_time += NotNan::new(beta.sample(&mut rng)).unwrap();
-                // check if there is already something enqueued for this session
-                if let Some((ref mut num, ref mut time)) = self.messages.get_mut(&key) {
-                    if *num > 0 && *time > next_time {
-                        next_time = *time + beta.collision;
-                    }
-                    *num += 1;
-                    *time = next_time;
-                } else {
-                    self.messages.insert(key, (1, next_time));
-                }
-                *t = next_time;
+
+        // compute the priority
+        let src = event.source();
+        let dst = event.router();
+        let key = (src, dst);
+        // compute the next time
+        let beta = self.model.get_mut(&key).unwrap_or(&mut self.default_params);
+        next_time += NotNan::new(beta.sample(&mut rng)).unwrap();
+        // check if there is already something enqueued for this session
+        if let Some((ref mut num, ref mut time)) = self.messages.get_mut(&key) {
+            if *num > 0 && *time > next_time {
+                next_time = *time + beta.collision;
             }
+            *num += 1;
+            *time = next_time;
+        } else {
+            self.messages.insert(key, (1, next_time));
         }
+        *event.priority_mut() = next_time;
+
         // enqueue with the computed time
         self.q.push(event, Reverse(next_time));
     }

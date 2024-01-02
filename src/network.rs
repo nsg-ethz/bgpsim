@@ -504,6 +504,31 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         Ok(weight)
     }
 
+    /// Set many link weights simultaneously. `NetworkError::LinkNotFound` is returned if any link
+    /// does not exist. Note, that this function only sets the *directed* link weight, and the other
+    /// direction (from `target` to `source`) is not affected.
+    ///
+    /// This function will also update the IGP forwarding table *and* run the simulation.
+    pub fn set_link_weights_from<I>(&mut self, weights: I) -> Result<(), NetworkError>
+    where
+        I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
+    {
+        for (source, target, weight) in weights.into_iter() {
+            let edge = self
+                .net
+                .find_edge(source, target)
+                .ok_or(NetworkError::LinkNotFound(source, target))?;
+            self.net[edge] = weight;
+        }
+
+        // update the forwarding tables and simulate the network.
+        self.write_igp_fw_tables()?;
+        self.refresh_bgp_sessions()?;
+        self.do_queue_maybe_skip()?;
+
+        Ok(())
+    }
+
     /// Set the OSPF area of a specific link to the desired value. `NetworkError::LinkNotFound` is
     /// returned if the link does not exist. Otherwise, the old OSPF area is returned. This function
     /// sets the area of both links in both directions.

@@ -70,6 +70,13 @@ impl<P: Prefix, T> Event<P, T> {
         matches!(self, Event::Bgp(_, _, _, _))
     }
 
+    /// Return the source of the event.
+    pub fn source(&self) -> RouterId {
+        match self {
+            Event::Bgp(_, source, _, _) => *source,
+        }
+    }
+
     /// Return the router where the event is processed
     pub fn router(&self) -> RouterId {
         match self {
