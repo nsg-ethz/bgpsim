@@ -431,7 +431,10 @@ impl GlobalOspfOracle {
             // take only the internal routers
             match r {
                 NetworkDevice::InternalRouter(r) => {
-                    events.extend(r.write_igp_forwarding_table(self, links, external_links)?);
+                    events.extend(r.update_ospf(|ospf| {
+                        ospf.update_table(&self, links, external_links);
+                        Ok(Some(Vec::new()))
+                    })?);
                 }
                 _ => continue,
             }

@@ -27,14 +27,9 @@
 
 //! Module defining an internal router with BGP functionality.
 
-use std::collections::{HashMap, HashSet};
-
 use crate::{
     event::{Event, EventOutcome},
-    ospf::{
-        global::{GlobalOspfOracle, GlobalOspfProcess},
-        IgpTarget, LinkWeight, OspfArea, OspfProcess,
-    },
+    ospf::{global::GlobalOspfProcess, IgpTarget, OspfProcess},
     types::{AsId, DeviceError, Prefix, PrefixMap, RouterId, StepUpdate},
 };
 use itertools::Itertools;
@@ -199,17 +194,29 @@ impl<P: Prefix> Router<P> {
         do_load_balancing
     }
 
-    /// write forawrding table based on graph and return the set of events triggered by this action.
-    /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables.
-    pub(crate) fn write_igp_forwarding_table<T: Default>(
+    /// Execute a function on the ospf process. Then, update the BGP process if there was any
+    /// change in OSPF.
+    ///
+    /// If the function returns `Ok(Some(events))`, then there was a change in OSPF, and the BGP
+    /// process must be updated. If the function returns `Ok(None)`, then OSPF did not change, and
+    /// the BGP process needs no update.
+    pub(crate) fn update_ospf<F, T: Default>(
         &mut self,
-        ospf: &GlobalOspfOracle,
-        links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
-        external_links: &HashMap<RouterId, HashSet<RouterId>>,
-    ) -> Result<Vec<Event<P, T>>, DeviceError> {
-        self.ospf.update_table(ospf, links, external_links);
-        self.bgp.update_igp(&self.ospf);
-        self.bgp.update_tables(false)
+        f: F,
+    ) -> Result<Vec<Event<P, T>>, DeviceError>
+    where
+        F: FnOnce(&mut GlobalOspfProcess) -> Result<Option<Vec<Event<P, T>>>, DeviceError>,
+    {
+        if let Some(mut ospf_events) = f(&mut self.ospf)? {
+            // changes to BGP necessary
+            self.bgp.update_igp(&self.ospf);
+            let mut bgp_events = self.bgp.update_tables(false)?;
+            ospf_events.append(&mut bgp_events);
+            Ok(ospf_events)
+        } else {
+            // no changes to BGP necessary
+            Ok(Vec::new())
+        }
     }
 
     /// Set the name of the router.
