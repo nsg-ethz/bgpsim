@@ -173,6 +173,10 @@ impl Net {
         let weights = self
             .links
             .iter()
+            .filter(|((src, dst), _)| {
+                self.nodes.get(src).map(|x| x.is_none()).unwrap_or(false)
+                    && self.nodes.get(dst).map(|x| x.is_none()).unwrap_or(false)
+            })
             .map(|((src, dst), (weight, _))| {
                 if self.links.contains_key(&(dst.clone(), src.clone())) {
                     quote! {
