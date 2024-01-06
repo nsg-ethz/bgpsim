@@ -908,7 +908,7 @@ pub enum TopologyZoo {
     /// - 51 routers
     /// - 8 internal routers
     /// - 43 external routers
-    /// - 52 edges
+    /// - 31 edges
     /// - 8 edges connecting two internal routers.
     ///
     /// <img src="http://www.topology-zoo.org/maps/Cudi.jpg" alt="--- No image available ---" width="400"/>
@@ -1106,7 +1106,7 @@ pub enum TopologyZoo {
     /// - 28 routers
     /// - 25 internal routers
     /// - 3 external routers
-    /// - 28 edges
+    /// - 26 edges
     /// - 25 edges connecting two internal routers.
     ///
     /// <img src="http://www.topology-zoo.org/maps/Gambia.jpg" alt="--- No image available ---" width="400"/>
@@ -1727,8 +1727,8 @@ pub enum TopologyZoo {
     /// - 110 routers
     /// - 105 internal routers
     /// - 5 external routers
-    /// - 147 edges
-    /// - 141 edges connecting two internal routers.
+    /// - 148 edges
+    /// - 142 edges connecting two internal routers.
     ///
     /// <img src="http://www.topology-zoo.org/maps/Interoute.jpg" alt="--- No image available ---" width="400"/>
     Interoute,
@@ -1790,7 +1790,7 @@ pub enum TopologyZoo {
     /// - 12 routers
     /// - 2 internal routers
     /// - 10 external routers
-    /// - 10 edges
+    /// - 5 edges
     /// - 0 edges connecting two internal routers.
     ///
     /// <img src="http://www.topology-zoo.org/maps/JanetExternal.jpg" alt="--- No image available ---" width="400"/>
@@ -2069,7 +2069,7 @@ pub enum TopologyZoo {
     /// - 18 routers
     /// - 7 internal routers
     /// - 11 external routers
-    /// - 17 edges
+    /// - 16 edges
     /// - 6 edges connecting two internal routers.
     ///
     /// <img src="http://www.topology-zoo.org/maps/Nordu2010.jpg" alt="--- No image available ---" width="400"/>
@@ -2132,7 +2132,7 @@ pub enum TopologyZoo {
     /// - 18 routers
     /// - 3 internal routers
     /// - 15 external routers
-    /// - 22 edges
+    /// - 18 edges
     /// - 3 edges connecting two internal routers.
     ///
     /// <img src="http://www.topology-zoo.org/maps/Pacificwave.jpg" alt="--- No image available ---" width="400"/>
@@ -3320,7 +3320,7 @@ impl TopologyZoo {
             Self::Columbus => 85,
             Self::Compuserve => 17,
             Self::CrlNetworkServices => 38,
-            Self::Cudi => 52,
+            Self::Cudi => 31,
             Self::Cwix => 41,
             Self::Cynet => 29,
             Self::Darkstrand => 31,
@@ -3342,7 +3342,7 @@ impl TopologyZoo {
             Self::Fccn => 25,
             Self::Forthnet => 62,
             Self::Funet => 30,
-            Self::Gambia => 28,
+            Self::Gambia => 26,
             Self::Garr199901 => 18,
             Self::Garr199904 => 25,
             Self::Garr199905 => 25,
@@ -3411,14 +3411,14 @@ impl TopologyZoo {
             Self::Intellifiber => 95,
             Self::Internetmci => 33,
             Self::Internode => 77,
-            Self::Interoute => 147,
+            Self::Interoute => 148,
             Self::Intranetwork => 51,
             Self::Ion => 146,
             Self::IowaStatewideFiberMap => 41,
             Self::Iris => 64,
             Self::Istar => 23,
             Self::Itnet => 10,
-            Self::JanetExternal => 10,
+            Self::JanetExternal => 5,
             Self::Janetbackbone => 45,
             Self::Janetlense => 34,
             Self::Jgn2Plus => 17,
@@ -3449,14 +3449,14 @@ impl TopologyZoo {
             Self::Nordu1989 => 6,
             Self::Nordu1997 => 13,
             Self::Nordu2005 => 9,
-            Self::Nordu2010 => 17,
+            Self::Nordu2010 => 16,
             Self::Nsfcnet => 10,
             Self::Nsfnet => 15,
             Self::Ntelos => 58,
             Self::Ntt => 63,
             Self::Oteglobe => 103,
             Self::Oxford => 26,
-            Self::Pacificwave => 22,
+            Self::Pacificwave => 18,
             Self::Packetexchange => 27,
             Self::Padi => 6,
             Self::Palmetto => 64,
@@ -3678,7 +3678,7 @@ impl TopologyZoo {
             Self::Intellifiber => 95,
             Self::Internetmci => 33,
             Self::Internode => 31,
-            Self::Interoute => 141,
+            Self::Interoute => 142,
             Self::Intranetwork => 51,
             Self::Ion => 146,
             Self::IowaStatewideFiberMap => 38,

@@ -22,8 +22,9 @@ pub use crate::event::{BasicEventQueue, EventQueue};
 pub use crate::formatter::NetworkFormatter;
 pub use crate::interactive::InteractiveNetwork;
 pub use crate::network::Network;
+pub use crate::ospf::LinkWeight;
 pub use crate::record::RecordNetwork;
 pub use crate::types::{
-    AsId, Ipv4Prefix, LinkWeight, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix,
+    AsId, Ipv4Prefix, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix,
 };
 pub use bgpsim_macros::*;

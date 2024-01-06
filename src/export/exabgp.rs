@@ -107,7 +107,7 @@ use super::{Addressor, ExportError, ExternalCfgGen};
 /// #   use bgpsim::builder::NetworkBuilder;
 /// #   let mut net = Network::build_complete_graph(BasicEventQueue::<P>::new(), 1);
 /// #   let router = net.add_external_router("external_router", AsId(100));
-/// #   net.internal_indices().detach().for_each(|r| net.add_link(r, router));
+/// #   net.internal_indices().detach().for_each(|r| net.add_link(r, router).unwrap());
 /// #   net.build_ibgp_full_mesh()?;
 /// #   net.build_ebgp_sessions()?;
 /// #   net.build_link_weights(|_, _, _, _| 1.0, ())?;

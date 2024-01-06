@@ -25,13 +25,12 @@ use std::{
 use bimap::BiMap;
 use ipnet::Ipv4Net;
 use itertools::Itertools;
-use petgraph::visit::EdgeRef;
 
 use crate::{
     bgp::BgpRoute,
     config::{ConfigExpr, ConfigModifier},
     network::{Network, INTERNAL_AS},
-    ospf::OspfArea,
+    ospf::{InternalEdge, OspfArea},
     prelude::BgpSessionType,
     route_map::{
         RouteMap, RouteMapDirection as RmDir, RouteMapFlow, RouteMapMatch, RouteMapMatchAsPath,
@@ -225,8 +224,8 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         let is_internal = net.get_device(self.router)?.is_internal();
 
         config.push_str("!\n! Interfaces\n!\n");
-        for edge in net.get_topology().edges(r).sorted_by_key(|x| x.id()) {
-            let n = edge.target();
+        for edge in net.ospf.neighbors(r).sorted_by_key(|e| e.dst()) {
+            let n = edge.dst();
 
             let iface_name = self.iface(r, n, addressor)?;
 
@@ -238,18 +237,21 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
                 iface.mac_address(*mac);
             }
 
+            let (weight, area) = match edge.internal() {
+                Some(InternalEdge { weight, area, .. }) => (weight, area),
+                _ => (1.0, OspfArea::BACKBONE),
+            };
+
             if is_internal {
-                iface.cost(*edge.weight());
+                iface.cost(weight);
                 if let Some(hello) = self.ospf_params.0 {
                     iface.hello_interval(hello);
                 }
                 if let Some(dead) = self.ospf_params.1 {
                     iface.dead_interval(dead);
                 }
-                if let Ok(area) = net.get_ospf_area(r, n) {
-                    iface.area(area);
-                    self.local_area = Some(self.local_area.map(|x| x.min(area)).unwrap_or(area));
-                };
+                iface.area(area);
+                self.local_area = Some(self.local_area.map(|x| x.min(area)).unwrap_or(area));
             }
 
             config.push_str(&iface.build(self.target));

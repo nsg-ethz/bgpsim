@@ -19,6 +19,7 @@ mod t {
         builder::*,
         event::BasicEventQueue as Queue,
         network::Network,
+        ospf::{OspfProcess, EXTERNAL_LINK_WEIGHT},
         prelude::BgpSessionType,
         types::{AsId, Prefix, SimplePrefix, SinglePrefix},
     };
@@ -31,12 +32,12 @@ mod t {
         let net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 0);
         assert_eq!(net.device_indices().count(), 0);
         assert_eq!(net.external_indices().count(), 0);
-        assert_eq!(net.get_topology().edge_count(), 0);
+        assert_eq!(net.ospf.edges().count(), 0);
         for n in [1, 2, 10] {
             let net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), n);
             assert_eq!(net.device_indices().count(), n);
             assert_eq!(net.external_indices().count(), 0);
-            assert_eq!(net.get_topology().edge_count(), n * (n - 1));
+            assert_eq!(net.ospf.edges().count(), n * (n - 1));
         }
     }
 
@@ -178,22 +179,23 @@ mod t {
         let g = net.get_topology();
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
-            let weight = g.edge_weight(e).unwrap();
+            let weight = net.get_link_weight(a, b).unwrap();
             if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
             {
-                assert_eq!(*weight, 10.0);
+                assert_eq!(weight, 10.0);
             } else {
-                assert_eq!(*weight, 1.0);
+                assert_eq!(weight, EXTERNAL_LINK_WEIGHT);
             }
         }
 
-        for src in net.internal_indices() {
-            let r = net.get_device(src).unwrap().unwrap_internal();
-            let igp_table = r.ospf.get_table();
-            assert!(igp_table
+        for src in net.internal_routers() {
+            let id = src.router_id();
+            assert!(src
+                .ospf
+                .get_table()
                 .iter()
-                .filter(|(target, _)| **target != src)
-                .all(|(_, (nh, cost))| !nh.is_empty() && cost.is_finite()))
+                .filter(|(target, _)| **target != id)
+                .all(|(_, (nh, cost))| !nh.is_empty() && cost.is_finite()));
         }
 
         assert_igp_reachability(&net);
@@ -211,13 +213,13 @@ mod t {
         let g = net.get_topology();
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
-            let weight = g.edge_weight(e).unwrap();
+            let weight = net.get_link_weight(a, b).unwrap();
             if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
             {
-                assert!(*weight >= 10.0);
-                assert!(*weight <= 100.0);
+                assert!(weight >= 10.0);
+                assert!(weight <= 100.0);
             } else {
-                assert_eq!(*weight, 1.0);
+                assert_eq!(weight, EXTERNAL_LINK_WEIGHT);
             }
         }
 
@@ -227,7 +229,7 @@ mod t {
     #[cfg(feature = "rand")]
     #[test]
     fn test_build_link_weights_random_integer<P: Prefix>() {
-        use crate::types::LinkWeight;
+        use crate::ospf::LinkWeight;
 
         let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
         net.build_external_routers(extend_to_k_external_routers, 3)
@@ -238,14 +240,14 @@ mod t {
         let g = net.get_topology();
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
-            let weight = g.edge_weight(e).unwrap();
+            let weight = net.get_link_weight(a, b).unwrap();
             if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
             {
-                assert!(*weight >= 10.0);
-                assert!(*weight <= 100.0);
-                assert!((*weight - weight.round()).abs() < LinkWeight::EPSILON);
+                assert!(weight >= 10.0);
+                assert!(weight <= 100.0);
+                assert!((weight - weight.round()).abs() < LinkWeight::EPSILON);
             } else {
-                assert_eq!(*weight, 1.0);
+                assert_eq!(weight, EXTERNAL_LINK_WEIGHT);
             }
         }
 
@@ -338,10 +340,10 @@ mod t {
             }
             i += 1;
 
-            let num_edges_before = net.get_topology().edge_count() / 2;
+            let num_edges_before = net.ospf.edges().count() / 2;
             net.build_connected_graph();
 
-            let num_edges_after = net.get_topology().edge_count() / 2;
+            let num_edges_after = net.ospf.edges().count() / 2;
             let g = Graph::from(net.get_topology().clone());
             let num_components_after = connected_components(&g);
             assert_eq!(num_components_after, 1);
@@ -356,7 +358,7 @@ mod t {
             let net = Network::<P, Queue<P>>::build_gnm(Queue::new(), 100, 100);
             assert_eq!(net.internal_indices().count(), 100);
             assert_eq!(net.external_indices().count(), 0);
-            assert_eq!(net.get_topology().edge_count(), 100 * 2);
+            assert_eq!(net.ospf.edges().count(), 100 * 2);
         }
     }
 
@@ -367,7 +369,7 @@ mod t {
             let net = Network::<P, Queue<P>>::build_geometric(Queue::new(), 100, 2.0_f64.sqrt(), 2);
             assert_eq!(net.internal_indices().count(), 100);
             assert_eq!(net.external_indices().count(), 0);
-            assert_eq!(net.get_topology().edge_count(), 100 * 99);
+            assert_eq!(net.ospf.edges().count(), 100 * 99);
         }
     }
 
@@ -378,8 +380,8 @@ mod t {
             let net = Network::<P, Queue<P>>::build_geometric(Queue::new(), 100, 0.5, 2);
             assert_eq!(net.internal_indices().count(), 100);
             assert_eq!(net.external_indices().count(), 0);
-            assert!(net.get_topology().edge_count() < 100 * 99);
-            assert!(net.get_topology().edge_count() > 100 * 10);
+            assert!(net.ospf.edges().count() < 100 * 99);
+            assert!(net.ospf.edges().count() > 100 * 10);
         }
     }
 
@@ -392,7 +394,7 @@ mod t {
             let net = Network::<P, Queue<P>>::build_barabasi_albert(Queue::new(), 100, 3);
             assert_eq!(net.internal_indices().count(), 100);
             assert_eq!(net.external_indices().count(), 0);
-            assert_eq!(net.get_topology().edge_count(), (3 + (100 - 3) * 3) * 2);
+            assert_eq!(net.ospf.edges().count(), (3 + (100 - 3) * 3) * 2);
             let g = Graph::from(net.get_topology().clone());
             assert_eq!(connected_components(&g), 1);
         }

@@ -76,10 +76,10 @@ use crate::{
     event::EventQueue,
     formatter::NetworkFormatter,
     network::Network,
-    ospf::OspfArea,
+    ospf::{LinkWeight, OspfArea, DEFAULT_LINK_WEIGHT},
     route_map::{RouteMap, RouteMapDirection},
     router::StaticRoute,
-    types::{ConfigError, LinkWeight, NetworkDeviceRef, NetworkError, Prefix, PrefixMap, RouterId},
+    types::{ConfigError, NetworkDeviceRef, NetworkError, Prefix, PrefixMap, RouterId},
 };
 
 use petgraph::algo::FloatMeasure;
@@ -449,7 +449,7 @@ impl<P: Prefix + PartialEq> PartialEq for ConfigExpr<P> {
             | (ConfigExpr::BgpSession { .. }, _)
             | (ConfigExpr::BgpRouteMap { .. }, _)
             | (ConfigExpr::StaticRoute { .. }, _)
-            | (ConfigExpr::LoadBalancing { .. }, _) => false
+            | (ConfigExpr::LoadBalancing { .. }, _) => false,
         }
     }
 }
@@ -947,10 +947,9 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
     fn can_apply_modifier(&self, expr: &ConfigModifier<P>) -> bool {
         match expr {
             ConfigModifier::Insert(x) => match x {
-                ConfigExpr::IgpLinkWeight { source, target, .. } => self
-                    .get_link_weigth(*source, *target)
-                    .map(|x| x.is_infinite())
-                    .unwrap_or(false),
+                ConfigExpr::IgpLinkWeight { source, target, .. } => {
+                    self.get_link_weight(*source, *target).is_ok()
+                }
                 ConfigExpr::OspfArea { source, target, .. } => self
                     .get_ospf_area(*source, *target)
                     .map(|x| x == OspfArea::BACKBONE)
@@ -992,7 +991,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
             },
             ConfigModifier::Remove(x) | ConfigModifier::Update { from: x, .. } => match x {
                 ConfigExpr::IgpLinkWeight { source, target, .. } => {
-                    self.get_link_weigth(*source, *target).is_ok()
+                    self.get_link_weight(*source, *target).is_ok()
                 }
                 ConfigExpr::OspfArea { source, target, .. } => self
                     .get_ospf_area(*source, *target)
@@ -1063,25 +1062,24 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
     fn get_config(&self) -> Result<Config<P>, NetworkError> {
         let mut c = Config::new();
 
-        // get all link weights
-        for eid in self.net.edge_indices() {
-            let (source, target) = self.net.edge_endpoints(eid).unwrap();
-            let weight = *(self.net.edge_weight(eid).unwrap());
-            c.add(ConfigExpr::IgpLinkWeight {
-                source,
-                target,
-                weight,
-            })?
-        }
-
-        // get all OSPF areas
-        for ((a, b), area) in self.ospf.areas().iter() {
-            if !area.is_backbone() {
-                c.add(ConfigExpr::OspfArea {
-                    source: *a,
-                    target: *b,
-                    area: *area,
-                })?;
+        // get all link weights and ospf areas
+        for (a, edges) in self.ospf.links.iter() {
+            for (b, (weight, area)) in edges.iter() {
+                if *weight != DEFAULT_LINK_WEIGHT {
+                    c.add(ConfigExpr::IgpLinkWeight {
+                        source: *a,
+                        target: *b,
+                        weight: *weight,
+                    })?;
+                }
+                // add the area, and ignore errors
+                if !area.is_backbone() {
+                    let _ = c.add(ConfigExpr::OspfArea {
+                        source: *a,
+                        target: *b,
+                        area: *area,
+                    });
+                }
             }
         }
 

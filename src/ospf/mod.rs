@@ -17,27 +17,33 @@
 //! used by routers to write their IGP table. No message passing is simulated, but the final state
 //! is computed using shortest path algorithms.
 
-use std::{
-    collections::{HashMap, HashSet},
-    iter::{once, repeat},
-};
+pub mod global;
+mod iterator;
+mod serde_apsp;
+pub use iterator::*;
 
-use itertools::Itertools;
-use petgraph::{algo::floyd_warshall, visit::EdgeRef, Directed, Graph};
+use std::collections::{hash_map::Entry, HashMap, HashSet};
+
 use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
 
 use crate::{
     event::Event,
-    forwarding_state::ForwardingState,
+    formatter::NetworkFormatter,
+    forwarding_state::{ForwardingState, TO_DST},
     types::{
-        IndexType, LinkWeight, NetworkDevice, NetworkError, PhysicalNetwork, Prefix, RouterId,
-        SimplePrefix,
+        NetworkDevice, NetworkError, NetworkErrorOption, Prefix, PrefixMap, RouterId, SimplePrefix,
     },
 };
 
-pub(crate) const MAX_WEIGHT: LinkWeight = LinkWeight::MAX / 16.0;
-pub(crate) const MIN_EPSILON: LinkWeight = LinkWeight::EPSILON * 1024.0;
+use global::GlobalOspfOracle;
+
+/// Link Weight for the IGP graph
+pub type LinkWeight = f64;
+/// The default link weight that is configured when adding a link.
+pub const DEFAULT_LINK_WEIGHT: LinkWeight = 100.0;
+/// The link weight assigned to external sessions
+pub const EXTERNAL_LINK_WEIGHT: LinkWeight = 0.0;
 
 /// OSPF Area as a regular number. Area 0 (default) is the backbone area.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, PartialOrd, Ord, Default, Serialize, Deserialize)]
@@ -119,415 +125,368 @@ impl From<isize> for OspfArea {
     }
 }
 
-/// Interface for different kinds of OSPF implementations
-pub trait OspfImpl {
-    /// Type used for the global network-wide coordinator
-    type Global: GlobalOspfImpl;
-    /// Type used for the router-local process
-    type Local: LocalOspfImpl;
+/// Structure that stores the global OSPF configuration.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct OspfNetwork<Ospf = GlobalOspfOracle> {
+    externals: HashSet<RouterId>,
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
+    external_links: HashMap<RouterId, HashSet<RouterId>>,
+    #[serde(with = "As::<Vec<(Same, Vec<(Same, Same)>)>>")]
+    pub(crate) links: HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
+    failures: HashSet<(RouterId, RouterId)>,
+    coordinator: Ospf,
 }
 
-/// Global OSPF implementation
-pub trait GlobalOspfImpl:
-    std::fmt::Debug + Default + Clone + for<'de> Deserialize<'de> + Serialize
+impl<Ospf> PartialEq for OspfNetwork<Ospf> {
+    fn eq(&self, other: &Self) -> bool {
+        &self.links == &other.links && &self.external_links == &other.external_links
+    }
+}
+
+impl<Ospf> OspfNetwork<Ospf>
+where
+    Ospf: OspfCoordinator,
 {
-    /// Set the area of a link (bidirectional), and return the old area.
-    fn set_area<P: Prefix, T>(
+    /// Add an internal or external router.
+    pub(crate) fn add_router(&mut self, id: RouterId, internal: bool) {
+        if internal {
+            self.links.insert(id, Default::default());
+            self.external_links.insert(id, Default::default());
+        } else {
+            self.externals.insert(id);
+        }
+    }
+
+    pub(crate) fn add_link<P: Prefix, T: Default>(
         &mut self,
         a: RouterId,
         b: RouterId,
-        area: OspfArea,
         routers: &mut HashMap<RouterId, NetworkDevice<P>>,
-    ) -> Result<(Vec<Event<P, T>>, Option<OspfArea>), NetworkError>;
+    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        self.add_links_from([(a, b)], routers)
+    }
 
-    /// Returns the OSPF area of a link (bidirectional).
-    fn get_area(&self, a: RouterId, b: RouterId) -> Option<OspfArea>;
-
-    /// Set the weight of a link (directional) and return the old area.
-    fn set_weight<P: Prefix, T>(
+    pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
         &mut self,
-        a: RouterId,
-        b: RouterId,
+        links: I,
+        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError>
+    where
+        I: IntoIterator<Item = (RouterId, RouterId)>,
+    {
+        let mut deltas = Vec::new();
+        for (a, b) in links {
+            if self.is_internal(a, b)? {
+                let area = OspfArea::BACKBONE;
+                let weight = DEFAULT_LINK_WEIGHT;
+                match self.links.entry(a).or_default().entry(b) {
+                    Entry::Occupied(_) => {
+                        // nothing to do
+                    }
+                    Entry::Vacant(e) => {
+                        e.insert((weight, area));
+                        self.links.entry(b).or_default().insert(a, (weight, area));
+                    }
+                }
+                deltas.push(NeighborhoodChange::Weight {
+                    src: a,
+                    dst: b,
+                    old: LinkWeight::INFINITY,
+                    new: weight,
+                    area,
+                });
+                deltas.push(NeighborhoodChange::Weight {
+                    src: b,
+                    dst: a,
+                    old: LinkWeight::INFINITY,
+                    new: weight,
+                    area,
+                });
+            } else {
+                let (int, ext) = if self.externals.contains(&b) {
+                    (a, b)
+                } else {
+                    (b, a)
+                };
+                self.external_links.entry(int).or_default().insert(ext);
+                deltas.push(NeighborhoodChange::AddExternalNetwork { int, ext });
+            }
+        }
+        self.coordinator.update(
+            NeighborhoodChange::Batch(deltas),
+            routers,
+            &self.links,
+            &self.external_links,
+        )
+    }
+
+    pub(crate) fn set_weight<P: Prefix, T: Default>(
+        &mut self,
+        src: RouterId,
+        dst: RouterId,
         weight: LinkWeight,
         routers: &mut HashMap<RouterId, NetworkDevice<P>>,
-    ) -> Result<(Vec<Event<P, T>>, Option<LinkWeight>), NetworkError>;
+    ) -> Result<(Vec<Event<P, T>>, LinkWeight), NetworkError> {
+        self.must_be_internal(src, dst)?;
 
-    /// Get the weight of a link (directional).
-    fn get_weight(&self, a: RouterId, b: RouterId) -> Option<LinkWeight>;
+        let (w, a) = self
+            .links
+            .get_mut(&src)
+            .or_router_not_found(src)?
+            .get_mut(&dst)
+            .or_link_not_found(src, dst)?;
+        let area = *a;
+        let old_weight = *w;
+        *w = weight;
 
-    /// Can `src` reach `dst` in the current state?
-    fn is_reachable(&self, a: RouterId, b: RouterId) -> bool;
-}
-
-/// Local OSPF implementation
-pub trait LocalOspfImpl:
-    std::fmt::Debug + Default + Clone + for<'de> Deserialize<'de> + Serialize
-{
-}
-
-/// Data struture capturing the distributed OSPF state.
-#[derive(Debug, Clone, PartialEq, Eq, Default, Serialize, Deserialize)]
-pub(crate) struct Ospf {
-    #[serde(with = "As::<Vec<(Same, Same)>>")]
-    areas: HashMap<(RouterId, RouterId), OspfArea>,
-}
-
-impl Ospf {
-    /// Create a new OSPf instance, where every node is part of the backbone area.
-    pub(crate) fn new() -> Self {
-        Self {
-            areas: HashMap::new(),
-        }
+        let events = self.coordinator.update(
+            NeighborhoodChange::Weight {
+                src,
+                dst,
+                old: old_weight,
+                new: weight,
+                area,
+            },
+            routers,
+            &self.links,
+            &self.external_links,
+        )?;
+        Ok((events, old_weight))
     }
 
-    /// Set the area of a link between two routers (bidirectional), and return the old ospf area.
-    #[inline]
-    pub fn set_area(&mut self, a: RouterId, b: RouterId, area: impl Into<OspfArea>) -> OspfArea {
-        self.areas
-            .insert(Ospf::key(a, b), area.into())
-            .unwrap_or(OspfArea::BACKBONE)
-    }
+    pub(crate) fn set_link_weights_from<P: Prefix, T: Default, I>(
+        &mut self,
+        weights: I,
+        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError>
+    where
+        I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
+    {
+        let mut deltas = Vec::new();
+        for (src, dst, weight) in weights.into_iter() {
+            self.must_be_internal(src, dst)?;
 
-    /// Get the area of a link
-    #[inline]
-    pub fn get_area(&self, a: RouterId, b: RouterId) -> OspfArea {
-        self.areas
-            .get(&Ospf::key(a, b))
-            .copied()
-            .unwrap_or(OspfArea::BACKBONE)
-    }
-
-    /// Get a reference to the hashmap storing all areas
-    #[inline]
-    pub(crate) fn areas(&self) -> &HashMap<(RouterId, RouterId), OspfArea> {
-        &self.areas
-    }
-
-    /// Compute the `OspfState`. The algorithm to compute the OSPF state si the following:
-    ///
-    /// 1. construct the router lookup table
-    /// 2. generate a graph for each area that contains all nodes of the network, but yet no edges.
-    /// 3. fill each graph with the appropriate edges
-    /// 4. Compute the APSP in each area separately
-    /// 5. Redistribute all destinations from the stub areas into the backbone, extending the APSP
-    ///    of the backbone to include the other targets. In this process, we will not export any
-    ///    destination that is also available in the backbone (reachable from that ABR). Further, we
-    ///    do not change the graph of the backbone, but only the APSP.
-    /// 6. Redistribute all destinations from the backbone into all areas, extending the APSP of
-    ///    that stub-area in the process. We will not export any routes that the ABR can reach
-    ///    inside of its own area. We will not modify the graph, but only the APSP.
-    pub fn compute(&self, g: &PhysicalNetwork, external_nodes: &HashSet<RouterId>) -> OspfState {
-        let lut_router_areas: HashMap<RouterId, HashSet<OspfArea>> = g
-            .node_indices()
-            .filter(|r| !external_nodes.contains(r))
-            .map(|r| {
-                (
-                    r,
-                    g.edges(r)
-                        .filter(|e| *e.weight() < MAX_WEIGHT)
-                        .filter(|e| !external_nodes.contains(&e.target()))
-                        .map(|e| self.get_area(e.source(), e.target()))
-                        .collect(),
-                )
+            let (w, a) = self
+                .links
+                .get_mut(&src)
+                .or_router_not_found(src)?
+                .get_mut(&dst)
+                .or_link_not_found(src, dst)?;
+            let area = *a;
+            let old_weight = *w;
+            *w = weight;
+            deltas.push(NeighborhoodChange::Weight {
+                src,
+                dst,
+                old: old_weight,
+                new: weight,
+                area,
             })
-            .collect();
-
-        // first, generate all internal graphs with all required nodes.
-        let max_node_index = g.node_indices().max().unwrap_or_default().index();
-        let mut graphs: HashMap<OspfArea, Graph<(), LinkWeight, Directed, IndexType>> =
-            once(OspfArea::BACKBONE)
-                .chain(self.areas.values().copied())
-                .unique()
-                .map(|area| {
-                    let mut g = Graph::new();
-                    repeat(()).take(max_node_index + 1).for_each(|_| {
-                        g.add_node(());
-                    });
-                    (area, g)
-                })
-                .collect();
-
-        // prepare reverse lookup table and add all edges to the graphs.
-        let mut lut_area_routers: HashMap<OspfArea, HashSet<RouterId>> = HashMap::new();
-        for e in g.edge_indices() {
-            let (a, b) = g.edge_endpoints(e).unwrap();
-            // if either a or b are external, then don't add this edge
-            if external_nodes.contains(&a) || external_nodes.contains(&b) {
-                continue;
-            }
-            // get the area
-            let area = self.get_area(a, b);
-            // insert the lut_area_routers
-            let area_set = lut_area_routers.entry(area).or_default();
-            area_set.insert(a);
-            area_set.insert(b);
-            // add the edge in the appropriate graph.
-            graphs
-                .get_mut(&area)
-                .unwrap()
-                .add_edge(a, b, *g.edge_weight(e).unwrap());
         }
 
-        // then, compute the APSP inside of each area.
-        let mut apsps: HashMap<OspfArea, HashMap<(RouterId, RouterId), LinkWeight>> = graphs
-            .iter()
-            .map(|(area, g)| (*area, floyd_warshall(g, |e| *e.weight()).unwrap()))
-            .collect();
-        // only keep those values where the cost is finite.
-        apsps
-            .values_mut()
-            .for_each(|v| v.retain(|_, v| *v < MAX_WEIGHT));
-
-        // compute all area border routers
-        let area_border_routers: HashSet<RouterId> = lut_router_areas
-            .iter()
-            .filter(|(_, areas)| areas.len() > 1 && areas.contains(&OspfArea::BACKBONE))
-            .map(|(r, _)| *r)
-            .collect();
-
-        // remember which nodes were present in which stub table
-        let mut stub_tables: HashMap<(RouterId, OspfArea), HashSet<RouterId>> = HashMap::new();
-
-        // for each of these border routers, advertise their area(s) into the the backbone
-        for abr in area_border_routers.iter().copied() {
-            let reachable_in_backbone: HashSet<RouterId> = lut_area_routers[&OspfArea::BACKBONE]
-                .iter()
-                .copied()
-                .filter(|r| apsps[&OspfArea::BACKBONE].get(&(abr, *r)).is_some())
-                .collect();
-
-            for stub_area in lut_router_areas[&abr]
-                .iter()
-                .filter(|a| !a.is_backbone())
-                .copied()
-            {
-                // compute the stub table. This will only collect those that are actually reachable
-                // from abr (properly dealing with non-connected areas).
-                let area_apsp = apsps.get(&stub_area).unwrap();
-                let stub_table: Vec<(RouterId, LinkWeight)> = lut_area_routers[&stub_area]
-                    .iter()
-                    .filter(|r| **r != abr)
-                    .filter_map(|r| area_apsp.get(&(abr, *r)).map(move |cost| (*r, *cost)))
-                    .collect();
-
-                // redistribute the table into the backbone
-                redistribute_table_into_area(
-                    abr,
-                    &stub_table,
-                    apsps.get_mut(&OspfArea::BACKBONE).unwrap(),
-                    &lut_area_routers[&OspfArea::BACKBONE],
-                    &reachable_in_backbone,
-                );
-
-                // remember the things we have redistributed
-                stub_tables.insert(
-                    (abr, stub_area),
-                    stub_table.into_iter().map(|(r, _)| r).collect(),
-                );
-            }
-        }
-
-        // now, the backbone has collected all of its routes. Finally, advertise all routes from the
-        // backbone into all stub areas.
-        for abr in area_border_routers.iter().copied() {
-            // compute the table for the backbone part.
-            // from abr (properly dealing with non-connected areas).
-            let backbone_apsp = apsps.get(&OspfArea::BACKBONE).unwrap();
-            let backbone_graph = graphs.get(&OspfArea::BACKBONE).unwrap();
-            let backbone_table: Vec<(RouterId, LinkWeight)> = backbone_graph
-                .node_indices()
-                .filter(|r| *r != abr)
-                .filter_map(|r| Some((r, *backbone_apsp.get(&(abr, r))?)))
-                .collect();
-
-            for stub_area in lut_router_areas[&abr]
-                .iter()
-                .filter(|a| !a.is_backbone())
-                .copied()
-            {
-                // redistribute the table into the stub area.
-                redistribute_table_into_area(
-                    abr,
-                    &backbone_table,
-                    apsps.get_mut(&stub_area).unwrap(),
-                    &lut_area_routers[&stub_area],
-                    &stub_tables[&(abr, stub_area)],
-                );
-            }
-        }
-
-        // return the computed result
-        OspfState {
-            lut_router_areas,
-            graphs,
-            apsps,
-        }
+        let events = self.coordinator.update(
+            NeighborhoodChange::Batch(deltas),
+            routers,
+            &self.links,
+            &self.external_links,
+        )?;
+        Ok(events)
     }
 
-    /// Return the bidirectional key of a pair of routers
-    #[inline]
-    fn key(a: RouterId, b: RouterId) -> (RouterId, RouterId) {
-        if Self::is_key(a, b) {
-            (a, b)
+    /// Return the OSPF weight of a link (or `LinkWeight::INFINITY` if the link does not exist).
+    pub fn get_weight(&self, a: RouterId, b: RouterId) -> LinkWeight {
+        self.links
+            .get(&a)
+            .and_then(|x| x.get(&b))
+            .and_then(|(w, _)| w.is_finite().then_some(*w))
+            .or_else(|| {
+                self.external_links
+                    .get(&a)
+                    .and_then(|x| x.contains(&b).then_some(EXTERNAL_LINK_WEIGHT))
+            })
+            .or_else(|| {
+                self.external_links
+                    .get(&b)
+                    .and_then(|x| x.contains(&a).then_some(EXTERNAL_LINK_WEIGHT))
+            })
+            .unwrap_or(LinkWeight::INFINITY)
+    }
+
+    pub(crate) fn set_area<P: Prefix, T: Default>(
+        &mut self,
+        a: RouterId,
+        b: RouterId,
+        area: OspfArea,
+        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+    ) -> Result<(Vec<Event<P, T>>, OspfArea), NetworkError> {
+        self.must_be_internal(a, b)?;
+
+        let area = area.into();
+        let (w_a_b, aa) = self
+            .links
+            .get_mut(&a)
+            .or_router_not_found(a)?
+            .get_mut(&b)
+            .or_link_not_found(a, b)?;
+        let w_a_b = *w_a_b;
+        let old_area = *aa;
+        *aa = area;
+        let (w_b_a, aa) = self
+            .links
+            .get_mut(&b)
+            .or_router_not_found(b)?
+            .get_mut(&a)
+            .or_link_not_found(b, a)?;
+        *aa = area;
+        let w_b_a = *w_b_a;
+
+        let events = self.coordinator.update(
+            NeighborhoodChange::Area {
+                a,
+                b,
+                old: old_area,
+                new: area,
+                weight: (w_a_b, w_b_a),
+            },
+            routers,
+            &self.links,
+            &self.external_links,
+        )?;
+        Ok((events, old_area))
+    }
+
+    /// Return the OSPF area of a link.
+    pub fn get_area(&self, a: RouterId, b: RouterId) -> Option<OspfArea> {
+        self.links.get(&a).and_then(|x| x.get(&b)).map(|(_, a)| *a)
+    }
+
+    pub(crate) fn remove_link<P: Prefix, T: Default>(
+        &mut self,
+        a: RouterId,
+        b: RouterId,
+        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        if self.is_internal(a, b)? {
+            let (w_a_b, area) = self
+                .links
+                .get_mut(&a)
+                .or_router_not_found(a)?
+                .remove(&b)
+                .or_link_not_found(a, b)?;
+            let (w_b_a, _) = self
+                .links
+                .get_mut(&b)
+                .or_router_not_found(b)?
+                .remove(&a)
+                .or_link_not_found(b, a)?;
+
+            self.coordinator.update(
+                NeighborhoodChange::RemoveLink {
+                    a,
+                    b,
+
+                    area,
+                    weight: (w_a_b, w_b_a),
+                },
+                routers,
+                &self.links,
+                &self.external_links,
+            )
         } else {
-            (b, a)
+            let (int, ext) = if self.externals.contains(&b) {
+                (a, b)
+            } else {
+                (b, a)
+            };
+            self.external_links
+                .get_mut(&int)
+                .or_router_not_found(int)?
+                .take(&ext)
+                .or_link_not_found(int, ext)?;
+            self.coordinator.update(
+                NeighborhoodChange::RemoveExternalNetwork { int, ext },
+                routers,
+                &self.links,
+                &self.external_links,
+            )
         }
     }
 
-    /// return if a pair of routers (in this ordering) is used as an index
-    #[inline]
-    fn is_key(a: RouterId, b: RouterId) -> bool {
-        a.index() < b.index()
-    }
-}
-
-/// Make sure that `abr` redistributes `table` into the area with graph `to_graph` and apsp
-/// `to_apsp`. During that, extend `to_apsp` to reflect the redistribution. Ignore nodes found in
-/// `ignore`. `area_routers` contains all routers in that area. Do not modify the graph. The graph
-/// should only contain edges inside of the area!
-fn redistribute_table_into_area(
-    abr: RouterId,
-    table: &[(RouterId, LinkWeight)],
-    to_apsp: &mut HashMap<(RouterId, RouterId), LinkWeight>,
-    area_routers: &HashSet<RouterId>,
-    ignore: &HashSet<RouterId>,
-) {
-    // go through all targets in the backbone table
-    for (r, cost_abr_r) in table.iter().copied() {
-        // skip that `r` if `abr` has previously exported it
-        if ignore.contains(&r) {
-            continue;
-        }
-
-        // update the apsp of all nodes in the stub area
-        for x in area_routers.iter().copied() {
-            if let Some(cost_x_abr) = to_apsp.get(&(x, abr)).copied() {
-                let cost_x_r = to_apsp.entry((x, r)).or_insert(LinkWeight::INFINITY);
-                *cost_x_r = (cost_x_abr + cost_abr_r).min(*cost_x_r);
-            }
-        }
-    }
-}
-
-/// Data structure computing and storing a specific result of the OSPF computation. After creation,
-/// this data structure will contain the lookup-table for all rotuers (to which area do they
-/// belong), the graphs of each area, where edges are only part of an area graph if that edge is
-/// part of that area, and `apsps`. This structure stores an All-Pairs-Shortest-Path for each area,
-/// that does also include destinations that were advertised from other areas.
-#[derive(Clone, Debug)]
-pub struct OspfState {
-    pub(crate) lut_router_areas: HashMap<RouterId, HashSet<OspfArea>>,
-    graphs: HashMap<OspfArea, Graph<(), LinkWeight, Directed, IndexType>>,
-    apsps: HashMap<OspfArea, HashMap<(RouterId, RouterId), LinkWeight>>,
-}
-
-impl OspfState {
-    /// Get an iterator over all internal routers.
-    pub fn routers<'a>(
-        &'a self,
-    ) -> std::iter::Copied<std::collections::hash_map::Keys<'a, RouterId, HashSet<OspfArea>>> {
-        self.lut_router_areas.keys().copied()
-    }
-
-    /// Get the set of all OSPF areas that the `router` is part of.
-    pub fn get_areas(&self, router: RouterId) -> Option<&HashSet<OspfArea>> {
-        self.lut_router_areas.get(&router)
-    }
-
-    /// Get the routers that are part of a specific OSPF area.
-    pub fn get_area_routers(&self, area: OspfArea) -> Vec<RouterId> {
-        self.lut_router_areas
-            .iter()
-            .filter(|(_, a)| a.contains(&area))
-            .map(|(r, _)| *r)
-            .collect()
-    }
-
-    /// Get the set of next hops (router ids) for `src` to reach `dst`. If `src == dst`, then simply
-    /// return `vec![src]`. If OSPF does not know a path towards the target, then return `(vec![],
-    /// LinkWeight::INFINITY)`.
-    #[inline]
-    pub fn get_next_hops(&self, src: RouterId, dst: RouterId) -> (Vec<RouterId>, LinkWeight) {
-        // get the areas of src
-        self.maybe_get_next_hops(src, dst)
-            .unwrap_or_else(|| (vec![], LinkWeight::INFINITY))
-    }
-
-    /// Get the set of next hops (router ids) for `src` to reach `dst`.
-    pub(crate) fn maybe_get_next_hops(
-        &self,
-        src: RouterId,
-        dst: RouterId,
-    ) -> Option<(Vec<RouterId>, LinkWeight)> {
-        // get the areas of src
-        let src_areas = self.lut_router_areas.get(&src)?;
-        let dst_areas = self.lut_router_areas.get(&dst)?;
-
-        // check if there exists an overlap between both areas. If so, then get the area which has
-        // the smallest cost to get from src to dst, and use that to compute the next hops. If
-        if let Some((area, weight)) = src_areas
-            .intersection(dst_areas)
-            .filter_map(|a| Some((*a, self.apsps.get(a)?.get(&(src, dst))?)))
-            .min_by(|(a1, u), (a2, v)| (u, a1).partial_cmp(&(v, a2)).unwrap())
-        {
-            // only return this if the weight is less than max_weight. Otherwise, try to find a path
-            // via backbone.
-            if *weight < MAX_WEIGHT {
-                // compute the fastest path from src_o to dst_o
-                if let Some(r) = self.get_next_hops_in_area(src, dst, area) {
-                    return Some(r);
+    pub(crate) fn remove_router<P: Prefix, T: Default>(
+        &mut self,
+        r: RouterId,
+        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        let mut deltas = Vec::new();
+        if self.externals.contains(&r) {
+            // remove external router
+            self.externals.remove(&r);
+            for (int, x) in self.external_links.iter_mut() {
+                if x.remove(&r) {
+                    deltas.push(NeighborhoodChange::RemoveExternalNetwork { int: *int, ext: r })
                 }
             }
+        } else {
+            for (b, (w_r_b, area)) in self.links.remove(&r).or_router_not_found(r)? {
+                // also remove the other link
+                let (w_b_r, _) = self
+                    .links
+                    .get_mut(&b)
+                    .or_router_not_found(b)?
+                    .remove(&r)
+                    .or_link_not_found(b, r)?;
+                deltas.push(NeighborhoodChange::RemoveLink {
+                    a: r,
+                    b,
+                    area,
+                    weight: (w_r_b, w_b_r),
+                })
+            }
+
+            for ext in self.external_links.remove(&r).or_router_not_found(r)? {
+                deltas.push(NeighborhoodChange::RemoveExternalNetwork { int: r, ext })
+            }
         }
 
-        // otherwise, get the area in which we have the lowest cost, and use that to compute the
-        // next hops
-        src_areas
-            .iter()
-            .filter_map(|a| Some((*a, *self.apsps.get(a)?.get(&(src, dst))?)))
-            .sorted_by(|(a1, u), (a2, v)| (u, a1).partial_cmp(&(v, a2)).unwrap())
-            .find_map(|(a, _)| self.get_next_hops_in_area(src, dst, a))
+        self.coordinator.update(
+            NeighborhoodChange::Batch(deltas),
+            routers,
+            &self.links,
+            &self.external_links,
+        )
     }
 
-    /// Perform the best path computation within a single area.
-    fn get_next_hops_in_area(
+    /// Returns true if `a` can reach `b`, and vice-versa
+    pub fn is_reachable<P: Prefix>(
         &self,
-        src: RouterId,
-        dst: RouterId,
-        area: OspfArea,
-    ) -> Option<(Vec<RouterId>, LinkWeight)> {
-        // if `src == dst`, then simply return `vec![src]`
-        if src == dst {
-            return Some((vec![src], 0.0));
-        }
-
-        // get the graph and the apsp computation
-        let g = self.graphs.get(&area)?;
-        let apsp = self.apsps.get(&area)?;
-
-        // get the neighbors
-        let mut neighbors: Vec<(RouterId, LinkWeight)> = g
-            .edges(src)
-            .map(|r| (r.target(), *r.weight()))
-            .filter(|(_, w)| w.is_finite())
-            .collect();
-        neighbors.sort_by_key(|a| a.0);
-
-        // get the cost
-        let cost = *apsp.get(&(src, dst))?;
-
-        // get the predecessors by which we can reach the target in shortest time.
-        let next_hops = neighbors
-            .into_iter()
-            .filter_map(|(r, w)| apsp.get(&(r, dst)).map(|cost| (r, w + cost)))
-            .filter(|(_, w)| (cost - w).abs() <= MIN_EPSILON)
-            .map(|(r, _)| r)
-            .collect::<Vec<_>>();
-
-        if cost.is_infinite() || next_hops.is_empty() || cost >= MAX_WEIGHT {
-            None
+        a: RouterId,
+        b: RouterId,
+        routers: &HashMap<RouterId, NetworkDevice<P>>,
+    ) -> bool {
+        let a_ext = self.externals.contains(&a);
+        let b_ext = self.externals.contains(&b);
+        if a_ext && b_ext {
+            false
         } else {
-            Some((next_hops, cost))
+            let is_reachable = |src, dst| {
+                routers
+                    .get(&src)
+                    .and_then(|r| r.as_ref().internal())
+                    .map(|r| r.ospf.is_reachable(dst))
+                    .unwrap_or(false)
+            };
+
+            let a_reaches_b = if a_ext {
+                self.external_neighbors(a).any(|e| is_reachable(e.int, b))
+            } else {
+                is_reachable(a, b)
+            };
+            let b_reaches_a = if b_ext {
+                self.external_neighbors(b).any(|e| is_reachable(e.int, a))
+            } else {
+                is_reachable(b, a)
+            };
+            a_reaches_b && b_reaches_a
         }
     }
 
@@ -537,269 +496,313 @@ impl OspfState {
     ///
     /// The returned lookup table maps each router id to its prefix. You can also obtain the prefix
     /// of a router with ID `id` by computing `id.index().into()`.
-    pub fn build_forwarding_state(
+    pub(crate) fn get_forwarding_state<P: Prefix>(
         &self,
+        routers: &HashMap<RouterId, NetworkDevice<P>>,
     ) -> (
         ForwardingState<SimplePrefix>,
         HashMap<RouterId, SimplePrefix>,
     ) {
-        ForwardingState::from_ospf(self)
+        let n = self.links.len();
+        let mut lut: HashMap<RouterId, SimplePrefix> = HashMap::with_capacity(n);
+        let mut state: HashMap<RouterId, <SimplePrefix as Prefix>::Map<Vec<RouterId>>> =
+            HashMap::with_capacity(n);
+        let mut reversed: HashMap<RouterId, <SimplePrefix as Prefix>::Map<HashSet<RouterId>>> =
+            HashMap::with_capacity(n);
+
+        for dst in self.links.keys() {
+            let p: SimplePrefix = dst.index().into();
+            lut.insert(*dst, p);
+
+            for src in self.links.keys() {
+                if src == dst {
+                    state.entry(*dst).or_default().insert(p, vec![*TO_DST]);
+                    reversed
+                        .entry(*TO_DST)
+                        .or_default()
+                        .get_mut_or_default(p)
+                        .insert(*dst);
+                } else {
+                    let nhs = routers
+                        .get(src)
+                        .unwrap()
+                        .as_ref()
+                        .unwrap_internal()
+                        .ospf
+                        .get(*dst);
+                    for nh in nhs.iter() {
+                        reversed
+                            .entry(*nh)
+                            .or_default()
+                            .get_mut_or_default(p)
+                            .insert(*src);
+                    }
+                    state.entry(*src).or_default().insert(p, nhs.to_vec());
+                }
+            }
+        }
+
+        (ForwardingState::from_raw(state, reversed), lut)
+    }
+
+    /// Get a reference to the OSPF coordinator struct
+    pub fn coordinator(&self) -> &Ospf {
+        &self.coordinator
+    }
+
+    fn is_internal(&self, a: RouterId, b: RouterId) -> Result<bool, NetworkError> {
+        match (self.links.contains_key(&a), self.links.contains_key(&b)) {
+            (true, true) => Ok(true),
+            (false, true) | (true, false) => Ok(false),
+            (false, false) => Err(NetworkError::CannotConnectExternalRouters(a, b)),
+        }
+    }
+
+    fn must_be_internal(&self, a: RouterId, b: RouterId) -> Result<(), NetworkError> {
+        if !self.is_internal(a, b)? {
+            Err(NetworkError::CannotConfigureExternalLink(a, b))
+        } else {
+            Ok(())
+        }
+    }
+
+    /// Get an iterator over all internal edges. Each link will appear twice, once in each
+    /// direction.
+    pub fn internal_edges(&self) -> InternalEdges<'_> {
+        InternalEdges {
+            outer: Some(self.links.iter()),
+            inner: None,
+        }
+    }
+
+    /// Get an iterator over all external edges. Each link will appear once, from the internal
+    /// router to the external network.
+    pub fn external_edges(&self) -> ExternalEdges<'_> {
+        ExternalEdges {
+            outer: Some(self.external_links.iter()),
+            inner: None,
+        }
+    }
+
+    /// Get an iterator over all edges in the network. The iterator will yield first all internal
+    /// edges *twice* (once in both directions), and then yield all external edges *once* (from the
+    /// internal router to the external network).
+    pub fn edges(&self) -> Edges<'_> {
+        Edges {
+            int: self.internal_edges(),
+            ext: self.external_edges(),
+        }
+    }
+
+    /// Get an iterator over all internal neighbors of an internal router. The iterator is empty if
+    /// the router is an external router or does not exist.
+    pub fn internal_neighbors(&self, r: RouterId) -> InternalEdges<'_> {
+        InternalEdges {
+            outer: None,
+            inner: self.links.get(&r).map(|n| (r, n.iter())),
+        }
+    }
+
+    /// Get an iterator over all external neighbors of an internal router. The iterator is empty if
+    /// the router does not exist.
+    pub fn external_neighbors(&self, r: RouterId) -> ExternalNeighbors<'_> {
+        if self.externals.contains(&r) {
+            ExternalNeighbors::External(InternalNeighborsOfExternalNetwork {
+                ext: r,
+                iter: self.external_links.iter(),
+            })
+        } else {
+            ExternalNeighbors::Internal(ExternalEdges {
+                outer: None,
+                inner: self.external_links.get(&r).map(|n| (r, n.iter())),
+            })
+        }
+    }
+
+    /// Get an iterator over all neighbors of a router. The iterator is empty if the router does not
+    /// exist. The iterator will first yield internal edges, and then external ones.
+    pub fn neighbors(&self, r: RouterId) -> Neighbors<'_> {
+        if self.externals.contains(&r) {
+            Neighbors::External(InternalNeighborsOfExternalNetwork {
+                ext: r,
+                iter: self.external_links.iter(),
+            })
+        } else {
+            Neighbors::Internal(Edges {
+                int: InternalEdges {
+                    outer: None,
+                    inner: self.links.get(&r).map(|n| (r, n.iter())),
+                },
+                ext: ExternalEdges {
+                    outer: None,
+                    inner: self.external_links.get(&r).map(|n| (r, n.iter())),
+                },
+            })
+        }
     }
 }
 
-#[cfg(test)]
-mod test {
-    use std::collections::HashSet;
+/// Interface for different kinds of OSPF implementations
+pub trait OspfImpl {
+    /// Type used for the global network-wide coordinator
+    type Coordinator: OspfCoordinator<Process = Self::Process>;
+    /// Type used for the router-local process
+    type Process: OspfProcess;
+}
 
-    use petgraph::{stable_graph::StableGraph, Directed};
+/// A single update of the neighborhood.
+#[derive(Debug, Clone, PartialEq, PartialOrd)]
+pub enum NeighborhoodChange {
+    /// OSPF area (bidirectional) has changed
+    Area {
+        /// Endpoint 1
+        a: RouterId,
+        /// Endpoint 2
+        b: RouterId,
+        /// In which area was the link before?
+        old: OspfArea,
+        /// In which area is the link now?
+        new: OspfArea,
+        /// what is the current link weight (first, from `a` to `b`, and then from `b` to `a`).
+        weight: (LinkWeight, LinkWeight),
+    },
+    /// Link weight (directional) changes
+    Weight {
+        /// Source of the link
+        src: RouterId,
+        /// Destination of the link
+        dst: RouterId,
+        /// Old link weight
+        old: LinkWeight,
+        /// New link weight
+        new: LinkWeight,
+        /// What is the current area of the link
+        area: OspfArea,
+    },
+    /// Remove a link
+    RemoveLink {
+        /// Endpoint 1
+        a: RouterId,
+        /// Endpoint 2
+        b: RouterId,
+        /// What was the area of the link
+        area: OspfArea,
+        /// What was the weight of (first, from `a` to `b`, and then from `b` to `a`).
+        weight: (LinkWeight, LinkWeight),
+    },
+    /// Add a link to an external network.
+    AddExternalNetwork {
+        /// Internal router
+        int: RouterId,
+        /// External router
+        ext: RouterId,
+    },
+    /// Remove a link to an external network.
+    RemoveExternalNetwork {
+        /// Internal router
+        int: RouterId,
+        /// External router
+        ext: RouterId,
+    },
+    /// A batch of single updates, all done atomically
+    Batch(Vec<NeighborhoodChange>),
+}
 
-    use crate::{
-        ospf::OspfArea,
-        types::{IndexType, LinkWeight, RouterId},
-    };
+/// OSPF coordinator that pushes changes to each OSPF process.
+pub trait OspfCoordinator:
+    std::fmt::Debug + Default + Clone + for<'de> Deserialize<'de> + Serialize
+{
+    /// The associated OSPF process
+    type Process: OspfProcess;
 
-    use super::Ospf;
+    /// Handle a neighborhood change
+    fn update<P: Prefix, T: Default>(
+        &mut self,
+        delta: NeighborhoodChange,
+        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
+        external_links: &HashMap<RouterId, HashSet<RouterId>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError>;
+}
 
-    #[test]
-    fn only_backbone() {
-        let (g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
-        let ospf = Ospf::new();
-        let s = ospf.compute(&g, &HashSet::new());
+/// OSPF process running on each node.
+pub trait OspfProcess:
+    std::fmt::Debug + PartialEq + Clone + for<'de> Deserialize<'de> + Serialize
+{
+    /// Create a new OSPF process
+    fn new(router_id: RouterId) -> Self;
 
-        assert_eq!(s.get_next_hops(r0, r1), (vec![r1], 1.0));
-        assert_eq!(s.get_next_hops(r0, r2), (vec![r1, r3], 2.0));
-        assert_eq!(s.get_next_hops(r0, r3), (vec![r3], 1.0));
-        assert_eq!(s.get_next_hops(r0, r4), (vec![r4], 1.0));
-        assert_eq!(s.get_next_hops(r0, r5), (vec![r1, r4], 2.0));
-        assert_eq!(s.get_next_hops(r0, r6), (vec![r1, r3, r4], 3.0));
-        assert_eq!(s.get_next_hops(r0, r7), (vec![r3, r4], 2.0));
+    /// Get the a reference to the OSPF table
+    fn get_table(&self) -> &HashMap<RouterId, (Vec<RouterId>, LinkWeight)>;
+
+    /// Get a reference to the physical neighbors in OSPF.
+    fn get_neighbors(&self) -> &HashMap<RouterId, LinkWeight>;
+
+    /// Get the next-hops to a specific IGP target.
+    fn get(&self, target: impl Into<IgpTarget>) -> &[RouterId] {
+        let target = target.into();
+        match target {
+            IgpTarget::Neighbor(dst) => match self.get_neighbors().get_key_value(&dst) {
+                Some((dst, _)) => std::slice::from_ref(dst),
+                None => Default::default(),
+            },
+            IgpTarget::Ospf(dst) => self
+                .get_table()
+                .get(&dst)
+                .map(|(nhs, _)| nhs.as_slice())
+                .unwrap_or_default(),
+            _ => Default::default(),
+        }
     }
 
-    #[test]
-    fn inner_outer() {
-        let (g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
-        let mut ospf = Ospf::new();
-        ospf.set_area(r4, r0, OspfArea(1));
-        ospf.set_area(r4, r5, OspfArea(1));
-        ospf.set_area(r5, r1, OspfArea(1));
-        ospf.set_area(r5, r6, OspfArea(1));
-        ospf.set_area(r6, r2, OspfArea(1));
-        ospf.set_area(r6, r7, OspfArea(1));
-        ospf.set_area(r7, r3, OspfArea(1));
-        ospf.set_area(r7, r4, OspfArea(1));
-        let state = ospf.compute(&g, &HashSet::new());
-
-        assert_eq!(state.get_next_hops(r0, r1), (vec![r1], 1.0));
-        assert_eq!(state.get_next_hops(r0, r2), (vec![r1, r3], 2.0));
-        assert_eq!(state.get_next_hops(r0, r3), (vec![r3], 1.0));
-        assert_eq!(state.get_next_hops(r0, r4), (vec![r4], 1.0));
-        assert_eq!(state.get_next_hops(r0, r5), (vec![r4], 2.0));
-        assert_eq!(state.get_next_hops(r0, r6), (vec![r4], 3.0));
-        assert_eq!(state.get_next_hops(r0, r7), (vec![r4], 2.0));
+    /// Get the IGP cost for reaching a given internal router.
+    fn get_cost(&self, dst: RouterId) -> Option<LinkWeight> {
+        self.get_table().get(&dst).map(|(_, w)| *w)
     }
 
-    #[test]
-    fn left_right() {
-        let (mut g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
-        let mut ospf = Ospf::new();
-        ospf.set_area(r0, r1, OspfArea(1));
-        ospf.set_area(r1, r2, OspfArea(1));
-        ospf.set_area(r1, r5, OspfArea(1));
-        ospf.set_area(r2, r6, OspfArea(1));
-        ospf.set_area(r4, r5, OspfArea(1));
-        ospf.set_area(r5, r6, OspfArea(1));
-        let state = ospf.compute(&g, &HashSet::new());
-
-        assert_eq!(state.get_next_hops(r0, r1), (vec![r1], 1.0));
-        assert_eq!(state.get_next_hops(r0, r2), (vec![r3], 2.0));
-        assert_eq!(state.get_next_hops(r0, r3), (vec![r3], 1.0));
-        assert_eq!(state.get_next_hops(r0, r4), (vec![r4], 1.0));
-        assert_eq!(state.get_next_hops(r0, r5), (vec![r1], 2.0));
-        assert_eq!(state.get_next_hops(r0, r6), (vec![r3, r4], 3.0));
-        assert_eq!(state.get_next_hops(r0, r7), (vec![r3, r4], 2.0));
-
-        *g.edge_weight_mut(g.find_edge(r0, r3).unwrap()).unwrap() += 2.0;
-        *g.edge_weight_mut(g.find_edge(r0, r4).unwrap()).unwrap() += 2.0;
-        let state = ospf.compute(&g, &HashSet::new());
-        assert_eq!(state.get_next_hops(r0, r1), (vec![r1], 1.0));
-        assert_eq!(state.get_next_hops(r0, r2), (vec![r1], 2.0));
-        assert_eq!(state.get_next_hops(r0, r3), (vec![r3], 3.0));
-        assert_eq!(state.get_next_hops(r0, r4), (vec![r4], 3.0));
-        assert_eq!(state.get_next_hops(r0, r5), (vec![r1], 2.0));
-        assert_eq!(state.get_next_hops(r0, r6), (vec![r1], 3.0));
-        assert_eq!(state.get_next_hops(r0, r7), (vec![r3, r4], 4.0));
+    /// Get the next-hops and the IGP cost for reaching a given internal router.
+    fn get_nhs_cost(&self, dst: RouterId) -> Option<(&[RouterId], LinkWeight)> {
+        self.get_table()
+            .get(&dst)
+            .map(|(nhs, w)| (nhs.as_slice(), *w))
     }
 
-    #[test]
-    fn left_mid_right() {
-        let (g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
-        let mut ospf = Ospf::new();
-        ospf.set_area(r4, r0, OspfArea(1));
-        ospf.set_area(r4, r5, OspfArea(1));
-        ospf.set_area(r4, r7, OspfArea(1));
-        ospf.set_area(r6, r2, OspfArea(2));
-        ospf.set_area(r6, r5, OspfArea(2));
-        ospf.set_area(r6, r7, OspfArea(2));
-        let s = ospf.compute(&g, &HashSet::new());
-
-        assert_eq!(s.get_next_hops(r0, r1), (vec![r1], 1.0));
-        assert_eq!(s.get_next_hops(r0, r2), (vec![r1, r3], 2.0));
-        assert_eq!(s.get_next_hops(r0, r3), (vec![r3], 1.0));
-        assert_eq!(s.get_next_hops(r0, r4), (vec![r4], 1.0));
-        assert_eq!(s.get_next_hops(r0, r5), (vec![r1], 2.0));
-        assert_eq!(s.get_next_hops(r0, r6), (vec![r1, r3], 3.0));
-        assert_eq!(s.get_next_hops(r0, r7), (vec![r3], 2.0));
-        assert_eq!(s.get_next_hops(r4, r6), (vec![r5, r7], 2.0));
-        ospf.set_area(r3, r7, OspfArea(1));
-        ospf.set_area(r1, r5, OspfArea(2));
-        let state = ospf.compute(&g, &HashSet::new());
-        assert_eq!(state.get_next_hops(r4, r6), (vec![r0, r7], 4.0));
+    /// Test if a destination is reachable using OSPF.
+    fn is_reachable(&self, dst: RouterId) -> bool {
+        self.get_table().contains_key(&dst) || self.get_neighbors().contains_key(&dst)
     }
 
-    #[test]
-    fn left_right_bottom() {
-        let (mut g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
-        let mut ospf = Ospf::new();
-        *g.edge_weight_mut(g.find_edge(r0, r1).unwrap()).unwrap() += 1.0;
-        *g.edge_weight_mut(g.find_edge(r1, r0).unwrap()).unwrap() += 1.0;
-        ospf.set_area(r4, r0, OspfArea(1));
-        ospf.set_area(r4, r5, OspfArea(1));
-        ospf.set_area(r4, r7, OspfArea(1));
-        ospf.set_area(r5, r1, OspfArea(2));
-        ospf.set_area(r5, r6, OspfArea(2));
-        let state = ospf.compute(&g, &HashSet::new());
-
-        assert_eq!(state.get_next_hops(r5, r0), (vec![r4], 2.0));
-        assert_eq!(state.get_next_hops(r5, r1), (vec![r1], 1.0));
-        assert_eq!(state.get_next_hops(r5, r2), (vec![r1, r6], 2.0));
-        assert_eq!(state.get_next_hops(r5, r3), (vec![r4], 3.0));
-        assert_eq!(state.get_next_hops(r5, r4), (vec![r4], 1.0));
-        assert_eq!(state.get_next_hops(r5, r6), (vec![r6], 1.0));
-        assert_eq!(state.get_next_hops(r5, r7), (vec![r4], 2.0));
+    /// Returns `true` if `dst` is a neighbor.
+    fn is_neighbor(&self, dst: RouterId) -> bool {
+        self.get_neighbors().contains_key(&dst)
     }
+}
 
-    #[test]
-    fn disconnected() {
-        let (mut g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
-        let r8 = g.add_node(());
-        g.add_edge(r4, r8, 1.0);
-        g.add_edge(r8, r4, 1.0);
-        let mut ospf = Ospf::new();
-        ospf.set_area(r4, r8, OspfArea(1));
-        ospf.set_area(r6, r2, OspfArea(1));
-        ospf.set_area(r6, r5, OspfArea(1));
-        ospf.set_area(r6, r7, OspfArea(1));
+/// Target for a lookup into the IGP table
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum IgpTarget {
+    /// Route to the router using a directly connected link
+    Neighbor(RouterId),
+    /// Route to the router using IGP (and ECMP)
+    Ospf(RouterId),
+    /// Drop the traffic
+    Drop,
+}
 
-        let state = ospf.compute(&g, &HashSet::new());
-
-        assert_eq!(state.get_next_hops(r0, r8), (vec![r4], 2.0));
-        assert_eq!(state.get_next_hops(r0, r6), (vec![r1, r3, r4], 3.0));
-        assert_eq!(state.get_next_hops(r8, r6), (vec![r4], 3.0));
-        assert_eq!(state.get_next_hops(r6, r8), (vec![r5, r7], 3.0));
-        assert_eq!(state.get_next_hops(r5, r8), (vec![r4], 2.0));
-        assert_eq!(state.get_next_hops(r4, r8), (vec![r8], 1.0));
+impl From<RouterId> for IgpTarget {
+    fn from(value: RouterId) -> Self {
+        Self::Ospf(value)
     }
+}
 
-    #[test]
-    fn disconnected_backbone() {
-        let (mut g, (r0, r1, r2, r3, r4, r5, r6, r7)) = get_test_net();
-        let r8 = g.add_node(());
-        g.add_edge(r4, r8, 1.0);
-        g.add_edge(r8, r4, 1.0);
-        let mut ospf = Ospf::new();
-        ospf.set_area(r0, r1, 1);
-        ospf.set_area(r0, r3, 1);
-        ospf.set_area(r0, r4, 1);
-        ospf.set_area(r1, r2, 1);
-        ospf.set_area(r1, r5, 1);
-        ospf.set_area(r2, r3, 1);
-        ospf.set_area(r3, r7, 1);
-        ospf.set_area(r4, r5, 1);
-        ospf.set_area(r4, r7, 1);
+impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for IgpTarget {
+    type Formatter = String;
 
-        let state = ospf.compute(&g, &HashSet::new());
-
-        assert_eq!(state.get_next_hops(r0, r8), (vec![r4], 2.0));
-        assert_eq!(state.get_next_hops(r0, r6), (vec![r1, r3, r4], 3.0));
-        assert_eq!(state.get_next_hops(r8, r6), (vec![], LinkWeight::INFINITY));
-        assert_eq!(state.get_next_hops(r6, r8), (vec![], LinkWeight::INFINITY));
-        assert_eq!(state.get_next_hops(r5, r8), (vec![r4], 2.0));
-        assert_eq!(state.get_next_hops(r4, r8), (vec![r8], 1.0));
+    fn fmt(&'a self, net: &'n crate::network::Network<P, Q>) -> Self::Formatter {
+        match self {
+            IgpTarget::Neighbor(r) => format!("{} (neighbor)", r.fmt(net)),
+            IgpTarget::Ospf(r) => r.fmt(net).to_string(),
+            IgpTarget::Drop => "drop".to_string(),
+        }
     }
-
-    #[test]
-    fn disconnected_2() {
-        let (mut g, (r0, r1, r2, r3, r4, r5, r6, _)) = get_test_net();
-        let r8 = g.add_node(());
-        let r9 = g.add_node(());
-        g.add_edge(r4, r8, 1.0);
-        g.add_edge(r6, r9, 1.0);
-        g.add_edge(r8, r4, 1.0);
-        g.add_edge(r9, r6, 1.0);
-        let mut ospf = Ospf::new();
-        ospf.set_area(r4, r8, OspfArea(1));
-        ospf.set_area(r6, r9, OspfArea(1));
-
-        let state = ospf.compute(&g, &HashSet::new());
-
-        assert_eq!(state.get_next_hops(r0, r8), (vec![r4], 2.0));
-        assert_eq!(state.get_next_hops(r0, r9), (vec![r1, r3, r4], 4.0));
-        assert_eq!(state.get_next_hops(r1, r8), (vec![r0, r5], 3.0));
-        assert_eq!(state.get_next_hops(r1, r9), (vec![r2, r5], 3.0));
-        assert_eq!(state.get_next_hops(r8, r9), (vec![r4], 4.0));
-        assert_eq!(state.get_next_hops(r9, r8), (vec![r6], 4.0));
-    }
-
-    fn get_test_net() -> (
-        StableGraph<(), LinkWeight, Directed, IndexType>,
-        TestRouters,
-    ) {
-        let mut g = StableGraph::new();
-        let r0 = g.add_node(());
-        let r1 = g.add_node(());
-        let r2 = g.add_node(());
-        let r3 = g.add_node(());
-        let r4 = g.add_node(());
-        let r5 = g.add_node(());
-        let r6 = g.add_node(());
-        let r7 = g.add_node(());
-        g.add_edge(r0, r1, 1.0);
-        g.add_edge(r1, r2, 1.0);
-        g.add_edge(r2, r3, 1.0);
-        g.add_edge(r3, r0, 1.0);
-        g.add_edge(r0, r4, 1.0);
-        g.add_edge(r1, r5, 1.0);
-        g.add_edge(r2, r6, 1.0);
-        g.add_edge(r3, r7, 1.0);
-        g.add_edge(r4, r5, 1.0);
-        g.add_edge(r5, r6, 1.0);
-        g.add_edge(r6, r7, 1.0);
-        g.add_edge(r7, r4, 1.0);
-
-        g.add_edge(r1, r0, 1.0);
-        g.add_edge(r2, r1, 1.0);
-        g.add_edge(r3, r2, 1.0);
-        g.add_edge(r0, r3, 1.0);
-        g.add_edge(r4, r0, 1.0);
-        g.add_edge(r5, r1, 1.0);
-        g.add_edge(r6, r2, 1.0);
-        g.add_edge(r7, r3, 1.0);
-        g.add_edge(r5, r4, 1.0);
-        g.add_edge(r6, r5, 1.0);
-        g.add_edge(r7, r6, 1.0);
-        g.add_edge(r4, r7, 1.0);
-
-        (g, (r0, r1, r2, r3, r4, r5, r6, r7))
-    }
-
-    type TestRouters = (
-        RouterId,
-        RouterId,
-        RouterId,
-        RouterId,
-        RouterId,
-        RouterId,
-        RouterId,
-        RouterId,
-    );
 }

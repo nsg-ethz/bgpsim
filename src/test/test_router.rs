@@ -13,17 +13,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use std::collections::HashSet;
-
 #[allow(unused_imports)]
 use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
 use crate::{
     bgp::{BgpEvent, BgpRoute},
     event::Event,
     external_router::*,
-    ospf::Ospf,
     router::*,
-    types::{AsId, Ipv4Prefix, PhysicalNetwork, Prefix, SimplePrefix, SinglePrefix},
+    types::{AsId, Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
 };
 
 use maplit::{hashmap, hashset};
@@ -329,183 +326,6 @@ mod t2 {
 #[generic_tests::define]
 mod t1 {
     use super::*;
-
-    #[test]
-    fn test_fw_table_simple<P: Prefix>() {
-        let mut net: PhysicalNetwork = PhysicalNetwork::new();
-        let mut r_a = Router::<P>::new("A".to_string(), net.add_node(()), AsId(65001));
-        let mut r_b = Router::<P>::new("B".to_string(), net.add_node(()), AsId(65001));
-        let mut r_c = Router::<P>::new("C".to_string(), net.add_node(()), AsId(65001));
-        let r_d = Router::<P>::new("D".to_string(), net.add_node(()), AsId(65001));
-        let r_e = Router::<P>::new("E".to_string(), net.add_node(()), AsId(65001));
-
-        net.add_edge(r_a.router_id(), r_b.router_id(), 1.0);
-        net.add_edge(r_b.router_id(), r_c.router_id(), 1.0);
-        net.add_edge(r_c.router_id(), r_d.router_id(), 1.0);
-        net.add_edge(r_d.router_id(), r_e.router_id(), 1.0);
-        net.add_edge(r_e.router_id(), r_d.router_id(), 1.0);
-        net.add_edge(r_d.router_id(), r_c.router_id(), 1.0);
-        net.add_edge(r_c.router_id(), r_b.router_id(), 1.0);
-        net.add_edge(r_b.router_id(), r_a.router_id(), 1.0);
-
-        /*
-         * all weights = 1
-         * c ----- c
-         * |       |
-         * |       |
-         * b       d
-         * |       |
-         * |       |
-         * a       e
-         */
-
-        let ospf = Ospf::new();
-        let state = ospf.compute(&net, &HashSet::new());
-        r_a.write_igp_forwarding_table::<()>(&net, &state).unwrap();
-
-        let expected_forwarding_table = hashmap! {
-            r_a.router_id() => (vec![], 0.0),
-            r_b.router_id() => (vec![r_b.router_id()], 1.0),
-            r_c.router_id() => (vec![r_b.router_id()], 2.0),
-            r_d.router_id() => (vec![r_b.router_id()], 3.0),
-            r_e.router_id() => (vec![r_b.router_id()], 4.0),
-        };
-
-        let exp = &expected_forwarding_table;
-        let acq = &r_a.ospf.ospf_table;
-
-        for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
-            assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
-        }
-
-        let ospf = Ospf::new();
-        let state = ospf.compute(&net, &HashSet::new());
-        r_b.write_igp_forwarding_table::<()>(&net, &state).unwrap();
-
-        let expected_forwarding_table = hashmap! {
-            r_a.router_id() => (vec![r_a.router_id()], 1.0),
-            r_b.router_id() => (vec![], 0.0),
-            r_c.router_id() => (vec![r_c.router_id()], 1.0),
-            r_d.router_id() => (vec![r_c.router_id()], 2.0),
-            r_e.router_id() => (vec![r_c.router_id()], 3.0),
-        };
-
-        let exp = &expected_forwarding_table;
-        let acq = &r_b.ospf.ospf_table;
-
-        for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
-            assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
-        }
-
-        let ospf = Ospf::new();
-        let state = ospf.compute(&net, &HashSet::new());
-        r_c.write_igp_forwarding_table::<()>(&net, &state).unwrap();
-
-        let expected_forwarding_table = hashmap! {
-            r_a.router_id() => (vec![r_b.router_id()], 2.0),
-            r_b.router_id() => (vec![r_b.router_id()], 1.0),
-            r_c.router_id() => (vec![], 0.0),
-            r_d.router_id() => (vec![r_d.router_id()], 1.0),
-            r_e.router_id() => (vec![r_d.router_id()], 2.0),
-        };
-
-        let exp = &expected_forwarding_table;
-        let acq = &r_c.ospf.ospf_table;
-
-        for target in &[&r_a, &r_b, &r_c, &r_d, &r_e] {
-            assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
-        }
-    }
-
-    #[test]
-    fn test_igp_fw_table_complex<P: Prefix>() {
-        let mut net: PhysicalNetwork = PhysicalNetwork::new();
-        let mut r_a = Router::<P>::new("A".to_string(), net.add_node(()), AsId(65001));
-        let r_b = Router::<P>::new("B".to_string(), net.add_node(()), AsId(65001));
-        let mut r_c = Router::<P>::new("C".to_string(), net.add_node(()), AsId(65001));
-        let r_d = Router::<P>::new("D".to_string(), net.add_node(()), AsId(65001));
-        let r_e = Router::<P>::new("E".to_string(), net.add_node(()), AsId(65001));
-        let r_f = Router::<P>::new("F".to_string(), net.add_node(()), AsId(65001));
-        let r_g = Router::<P>::new("G".to_string(), net.add_node(()), AsId(65001));
-        let r_h = Router::<P>::new("H".to_string(), net.add_node(()), AsId(65001));
-
-        net.add_edge(r_a.router_id(), r_b.router_id(), 3.0);
-        net.add_edge(r_b.router_id(), r_a.router_id(), 3.0);
-        net.add_edge(r_a.router_id(), r_e.router_id(), 1.0);
-        net.add_edge(r_e.router_id(), r_a.router_id(), 1.0);
-        net.add_edge(r_b.router_id(), r_c.router_id(), 8.0);
-        net.add_edge(r_c.router_id(), r_b.router_id(), 8.0);
-        net.add_edge(r_b.router_id(), r_f.router_id(), 2.0);
-        net.add_edge(r_f.router_id(), r_b.router_id(), 2.0);
-        net.add_edge(r_c.router_id(), r_d.router_id(), 8.0);
-        net.add_edge(r_d.router_id(), r_c.router_id(), 8.0);
-        net.add_edge(r_c.router_id(), r_f.router_id(), 1.0);
-        net.add_edge(r_f.router_id(), r_c.router_id(), 1.0);
-        net.add_edge(r_c.router_id(), r_g.router_id(), 1.0);
-        net.add_edge(r_g.router_id(), r_c.router_id(), 1.0);
-        net.add_edge(r_d.router_id(), r_h.router_id(), 1.0);
-        net.add_edge(r_h.router_id(), r_d.router_id(), 1.0);
-        net.add_edge(r_e.router_id(), r_f.router_id(), 1.0);
-        net.add_edge(r_f.router_id(), r_e.router_id(), 1.0);
-        net.add_edge(r_f.router_id(), r_g.router_id(), 8.0);
-        net.add_edge(r_g.router_id(), r_f.router_id(), 8.0);
-        net.add_edge(r_g.router_id(), r_h.router_id(), 1.0);
-        net.add_edge(r_h.router_id(), r_g.router_id(), 1.0);
-
-        /*
-         *    3      8      8
-         * a ---- b ---- c ---- d
-         * |      |    / |      |
-         * |1    2|  --  |1     |1
-         * |      | / 1  |      |
-         * e ---- f ---- g ---- h
-         *    1      8      1
-         */
-
-        let ospf = Ospf::new();
-        let state = ospf.compute(&net, &HashSet::new());
-        r_a.write_igp_forwarding_table::<()>(&net, &state).unwrap();
-
-        let expected_forwarding_table = hashmap! {
-            r_a.router_id() => (vec![], 0.0),
-            r_b.router_id() => (vec![r_b.router_id()], 3.0),
-            r_c.router_id() => (vec![r_e.router_id()], 3.0),
-            r_d.router_id() => (vec![r_e.router_id()], 6.0),
-            r_e.router_id() => (vec![r_e.router_id()], 1.0),
-            r_f.router_id() => (vec![r_e.router_id()], 2.0),
-            r_g.router_id() => (vec![r_e.router_id()], 4.0),
-            r_h.router_id() => (vec![r_e.router_id()], 5.0),
-        };
-
-        let exp = &expected_forwarding_table;
-        let acq = &r_a.ospf.ospf_table;
-
-        for target in &[&r_a, &r_b, &r_c, &r_d, &r_e, &r_f, &r_g, &r_h] {
-            assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
-        }
-
-        let ospf = Ospf::new();
-        let state = ospf.compute(&net, &HashSet::new());
-        r_c.write_igp_forwarding_table::<()>(&net, &state).unwrap();
-
-        let expected_forwarding_table = hashmap! {
-            r_a.router_id() => (vec![r_f.router_id()], 3.0),
-            r_b.router_id() => (vec![r_f.router_id()], 3.0),
-            r_c.router_id() => (vec![], 0.0),
-            r_d.router_id() => (vec![r_g.router_id()], 3.0),
-            r_e.router_id() => (vec![r_f.router_id()], 2.0),
-            r_f.router_id() => (vec![r_f.router_id()], 1.0),
-            r_g.router_id() => (vec![r_g.router_id()], 1.0),
-            r_h.router_id() => (vec![r_g.router_id()], 2.0),
-        };
-
-        let exp = &expected_forwarding_table;
-        let acq = &r_c.ospf.ospf_table;
-
-        for target in &[&r_a, &r_b, &r_c, &r_d, &r_e, &r_f, &r_g, &r_h] {
-            assert_eq!(exp.get(&target.router_id()), acq.get(&target.router_id()));
-        }
-    }
 
     #[test]
     fn external_router_advertise_to_neighbors<P: Prefix>() {

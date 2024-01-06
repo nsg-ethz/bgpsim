@@ -19,7 +19,8 @@
 
 use crate::{
     bgp::BgpRibEntry,
-    types::{AsId, LinkWeight, Prefix, PrefixSet, RouterId},
+    ospf::LinkWeight,
+    types::{AsId, Prefix, PrefixSet, RouterId},
 };
 
 use ordered_float::NotNan;

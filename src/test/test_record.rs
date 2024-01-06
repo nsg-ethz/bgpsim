@@ -48,22 +48,18 @@ where
     let b1 = net.add_router("B1");
     let e1 = net.add_external_router("E1", AsId(1));
 
-    net.add_link(e0, b0);
-    net.add_link(b0, r0);
-    net.add_link(r0, r1);
-    net.add_link(r1, b1);
-    net.add_link(b1, e1);
+    net.add_link(e0, b0)?;
+    net.add_link(b0, r0)?;
+    net.add_link(r0, r1)?;
+    net.add_link(r1, b1)?;
+    net.add_link(b1, e1)?;
 
-    net.set_link_weight(e0, b0, 1.0)?;
-    net.set_link_weight(b0, e0, 1.0)?;
     net.set_link_weight(b0, r0, 1.0)?;
     net.set_link_weight(r0, b0, 1.0)?;
     net.set_link_weight(r0, r1, 1.0)?;
     net.set_link_weight(r1, r0, 1.0)?;
     net.set_link_weight(r1, b1, 1.0)?;
     net.set_link_weight(b1, r1, 1.0)?;
-    net.set_link_weight(b1, e1, 1.0)?;
-    net.set_link_weight(e1, b1, 1.0)?;
     net.set_bgp_session(e0, b0, Some(EBgp))?;
     net.set_bgp_session(r0, b0, Some(IBgpClient))?;
     net.set_bgp_session(r0, r1, Some(IBgpPeer))?;

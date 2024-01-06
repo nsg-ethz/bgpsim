@@ -18,7 +18,10 @@
 mod state;
 pub use state::*;
 
-use crate::types::{AsId, LinkWeight, Prefix, RouterId};
+use crate::{
+    ospf::LinkWeight,
+    types::{AsId, Prefix, RouterId},
+};
 
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};

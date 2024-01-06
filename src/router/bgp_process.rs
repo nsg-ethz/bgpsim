@@ -33,12 +33,13 @@ use crate::{
     event::Event,
     formatter::NetworkFormatter,
     network::Network,
+    ospf::{LinkWeight, OspfProcess},
     route_map::{
         RouteMap,
         RouteMapDirection::{self, Incoming, Outgoing},
         RouteMapList,
     },
-    types::{AsId, DeviceError, LinkWeight, Prefix, PrefixMap, PrefixSet, RouterId},
+    types::{AsId, DeviceError, Prefix, PrefixMap, PrefixSet, RouterId},
 };
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -47,8 +48,6 @@ use std::{
     collections::{HashMap, HashSet},
     fmt::Write,
 };
-
-use super::OspfProcess;
 
 /// BGP Routing Process responsible for maintiaining all BGP tables, and performing route selection
 /// and dissemination>
@@ -185,7 +184,7 @@ impl<P: Prefix> BgpProcess<P> {
     /// Get the processed `RIB_IN` table for the given prefix.
     fn get_processed_rib_for_prefix(&self, prefix: P) -> Vec<(BgpRibEntry<P>, bool)> {
         let Some(rib_in) = self.rib_in.get(&prefix) else {
-            return Vec::new()
+            return Vec::new();
         };
         let best_route = self.rib.get(&prefix);
         rib_in
@@ -432,7 +431,7 @@ impl<P: Prefix> BgpProcess<P> {
     }
 
     /// Update the stored IGP weights to all internal routers.
-    pub(super) fn update_igp(&mut self, igp: &OspfProcess) {
+    pub(super) fn update_igp(&mut self, igp: &impl OspfProcess) {
         self.igp_cost = igp
             .get_table()
             .iter()

@@ -31,9 +31,10 @@ use rand::{
 use crate::{
     event::EventQueue,
     network::Network,
+    ospf::LinkWeight,
     prelude::BgpSessionType,
     types::IndexType,
-    types::{AsId, LinkWeight, NetworkError, Prefix, RouterId},
+    types::{AsId, NetworkError, Prefix, RouterId},
 };
 
 /// Trait for generating random configurations quickly. The following example shows how you can
@@ -394,26 +395,19 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         A: Clone,
         F: FnMut(RouterId, RouterId, &Network<P, Q>, A) -> LinkWeight,
     {
-        let old_skip_queue = self.skip_queue;
-        self.skip_queue = false;
+        // build an iterator over all links
+        let weights = self
+            .net
+            .node_indices()
+            .flat_map(|src| self.net.neighbors(src).map(move |dst| (src, dst)))
+            .filter(|(src, dst)| {
+                self.get_device(*src).unwrap().is_internal()
+                    && self.get_device(*dst).unwrap().is_internal()
+            })
+            .map(|(src, dst)| (src, dst, link_weight(src, dst, self, a.clone())))
+            .collect::<Vec<_>>();
 
-        for edge in self.net.edge_indices().collect::<Vec<_>>() {
-            let (src, dst) = self.net.edge_endpoints(edge).unwrap();
-            let mut weight = link_weight(src, dst, self, a.clone());
-
-            let edge = self
-                .net
-                .find_edge(src, dst)
-                .ok_or(NetworkError::LinkNotFound(src, dst))?;
-            std::mem::swap(&mut self.net[edge], &mut weight);
-        }
-        // update the forwarding tables and simulate the network.
-        self.write_igp_fw_tables()?;
-        self.refresh_bgp_sessions()?;
-        self.do_queue_maybe_skip()?;
-
-        self.skip_queue = old_skip_queue;
-        Ok(())
+        self.set_link_weights_from(weights)
     }
 
     #[cfg(feature = "rand")]
@@ -429,26 +423,23 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         F: FnMut(RouterId, RouterId, &Network<P, Q>, &mut Rng, A) -> LinkWeight,
         Rng: RngCore,
     {
-        let old_skip_queue = self.skip_queue;
-        self.skip_queue = false;
+        let mut edges = self
+            .net
+            .node_indices()
+            .flat_map(|src| self.net.neighbors(src).map(move |dst| (src, dst)))
+            .filter(|(src, dst)| {
+                self.get_device(*src).unwrap().is_internal()
+                    && self.get_device(*dst).unwrap().is_internal()
+            })
+            .collect::<Vec<_>>();
+        edges.sort();
 
-        for edge in self.net.edge_indices().collect::<Vec<_>>() {
-            let (src, dst) = self.net.edge_endpoints(edge).unwrap();
-            let mut weight = link_weight(src, dst, self, rng, a.clone());
+        let weights = edges
+            .into_iter()
+            .map(|(src, dst)| (src, dst, link_weight(src, dst, self, rng, a.clone())))
+            .collect::<Vec<_>>();
 
-            let edge = self
-                .net
-                .find_edge(src, dst)
-                .ok_or(NetworkError::LinkNotFound(src, dst))?;
-            std::mem::swap(&mut self.net[edge], &mut weight);
-        }
-        // update the forwarding tables and simulate the network.
-        self.write_igp_fw_tables()?;
-        self.refresh_bgp_sessions()?;
-        self.do_queue_maybe_skip()?;
-
-        self.skip_queue = old_skip_queue;
-        Ok(())
+        self.set_link_weights_from(weights)
     }
 
     fn build_advertisements<F, A>(
@@ -490,7 +481,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
     {
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;
-
+        let mut new_links = Vec::new();
         let new_routers = connected_to(self, a)
             .into_iter()
             .map(|neighbor| {
@@ -499,10 +490,12 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
                 let r = self.get_external_router_mut(id)?;
                 r.set_as_id(AsId(id.index() as u32));
                 r.set_name(format!("{}_ext_{}", neighbor_name, id.index()));
-                self.add_link(id, neighbor);
+                new_links.push((id, neighbor));
                 Ok(id)
             })
             .collect::<Result<Vec<RouterId>, NetworkError>>()?;
+
+        self.add_links_from(new_links)?;
 
         self.skip_queue = old_skip_queue;
         Ok(new_routers)
@@ -517,7 +510,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         for j in 1..n {
             for i in 0..j {
                 let (i, j) = (i as IndexType, j as IndexType);
-                net.add_link(i.into(), j.into());
+                net.add_link(i.into(), j.into()).unwrap();
             }
         }
         net
@@ -535,20 +528,25 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         (0..n).for_each(|i| {
             net.add_router(format!("R{i}"));
         });
-        // iterate over all pairs of nodes
-        for j in 1..n {
-            for i in 0..j {
-                let (i, j) = (i as IndexType, j as IndexType);
-                if rng.gen_bool(p) {
-                    net.add_link(i.into(), j.into());
-                }
-            }
-        }
+
+        net.add_links_from(
+            (1..n)
+                .flat_map(|j| {
+                    (0..j).map(move |i| {
+                        (
+                            RouterId::from(i as IndexType),
+                            RouterId::from(j as IndexType),
+                        )
+                    })
+                })
+                .filter(|_| rng.gen_bool(p)),
+        )
+        .unwrap();
         net
     }
 
     #[cfg(feature = "rand")]
-    fn build_gnm(queue: Q, n: usize, mut m: usize) -> Network<P, Q> {
+    fn build_gnm(queue: Q, n: usize, m: usize) -> Network<P, Q> {
         // check if we should create a complete graph.
         let max_edges = n * (n - 1) / 2;
         if max_edges <= m {
@@ -568,15 +566,16 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         }
 
         // pick the complete graph if m is bigger than max_edges or equal to
-
-        while m > 0 {
+        let mut links = HashSet::new();
+        while links.len() < m {
             let i: RouterId = (rng.gen_range(0..n) as IndexType).into();
             let j: RouterId = (rng.gen_range(0..n) as IndexType).into();
-            if !(i == j || net.get_topology().find_edge(i, j).is_some()) {
-                net.add_link(i, j);
-                m -= 1;
+            let (i, j) = if i < j { (i, j) } else { (j, i) };
+            if i != j {
+                links.insert((i, j));
             }
         }
+        net.add_links_from(links).unwrap();
         net
     }
 
@@ -594,6 +593,7 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         // cache the square distance
         let dist2 = dist * dist;
         // iterate over all pairs of nodes
+        let mut links = Vec::new();
         for j in 1..n {
             for i in 0..j {
                 let pi = &positions[i];
@@ -601,10 +601,11 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
                 let distance: f64 = (0..dim).map(|x| (pi[x] - pj[x])).map(|x| x * x).sum();
                 let (i, j) = (i as IndexType, j as IndexType);
                 if distance < dist2 {
-                    net.add_link(i.into(), j.into());
+                    links.push((RouterId::from(i), RouterId::from(j)));
                 }
             }
         }
+        net.add_links_from(links).unwrap();
         net
     }
 
@@ -619,12 +620,15 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
 
         // first, create a complete graph with min(n, m + 1) nodes
         let x = n.min(m + 1);
-        for j in 1..x {
-            for i in 0..j {
-                let (i, j) = (i as IndexType, j as IndexType);
-                net.add_link(i.into(), j.into());
-            }
-        }
+        net.add_links_from((1..x).flat_map(|j| {
+            (0..j).map(move |i| {
+                (
+                    RouterId::from(i as IndexType),
+                    RouterId::from(j as IndexType),
+                )
+            })
+        }))
+        .unwrap();
 
         // if n <= (m + 1), then just create a complete graph with n nodes.
         if n <= (m + 1) {
@@ -635,8 +639,10 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         let mut preference_list: Vec<RouterId> = net
             .net
             .node_indices()
-            .flat_map(|r| repeat(r).take(net.net.neighbors(r).count()))
+            .flat_map(|r| repeat(r).take(net.ospf.neighbors(r).count()))
             .collect();
+
+        let mut links = Vec::new();
 
         for i in (m + 1)..n {
             let i = RouterId::from(i as IndexType);
@@ -648,12 +654,14 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
                     .filter(|r| !added_edges.contains(r) && *r != i)
                     .collect();
                 let j = p[rng.gen_range(0..p.len())];
-                net.add_link(i, j);
+                links.push((i, j));
                 preference_list.push(i);
                 preference_list.push(j);
                 added_edges.insert(j);
             }
         }
+
+        net.add_links_from(links).unwrap();
 
         net
     }
@@ -688,10 +696,13 @@ impl<P: Prefix, Q: EventQueue<P>> NetworkBuilder<P, Q> for Network<P, Q> {
         }
 
         let mut main_component = components.pop().unwrap();
+        let mut links = Vec::new();
         for (idx, mut component) in components.into_iter().enumerate() {
-            self.add_link(*component.last().unwrap(), main_component[idx]);
+            links.push((*component.last().unwrap(), main_component[idx]));
             main_component.append(&mut component);
         }
+
+        self.add_links_from(links).unwrap();
     }
 }
 

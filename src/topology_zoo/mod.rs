@@ -143,6 +143,8 @@ impl TopologyZooParser {
             })
             .collect::<Result<HashMap<&str, RouterId>, TopologyZooError>>()?;
 
+        let mut links = Vec::new();
+
         for TopologyZooEdge { source, target } in self.edges.iter() {
             let src = *nodes_lut
                 .get(source.as_str())
@@ -150,10 +152,19 @@ impl TopologyZooParser {
             let dst = *nodes_lut
                 .get(target.as_str())
                 .ok_or_else(|| TopologyZooError::NodeNotFound(target.clone()))?;
-            if net.get_topology().find_edge(src, dst).is_none() {
-                net.add_link(src, dst);
+            let src_internal = net
+                .get_device(src)
+                .map(|x| x.is_internal())
+                .unwrap_or(false);
+            let dst_internal = net
+                .get_device(dst)
+                .map(|x| x.is_internal())
+                .unwrap_or(false);
+            if src_internal || dst_internal {
+                links.push((src, dst));
             }
         }
+        net.add_links_from(links)?;
 
         Ok(net)
     }

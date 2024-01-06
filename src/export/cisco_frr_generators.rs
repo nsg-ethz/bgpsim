@@ -20,8 +20,8 @@ use itertools::Itertools;
 use std::{fmt::Write, net::Ipv4Addr};
 
 use crate::{
-    ospf::OspfArea,
-    types::{AsId, LinkWeight},
+    ospf::{LinkWeight, OspfArea},
+    types::AsId,
 };
 
 /// Instance of the OSPF router.

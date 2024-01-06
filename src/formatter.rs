@@ -769,6 +769,16 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for NetworkError {
                 format!("Router {} has an invalid BGP table!", r.fmt(net))
             }
             NetworkError::JsonError(e) => format!("Json error occurred: {e}"),
+            NetworkError::CannotConnectExternalRouters(a, b) => format!(
+                "Cannot connect two external routers: {} and {}.",
+                a.fmt(net),
+                b.fmt(net)
+            ),
+            NetworkError::CannotConfigureExternalLink(a, b) => format!(
+                "Cannot configure an external link between {} and {}.",
+                a.fmt(net),
+                b.fmt(net)
+            ),
         }
     }
 }

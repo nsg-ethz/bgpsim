@@ -29,7 +29,7 @@
 
 use crate::{
     formatter::NetworkFormatter,
-    ospf::OspfState,
+    ospf::{global::GlobalOspfOracle, OspfArea, OspfState},
     types::{LinkWeight, PhysicalNetwork, Prefix, RouterId},
 };
 use itertools::Itertools;
@@ -105,18 +105,23 @@ impl OspfProcess {
     }
 
     /// Update the IGP table.
-    pub(super) fn update_table(&mut self, graph: &PhysicalNetwork, ospf: &OspfState) {
+    pub(crate) fn update_table(
+        &mut self,
+        ospf: &GlobalOspfOracle,
+        links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
+    ) {
         // clear the current table
         self.ospf_table.clear();
 
-        self.neighbors = graph
-            .edges(self.router_id)
-            .map(|r| (r.target(), *r.weight()))
-            .filter(|(_, w)| w.is_finite())
+        self.neighbors = links
+            .get(&self.router_id)
+            .into_iter()
+            .flatten()
+            .map(|(r, (w, _))| (*r, *w))
             .collect();
 
         // iterate over all nodes in the IGP graph.
-        for target in graph.node_indices() {
+        for target in links.keys().copied() {
             if target == self.router_id {
                 self.ospf_table.insert(target, (vec![], 0.0));
                 continue;

@@ -25,20 +25,16 @@ use crate::{
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
-    ospf::{Ospf, OspfArea, OspfState},
+    ospf::{global::GlobalOspfOracle, LinkWeight, OspfArea, OspfNetwork},
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        AsId, LinkWeight, NetworkDevice, NetworkDeviceRef, NetworkError, PhysicalNetwork, Prefix,
-        PrefixSet, RouterId, SimplePrefix,
+        AsId, NetworkDevice, NetworkDeviceRef, NetworkError, PhysicalNetwork, Prefix, PrefixSet,
+        RouterId, SimplePrefix,
     },
 };
 
 use log::*;
-use petgraph::{
-    algo::{tarjan_scc, FloatMeasure},
-    visit::{EdgeRef, IntoEdgeReferences},
-};
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
@@ -61,7 +57,7 @@ pub const INTERNAL_AS: AsId = AsId(65535);
 ///     // add two internal routers and connect them.
 ///     let r1 = net.add_router("r1");
 ///     let r2 = net.add_router("r2");
-///     net.add_link(r1, r2);
+///     net.add_link(r1, r2)?;
 ///     net.set_link_weight(r1, r2, 5.0)?;
 ///     net.set_link_weight(r2, r1, 4.0)?;
 ///
@@ -84,7 +80,7 @@ pub const INTERNAL_AS: AsId = AsId(65535);
 ))]
 pub struct Network<P: Prefix = SimplePrefix, Q = BasicEventQueue<SimplePrefix>> {
     pub(crate) net: PhysicalNetwork,
-    pub(crate) ospf: Ospf,
+    pub(crate) ospf: OspfNetwork<GlobalOspfOracle>,
     pub(crate) routers: HashMap<RouterId, NetworkDevice<P>>,
     #[serde_as(as = "Vec<(_, _)>")]
     pub(crate) bgp_sessions: HashMap<(RouterId, RouterId), Option<BgpSessionType>>,
@@ -124,8 +120,8 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// Generate an empty Network
     pub fn new(queue: Q) -> Self {
         Self {
-            net: PhysicalNetwork::new(),
-            ospf: Ospf::new(),
+            net: PhysicalNetwork::default(),
+            ospf: OspfNetwork::default(),
             routers: HashMap::new(),
             bgp_sessions: HashMap::new(),
             known_prefixes: Default::default(),
@@ -143,6 +139,7 @@ impl<P: Prefix, Q> Network<P, Q> {
         let new_router = Router::new(name.into(), self.net.add_node(()), INTERNAL_AS);
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router.into());
+        self.ospf.add_router(router_id, true);
 
         router_id
     }
@@ -158,6 +155,7 @@ impl<P: Prefix, Q> Network<P, Q> {
         let new_router = ExternalRouter::new(name.into(), self.net.add_node(()), as_id.into());
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router.into());
+        self.ospf.add_router(router_id, false);
 
         router_id
     }
@@ -185,31 +183,6 @@ impl<P: Prefix, Q> Network<P, Q> {
         Ok(())
     }
 
-    /// This function creates an link in the network The link will have infinite weight for both
-    /// directions. The network needs to be configured such that routers can use the link, since
-    /// a link with infinte weight is treated as not connected. If the link does already exist,
-    /// this function will do nothing!
-    ///
-    /// ```rust
-    /// # use bgpsim::prelude::*;
-    /// # fn main() -> Result<(), NetworkError> {
-    /// let mut net: Network<SimplePrefix, _> = Network::default();
-    /// let r1 = net.add_router("r1");
-    /// let r2 = net.add_router("r2");
-    /// net.add_link(r1, r2);
-    /// net.set_link_weight(r1, r2, 5.0)?;
-    /// net.set_link_weight(r2, r1, 4.0)?;
-    /// # Ok(())
-    /// # }
-    /// ```
-    pub fn add_link(&mut self, source: RouterId, target: RouterId) {
-        for (a, b) in [(source, target), (target, source)] {
-            if !self.net.contains_edge(a, b) {
-                self.net.add_edge(a, b, LinkWeight::infinite());
-            }
-        }
-    }
-
     /// Compute and return the current forwarding state.
     pub fn get_forwarding_state(&self) -> ForwardingState<P> {
         ForwardingState::from_net(self)
@@ -229,10 +202,24 @@ impl<P: Prefix, Q> Network<P, Q> {
         BgpState::from_net(self, prefix)
     }
 
-    /// Return an OSPF state of the current network.
-    pub fn get_ospf_state(&self) -> OspfState {
-        self.ospf
-            .compute(&self.net, &self.external_indices().collect())
+    /// Return the IGP network
+    pub fn ospf_network(&self) -> &OspfNetwork<GlobalOspfOracle> {
+        &self.ospf
+    }
+
+    /// Generate a forwarding state that represents the OSPF routing state. Each router with
+    /// [`RouterId`] `id` advertises its own prefix `id.index().into()`. The stored paths represent
+    /// the routing decisions performed by OSPF.
+    ///
+    /// The returned lookup table maps each router id to its prefix. You can also obtain the prefix
+    /// of a router with ID `id` by computing `id.index().into()`.
+    pub fn get_ospf_forwarding_state(
+        &self,
+    ) -> (
+        ForwardingState<SimplePrefix>,
+        HashMap<RouterId, SimplePrefix>,
+    ) {
+        self.ospf.get_forwarding_state(&self.routers)
     }
 
     /*
@@ -396,15 +383,15 @@ impl<P: Prefix, Q> Network<P, Q> {
 
     /// Get the link weight of a specific link (directed). This function will raise a
     /// `NetworkError::LinkNotFound` if the link does not exist.
-    pub fn get_link_weigth(
+    pub fn get_link_weight(
         &self,
         source: RouterId,
         target: RouterId,
     ) -> Result<LinkWeight, NetworkError> {
         self.net
             .find_edge(source, target)
-            .map(|e| *self.net.edge_weight(e).unwrap())
-            .ok_or(NetworkError::LinkNotFound(source, target))
+            .ok_or(NetworkError::LinkNotFound(source, target))?;
+        Ok(self.ospf.get_weight(source, target))
     }
 
     /// Get the OSPF area of a specific link (undirected). This function will raise a
@@ -419,7 +406,9 @@ impl<P: Prefix, Q> Network<P, Q> {
             .find_edge(source, target)
             .ok_or(NetworkError::LinkNotFound(source, target))?;
 
-        Ok(self.ospf.get_area(source, target))
+        self.ospf
+            .get_area(source, target)
+            .ok_or_else(|| NetworkError::LinkNotFound(source, target))
     }
 }
 
@@ -448,6 +437,66 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             skip_queue: self.skip_queue,
             verbose: self.verbose,
         })
+    }
+
+    /// This function creates an link in the network. The link will have weight fo 100.0 for both
+    /// directions and area 0 (backbone). If the link does already exist, this function will do
+    /// nothing! After adding the link, the network simulation is executed.
+    ///
+    /// ```rust
+    /// # use bgpsim::prelude::*;
+    /// # fn main() -> Result<(), NetworkError> {
+    /// let mut net: Network<SimplePrefix, _> = Network::default();
+    /// let r1 = net.add_router("r1");
+    /// let r2 = net.add_router("r2");
+    /// net.add_link(r1, r2)?;
+    /// net.set_link_weight(r1, r2, 5.0)?;
+    /// net.set_link_weight(r2, r1, 4.0)?;
+    /// # Ok(())
+    /// # }
+    /// ```
+    pub fn add_link(&mut self, a: RouterId, b: RouterId) -> Result<(), NetworkError> {
+        if !self.net.contains_edge(a, b) {
+            self.net.add_edge(a, b, ());
+            let events = self.ospf.add_link(a, b, &mut self.routers)?;
+            self.enqueue_events(events);
+            self.refresh_bgp_sessions()?;
+            self.do_queue_maybe_skip()?;
+        }
+        Ok(())
+    }
+
+    /// Set many link weights simultaneously. This function will also update the IGP forwarding table
+    /// *and* run the simulation. If a link already exists, then ignore that link.
+    pub fn add_links_from<I>(&mut self, links: I) -> Result<(), NetworkError>
+    where
+        I: IntoIterator<Item = (RouterId, RouterId)>,
+    {
+        let links = links
+            .into_iter()
+            .filter(|(a, b)| !self.net.contains_edge(*a, *b))
+            .map(|(a, b)| {
+                if a.index() < b.index() {
+                    (a, b)
+                } else {
+                    (b, a)
+                }
+            })
+            .collect::<HashSet<_>>();
+
+        // add all edges to the network graph
+        for (a, b) in links.iter() {
+            self.net.add_edge(*a, *b, ());
+        }
+
+        let events = self.ospf.add_links_from(links, &mut self.routers)?;
+
+        // update the forwarding tables and simulate the network.
+        self.enqueue_events(events);
+        self.refresh_bgp_sessions()?;
+        self.do_queue_maybe_skip()?;
+
+        Ok(())
     }
 
     /// Setup a BGP session between source and target. If `session_type` is `None`, then any
@@ -490,20 +539,23 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         &mut self,
         source: RouterId,
         target: RouterId,
-        mut weight: LinkWeight,
+        weight: LinkWeight,
     ) -> Result<LinkWeight, NetworkError> {
-        let edge = self
-            .net
+        // throw an error if the link does not exist.
+        self.net
             .find_edge(source, target)
             .ok_or(NetworkError::LinkNotFound(source, target))?;
-        std::mem::swap(&mut self.net[edge], &mut weight);
+
+        let (events, old_weight) =
+            self.ospf
+                .set_weight(source, target, weight, &mut self.routers)?;
 
         // update the forwarding tables and simulate the network.
-        self.write_igp_fw_tables()?;
+        self.enqueue_events(events);
         self.refresh_bgp_sessions()?;
         self.do_queue_maybe_skip()?;
 
-        Ok(weight)
+        Ok(old_weight)
     }
 
     /// Set many link weights simultaneously. `NetworkError::LinkNotFound` is returned if any link
@@ -515,16 +567,19 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     where
         I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
     {
-        for (source, target, weight) in weights.into_iter() {
-            let edge = self
-                .net
-                .find_edge(source, target)
-                .ok_or(NetworkError::LinkNotFound(source, target))?;
-            self.net[edge] = weight;
+        let weights = weights.into_iter().collect::<Vec<_>>();
+        for (source, target, _) in weights.iter() {
+            if self.net.find_edge(*source, *target).is_none() {
+                return Err(NetworkError::LinkNotFound(*source, *target));
+            }
         }
 
+        let events = self
+            .ospf
+            .set_link_weights_from(weights, &mut self.routers)?;
+
         // update the forwarding tables and simulate the network.
-        self.write_igp_fw_tables()?;
+        self.enqueue_events(events);
         self.refresh_bgp_sessions()?;
         self.do_queue_maybe_skip()?;
 
@@ -547,10 +602,12 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             .find_edge(source, target)
             .ok_or(NetworkError::LinkNotFound(source, target))?;
 
-        let old_area = self.ospf.set_area(source, target, area);
+        let (events, old_area) =
+            self.ospf
+                .set_area(source, target, area.into(), &mut self.routers)?;
 
         // update the forwarding tables and simulate the network.
-        self.write_igp_fw_tables()?;
+        self.enqueue_events(events);
         self.refresh_bgp_sessions()?;
         self.do_queue_maybe_skip()?;
 
@@ -703,36 +760,33 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
         self.do_queue_maybe_skip()
     }
 
-    /// Simulate a link failure in the network. This is done by removing the actual link from the
-    /// network topology. Afterwards, it will update the IGP forwarding table, and perform the BGP
-    /// decision process, which will cause a convergence process. This function will also
-    /// automatically handle the convergence process.
+    /// Remove a link from the network. The network will update the IGP forwarding table, and
+    /// perform the BGP decision process, which will cause a convergence process. This function
+    /// will also automatically handle the convergence process.
     pub fn remove_link(
         &mut self,
         router_a: RouterId,
         router_b: RouterId,
     ) -> Result<(), NetworkError> {
         debug!(
-            "Simulate link failure: {} -- {}",
+            "Remove link: {} -- {}",
             self.get_device(router_a)?.name(),
             self.get_device(router_b)?.name()
         );
 
         // Remove the link in one direction
-        let _weight_a_b = self.net.remove_edge(
+        self.net.remove_edge(
             self.net
                 .find_edge(router_a, router_b)
                 .ok_or(NetworkError::LinkNotFound(router_a, router_b))?,
         );
 
-        // Rremove the link in the other direction
-        let _weight_b_a = self.net.remove_edge(
-            self.net
-                .find_edge(router_b, router_a)
-                .ok_or(NetworkError::LinkNotFound(router_b, router_a))?,
-        );
+        // remove the link from ospf
+        let events = self
+            .ospf
+            .remove_link(router_a, router_b, &mut self.routers)?;
 
-        self.write_igp_fw_tables()?;
+        self.enqueue_events(events);
         self.refresh_bgp_sessions()?;
         self.do_queue_maybe_skip()?;
         Ok(())
@@ -752,17 +806,11 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
 
         // get all IGP and BGP neighbors
         let bgp_neighbors = self.get_device(router)?.bgp_neighbors();
-        let igp_neighbors: Vec<RouterId> = self.net.neighbors(router).collect();
 
-        // remove all edges
-        for neighbor in igp_neighbors {
-            self.net
-                .remove_edge(self.net.find_edge(router, neighbor).unwrap());
-            self.net
-                .remove_edge(self.net.find_edge(neighbor, router).unwrap());
-        }
+        let events = self.ospf.remove_router(router, &mut self.routers)?;
 
-        self.write_igp_fw_tables()?;
+        self.enqueue_events(events);
+        self.refresh_bgp_sessions()?;
 
         // remove all BGP sessions
         for neighbor in bgp_neighbors {
@@ -851,23 +899,19 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     /// Check the connectivity for all BGP sessions, and enable or disable them accordingly. This
     /// function will enqueue events **without** executing them.
     pub(crate) fn refresh_bgp_sessions(&mut self) -> Result<(), NetworkError> {
-        // compute the connected components of the network.
-        let mut g = self.net.clone();
-        g.retain_edges(|g, e| g.edge_weight(e).map(|w| w.is_finite()).unwrap_or(false));
-        let scc = tarjan_scc(&g)
-            .into_iter()
-            .enumerate()
-            .flat_map(|(i, c)| c.into_iter().map(move |r| (r, i)))
-            .collect::<HashMap<RouterId, usize>>();
-
+        // get the effective sessions by checking for reachability using OSPF.
         let effective_sessions: Vec<_> = self
             .bgp_sessions
             .iter()
             .map(|((source, target), ty)| {
-                let source_c = scc.get(source);
-                let target_c = scc.get(target);
-                let reachable = source_c.is_some() && target_c.is_some() && source_c == target_c;
-                (*source, *target, reachable.then_some(*ty).flatten())
+                (
+                    *source,
+                    *target,
+                    self.ospf
+                        .is_reachable(*source, *target, &self.routers)
+                        .then_some(*ty)
+                        .flatten(),
+                )
             })
             .collect();
 
@@ -885,28 +929,6 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
             };
             self.enqueue_events(events);
         }
-        Ok(())
-    }
-
-    /// Write the igp forwarding tables for all internal routers. As soon as this is done, recompute
-    /// the BGP table. and run the algorithm. This will happen all at once, in a very unpredictable
-    /// manner.
-    ///
-    /// The events are enqueued, but not executed.
-    pub(crate) fn write_igp_fw_tables(&mut self) -> Result<(), NetworkError> {
-        // compute the ospf state
-        let ospf_state = self
-            .ospf
-            .compute(&self.net, &self.external_indices().collect());
-        // update igp table
-        let mut events = vec![];
-        for id in self.internal_indices().detach() {
-            let NetworkDevice::InternalRouter(r) = self.routers.get_mut(&id).unwrap() else {
-                unreachable!()
-            };
-            events.append(&mut r.write_igp_forwarding_table(&self.net, &ospf_state)?);
-        }
-        self.enqueue_events(events);
         Ok(())
     }
 
@@ -999,7 +1021,6 @@ where
 {
     #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {
-        use ordered_float::NotNan;
         if self.routers != other.routers {
             return false;
         }
@@ -1015,20 +1036,6 @@ where
         let self_ns = HashSet::<RouterId>::from_iter(self.net.node_indices());
         let other_ns = HashSet::<RouterId>::from_iter(other.net.node_indices());
         if self_ns != other_ns {
-            return false;
-        }
-        let self_es = HashSet::<(RouterId, RouterId, NotNan<LinkWeight>)>::from_iter(
-            self.net
-                .edge_references()
-                .map(|e| (e.source(), e.target(), NotNan::new(*e.weight()).unwrap())),
-        );
-        let other_es = HashSet::<(RouterId, RouterId, NotNan<LinkWeight>)>::from_iter(
-            other
-                .net
-                .edge_references()
-                .map(|e| (e.source(), e.target(), NotNan::new(*e.weight()).unwrap())),
-        );
-        if self_es != other_es {
             return false;
         }
 

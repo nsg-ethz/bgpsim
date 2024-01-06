@@ -89,16 +89,12 @@
 //!     t.add_link(r1, b1);
 //!     t.add_link(b1, e1);
 //!
-//!     t.set_link_weight(e0, b0, 1.0)?;
-//!     t.set_link_weight(b0, e0, 1.0)?;
 //!     t.set_link_weight(b0, r0, 1.0)?;
 //!     t.set_link_weight(r0, b0, 1.0)?;
 //!     t.set_link_weight(r0, r1, 1.0)?;
 //!     t.set_link_weight(r1, r0, 1.0)?;
 //!     t.set_link_weight(r1, b1, 1.0)?;
 //!     t.set_link_weight(b1, r1, 1.0)?;
-//!     t.set_link_weight(b1, e1, 1.0)?;
-//!     t.set_link_weight(e1, b1, 1.0)?;
 //!     t.set_bgp_session(e0, b0, Some(BgpSessionType::EBgp))?;
 //!     t.set_bgp_session(r0, b0, Some(BgpSessionType::IBgpClient))?;
 //!     t.set_bgp_session(r0, r1, Some(BgpSessionType::IBgpPeer))?;

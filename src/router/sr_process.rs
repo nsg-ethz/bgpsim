@@ -29,6 +29,7 @@
 
 use crate::{
     formatter::NetworkFormatter,
+    ospf::IgpTarget,
     types::{Prefix, PrefixMap, RouterId},
 };
 use itertools::Itertools;
@@ -97,6 +98,16 @@ pub enum StaticRoute {
     Indirect(RouterId),
     /// Drop all traffic for the given destination
     Drop,
+}
+
+impl From<StaticRoute> for IgpTarget {
+    fn from(value: StaticRoute) -> Self {
+        match value {
+            StaticRoute::Direct(r) => IgpTarget::Neighbor(r),
+            StaticRoute::Indirect(r) => IgpTarget::Ospf(r),
+            StaticRoute::Drop => IgpTarget::Drop,
+        }
+    }
 }
 
 impl StaticRoute {

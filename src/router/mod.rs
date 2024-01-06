@@ -27,21 +27,25 @@
 
 //! Module defining an internal router with BGP functionality.
 
+use std::collections::{HashMap, HashSet};
+
 use crate::{
     event::{Event, EventOutcome},
-    ospf::OspfState,
-    types::{AsId, DeviceError, PhysicalNetwork, Prefix, PrefixMap, RouterId, StepUpdate},
+    ospf::{
+        global::{GlobalOspfOracle, GlobalOspfProcess},
+        IgpTarget, LinkWeight, OspfArea, OspfProcess,
+    },
+    types::{AsId, DeviceError, Prefix, PrefixMap, RouterId, StepUpdate},
 };
 use itertools::Itertools;
 use log::*;
 use serde::{Deserialize, Serialize};
 
 mod bgp_process;
-mod ospf_process;
+// mod ospf_process;
 mod sr_process;
 
 pub use bgp_process::BgpProcess;
-pub use ospf_process::{IgpTarget, OspfProcess};
 pub use sr_process::{SrProcess, StaticRoute};
 
 /// Bgp Router
@@ -55,7 +59,7 @@ pub struct Router<P: Prefix> {
     /// AS Id of the router
     as_id: AsId,
     /// The IGP routing process
-    pub ospf: OspfProcess,
+    pub ospf: GlobalOspfProcess,
     /// The Static Routing Process
     pub sr: SrProcess<P>,
     /// The BGP routing process
@@ -87,7 +91,7 @@ impl<P: Prefix> Router<P> {
             name,
             router_id,
             as_id,
-            ospf: OspfProcess::new(router_id),
+            ospf: GlobalOspfProcess::new(router_id),
             sr: SrProcess::new(),
             bgp: BgpProcess::new(router_id, as_id),
             do_load_balancing: false,
@@ -159,7 +163,7 @@ impl<P: Prefix> Router<P> {
 
     /// Get the IGP next hop for a prefix. Prefixes are matched using longest prefix match.
     ///
-    /// TODO: Make this function return a slice
+    /// TODO make this function return a slice
     pub fn get_next_hop(&self, prefix: P) -> Vec<RouterId> {
         // first, check sr, and then, check bgp. If both do not match, drop the traffic.
         let target = if let Some(target) = self.sr.get(prefix) {
@@ -175,7 +179,7 @@ impl<P: Prefix> Router<P> {
 
         // perform load balancing
         if self.do_load_balancing || nhs.is_empty() {
-            nhs
+            nhs.to_vec()
         } else {
             vec![nhs[0]]
         }
@@ -199,10 +203,11 @@ impl<P: Prefix> Router<P> {
     /// This function requres that all RouterIds are set to the GraphId, and update the BGP tables.
     pub(crate) fn write_igp_forwarding_table<T: Default>(
         &mut self,
-        graph: &PhysicalNetwork,
-        ospf: &OspfState,
+        ospf: &GlobalOspfOracle,
+        links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
+        external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, DeviceError> {
-        self.ospf.update_table(graph, ospf);
+        self.ospf.update_table(ospf, links, external_links);
         self.bgp.update_igp(&self.ospf);
         self.bgp.update_tables(false)
     }

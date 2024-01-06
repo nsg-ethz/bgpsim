@@ -19,7 +19,6 @@
 
 use crate::{
     network::Network,
-    ospf::OspfState,
     record::FwDelta,
     types::{NetworkError, Prefix, PrefixMap, RouterId, SimplePrefix, SinglePrefix},
 };
@@ -120,6 +119,18 @@ impl<P: Prefix> ForwardingState<P> {
             }
         }
 
+        Self {
+            state,
+            reversed,
+            cache: Default::default(),
+        }
+    }
+
+    /// Creates a new forwarding state from precomputed `state` and `reverse`.
+    pub(crate) fn from_raw(
+        state: HashMap<RouterId, P::Map<Vec<RouterId>>>,
+        reversed: HashMap<RouterId, P::Map<HashSet<RouterId>>>,
+    ) -> Self {
         Self {
             state,
             reversed,
@@ -408,63 +419,6 @@ impl<P: Prefix> ForwardingState<P> {
                 self.recursive_invalidate_cache(previous, prefix);
             }
         }
-    }
-}
-
-impl ForwardingState<SimplePrefix> {
-    /// Generate a forwarding state that represents the OSPF routing state. Each router with
-    /// [`RouterId`] `id` advertises its own prefix `id.index().into()`. The stored paths represent
-    /// the routing decisions performed by OSPF.
-    ///
-    /// The returned lookup table maps each router id to its prefix. You can also obtain the prefix
-    /// of a router with ID `id` by computing `id.index().into()`.
-    pub fn from_ospf(
-        ospf_state: &OspfState,
-    ) -> (
-        ForwardingState<SimplePrefix>,
-        HashMap<RouterId, SimplePrefix>,
-    ) {
-        let routers: Vec<RouterId> = ospf_state.lut_router_areas.keys().copied().collect();
-        let mut lut: HashMap<RouterId, SimplePrefix> = HashMap::with_capacity(routers.len());
-        let mut state: HashMap<RouterId, <SimplePrefix as Prefix>::Map<Vec<RouterId>>> =
-            HashMap::with_capacity(routers.len());
-        let mut reversed: HashMap<RouterId, <SimplePrefix as Prefix>::Map<HashSet<RouterId>>> =
-            HashMap::with_capacity(routers.len());
-
-        for dst in routers.iter().copied() {
-            let p: SimplePrefix = dst.index().into();
-            lut.insert(dst, p);
-
-            for src in routers.iter().copied() {
-                if src == dst {
-                    state.entry(dst).or_default().insert(p, vec![*TO_DST]);
-                    reversed
-                        .entry(*TO_DST)
-                        .or_default()
-                        .get_mut_or_default(p)
-                        .insert(dst);
-                } else {
-                    let (nhs, _) = ospf_state.get_next_hops(src, dst);
-                    for nh in nhs.iter() {
-                        reversed
-                            .entry(*nh)
-                            .or_default()
-                            .get_mut_or_default(p)
-                            .insert(src);
-                    }
-                    state.entry(src).or_default().insert(p, nhs);
-                }
-            }
-        }
-
-        (
-            Self {
-                state,
-                reversed,
-                cache: Default::default(),
-            },
-            lut,
-        )
     }
 }
 

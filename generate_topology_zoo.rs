@@ -77,25 +77,20 @@ fn main() {
         let num_internals = net.internal_indices().count();
         let num_externals = net.external_indices().count();
         let num_routers = num_internals + num_externals;
-        let num_edges = g.edge_count() / 2;
-        let num_internal_edges = g
-            .edge_indices()
-            .map(|e| g.edge_endpoints(e).unwrap())
-            .filter(|(a, b)| a < b)
-            .filter(|(a, b)| {
-                net.get_device(*a).unwrap().is_internal()
-                    && net.get_device(*b).unwrap().is_internal()
-            })
-            .count();
+        let num_edges = g.edge_count();
+        let num_internal_edges = net.ospf_network().internal_edges().count() / 2;
 
-        metadata.push(TopologyMetadata {
-            name: topo_name.to_string(),
-            num_internals,
-            num_externals,
-            num_routers,
-            num_edges,
-            num_internal_edges,
-        });
+        // there must be at least one edge
+        if num_edges > 0 {
+            metadata.push(TopologyMetadata {
+                name: topo_name.to_string(),
+                num_internals,
+                num_externals,
+                num_routers,
+                num_edges,
+                num_internal_edges,
+            });
+        }
     }
 
     // sort the metadata along the name

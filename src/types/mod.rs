@@ -90,10 +90,8 @@ where
     }
 }
 
-/// Link Weight for the IGP graph
-pub type LinkWeight = f64;
 /// IGP Network graph
-pub type PhysicalNetwork = StableGraph<(), LinkWeight, Directed, IndexType>;
+pub type PhysicalNetwork = StableGraph<(), (), Undirected, IndexType>;
 
 /// How does the next hop change after a BGP event has been processed?
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
@@ -414,6 +412,12 @@ pub enum NetworkError {
     /// Device must be an internal router, but an external router was passed
     #[error("Netowrk device cannot be an external router: {0:?}")]
     DeviceIsExternalRouter(RouterId),
+    /// Cannot connect two external routers together
+    #[error("Cannot connect two external routers together: {0:?} and {1:?}")]
+    CannotConnectExternalRouters(RouterId, RouterId),
+    /// Cannot configure an external link
+    #[error("External links cannot be configured using OSPF: {0:?} and {1:?}")]
+    CannotConfigureExternalLink(RouterId, RouterId),
     /// Device must be an external router, but an internal router was passed
     #[error("Netowrk device cannot be an internal router: {0:?}")]
     DeviceIsInternalRouter(RouterId),
@@ -473,5 +477,38 @@ impl PartialEq for NetworkError {
             (Self::JsonError(l), Self::JsonError(r)) => l.to_string() == r.to_string(),
             _ => core::mem::discriminant(self) == core::mem::discriminant(other),
         }
+    }
+}
+
+/// Convenience_trait to get an option into an error
+pub trait NetworkErrorOption<T> {
+    /// Transform `None` into `Err(NetworkError::DeviceNotFound)`
+    fn or_router_not_found(self, router: RouterId) -> Result<T, NetworkError>;
+
+    /// Transform `None` into `Err(NetworkError::LinkNotFound)`
+    fn or_link_not_found(self, a: RouterId, b: RouterId) -> Result<T, NetworkError>;
+
+    /// Transform `None` into `Err(NetworkError::DeviceIsInternalRouter)`
+    fn or_is_internal(self, router: RouterId) -> Result<T, NetworkError>;
+
+    /// Transform `None` into `Err(NetworkError::DeviceIsExternalRouter)`
+    fn or_is_external(self, router: RouterId) -> Result<T, NetworkError>;
+}
+
+impl<T> NetworkErrorOption<T> for Option<T> {
+    fn or_router_not_found(self, router: RouterId) -> Result<T, NetworkError> {
+        self.ok_or_else(|| NetworkError::DeviceNotFound(router))
+    }
+
+    fn or_link_not_found(self, a: RouterId, b: RouterId) -> Result<T, NetworkError> {
+        self.ok_or_else(|| NetworkError::LinkNotFound(a, b))
+    }
+
+    fn or_is_internal(self, router: RouterId) -> Result<T, NetworkError> {
+        self.ok_or_else(|| NetworkError::DeviceIsInternalRouter(router))
+    }
+
+    fn or_is_external(self, router: RouterId) -> Result<T, NetworkError> {
+        self.ok_or_else(|| NetworkError::DeviceIsExternalRouter(router))
     }
 }

@@ -62,7 +62,7 @@ mod t {
                 .as_array()
                 .unwrap()
                 .len(),
-            3
+            4
         );
     }
 

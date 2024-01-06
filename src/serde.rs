@@ -15,8 +15,9 @@
 
 //! This module contains functions to save the network to a file, and restore it from a file.
 
-use std::collections::{BTreeSet, HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap};
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_json::json;
 
@@ -72,6 +73,14 @@ where
             .collect();
         nodes.sort_by_key(|(r, _, _)| *r);
 
+        let links: Vec<(RouterId, RouterId)> = self
+            .ospf
+            .edges()
+            .map(|e| (e.src(), e.dst()))
+            .map(|(a, b)| if a < b { (a, b) } else { (b, a) })
+            .unique()
+            .collect();
+
         let routes: Vec<ExportRoutes<P>> = self
             .external_routers()
             .flat_map(|r| {
@@ -87,7 +96,7 @@ where
                 })
             })
             .collect();
-        serde_json::to_value(&(config, nodes, routes)).unwrap()
+        serde_json::to_value(&(config, nodes, links, routes)).unwrap()
     }
 }
 
@@ -120,10 +129,11 @@ where
                 .get(JSON_FIELD_NAME_CONFIG)
                 .and_then(|v| v.as_array())
             {
-                Some(v) if v.len() == 3 => Self::from_config_nodes_routes(
+                Some(v) if v.len() == 4 => Self::from_config_nodes_routes(
                     v[0].clone(),
                     v[1].clone(),
                     v[2].clone(),
+                    v[3].clone(),
                     default_queue,
                 ),
                 _ => Err(serde_json::from_str::<ConfigNodeRoutes>(s).unwrap_err())?,
@@ -141,6 +151,7 @@ where
     fn from_config_nodes_routes<F>(
         config: serde_json::Value,
         nodes: serde_json::Value,
+        links: serde_json::Value,
         routes: serde_json::Value,
         default_queue: F,
     ) -> Result<Self, NetworkError>
@@ -149,22 +160,9 @@ where
     {
         let config: Vec<ConfigExpr<P>> = serde_json::from_value(config)?;
         let nodes: Vec<(RouterId, String, Option<AsId>)> = serde_json::from_value(nodes)?;
+        let links: Vec<(RouterId, RouterId)> = serde_json::from_value(links)?;
         let routes: Vec<ExportRoutes<P>> = serde_json::from_value(routes)?;
         let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();
-        let links: HashSet<(RouterId, RouterId)> = config
-            .iter()
-            .filter_map(|e| {
-                if let ConfigExpr::IgpLinkWeight { source, target, .. } = e {
-                    if source.index() < target.index() {
-                        Some((*target, *source))
-                    } else {
-                        Some((*source, *target))
-                    }
-                } else {
-                    None
-                }
-            })
-            .collect();
         let mut net = Network::new(default_queue());
         // add all nodes and create the lut
         for (id, name, as_id) in nodes.into_iter() {
@@ -182,11 +180,13 @@ where
                 .copied()
                 .ok_or(NetworkError::DeviceNotFound(id))
         };
-        // add all links
-        for (src, dst) in links {
-            net.add_link(node(src)?, node(dst)?);
-        }
+        let links = links
+            .into_iter()
+            .map(|(a, b)| Ok::<_, NetworkError>((node(a)?, node(b)?)))
+            .collect::<Result<Vec<_>, _>>()?;
+        net.add_links_from(links)?;
         // apply all configurations
+
         for expr in config.iter() {
             let expr = match expr.clone() {
                 ConfigExpr::IgpLinkWeight {

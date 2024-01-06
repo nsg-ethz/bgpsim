@@ -23,22 +23,24 @@ use crate::{
 #[test]
 fn test_all_single() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
+        println!("{topo:?}");
         let n: Network<SinglePrefix, _> = topo.build(BasicEventQueue::new());
         assert_eq!(n.internal_indices().count(), topo.num_internals());
         assert_eq!(n.external_indices().count(), topo.num_externals());
         assert_eq!(n.get_topology().node_count(), topo.num_routers());
-        assert_eq!(n.get_topology().edge_count() / 2, topo.num_edges());
+        assert_eq!(n.get_topology().edge_count(), topo.num_edges());
     }
 }
 
 #[test]
 fn test_all_simple() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
+        println!("{topo:?}");
         let n: Network<SimplePrefix, _> = topo.build(BasicEventQueue::new());
         assert_eq!(n.internal_indices().count(), topo.num_internals());
         assert_eq!(n.external_indices().count(), topo.num_externals());
         assert_eq!(n.get_topology().node_count(), topo.num_routers());
-        assert_eq!(n.get_topology().edge_count() / 2, topo.num_edges());
+        assert_eq!(n.get_topology().edge_count(), topo.num_edges());
     }
 }
 

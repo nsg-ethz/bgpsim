@@ -91,7 +91,7 @@ fn left_right() {
     );
     assert_eq!(
         state.get_paths(r.0, p9).unwrap(),
-        vec![vec![r.0, r.3, r.7, r.6, r.9],]
+        vec![vec![r.0, r.1, r.2, r.6, r.9],]
     );
     assert_eq!(
         state.get_paths(r.0, p10).unwrap(),
@@ -115,7 +115,13 @@ fn left_right() {
     );
     assert_eq!(
         state.get_paths(r.0, p9).unwrap(),
-        vec![vec![r.0, r.3, r.7, r.6, r.9], vec![r.0, r.4, r.7, r.6, r.9],]
+        vec![
+            vec![r.0, r.1, r.2, r.6, r.9],
+            vec![r.0, r.1, r.5, r.6, r.9],
+            vec![r.0, r.3, r.7, r.6, r.9],
+            vec![r.0, r.4, r.5, r.6, r.9],
+            vec![r.0, r.4, r.7, r.6, r.9],
+        ]
     );
     assert_eq!(
         state.get_paths(r.0, p10).unwrap(),
@@ -180,7 +186,7 @@ fn left_mid_right() {
     assert_eq!(state.get_paths(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
         state.get_paths(r.4, p9).unwrap(),
-        vec![vec![r.4, r.5, r.6, r.9],]
+        vec![vec![r.4, r.5, r.6, r.9]]
     );
     assert_eq!(
         state.get_paths(r.4, p10).unwrap(),
@@ -200,7 +206,7 @@ fn left_mid_right() {
     let mut state = net.get_forwarding_state();
     assert_eq!(
         state.get_paths(r.0, p8).unwrap(),
-        vec![vec![r.0, r.1, r.5, r.8]]
+        vec![vec![r.0, r.1, r.5, r.8], vec![r.0, r.4, r.5, r.8]]
     );
     assert_eq!(
         state.get_paths(r.0, p9).unwrap(),
@@ -209,11 +215,13 @@ fn left_mid_right() {
             vec![r.0, r.1, r.5, r.6, r.9],
             vec![r.0, r.3, r.2, r.6, r.9],
             vec![r.0, r.3, r.7, r.6, r.9],
+            vec![r.0, r.4, r.5, r.6, r.9],
+            vec![r.0, r.4, r.7, r.6, r.9],
         ]
     );
     assert_eq!(
         state.get_paths(r.0, p10).unwrap(),
-        vec![vec![r.0, r.3, r.7, r.10]]
+        vec![vec![r.0, r.3, r.7, r.10], vec![r.0, r.4, r.7, r.10]]
     );
     assert_eq!(state.get_paths(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
@@ -278,13 +286,14 @@ fn left_right_bottom() {
         state.get_paths(r.0, p9).unwrap(),
         vec![
             vec![r.0, r.1, r.2, r.6, r.9],
+            vec![r.0, r.1, r.5, r.6, r.9],
             vec![r.0, r.3, r.2, r.6, r.9],
             vec![r.0, r.3, r.7, r.6, r.9],
         ]
     );
     assert_eq!(
         state.get_paths(r.0, p10).unwrap(),
-        vec![vec![r.0, r.3, r.7, r.10]]
+        vec![vec![r.0, r.3, r.7, r.10], vec![r.0, r.4, r.7, r.10]]
     );
     assert_eq!(state.get_paths(r.4, p8).unwrap(), vec![vec![r.4, r.5, r.8]]);
     assert_eq!(
@@ -391,21 +400,23 @@ fn test_net() -> Result<
     let r9 = net.add_external_router("E9", AsId(9));
     let r10 = net.add_external_router("E10", AsId(10));
 
-    net.add_link(r0, r1);
-    net.add_link(r0, r3);
-    net.add_link(r0, r4);
-    net.add_link(r1, r2);
-    net.add_link(r1, r5);
-    net.add_link(r2, r3);
-    net.add_link(r2, r6);
-    net.add_link(r3, r7);
-    net.add_link(r4, r5);
-    net.add_link(r4, r7);
-    net.add_link(r5, r6);
-    net.add_link(r6, r7);
-    net.add_link(r5, r8);
-    net.add_link(r6, r9);
-    net.add_link(r7, r10);
+    net.add_links_from([
+        (r0, r1),
+        (r0, r3),
+        (r0, r4),
+        (r1, r2),
+        (r1, r5),
+        (r2, r3),
+        (r2, r6),
+        (r3, r7),
+        (r4, r5),
+        (r4, r7),
+        (r5, r6),
+        (r6, r7),
+        (r5, r8),
+        (r6, r9),
+        (r7, r10),
+    ])?;
 
     // build the link weights
     net.build_link_weights(constant_link_weight, 1.0)?;
@@ -458,21 +469,23 @@ fn test_net_disconnected() -> Result<
     let r9 = net.add_external_router("E9", AsId(9));
     let r10 = net.add_external_router("E10", AsId(10));
 
-    net.add_link(r0, r1);
-    net.add_link(r0, r3);
-    net.add_link(r0, r4);
-    net.add_link(r1, r2);
-    net.add_link(r1, r5);
-    net.add_link(r2, r3);
-    net.add_link(r2, r6);
-    net.add_link(r3, r7);
-    net.add_link(r4, r5);
-    net.add_link(r4, r7);
-    net.add_link(r4, r8);
-    net.add_link(r5, r6);
-    net.add_link(r6, r7);
-    net.add_link(r8, r9);
-    net.add_link(r6, r10);
+    net.add_links_from([
+        (r0, r1),
+        (r0, r3),
+        (r0, r4),
+        (r1, r2),
+        (r1, r5),
+        (r2, r3),
+        (r2, r6),
+        (r3, r7),
+        (r4, r5),
+        (r4, r7),
+        (r4, r8),
+        (r5, r6),
+        (r6, r7),
+        (r8, r9),
+        (r6, r10),
+    ])?;
 
     // build the link weights
     net.build_link_weights(constant_link_weight, 1.0)?;

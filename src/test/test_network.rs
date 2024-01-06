@@ -32,13 +32,11 @@ mod t {
         },
         router::StaticRoute::*,
         types::{
-            AsId, Ipv4Prefix, LinkWeight, NetworkError, Prefix, PrefixMap, RouterId, SimplePrefix,
-            SinglePrefix,
+            AsId, Ipv4Prefix, NetworkError, Prefix, PrefixMap, RouterId, SimplePrefix, SinglePrefix,
         },
     };
     use lazy_static::lazy_static;
     use maplit::{btreemap, btreeset};
-    use petgraph::algo::FloatMeasure;
     use pretty_assertions::assert_eq;
 
     lazy_static! {
@@ -68,13 +66,13 @@ mod t {
         assert_eq!(*R4, net.add_router("R4"));
         assert_eq!(*E4, net.add_external_router("E4", AsId(65104)));
 
-        net.add_link(*R1, *E1);
-        net.add_link(*R1, *R2);
-        net.add_link(*R1, *R3);
-        net.add_link(*R2, *R3);
-        net.add_link(*R2, *R4);
-        net.add_link(*R3, *R4);
-        net.add_link(*R4, *E4);
+        net.add_link(*R1, *E1).unwrap();
+        net.add_link(*R1, *R2).unwrap();
+        net.add_link(*R1, *R3).unwrap();
+        net.add_link(*R2, *R3).unwrap();
+        net.add_link(*R2, *R4).unwrap();
+        net.add_link(*R3, *R4).unwrap();
+        net.add_link(*R4, *E4).unwrap();
 
         net
     }
@@ -98,16 +96,12 @@ mod t {
         net.set_link_weight(*R2, *R3, 1.0).unwrap();
         net.set_link_weight(*R2, *R4, 1.0).unwrap();
         net.set_link_weight(*R3, *R4, 3.0).unwrap();
-        net.set_link_weight(*R1, *E1, 1.0).unwrap();
-        net.set_link_weight(*R4, *E4, 1.0).unwrap();
         // configure link weights in reverse
         net.set_link_weight(*R2, *R1, 5.0).unwrap();
         net.set_link_weight(*R3, *R1, 1.0).unwrap();
         net.set_link_weight(*R3, *R2, 1.0).unwrap();
         net.set_link_weight(*R4, *R2, 1.0).unwrap();
         net.set_link_weight(*R4, *R3, 3.0).unwrap();
-        net.set_link_weight(*E1, *R1, 1.0).unwrap();
-        net.set_link_weight(*E4, *R4, 1.0).unwrap();
 
         // configure iBGP full mesh
         net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
@@ -171,8 +165,8 @@ mod t {
         let net_clone = net.clone();
 
         let r5 = net.add_router("R5");
-        net.add_link(*R3, r5);
-        net.add_link(*R4, r5);
+        net.add_link(*R3, r5).unwrap();
+        net.add_link(*R4, r5).unwrap();
         net.set_link_weight(*R3, r5, 1.0).unwrap();
         net.set_link_weight(*R4, r5, 1.0).unwrap();
         net.set_link_weight(r5, *R3, 1.0).unwrap();
@@ -230,116 +224,6 @@ mod t {
         let mut external_routers = net.external_indices().collect::<Vec<_>>();
         external_routers.sort();
         assert_eq!(external_routers, vec![*E1, *E4]);
-    }
-
-    #[test]
-    fn test_igp_table<P: Prefix>() {
-        let mut net = get_test_net::<P>();
-
-        // check that all the fw tables are empty, because no update yet occurred
-        for router in net.internal_indices() {
-            assert_eq!(
-                net.get_device(router)
-                    .unwrap()
-                    .unwrap_internal()
-                    .ospf
-                    .get_table()
-                    .len(),
-                0
-            );
-        }
-
-        // add and remove a configuration to set a single link weight to infinity.
-        net.set_link_weight(*R1, *R2, LinkWeight::infinite())
-            .unwrap();
-
-        // now the igp forwarding table should be updated.
-        for router in net.internal_indices() {
-            let r = net.get_device(router).unwrap().unwrap_internal();
-            let fw_table = r.ospf.get_table();
-            assert_eq!(fw_table.len(), 1);
-            for (target, entry) in fw_table.iter() {
-                if router == *target {
-                    assert_eq!(entry, &(vec![], 0.0));
-                } else {
-                    unreachable!();
-                }
-            }
-        }
-
-        // configure a single link weight and check the result
-        net.set_link_weight(*R1, *R2, 5.0).unwrap();
-
-        // now the igp forwarding table should be updated.
-        for from in net.internal_indices() {
-            let r = net.get_device(from).unwrap().unwrap_internal();
-            let fw_table = r.ospf.get_table();
-            if from == *R1 {
-                assert_eq!(fw_table.len(), 2);
-                for (to, entry) in fw_table.iter() {
-                    if from == *R1 && *to == *R2 {
-                        assert_eq!(entry, &(vec![*to], 5.0));
-                    } else if from == *to {
-                        assert_eq!(entry, &(vec![], 0.0));
-                    } else {
-                        unreachable!();
-                    }
-                }
-            } else {
-                assert_eq!(fw_table.len(), 1);
-                for (target, entry) in fw_table.iter() {
-                    if from == *target {
-                        assert_eq!(entry, &(vec![], 0.0));
-                    } else {
-                        unreachable!();
-                    }
-                }
-            }
-        }
-
-        // configure a single link weight in reverse
-        net.set_link_weight(*R2, *R1, 5.0).unwrap();
-
-        // now the igp forwarding table should be updated.
-        for from in net.internal_indices() {
-            let r = net.get_device(from).unwrap().unwrap_internal();
-            let fw_table = r.ospf.get_table();
-            if from == *R1 {
-                assert_eq!(fw_table.len(), 2);
-                for (to, entry) in fw_table.iter() {
-                    if from == *R1 && *to == *R2 {
-                        assert_eq!(entry, &(vec![*to], 5.0));
-                    } else if from == *to {
-                        assert_eq!(entry, &(vec![], 0.0));
-                    } else {
-                        unreachable!();
-                    }
-                }
-            } else if from == *R2 {
-                assert_eq!(fw_table.len(), 2);
-                for (to, entry) in fw_table.iter() {
-                    if from == *R2 && *to == *R1 {
-                        assert_eq!(entry, &(vec![*to], 5.0));
-                    } else if from == *to {
-                        assert_eq!(entry, &(vec![], 0.0));
-                    } else {
-                        unreachable!();
-                    }
-                }
-            } else {
-                assert_eq!(fw_table.len(), 1);
-                for (target, entry) in fw_table.iter() {
-                    if from == *target {
-                        assert_eq!(entry, &(vec![], 0.0));
-                    } else {
-                        unreachable!();
-                    }
-                }
-            }
-        }
-
-        // add a non-existing link weight
-        net.set_link_weight(*R1, *R4, 1.0).unwrap_err();
     }
 
     #[test]
@@ -904,16 +788,12 @@ mod t {
         net.set_link_weight(*R2, *R3, 1.0).unwrap();
         net.set_link_weight(*R2, *R4, 1.0).unwrap();
         net.set_link_weight(*R3, *R4, 2.0).unwrap();
-        net.set_link_weight(*R1, *E1, 1.0).unwrap();
-        net.set_link_weight(*R4, *E4, 1.0).unwrap();
         // configure link weights in reverse
         net.set_link_weight(*R2, *R1, 2.0).unwrap();
         net.set_link_weight(*R3, *R1, 1.0).unwrap();
         net.set_link_weight(*R3, *R2, 1.0).unwrap();
         net.set_link_weight(*R4, *R2, 1.0).unwrap();
         net.set_link_weight(*R4, *R3, 2.0).unwrap();
-        net.set_link_weight(*E1, *R1, 1.0).unwrap();
-        net.set_link_weight(*E4, *R4, 1.0).unwrap();
 
         // configure iBGP full mesh
         net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
@@ -1024,9 +904,9 @@ mod t {
         let e3 = net.add_external_router("e3", AsId(3));
         let p = P::from(1);
 
-        net.add_link(r1, r2);
-        net.add_link(r1, r3);
-        net.add_link(r3, e3);
+        net.add_link(r1, r2).unwrap();
+        net.add_link(r1, r3).unwrap();
+        net.add_link(r3, e3).unwrap();
 
         // set the configuration
         net.build_link_weights(constant_link_weight, 1.0).unwrap();

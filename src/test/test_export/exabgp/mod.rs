@@ -31,7 +31,7 @@ fn get_test_net<P: Prefix>(num_neighbors: usize) -> Network<P, BasicEventQueue<P
     let ext = net.add_external_router("external_router", AsId(100));
     net.internal_indices()
         .detach()
-        .for_each(|r| net.add_link(r, ext));
+        .for_each(|r| net.add_link(r, ext).unwrap());
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
     net.build_link_weights(|_, _, _, _| 1.0, ()).unwrap();
@@ -154,7 +154,13 @@ mod t2 {
             .unwrap();
         let mut ip = addressor(&net);
 
-        println!("{:?}", net.get_device(ext).unwrap().unwrap_external().get_bgp_sessions());
+        println!(
+            "{:?}",
+            net.get_device(ext)
+                .unwrap()
+                .unwrap_external()
+                .get_bgp_sessions()
+        );
 
         let mut gen = ExaBgpCfgGen::new(&net, ext).unwrap();
         let cfg = gen.generate_config(&net, &mut ip).unwrap();

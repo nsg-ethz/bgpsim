@@ -15,7 +15,10 @@
 
 //! Module containing the definitions for the event queues.
 
-use crate::types::{NetworkDevice, PhysicalNetwork, Prefix, RouterId};
+use crate::{
+    ospf::OspfProcess,
+    types::{NetworkDevice, PhysicalNetwork, Prefix, RouterId},
+};
 
 use geoutils::Location;
 use itertools::Itertools;

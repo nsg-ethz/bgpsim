@@ -19,7 +19,7 @@ use crate::{
     network::Network,
     types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
 };
-use serde_json::{from_str, to_string};
+use serde_json::{from_str, to_string_pretty};
 
 #[generic_tests::define]
 mod t {
@@ -41,7 +41,12 @@ mod t {
         net.build_advertisements(P::from(3), equal_preferences, 3)
             .unwrap();
 
-        let clone: Network<P, BasicEventQueue<P>> = from_str(&to_string(&net).unwrap()).unwrap();
+        let json_str = to_string_pretty(&net).unwrap();
+        for (i, l) in json_str.lines().enumerate() {
+            println!("{i: >5} | {l}");
+        }
+
+        let clone: Network<P, BasicEventQueue<P>> = from_str(&json_str).unwrap();
         assert!(net == clone);
     }
 

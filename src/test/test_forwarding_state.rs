@@ -65,23 +65,23 @@ mod t {
             let e4 = net.add_external_router("e4", AsId(65104));
             let er = net.add_external_router("er", AsId(65100));
 
-            net.add_link(rr, r1);
-            net.add_link(rr, r2);
-            net.add_link(rr, r3);
-            net.add_link(rr, r4);
-            net.add_link(r1, r2);
-            net.add_link(r1, b2);
-            net.add_link(r1, b3);
-            net.add_link(r2, b1);
-            net.add_link(r3, b4);
-            net.add_link(r4, r3);
-            net.add_link(r4, b2);
-            net.add_link(r4, b3);
-            net.add_link(b1, e1);
-            net.add_link(b2, e2);
-            net.add_link(b3, e3);
-            net.add_link(b4, e4);
-            net.add_link(rr, er);
+            net.add_link(rr, r1).unwrap();
+            net.add_link(rr, r2).unwrap();
+            net.add_link(rr, r3).unwrap();
+            net.add_link(rr, r4).unwrap();
+            net.add_link(r1, r2).unwrap();
+            net.add_link(r1, b2).unwrap();
+            net.add_link(r1, b3).unwrap();
+            net.add_link(r2, b1).unwrap();
+            net.add_link(r3, b4).unwrap();
+            net.add_link(r4, r3).unwrap();
+            net.add_link(r4, b2).unwrap();
+            net.add_link(r4, b3).unwrap();
+            net.add_link(b1, e1).unwrap();
+            net.add_link(b2, e2).unwrap();
+            net.add_link(b3, e3).unwrap();
+            net.add_link(b4, e4).unwrap();
+            net.add_link(rr, er).unwrap();
 
             let mut c = Config::<P>::new();
 
@@ -113,11 +113,6 @@ mod t {
             c.add(link_weight!(r3, b4, 9.0)).unwrap();
             c.add(link_weight!(r4, b2, 1.0)).unwrap();
             c.add(link_weight!(r4, b3, 4.0)).unwrap();
-            c.add(link_weight!(rr, er, 1.0)).unwrap();
-            c.add(link_weight!(b1, e1, 1.0)).unwrap();
-            c.add(link_weight!(b2, e2, 1.0)).unwrap();
-            c.add(link_weight!(b3, e3, 1.0)).unwrap();
-            c.add(link_weight!(b4, e4, 1.0)).unwrap();
             // symmetric weight
             c.add(link_weight!(r1, rr, 100.0)).unwrap();
             c.add(link_weight!(r2, rr, 100.0)).unwrap();
@@ -131,11 +126,6 @@ mod t {
             c.add(link_weight!(b4, r3, 9.0)).unwrap();
             c.add(link_weight!(b2, r4, 1.0)).unwrap();
             c.add(link_weight!(b3, r4, 4.0)).unwrap();
-            c.add(link_weight!(er, rr, 1.0)).unwrap();
-            c.add(link_weight!(e1, b1, 1.0)).unwrap();
-            c.add(link_weight!(e2, b2, 1.0)).unwrap();
-            c.add(link_weight!(e3, b3, 1.0)).unwrap();
-            c.add(link_weight!(e4, b4, 1.0)).unwrap();
 
             // bgp sessions
             c.add(bgp_session!(rr, r1, IBgpClient)).unwrap();
@@ -317,14 +307,14 @@ mod ipv4 {
         let e1 = net.add_external_router("e1", 1);
         let e4 = net.add_external_router("e4", 4);
 
-        net.add_link(r1, r2);
-        net.add_link(r1, r3);
-        net.add_link(r1, r4);
-        net.add_link(r2, r3);
-        net.add_link(r2, r4);
-        net.add_link(r3, r4);
-        net.add_link(r1, e1);
-        net.add_link(r4, e4);
+        net.add_link(r1, r2).unwrap();
+        net.add_link(r1, r3).unwrap();
+        net.add_link(r1, r4).unwrap();
+        net.add_link(r2, r3).unwrap();
+        net.add_link(r2, r4).unwrap();
+        net.add_link(r3, r4).unwrap();
+        net.add_link(r1, e1).unwrap();
+        net.add_link(r4, e4).unwrap();
 
         net.set_link_weight(r1, r2, 1.0).unwrap();
         net.set_link_weight(r1, r3, 1.0).unwrap();
@@ -332,16 +322,12 @@ mod ipv4 {
         net.set_link_weight(r2, r3, 1.0).unwrap();
         net.set_link_weight(r2, r4, 1.0).unwrap();
         net.set_link_weight(r3, r4, 1.0).unwrap();
-        net.set_link_weight(r1, e1, 1.0).unwrap();
-        net.set_link_weight(r4, e4, 1.0).unwrap();
         net.set_link_weight(r2, r1, 1.0).unwrap();
         net.set_link_weight(r3, r1, 1.0).unwrap();
         net.set_link_weight(r4, r1, 1.0).unwrap();
         net.set_link_weight(r3, r2, 1.0).unwrap();
         net.set_link_weight(r4, r2, 1.0).unwrap();
         net.set_link_weight(r4, r3, 1.0).unwrap();
-        net.set_link_weight(e1, r1, 1.0).unwrap();
-        net.set_link_weight(e4, r4, 1.0).unwrap();
 
         net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
         net.set_bgp_session(r1, r3, Some(IBgpPeer)).unwrap();

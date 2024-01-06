@@ -47,12 +47,12 @@ mod t {
         assert_eq!(*R4, net.add_router("R4"));
         assert_eq!(*E4, net.add_external_router("E4", AsId(65104)));
 
-        net.add_link(*R1, *E1);
-        net.add_link(*R1, *R2);
-        net.add_link(*R1, *R3);
-        net.add_link(*R4, *R2);
-        net.add_link(*R4, *R3);
-        net.add_link(*R4, *E4);
+        net.add_link(*R1, *E1).unwrap();
+        net.add_link(*R1, *R2).unwrap();
+        net.add_link(*R1, *R3).unwrap();
+        net.add_link(*R4, *R2).unwrap();
+        net.add_link(*R4, *R3).unwrap();
+        net.add_link(*R4, *E4).unwrap();
 
         net
     }
@@ -126,7 +126,7 @@ mod t {
     fn rr_failure<P: Prefix>() {
         let mut net = get_test_topo::<P>();
         let rr = net.add_router("rr");
-        net.add_link(rr, *R3);
+        net.add_link(rr, *R3).unwrap();
         net.build_link_weights(link_weights, ()).unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_ibgp_route_reflection(|_, rr| [rr], rr).unwrap();
