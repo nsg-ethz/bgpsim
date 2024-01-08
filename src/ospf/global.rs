@@ -60,7 +60,7 @@ impl OspfCoordinator for GlobalOspfOracle {
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, GlobalOspfProcess>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
@@ -422,7 +422,7 @@ impl GlobalOspfOracle {
     /// Push the forwarding tables into the network
     fn push_forwarding_tables<P: Prefix, T: Default>(
         &self,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, GlobalOspfProcess>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {

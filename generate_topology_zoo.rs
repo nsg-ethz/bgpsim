@@ -19,6 +19,8 @@ use std::fs::{remove_file, OpenOptions};
 use std::io::Write;
 
 use bgpsim::event::BasicEventQueue;
+use bgpsim::network::Network;
+use bgpsim::ospf::global::GlobalOspf;
 use bgpsim::topology_zoo::TopologyZooParser;
 use bgpsim::types::SimplePrefix;
 use itertools::Itertools;
@@ -66,7 +68,7 @@ fn main() {
         };
         println!("Generating {topo_name}");
         // generate the network
-        let net = match TopologyZooParser::new(&content)
+        let net: Network<_, _, GlobalOspf> = match TopologyZooParser::new(&content)
             .and_then(|p| p.get_network(BasicEventQueue::<SimplePrefix>::new()))
         {
             Ok(net) => net,

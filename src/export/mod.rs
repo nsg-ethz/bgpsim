@@ -27,6 +27,7 @@ use crate::{
     bgp::BgpRoute,
     config::ConfigModifier,
     network::Network,
+    ospf::OspfImpl,
     types::{NetworkError, NonOverlappingPrefix, Prefix, RouterId},
 };
 
@@ -61,36 +62,36 @@ impl From<(RouterId, RouterId)> for LinkId {
 }
 
 /// A trait for generating configurations for an internal router
-pub trait InternalCfgGen<P: Prefix, Q, A> {
+pub trait InternalCfgGen<P: Prefix, Q, Ospf: OspfImpl, A> {
     /// Generate all configuration files for the device.
     fn generate_config(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError>;
 
     /// generate the reconfiguration command(s) for a config modification
     fn generate_command(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         cmd: ConfigModifier<P>,
     ) -> Result<String, ExportError>;
 }
 
 /// A trait for generating configurations for an external router
-pub trait ExternalCfgGen<P: Prefix, Q, A> {
+pub trait ExternalCfgGen<P: Prefix, Q, Ospf: OspfImpl, A> {
     /// Generate all configuration files for the device.
     fn generate_config(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError>;
 
     /// Generate the commands for advertising a new route
     fn advertise_route(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         route: &BgpRoute<P>,
     ) -> Result<String, ExportError>;
@@ -98,7 +99,7 @@ pub trait ExternalCfgGen<P: Prefix, Q, A> {
     /// Generate the command for withdrawing a route.
     fn withdraw_route(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         prefix: P,
     ) -> Result<String, ExportError>;
@@ -106,7 +107,7 @@ pub trait ExternalCfgGen<P: Prefix, Q, A> {
     /// Generate the command for establishing a new BGP session.
     fn establish_ebgp_session(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError>;
@@ -114,7 +115,7 @@ pub trait ExternalCfgGen<P: Prefix, Q, A> {
     /// Generate the command for removing an existing BGP session.
     fn teardown_ebgp_session(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError>;

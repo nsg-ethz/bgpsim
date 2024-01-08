@@ -68,11 +68,16 @@
 //!
 //! ```
 //! use bgpsim::prelude::*;
-//! type Prefix = SimplePrefix; // swap out with SinglePrefix if you only need a single prefix.
+//!
+//! // Define the type of the network.
+//! type Prefix = SimplePrefix;           // Use non-overlapping prefixes.
+//! type Queue = BasicEventQueue<Prefix>; // Use a basic FIFO event queue
+//! type Ospf = GlobalOspf;               // Use global OSPF without message passing
+//! type Net = Network<Prefix, Queue, Ospf>;
 //!
 //! fn main() -> Result<(), NetworkError> {
 //!
-//!     let mut t = Network::default();
+//!     let mut t = Net::default();
 //!
 //!     let prefix = Prefix::from(0);
 //!
@@ -126,6 +131,7 @@
 //! fn main() -> Result<(), NetworkError> {
 //!     let (t, (e0, b0, r0, r1, b1, e1)) = net! {
 //!         Prefix = Ipv4Prefix;
+//!         Ospf = GlobalOspf;
 //!         links = {
 //!             b0 -> r0: 1;
 //!             b1 -> r1: 1;

@@ -19,6 +19,7 @@
 
 use crate::{
     network::Network,
+    ospf::OspfImpl,
     record::FwDelta,
     types::{NetworkError, Prefix, PrefixMap, RouterId, SimplePrefix, SinglePrefix},
 };
@@ -80,7 +81,7 @@ impl<P: Prefix> PartialEq for ForwardingState<P> {
 
 impl<P: Prefix> ForwardingState<P> {
     /// Extracts the forwarding state from the network.
-    pub fn from_net<Q>(net: &Network<P, Q>) -> Self {
+    pub fn from_net<Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>) -> Self {
         // initialize the prefix lookup
         let mut state: HashMap<RouterId, P::Map<Vec<RouterId>>> =
             HashMap::with_capacity(net.num_devices());

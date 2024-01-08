@@ -29,7 +29,7 @@
 
 use crate::{
     formatter::NetworkFormatter,
-    ospf::IgpTarget,
+    ospf::{IgpTarget, OspfImpl},
     types::{Prefix, PrefixMap, RouterId},
 };
 use itertools::Itertools;
@@ -77,10 +77,10 @@ impl<P: Prefix> SrProcess<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for SrProcess<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for SrProcess<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n crate::network::Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n crate::network::Network<P, Q, Ospf>) -> Self::Formatter {
         self.static_routes
             .iter()
             .map(|(p, sr)| format!("{p} -> {}", sr.fmt(net)))

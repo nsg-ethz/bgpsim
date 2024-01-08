@@ -28,6 +28,7 @@ use crate::{
     event::{BasicEventQueue, Event, FmtPriority},
     forwarding_state::{ForwardingState, TO_DST},
     network::Network,
+    ospf::OspfImpl,
     policies::{FwPolicy, PathCondition, PathConditionCNF, PolicyError, Waypoint},
     record::{ConvergenceRecording, ConvergenceTrace, FwDelta},
     route_map::{RouteMap, RouteMapDirection, RouteMapMatch, RouteMapSet, RouteMapState},
@@ -36,19 +37,19 @@ use crate::{
 };
 
 /// Trait to format a type that contains RouterIds
-pub trait NetworkFormatter<'a, 'n, P: Prefix, Q> {
+pub trait NetworkFormatter<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> {
     /// Type that is returned, which implements `std::fmt::Display`.
     type Formatter;
 
     /// Return a struct that can be formatted and displayed. This function may panic if a router id
     /// does not exist.
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter;
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter;
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouterId {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for RouterId {
     type Formatter = &'n str;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match net.get_device(*self) {
             Ok(r) => r.name(),
             Err(_) => "?",
@@ -59,18 +60,22 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouterId {
 //
 // Set of routers
 //
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for HashSet<RouterId> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for HashSet<RouterId>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!("{{{}}}", self.iter().map(|r| r.fmt(net)).join(", "))
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BTreeSet<RouterId> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for BTreeSet<RouterId>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!("{{{}}}", self.iter().map(|r| r.fmt(net)).join(", "))
     }
 }
@@ -78,14 +83,16 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BTreeSet<RouterId>
 //
 // Map of Router to Collection of routers
 //
-impl<'a, 'n, P: Prefix, Q, C> NetworkFormatter<'a, 'n, P, Q> for HashMap<RouterId, C>
+impl<'a, 'n, P, Q, Ospf, C> NetworkFormatter<'a, 'n, P, Q, Ospf> for HashMap<RouterId, C>
 where
+    P: Prefix,
+    Ospf: OspfImpl,
     C: 'static,
     for<'b> &'b C: IntoIterator<Item = &'b RouterId>,
 {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
             "{{\n{}\n}}",
             self.iter()
@@ -99,14 +106,16 @@ where
     }
 }
 
-impl<'a, 'n, P: Prefix, Q, C> NetworkFormatter<'a, 'n, P, Q> for BTreeMap<RouterId, C>
+impl<'a, 'n, P, Q, Ospf, C> NetworkFormatter<'a, 'n, P, Q, Ospf> for BTreeMap<RouterId, C>
 where
+    P: Prefix,
+    Ospf: OspfImpl,
     C: 'static,
     for<'b> &'b C: IntoIterator<Item = &'b RouterId>,
 {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
             "{{\n{}\n}}",
             self.iter()
@@ -124,18 +133,20 @@ where
 // Individual Path
 //
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for &'a [RouterId] {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for &'a [RouterId]
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.iter().map(|r| r.fmt(net)).join(" -> ")
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for Vec<RouterId> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for Vec<RouterId> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.as_slice().fmt(net)
     }
 }
@@ -144,28 +155,34 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for Vec<RouterId> {
 // Collection of paths
 //
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for &'a [Vec<RouterId>] {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for &'a [Vec<RouterId>]
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.iter()
             .map(|p| p.iter().map(|r| r.fmt(net)).join(" -> "))
             .join(" | ")
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for Vec<Vec<RouterId>> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for Vec<Vec<RouterId>>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.as_slice().fmt(net)
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for HashSet<Vec<RouterId>> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for HashSet<Vec<RouterId>>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
             "{{\n    {}\n}}",
             self.iter()
@@ -179,10 +196,12 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for HashSet<Vec<Router
 // Forwarding State
 //
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ForwardingState<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for ForwardingState<P>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         let mut result = String::new();
         let f = &mut result;
         for (router, table) in self.state.iter() {
@@ -217,10 +236,12 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ForwardingState<P>
 // Event
 //
 
-impl<'a, 'n, P: Prefix, Q, T: FmtPriority> NetworkFormatter<'a, 'n, P, Q> for Event<P, T> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl, T: FmtPriority> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for Event<P, T>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             Event::Bgp(p, from, to, event) => format!(
                 "BGP Event: {} -> {}: {} {}",
@@ -233,10 +254,10 @@ impl<'a, 'n, P: Prefix, Q, T: FmtPriority> NetworkFormatter<'a, 'n, P, Q> for Ev
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BgpEvent<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for BgpEvent<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             BgpEvent::Withdraw(prefix) => format!("Withdraw {prefix}"),
             BgpEvent::Update(route) => format!("Update {}", route.fmt(net)),
@@ -248,10 +269,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BgpEvent<P> {
 // BGP Route
 //
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BgpRoute<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for BgpRoute<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
             "{{ {}, path: [{}], next hop: {}{}{}{} }}",
             self.prefix,
@@ -280,10 +301,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BgpRoute<P> {
 // BGP RIB Entry
 //
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BgpRibEntry<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for BgpRibEntry<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
             "{p}, as_path: {path:?}, weight: {w}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}{comm}",
             p = self.route.prefix,
@@ -307,10 +328,12 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BgpRibEntry<P> {
 // Route Map
 //
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapMatch<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for RouteMapMatch<P>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             RouteMapMatch::Prefix(_pl) => {
                 format!("Prefix in {{{}}}", _pl.iter().join(", "))
@@ -323,10 +346,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapMatch<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapSet {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for RouteMapSet {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             RouteMapSet::NextHop(nh) => format!("NextHop = {}", nh.fmt(net)),
             RouteMapSet::Weight(Some(w)) => format!("Weight = {w}"),
@@ -342,10 +365,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapSet {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMap<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for RouteMap<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
             "{} {}{}.",
             match self.state {
@@ -370,10 +393,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMap<P> {
 // Configuration
 //
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigExpr<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for ConfigExpr<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             ConfigExpr::IgpLinkWeight {
                 source,
@@ -438,10 +461,12 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigExpr<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigExprKey<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for ConfigExprKey<P>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             ConfigExprKey::IgpLinkWeight { source, target } => format!(
                 "IGP Link Weight: {} -> {}",
@@ -481,10 +506,12 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigExprKey<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigModifier<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for ConfigModifier<P>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             ConfigModifier::Insert(e) => format!("INSERT {}", e.fmt(net)),
             ConfigModifier::Remove(e) => format!("REMOVE {}", e.fmt(net)),
@@ -498,10 +525,12 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigModifier<P> 
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapEdit<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for RouteMapEdit<P>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         let dir = match self.direction {
             RouteMapDirection::Incoming => "in",
             RouteMapDirection::Outgoing => "out",
@@ -516,10 +545,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for RouteMapEdit<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigPatch<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for ConfigPatch<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         let mut result = String::new();
         let f = &mut result;
         writeln!(f, "ConfigPatch {{").unwrap();
@@ -531,10 +560,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigPatch<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for Config<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for Config<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         let mut result = String::new();
         let f = &mut result;
         writeln!(f, "Config {{").unwrap();
@@ -550,10 +579,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for Config<P> {
 // Recording
 //
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for FwDelta {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for FwDelta {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
             "{}: {} => {}",
             self.0.fmt(net),
@@ -563,26 +592,28 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for FwDelta {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for &[FwDelta] {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for &[FwDelta] {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.iter().map(|delta| delta.fmt(net)).join(" & ")
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for Vec<FwDelta> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for Vec<FwDelta> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.as_slice().fmt(net)
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConvergenceTrace {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for ConvergenceTrace
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.iter()
             .enumerate()
             .map(|(i, (deltas, time))| {
@@ -599,10 +630,12 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConvergenceTrace {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConvergenceRecording {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for ConvergenceRecording
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.trace().fmt(net)
     }
 }
@@ -611,10 +644,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConvergenceRecordi
 // Policies
 //
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for FwPolicy<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for FwPolicy<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             Self::Reachable(r, p) => {
                 format!("Reachable({}, {})", r.fmt(net), p)
@@ -637,10 +670,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for FwPolicy<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for PathCondition {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for PathCondition {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             Self::Node(r) => format!("[* {} *]", r.fmt(net)),
             Self::Edge(a, b) => format!("[* ({},{}) *]", a.fmt(net), b.fmt(net)),
@@ -654,10 +687,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for PathCondition {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for Waypoint {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for Waypoint {
     type Formatter = &'n str;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             Waypoint::Any => "?",
             Waypoint::Star => "*",
@@ -666,18 +699,20 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for Waypoint {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for PathConditionCNF {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for PathConditionCNF
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         PathCondition::from(self.clone()).fmt(net)
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for PolicyError<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for PolicyError<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             PolicyError::BlackHole { router, prefix } => {
                 format!("Black hole for {} at {}", prefix, router.fmt(net),)
@@ -719,10 +754,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for PolicyError<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for StaticRoute {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for StaticRoute {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             StaticRoute::Direct(r) => r.fmt(net).to_string(),
             StaticRoute::Indirect(r) => format!("{} (indirect)", r.fmt(net)),
@@ -731,10 +766,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for StaticRoute {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for NetworkError {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for NetworkError {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             NetworkError::DeviceError(e) => e.fmt(net),
             NetworkError::ConfigError(e) => e.fmt(net).to_string(),
@@ -783,10 +818,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for NetworkError {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for DeviceError {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for DeviceError {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             DeviceError::RouterNotFound(r) => {
                 format!("Router {} was not found in the IGP table!", r.fmt(net))
@@ -798,10 +833,10 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for DeviceError {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigError {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for ConfigError {
     type Formatter = &'static str;
 
-    fn fmt(&'a self, _net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, _net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             ConfigError::ConfigExprOverload => {
                 "Adding this config expression would overwrite an old expression!"
@@ -811,16 +846,18 @@ impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for ConfigError {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q, T, E> NetworkFormatter<'a, 'n, P, Q> for Result<T, E>
+impl<'a, 'n, P, Q, Ospf, T, E> NetworkFormatter<'a, 'n, P, Q, Ospf> for Result<T, E>
 where
-    T: NetworkFormatter<'a, 'n, P, Q>,
+    P: Prefix,
+    Ospf: OspfImpl,
+    T: NetworkFormatter<'a, 'n, P, Q, Ospf>,
     T::Formatter: std::fmt::Display,
-    E: NetworkFormatter<'a, 'n, P, Q>,
+    E: NetworkFormatter<'a, 'n, P, Q, Ospf>,
     E::Formatter: std::fmt::Display,
 {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             Ok(t) => t.fmt(net).to_string(),
             Err(e) => format!("Error: {}", e.fmt(net)),
@@ -831,10 +868,12 @@ where
 //
 // Formatting the queue
 //
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BasicEventQueue<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for BasicEventQueue<P>
+{
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.0.iter().map(|e| e.fmt(net)).join("\n")
     }
 }

@@ -26,6 +26,7 @@ mod t {
         config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
         event::BasicEventQueue,
         network::Network,
+        ospf::global::GlobalOspf,
         prelude::BgpSessionType,
         route_map::{
             RouteMap, RouteMapDirection::*, RouteMapFlow::*, RouteMapSet as Set, RouteMapState::*,
@@ -897,7 +898,7 @@ mod t {
 
     #[test]
     fn bgp_propagation_client_peers<P: Prefix>() {
-        let mut net = Network::default();
+        let mut net = Network::<_, _, GlobalOspf>::default();
         let r1 = net.add_router("r1");
         let r2 = net.add_router("r2");
         let r3 = net.add_router("r3");

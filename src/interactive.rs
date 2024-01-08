@@ -22,16 +22,18 @@ use crate::{
     event::{Event, EventQueue},
     formatter::NetworkFormatter,
     network::Network,
+    ospf::{global::GlobalOspf, OspfImpl},
     types::NetworkError,
     types::{NetworkDevice, Prefix, StepUpdate},
 };
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
 /// interface to simulate a single event, inspect the queue of the network, and even reorder events.
-pub trait InteractiveNetwork<P, Q>
+pub trait InteractiveNetwork<P, Q, Ospf>
 where
     P: Prefix,
     Q: EventQueue<P>,
+    Ospf: OspfImpl,
 {
     /// Setup the network to automatically simulate each change of the network. This is the default
     /// behavior. Disable auto-simulation by using [`InteractiveNetwork::manual_simulation`].
@@ -55,7 +57,7 @@ where
     /// prohibit you to call `with_manual_simulation` multiple times.
     fn with_manual_simulation<F>(self, f: F) -> Self
     where
-        F: FnOnce(&mut Network<P, Q>);
+        F: FnOnce(&mut Self);
 
     /// Simulate the network behavior, given the current event queue. This function will execute all
     /// events (that may trigger new events), until either the event queue is empt (i.e., the
@@ -80,13 +82,11 @@ where
 
     /// Set the network into verbose mode (or not)
     fn verbose(&mut self, verbose: bool);
-
-    /// Clone the structure by moving some values from a different network. See [`PartialClone`] for
-    /// more details.
-    fn partial_clone(&self) -> PartialClone<'_, P, Q>;
 }
 
-impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
+    for Network<P, Q, Ospf>
+{
     fn auto_simulation(&mut self) {
         self.skip_queue = false;
     }
@@ -101,7 +101,7 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
 
     fn with_manual_simulation<F>(mut self, f: F) -> Self
     where
-        F: FnOnce(&mut Network<P, Q>),
+        F: FnOnce(&mut Self),
     {
         self.manual_simulation();
         f(&mut self);
@@ -170,17 +170,6 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
     fn verbose(&mut self, verbose: bool) {
         self.verbose = verbose;
     }
-
-    fn partial_clone(&self) -> PartialClone<'_, P, Q> {
-        PartialClone {
-            source: self,
-            reuse_igp_state: false,
-            reuse_bgp_state: false,
-            reuse_config: false,
-            reuse_advertisements: false,
-            reuse_queue_params: false,
-        }
-    }
 }
 
 /// Builder interface to partially clone the source network while moving values from the conquered
@@ -191,6 +180,8 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
 /// If you do not reuse anything of the conquered network, then this function will most likely be
 /// slower than simply calling `source.clone()`.
 ///
+/// Currently, this structure only supports cloning a `Network<P, Q, GlobalOspf>`.
+///
 /// ```
 /// # #[cfg(feature = "topology_zoo")]
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -199,7 +190,7 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
 /// # use bgpsim::topology_zoo::TopologyZoo;
 /// # use bgpsim::event::BasicEventQueue;
 /// # use bgpsim::builder::*;
-/// # let mut net = TopologyZoo::Abilene.build(BasicEventQueue::new());
+/// # let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Abilene.build(BasicEventQueue::new());
 /// # let prefix = P::from(0);
 /// # net.build_external_routers(extend_to_k_external_routers, 3)?;
 /// # net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
@@ -207,14 +198,14 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
 /// # net.build_link_weights(constant_link_weight, 20.0)?;
 /// # let ads = net.build_advertisements(prefix, unique_preferences, 3)?;
 /// # let ext = ads[0][0];
-/// use bgpsim::interactive::InteractiveNetwork;
+/// use bgpsim::interactive::PartialClone;
 ///
 /// // let mut net = ...
 /// let original_net = net.clone();
 /// net.withdraw_external_route(ext, prefix)?;
 /// assert_ne!(net, original_net);
 /// let net = unsafe {
-///     original_net.partial_clone()
+///     PartialClone::new(&original_net)
 ///         .reuse_config(true)
 ///         .reuse_igp_state(true)
 ///         .reuse_queue_params(true)
@@ -228,7 +219,7 @@ impl<P: Prefix, Q: EventQueue<P>> InteractiveNetwork<P, Q> for Network<P, Q> {
 /// ```
 #[derive(Debug)]
 pub struct PartialClone<'a, P: Prefix, Q> {
-    source: &'a Network<P, Q>,
+    source: &'a Network<P, Q, GlobalOspf>,
     reuse_config: bool,
     reuse_advertisements: bool,
     reuse_igp_state: bool,
@@ -237,6 +228,18 @@ pub struct PartialClone<'a, P: Prefix, Q> {
 }
 
 impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
+    /// Create a new partial clone of a network
+    pub fn new(net: &'a Network<P, Q, GlobalOspf>) -> PartialClone<'_, P, Q> {
+        PartialClone {
+            source: net,
+            reuse_igp_state: false,
+            reuse_bgp_state: false,
+            reuse_config: false,
+            reuse_advertisements: false,
+            reuse_queue_params: false,
+        }
+    }
+
     /// Reuse the entire configuration from the conquered network.
     ///
     /// # Safety
@@ -296,7 +299,7 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
     /// # Safety
     /// You must ensure that the physical topology of both the source and the conquered network is
     /// identical.
-    pub unsafe fn conquer(self, other: Network<P, Q>) -> Network<P, Q>
+    pub unsafe fn conquer(self, other: Network<P, Q, GlobalOspf>) -> Network<P, Q, GlobalOspf>
     where
         Q: Clone + EventQueue<P>,
     {

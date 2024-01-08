@@ -30,7 +30,7 @@ use crate::{
     bgp::BgpRoute,
     config::{ConfigExpr, ConfigModifier},
     network::{Network, INTERNAL_AS},
-    ospf::{InternalEdge, OspfArea},
+    ospf::{InternalEdge, OspfArea, OspfImpl, OspfProcess},
     prelude::BgpSessionType,
     route_map::{
         RouteMap, RouteMapDirection as RmDir, RouteMapFlow, RouteMapMatch, RouteMapMatchAsPath,
@@ -77,8 +77,8 @@ pub struct CiscoFrrCfgGen<P: Prefix> {
 
 impl<P: Prefix> CiscoFrrCfgGen<P> {
     /// Create a new config generator for the specified router.
-    pub fn new<Q>(
-        net: &Network<P, Q>,
+    pub fn new<Q, Ospf: OspfImpl>(
+        net: &Network<P, Q, Ospf>,
         router: RouterId,
         target: Target,
         ifaces: Vec<String>,
@@ -214,9 +214,9 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create all the interface configuration
-    fn iface_config<A: Addressor<P>, Q>(
+    fn iface_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -272,10 +272,10 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create the static route config
-    fn static_route_config<A: Addressor<P>, Q>(
+    fn static_route_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q>,
-        router: &Router<P>,
+        net: &Network<P, Q, Ospf>,
+        router: &Router<P, Ospf::Process>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::from("!\n! Static Routes\n!\n");
@@ -290,9 +290,9 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Generate a single static route line
-    fn static_route<A: Addressor<P>, Q>(
+    fn static_route<A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         prefix: P,
         sr: StaticRoute,
@@ -318,9 +318,9 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create the ospf configuration
-    fn ospf_config<A: Addressor<P>>(
+    fn ospf_config<A: Addressor<P>, Ospf: OspfProcess>(
         &self,
-        router: &Router<P>,
+        router: &Router<P, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -335,10 +335,10 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create the BGP configuration
-    fn bgp_config<A: Addressor<P>, Q>(
+    fn bgp_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q>,
-        router: &Router<P>,
+        net: &Network<P, Q, Ospf>,
+        router: &Router<P, Ospf::Process>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -381,9 +381,9 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create the configuration for a BGP neighbor
-    fn bgp_neigbor_config<A: Addressor<P>, Q>(
+    fn bgp_neigbor_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         n: RouterId,
         ty: BgpSessionType,
@@ -417,9 +417,9 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create all route-maps
-    fn route_map_config<A: Addressor<P>, Q>(
+    fn route_map_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -511,12 +511,12 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create a route-map item from a [`RouteMap<P>`]
-    fn route_map_item<A: Addressor<P>, Q>(
+    fn route_map_item<A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
         name: &str,
         rm: &RouteMap<P>,
         next_ord: Option<i16>,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<RouteMapItem, ExportError> {
         let ord = order(rm.order);
@@ -619,9 +619,9 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Update the continue statement of the route-map that is coming before `order`.
-    fn fix_prev_rm_continue<Q>(
+    fn fix_prev_rm_continue<Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         neighbor: RouterId,
         direction: RmDir,
         ord: i16,
@@ -642,10 +642,10 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Transform the router-id into an IP address (when writing route-maps)
-    fn router_id_to_ip<A: Addressor<P>, Q>(
+    fn router_id_to_ip<A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
         r: RouterId,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<Ipv4Addr, ExportError> {
         if net.get_device(r)?.is_internal() && net.get_device(self.router)?.is_internal() {
@@ -679,7 +679,11 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
 }
 
 /// Get the full route-map name, including `in` and `out`
-fn full_rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId, direction: RmDir) -> String {
+fn full_rm_name<P: Prefix, Q, Ospf: OspfImpl>(
+    net: &Network<P, Q, Ospf>,
+    router: RouterId,
+    direction: RmDir,
+) -> String {
     let dir = match direction {
         RmDir::Incoming => "in",
         RmDir::Outgoing => "out",
@@ -691,7 +695,7 @@ fn full_rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId, direction: 
     }
 }
 
-fn rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId) -> String {
+fn rm_name<P: Prefix, Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>, router: RouterId) -> String {
     if let Ok(d) = net.get_device(router) {
         format!("neighbor-{}", d.name())
     } else {
@@ -699,10 +703,12 @@ fn rm_name<P: Prefix, Q>(net: &Network<P, Q>, router: RouterId) -> String {
     }
 }
 
-impl<P: Prefix, A: Addressor<P>, Q> InternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P> {
+impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A>
+    for CiscoFrrCfgGen<P>
+{
     fn generate_config(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -725,7 +731,7 @@ impl<P: Prefix, A: Addressor<P>, Q> InternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
 
     fn generate_command(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         cmd: ConfigModifier<P>,
     ) -> Result<String, ExportError> {
@@ -951,10 +957,12 @@ impl<P: Prefix, A: Addressor<P>, Q> InternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
     }
 }
 
-impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P> {
+impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A>
+    for CiscoFrrCfgGen<P>
+{
     fn generate_config(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -1011,7 +1019,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
 
     fn advertise_route(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         route: &BgpRoute<P>,
     ) -> Result<String, ExportError> {
@@ -1067,7 +1075,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
 
     fn withdraw_route(
         &mut self,
-        _net: &Network<P, Q>,
+        _net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         prefix: P,
     ) -> Result<String, ExportError> {
@@ -1112,7 +1120,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
 
     fn establish_ebgp_session(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
@@ -1130,7 +1138,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for CiscoFrrCfgGen<P
 
     fn teardown_ebgp_session(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {

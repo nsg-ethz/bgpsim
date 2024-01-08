@@ -53,6 +53,7 @@ use xmltree::{Element, ParseError as XmlParseError};
 use crate::{
     event::EventQueue,
     network::Network,
+    ospf::OspfImpl,
     types::{IndexType, NetworkError, Prefix, RouterId},
 };
 
@@ -112,11 +113,11 @@ impl TopologyZooParser {
 
     /// Create and extract the network from the topology. This will generate the routers (both
     /// internal and external, if given), and add all edges.
-    pub fn get_network<P: Prefix, Q: EventQueue<P>>(
+    pub fn get_network<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
         &self,
         queue: Q,
-    ) -> Result<Network<P, Q>, TopologyZooError> {
-        let mut net: Network<P, Q> = Network::new(queue);
+    ) -> Result<Network<P, Q, Ospf>, TopologyZooError> {
+        let mut net: Network<P, Q, Ospf> = Network::new(queue);
 
         let mut last_as_id = 1000;
         let nodes_lut: HashMap<&str, RouterId> = self

@@ -23,6 +23,8 @@ use crate::{
 
 #[generic_tests::define]
 mod t {
+    use crate::ospf::global::GlobalOspf;
+
     use super::*;
 
     macro_rules! link_weight {
@@ -48,7 +50,7 @@ mod t {
     #[test]
     fn test_forwarding_state_carousel_gadget<P: Prefix>() {
         for _ in 0..10 {
-            let mut net = Network::default();
+            let mut net = Network::<_, _, GlobalOspf>::default();
 
             let rr = net.add_router("rr");
             let r1 = net.add_router("r1");

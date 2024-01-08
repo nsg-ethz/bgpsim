@@ -15,7 +15,10 @@
 
 //! Module containing the definitions for the event queues.
 
-use crate::types::{NetworkDevice, PhysicalNetwork, Prefix, RouterId};
+use crate::{
+    ospf::OspfProcess,
+    types::{NetworkDevice, PhysicalNetwork, Prefix, RouterId},
+};
 
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
@@ -29,10 +32,10 @@ pub trait EventQueue<P: Prefix> {
     type Priority: Default + FmtPriority + Clone;
 
     /// Enqueue a new event.
-    fn push(
+    fn push<Ospf: OspfProcess>(
         &mut self,
         event: Event<P, Self::Priority>,
-        routers: &HashMap<RouterId, NetworkDevice<P>>,
+        routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
         net: &PhysicalNetwork,
     );
 
@@ -54,9 +57,9 @@ pub trait EventQueue<P: Prefix> {
     /// Update the model parameters. This function will always be called after some externally
     /// triggered event occurs. It will still happen, even if the network was set to manual
     /// simulation.
-    fn update_params(
+    fn update_params<Ospf: OspfProcess>(
         &mut self,
-        routers: &HashMap<RouterId, NetworkDevice<P>>,
+        routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
         net: &PhysicalNetwork,
     );
 
@@ -91,10 +94,10 @@ impl<P: Prefix> BasicEventQueue<P> {
 impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
     type Priority = ();
 
-    fn push(
+    fn push<Ospf: OspfProcess>(
         &mut self,
         event: Event<P, Self::Priority>,
-        _: &HashMap<RouterId, NetworkDevice<P>>,
+        _: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         self.0.push_back(event)
@@ -124,7 +127,12 @@ impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
         None
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, NetworkDevice<P>>, _: &PhysicalNetwork) {}
+    fn update_params<Ospf: OspfProcess>(
+        &mut self,
+        _: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        _: &PhysicalNetwork,
+    ) {
+    }
 
     unsafe fn clone_events(&self, _: Self) -> Self {
         self.clone()

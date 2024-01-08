@@ -45,8 +45,8 @@ pub use sr_process::{SrProcess, StaticRoute};
 
 /// Bgp Router
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "P: for<'a> Deserialize<'a>"))]
-pub struct Router<P: Prefix> {
+#[serde(bound(deserialize = "P: for<'a> Deserialize<'a>, Ospf: for<'a> Deserialize<'a>"))]
+pub struct Router<P: Prefix, Ospf = GlobalOspfProcess> {
     /// Name of the router
     name: String,
     /// ID of the router
@@ -54,7 +54,7 @@ pub struct Router<P: Prefix> {
     /// AS Id of the router
     as_id: AsId,
     /// The IGP routing process
-    pub ospf: GlobalOspfProcess,
+    pub ospf: Ospf,
     /// The Static Routing Process
     pub sr: SrProcess<P>,
     /// The BGP routing process
@@ -66,7 +66,7 @@ pub struct Router<P: Prefix> {
     pub(crate) do_load_balancing: bool,
 }
 
-impl<P: Prefix> Clone for Router<P> {
+impl<P: Prefix, Ospf: Clone> Clone for Router<P, Ospf> {
     fn clone(&self) -> Self {
         Router {
             name: self.name.clone(),
@@ -80,19 +80,7 @@ impl<P: Prefix> Clone for Router<P> {
     }
 }
 
-impl<P: Prefix> Router<P> {
-    pub(crate) fn new(name: String, router_id: RouterId, as_id: AsId) -> Router<P> {
-        Router {
-            name,
-            router_id,
-            as_id,
-            ospf: GlobalOspfProcess::new(router_id),
-            sr: SrProcess::new(),
-            bgp: BgpProcess::new(router_id, as_id),
-            do_load_balancing: false,
-        }
-    }
-
+impl<P: Prefix, Ospf> Router<P, Ospf> {
     /// Return the idx of the Router
     pub fn router_id(&self) -> RouterId {
         self.router_id
@@ -103,9 +91,42 @@ impl<P: Prefix> Router<P> {
         self.name.as_ref()
     }
 
+    /// Set the name of the router.
+    pub(crate) fn set_name(&mut self, name: String) {
+        self.name = name;
+    }
+
     /// Return the AS ID of the Router
     pub fn as_id(&self) -> AsId {
         self.as_id
+    }
+
+    /// Check if load balancing is enabled
+    pub fn get_load_balancing(&self) -> bool {
+        self.do_load_balancing
+    }
+
+    /// Update the load balancing config value to something new, and return the old value. If load
+    /// balancing is enabled, then the router will load balance packets towards a destination if
+    /// multiple paths exist with equal cost. load balancing will only work within OSPF. BGP
+    /// Additional Paths is not yet implemented.
+    pub(crate) fn set_load_balancing(&mut self, mut do_load_balancing: bool) -> bool {
+        std::mem::swap(&mut self.do_load_balancing, &mut do_load_balancing);
+        do_load_balancing
+    }
+}
+
+impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
+    pub(crate) fn new(name: String, router_id: RouterId, as_id: AsId) -> Router<P, Ospf> {
+        Router {
+            name,
+            router_id,
+            as_id,
+            ospf: Ospf::new(router_id),
+            sr: SrProcess::new(),
+            bgp: BgpProcess::new(router_id, as_id),
+            do_load_balancing: false,
+        }
     }
 
     /// handle an `Event`. This function returns all events triggered by this function, and a
@@ -180,20 +201,6 @@ impl<P: Prefix> Router<P> {
         }
     }
 
-    /// Check if load balancing is enabled
-    pub fn get_load_balancing(&self) -> bool {
-        self.do_load_balancing
-    }
-
-    /// Update the load balancing config value to something new, and return the old value. If load
-    /// balancing is enabled, then the router will load balance packets towards a destination if
-    /// multiple paths exist with equal cost. load balancing will only work within OSPF. BGP
-    /// Additional Paths is not yet implemented.
-    pub(crate) fn set_load_balancing(&mut self, mut do_load_balancing: bool) -> bool {
-        std::mem::swap(&mut self.do_load_balancing, &mut do_load_balancing);
-        do_load_balancing
-    }
-
     /// Execute a function on the ospf process. Then, update the BGP process if there was any
     /// change in OSPF.
     ///
@@ -205,7 +212,7 @@ impl<P: Prefix> Router<P> {
         f: F,
     ) -> Result<Vec<Event<P, T>>, DeviceError>
     where
-        F: FnOnce(&mut GlobalOspfProcess) -> Result<Option<Vec<Event<P, T>>>, DeviceError>,
+        F: FnOnce(&mut Ospf) -> Result<Option<Vec<Event<P, T>>>, DeviceError>,
     {
         if let Some(mut ospf_events) = f(&mut self.ospf)? {
             // changes to BGP necessary
@@ -217,10 +224,5 @@ impl<P: Prefix> Router<P> {
             // no changes to BGP necessary
             Ok(Vec::new())
         }
-    }
-
-    /// Set the name of the router.
-    pub(crate) fn set_name(&mut self, name: String) {
-        self.name = name;
     }
 }

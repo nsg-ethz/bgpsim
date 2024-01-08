@@ -76,7 +76,7 @@ use crate::{
     event::EventQueue,
     formatter::NetworkFormatter,
     network::Network,
-    ospf::{LinkWeight, OspfArea, DEFAULT_LINK_WEIGHT},
+    ospf::{LinkWeight, OspfArea, OspfImpl, DEFAULT_LINK_WEIGHT},
     route_map::{RouteMap, RouteMapDirection},
     router::StaticRoute,
     types::{ConfigError, NetworkDeviceRef, NetworkError, Prefix, PrefixMap, RouterId},
@@ -811,7 +811,7 @@ pub trait NetworkConfig<P: Prefix> {
     fn get_config(&self) -> Result<Config<P>, NetworkError>;
 }
 
-impl<P: Prefix, Q: EventQueue<P>> NetworkConfig<P> for Network<P, Q> {
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P, Q, Ospf> {
     /// Set the provided network-wide configuration. The network first computes the patch from the
     /// current configuration to the next one, and applies the patch. If the patch cannot be
     /// applied, then an error is returned. Note, that this function may apply a large number of

@@ -161,7 +161,7 @@ where
         &mut self,
         a: RouterId,
         b: RouterId,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         self.add_links_from([(a, b)], routers)
     }
@@ -169,7 +169,7 @@ where
     pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
         &mut self,
         links: I,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId)>,
@@ -225,7 +225,7 @@ where
         src: RouterId,
         dst: RouterId,
         weight: LinkWeight,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<(Vec<Event<P, T>>, LinkWeight), NetworkError> {
         self.must_be_internal(src, dst)?;
 
@@ -257,7 +257,7 @@ where
     pub(crate) fn set_link_weights_from<P: Prefix, T: Default, I>(
         &mut self,
         weights: I,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
@@ -317,7 +317,7 @@ where
         a: RouterId,
         b: RouterId,
         area: OspfArea,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<(Vec<Event<P, T>>, OspfArea), NetworkError> {
         self.must_be_internal(a, b)?;
 
@@ -364,7 +364,7 @@ where
         &mut self,
         a: RouterId,
         b: RouterId,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         if self.is_internal(a, b)? {
             let (w_a_b, area) = self
@@ -415,7 +415,7 @@ where
     pub(crate) fn remove_router<P: Prefix, T: Default>(
         &mut self,
         r: RouterId,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut deltas = Vec::new();
         if self.externals.contains(&r) {
@@ -461,7 +461,7 @@ where
         &self,
         a: RouterId,
         b: RouterId,
-        routers: &HashMap<RouterId, NetworkDevice<P>>,
+        routers: &HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> bool {
         let a_ext = self.externals.contains(&a);
         let b_ext = self.externals.contains(&b);
@@ -498,7 +498,7 @@ where
     /// of a router with ID `id` by computing `id.index().into()`.
     pub(crate) fn get_forwarding_state<P: Prefix>(
         &self,
-        routers: &HashMap<RouterId, NetworkDevice<P>>,
+        routers: &HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> (
         ForwardingState<SimplePrefix>,
         HashMap<RouterId, SimplePrefix>,
@@ -719,7 +719,7 @@ pub trait OspfCoordinator:
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: &mut HashMap<RouterId, NetworkDevice<P>>,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Self::Process>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>;
@@ -795,10 +795,10 @@ impl From<RouterId> for IgpTarget {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for IgpTarget {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for IgpTarget {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n crate::network::Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n crate::network::Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
             IgpTarget::Neighbor(r) => format!("{} (neighbor)", r.fmt(net)),
             IgpTarget::Ospf(r) => r.fmt(net).to_string(),

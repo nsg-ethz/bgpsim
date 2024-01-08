@@ -25,6 +25,7 @@ use crate::{
     config::{ConfigExpr, ConfigModifier, NetworkConfig},
     event::EventQueue,
     network::Network,
+    ospf::OspfImpl,
     types::{AsId, NetworkDeviceRef, NetworkError, Prefix, PrefixMap, RouterId},
 };
 
@@ -33,10 +34,11 @@ const JSON_FIELD_NAME_CONFIG: &str = "config_nodes_routes";
 
 type ExportRoutes<P> = (RouterId, P, Vec<AsId>, Option<u32>, BTreeSet<u32>);
 
-impl<P, Q> Network<P, Q>
+impl<P, Q, Ospf> Network<P, Q, Ospf>
 where
     P: Prefix,
     Q: EventQueue<P> + Serialize,
+    Ospf: OspfImpl,
 {
     /// Create a json string from the network. This string will contain both the actual network
     /// state and the configuration. In case the network state can no longer be deserialized, the
@@ -100,10 +102,11 @@ where
     }
 }
 
-impl<P, Q> Network<P, Q>
+impl<P, Q, Ospf> Network<P, Q, Ospf>
 where
     P: Prefix,
     Q: EventQueue<P>,
+    Ospf: OspfImpl,
     for<'a> Q: Deserialize<'a>,
 {
     /// Read a json file containing the network and create the network. If the network cannot be
@@ -142,10 +145,11 @@ where
     }
 }
 
-impl<P, Q> Network<P, Q>
+impl<P, Q, Ospf> Network<P, Q, Ospf>
 where
     P: Prefix,
     Q: EventQueue<P>,
+    Ospf: OspfImpl,
 {
     /// Deserialize the json structure containing configuration, nodes and routes.
     fn from_config_nodes_routes<F>(

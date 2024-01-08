@@ -22,6 +22,7 @@ pub use crate::event::{BasicEventQueue, EventQueue};
 pub use crate::formatter::NetworkFormatter;
 pub use crate::interactive::InteractiveNetwork;
 pub use crate::network::Network;
+pub use crate::ospf::global::GlobalOspf;
 pub use crate::ospf::LinkWeight;
 pub use crate::record::RecordNetwork;
 pub use crate::types::{

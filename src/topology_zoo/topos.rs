@@ -38,13 +38,14 @@
 use super::TopologyZooParser;
 use crate::{
     event::EventQueue,
-    network::Network, 
-    types::{Prefix, RouterId}
+    network::Network,
+    ospf::OspfImpl,
+    types::{Prefix, RouterId},
 };
 
 use geoutils::Location;
-use std::collections::HashMap;
 use include_flate::flate;
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -322,7 +323,7 @@ flate!(static GRAPHML_Zamren: str from "topology_zoo/Zamren.graphml");
 /// use bgpsim::types::SimplePrefix as P;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
-/// let mut net = TopologyZoo::Abilene.build(BasicEventQueue::<P>::new());
+/// let mut net = TopologyZoo::Abilene.build::<_, _, GlobalOspf>(BasicEventQueue::<P>::new());
 /// let prefix = P::from(0);
 ///
 /// // Make sure that at least 3 external routers exist
@@ -2704,13 +2705,14 @@ pub enum TopologyZoo {
     ///
     /// <img src="http://www.topology-zoo.org/maps/Zamren.jpg" alt="--- No image available ---" width="400"/>
     Zamren,
-
 }
 
 impl TopologyZoo {
-
     /// Generate the network.
-    pub fn build<P: Prefix, Q: EventQueue<P>>(&self, queue: Q) -> Network<P, Q> {
+    pub fn build<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
+        &self,
+        queue: Q,
+    ) -> Network<P, Q, Ospf> {
         TopologyZooParser::new(self.graphml())
             .unwrap()
             .get_network(queue)
@@ -4059,7 +4061,9 @@ impl TopologyZoo {
 
     /// Get the geo location of the Topology Zoo
     pub fn geo_location(&self) -> HashMap<RouterId, Location> {
-        TopologyZooParser::new(self.graphml()).unwrap().get_geo_location()
+        TopologyZooParser::new(self.graphml())
+            .unwrap()
+            .get_geo_location()
     }
 
     /// Get all topologies with increasing number of internal nodes. If two topologies have the same number
@@ -5133,7 +5137,7 @@ impl std::str::FromStr for TopologyZoo {
             "uscarrier" => Ok(Self::UsCarrier),
             "cogentco" => Ok(Self::Cogentco),
             "kdl" => Ok(Self::Kdl),
-            _ => Err(s.to_string())
+            _ => Err(s.to_string()),
         }
     }
 }

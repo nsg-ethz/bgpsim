@@ -23,7 +23,9 @@ use std::{
 
 use crate::{
     bgp::BgpRoute,
+    network::Network,
     network::{Network, INTERNAL_AS},
+    ospf::OspfImpl,
     types::{AsId, Prefix, PrefixMap, RouterId},
 };
 
@@ -105,7 +107,7 @@ use super::{Addressor, ExportError, ExternalCfgGen};
 /// let mut net = {
 ///     // ...
 /// #   use bgpsim::builder::NetworkBuilder;
-/// #   let mut net = Network::build_complete_graph(BasicEventQueue::<P>::new(), 1);
+/// #   let mut net: Network<_, _, GlobalOspf> = Network::build_complete_graph(BasicEventQueue::<P>::new(), 1);
 /// #   let router = net.add_external_router("external_router", AsId(100));
 /// #   net.internal_indices().detach().for_each(|r| net.add_link(r, router).unwrap());
 /// #   net.build_ibgp_full_mesh()?;
@@ -195,7 +197,10 @@ use maplit::btreemap;
 impl<P: Prefix> ExaBgpCfgGen<P> {
     /// Create a new instance of the ExaBGP config generator. This will initialize all
     /// routes. Further, it will
-    pub fn new<Q>(net: &Network<P, Q>, router: RouterId) -> Result<Self, ExportError> {
+    pub fn new<Q, Ospf: OspfImpl>(
+        net: &Network<P, Q, Ospf>,
+        router: RouterId,
+    ) -> Result<Self, ExportError> {
         let r = net.get_device(router)?.external_or_err()?;
         Ok(Self {
             router,
@@ -368,10 +373,12 @@ fn route_text<P: Prefix>(route: &BgpRoute<P>, address: Ipv4Net) -> Result<String
     ))
 }
 
-impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for ExaBgpCfgGen<P> {
+impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> ExternalCfgGen<P, Q, Ospf, A>
+    for ExaBgpCfgGen<P>
+{
     fn generate_config(
         &mut self,
-        _net: &Network<P, Q>,
+        _net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         Ok(self
@@ -385,7 +392,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for ExaBgpCfgGen<P> 
 
     fn advertise_route(
         &mut self,
-        _net: &Network<P, Q>,
+        _net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         route: &BgpRoute<P>,
     ) -> Result<String, ExportError> {
@@ -398,7 +405,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for ExaBgpCfgGen<P> 
 
     fn withdraw_route(
         &mut self,
-        _net: &Network<P, Q>,
+        _net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         prefix: P,
     ) -> Result<String, ExportError> {
@@ -411,7 +418,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for ExaBgpCfgGen<P> 
 
     fn establish_ebgp_session(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
@@ -421,7 +428,7 @@ impl<P: Prefix, A: Addressor<P>, Q> ExternalCfgGen<P, Q, A> for ExaBgpCfgGen<P> 
 
     fn teardown_ebgp_session(
         &mut self,
-        net: &Network<P, Q>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {

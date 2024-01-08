@@ -25,6 +25,7 @@ use ipnet::{Ipv4Net, Ipv4Subnets};
 use super::{ip_err, Addressor, ExportError, LinkId, MaybePec};
 use crate::{
     network::Network,
+    ospf::OspfImpl,
     types::{AsId, NonOverlappingPrefix, Prefix, PrefixMap, RouterId},
 };
 
@@ -134,18 +135,18 @@ impl DefaultAddressorBuilder {
 
 impl DefaultAddressorBuilder {
     /// Generate the default addressor from the given parameters.
-    pub fn build<'a, P: Prefix, Q>(
+    pub fn build<'a, P: Prefix, Q, Ospf: OspfImpl>(
         &self,
-        net: &'a Network<P, Q>,
-    ) -> Result<DefaultAddressor<'a, P, Q>, ExportError> {
+        net: &'a Network<P, Q, Ospf>,
+    ) -> Result<DefaultAddressor<'a, P, Q, Ospf>, ExportError> {
         DefaultAddressor::new(net, self)
     }
 }
 
 /// The default IP addressor uses.
 #[derive(Debug, Clone)]
-pub struct DefaultAddressor<'a, P: Prefix, Q> {
-    net: &'a Network<P, Q>,
+pub struct DefaultAddressor<'a, P: Prefix, Q, Ospf: OspfImpl> {
+    net: &'a Network<P, Q, Ospf>,
     /// The internal netowrk
     internal_ip_range: Ipv4Net,
     /// the ip range for external networks
@@ -172,11 +173,11 @@ pub struct DefaultAddressor<'a, P: Prefix, Q> {
     pecs: P::Map<Vec<Ipv4Net>>,
 }
 
-impl<'a, P: Prefix, Q> DefaultAddressor<'a, P, Q> {
+impl<'a, P: Prefix, Q, Ospf: OspfImpl> DefaultAddressor<'a, P, Q, Ospf> {
     /// Create a new Default IP Addressor. Use the [`DefaultAddressorBuilder`] to generate the parameters.
     #[allow(clippy::too_many_arguments)]
     pub fn new(
-        net: &'a Network<P, Q>,
+        net: &'a Network<P, Q, Ospf>,
         args: &DefaultAddressorBuilder,
     ) -> Result<Self, ExportError> {
         let mut internal_halves = args
@@ -205,7 +206,7 @@ impl<'a, P: Prefix, Q> DefaultAddressor<'a, P, Q> {
     }
 }
 
-impl<'a, P: Prefix, Q> DefaultAddressor<'a, P, Q> {
+impl<'a, P: Prefix, Q, Ospf: OspfImpl> DefaultAddressor<'a, P, Q, Ospf> {
     /// Get the subnet reserved for internal routers.
     pub fn subnet_for_internal_routers(&self) -> Ipv4Net {
         // unwrapping here is allowed, we have already done this operation successfully.
@@ -241,7 +242,7 @@ impl<'a, P: Prefix, Q> DefaultAddressor<'a, P, Q> {
     }
 }
 
-impl<'a, P: Prefix, Q> Addressor<P> for DefaultAddressor<'a, P, Q> {
+impl<'a, P: Prefix, Q, Ospf: OspfImpl> Addressor<P> for DefaultAddressor<'a, P, Q, Ospf> {
     fn internal_network(&mut self) -> Ipv4Net {
         self.internal_ip_range
     }

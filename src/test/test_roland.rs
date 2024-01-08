@@ -25,6 +25,7 @@ use crate::{
     event::{EventQueue, ModelParams, SimpleTimingModel},
     interactive::InteractiveNetwork,
     network::Network,
+    ospf::global::GlobalOspf,
     policies::{FwPolicy, Policy},
     record::{ConvergenceRecording, ConvergenceTrace, RecordNetwork},
     topology_zoo::TopologyZoo,
@@ -93,7 +94,7 @@ fn roland_pacificwave() {
 fn roland_pacificwave_manual() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net = TopologyZoo::Pacificwave.build(queue);
+    let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Pacificwave.build(queue);
     let prefix = P::from(1);
 
     // Make sure that at least 3 external routers exist
@@ -241,7 +242,7 @@ fn roland_arpanet() {
 fn roland_arpanet_manual() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net = TopologyZoo::Arpanet196912.build(queue);
+    let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Arpanet196912.build(queue);
     let prefix = P::from(0);
 
     // Make sure that at least 3 external routers exist

@@ -71,10 +71,10 @@ impl<P: Prefix> SimpleTimingModel<P> {
 impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
     type Priority = NotNan<f64>;
 
-    fn push(
+    fn push<Ospf: OspfProcess>(
         &mut self,
         mut event: Event<P, Self::Priority>,
-        _routers: &HashMap<RouterId, NetworkDevice<P>>,
+        _routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
         _net: &PhysicalNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -138,7 +138,12 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, NetworkDevice<P>>, _: &PhysicalNetwork) {}
+    fn update_params<Ospf: OspfProcess>(
+        &mut self,
+        _: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        _: &PhysicalNetwork,
+    ) {
+    }
 
     unsafe fn clone_events(&self, conquered: Self) -> Self {
         SimpleTimingModel {
@@ -209,8 +214,11 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
 /// use bgpsim::builder::*;
 /// use bgpsim::types::SimplePrefix as P;
 ///
+/// // Define the network type
+/// type Net = Network<P, BasicEventQueue<P>, GlobalOspf>;
+///
 /// // create the network with the basic event queue
-/// let mut net = TopologyZoo::EliBackbone.build(BasicEventQueue::<P>::new());
+/// let mut net: Net = TopologyZoo::EliBackbone.build(BasicEventQueue::<P>::new());
 /// let prefix = P::from(0);
 ///
 /// // Build the configuration for the network
@@ -304,12 +312,12 @@ impl<P: Prefix> GeoTimingModel<P> {
     /// Recursively update the paths of the routers.
     ///
     /// **TODO**: this function needs improvements!
-    fn recursive_compute_paths(
+    fn recursive_compute_paths<Ospf: OspfProcess>(
         &mut self,
         router: RouterId,
         target: RouterId,
         loop_protection: &mut HashSet<RouterId>,
-        routers: &HashMap<RouterId, NetworkDevice<P>>,
+        routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
         path_cache: &mut HashMap<(RouterId, RouterId), Option<Vec<RouterId>>>,
     ) {
         if router == target {
@@ -406,10 +414,10 @@ impl<P: Prefix> PartialEq for GeoTimingModel<P> {
 impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
     type Priority = NotNan<f64>;
 
-    fn push(
+    fn push<Ospf: OspfProcess>(
         &mut self,
         mut event: Event<P, Self::Priority>,
-        _: &HashMap<RouterId, NetworkDevice<P>>,
+        _: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -479,9 +487,9 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params(
+    fn update_params<Ospf: OspfProcess>(
         &mut self,
-        routers: &HashMap<RouterId, NetworkDevice<P>>,
+        routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         self.paths.clear();

@@ -25,7 +25,7 @@ use crate::{
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
-    ospf::{global::GlobalOspfOracle, LinkWeight, OspfArea, OspfNetwork},
+    ospf::{global::GlobalOspf, LinkWeight, OspfArea, OspfImpl, OspfNetwork},
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
@@ -67,21 +67,29 @@ pub const INTERNAL_AS: AsId = AsId(65535);
 ///
 /// ## Type arguments
 ///
-/// The [`Network`] accepts two type attributes:
+/// The [`Network`] accepts three type attributes:
 /// - `P`: The kind of [`Prefix`] used in the network. This attribute allows compiler optimizations
 ///   if no longest-prefix matching is necessary, or if only a single prefix is simulated.
 /// - `Q`: The kind of [`EventQueue`] used in the network. The queue determines the order in which
 ///   events are processed.
+/// - `Ospf`: The kind of [`OspfImpl`] used to compute the IGP state. By default, this is set to
+///   [`GlobalOspf`], which computes the state of OSPF atomically and globally without passing
+///   any messages. Alternatively, you can use [`SimulatedOspf`] to simulate OSPF messages being
+///   exchanged.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound(
     serialize = "Q: serde::Serialize",
     deserialize = "P: for<'a> serde::Deserialize<'a>, Q: for<'a> serde::Deserialize<'a>"
 ))]
-pub struct Network<P: Prefix = SimplePrefix, Q = BasicEventQueue<SimplePrefix>> {
+pub struct Network<
+    P: Prefix = SimplePrefix,
+    Q = BasicEventQueue<SimplePrefix>,
+    Ospf: OspfImpl = GlobalOspf,
+> {
     pub(crate) net: PhysicalNetwork,
-    pub(crate) ospf: OspfNetwork<GlobalOspfOracle>,
-    pub(crate) routers: HashMap<RouterId, NetworkDevice<P>>,
+    pub(crate) ospf: OspfNetwork<Ospf::Coordinator>,
+    pub(crate) routers: HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     #[serde_as(as = "Vec<(_, _)>")]
     pub(crate) bgp_sessions: HashMap<(RouterId, RouterId), Option<BgpSessionType>>,
     pub(crate) known_prefixes: P::Set,
@@ -91,7 +99,7 @@ pub struct Network<P: Prefix = SimplePrefix, Q = BasicEventQueue<SimplePrefix>> 
     pub(crate) verbose: bool,
 }
 
-impl<P: Prefix, Q: Clone> Clone for Network<P, Q> {
+impl<P: Prefix, Q: Clone, Ospf: OspfImpl> Clone for Network<P, Q, Ospf> {
     /// Cloning the network does not clone the event history.
     fn clone(&self) -> Self {
         log::debug!("Cloning the network!");
@@ -110,13 +118,13 @@ impl<P: Prefix, Q: Clone> Clone for Network<P, Q> {
     }
 }
 
-impl<P: Prefix> Default for Network<P, BasicEventQueue<P>> {
+impl<P: Prefix, Ospf: OspfImpl> Default for Network<P, BasicEventQueue<P>, Ospf> {
     fn default() -> Self {
         Self::new(BasicEventQueue::new())
     }
 }
 
-impl<P: Prefix, Q> Network<P, Q> {
+impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// Generate an empty Network
     pub fn new(queue: Q) -> Self {
         Self {
@@ -203,7 +211,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     }
 
     /// Return the IGP network
-    pub fn ospf_network(&self) -> &OspfNetwork<GlobalOspfOracle> {
+    pub fn ospf_network(&self) -> &OspfNetwork<Ospf::Coordinator> {
         &self.ospf
     }
 
@@ -227,56 +235,56 @@ impl<P: Prefix, Q> Network<P, Q> {
      */
 
     /// Return an iterator over all device indices.
-    pub fn device_indices(&self) -> DeviceIndices<'_, P> {
+    pub fn device_indices(&self) -> DeviceIndices<'_, P, Ospf::Process> {
         DeviceIndices {
             i: self.routers.keys(),
         }
     }
 
     /// Return an iterator over all internal router indices.
-    pub fn internal_indices(&self) -> InternalIndices<'_, P> {
+    pub fn internal_indices(&self) -> InternalIndices<'_, P, Ospf::Process> {
         InternalIndices {
             i: self.routers.iter(),
         }
     }
 
     /// Return an iterator over all external router indices.
-    pub fn external_indices(&self) -> ExternalIndices<'_, P> {
+    pub fn external_indices(&self) -> ExternalIndices<'_, P, Ospf::Process> {
         ExternalIndices {
             i: self.routers.iter(),
         }
     }
 
     /// Return an iterator over all devices.
-    pub fn devices(&self) -> NetworkDevicesIter<'_, P> {
+    pub fn devices(&self) -> NetworkDevicesIter<'_, P, Ospf::Process> {
         NetworkDevicesIter {
             i: self.routers.values(),
         }
     }
 
     /// Return an iterator over all internal routers.
-    pub fn internal_routers(&self) -> InternalRoutersIter<'_, P> {
+    pub fn internal_routers(&self) -> InternalRoutersIter<'_, P, Ospf::Process> {
         InternalRoutersIter {
             i: self.routers.values(),
         }
     }
 
     /// Return an iterator over all external routers.
-    pub fn external_routers(&self) -> ExternalRoutersIter<'_, P> {
+    pub fn external_routers(&self) -> ExternalRoutersIter<'_, P, Ospf::Process> {
         ExternalRoutersIter {
             i: self.routers.values(),
         }
     }
 
     /// Return an iterator over all internal routers as mutable references.
-    pub(crate) fn internal_routers_mut(&mut self) -> InternalRoutersIterMut<'_, P> {
+    pub(crate) fn internal_routers_mut(&mut self) -> InternalRoutersIterMut<'_, P, Ospf::Process> {
         InternalRoutersIterMut {
             i: self.routers.values_mut(),
         }
     }
 
     /// Return an iterator over all external routers as mutable references.
-    pub(crate) fn external_routers_mut(&mut self) -> ExternalRoutersIterMut<'_, P> {
+    pub(crate) fn external_routers_mut(&mut self) -> ExternalRoutersIterMut<'_, P, Ospf::Process> {
         ExternalRoutersIterMut {
             i: self.routers.values_mut(),
         }
@@ -288,7 +296,10 @@ impl<P: Prefix, Q> Network<P, Q> {
     }
 
     /// Returns a reference to the network device.
-    pub fn get_device(&self, id: RouterId) -> Result<NetworkDeviceRef<'_, P>, NetworkError> {
+    pub fn get_device(
+        &self,
+        id: RouterId,
+    ) -> Result<NetworkDeviceRef<'_, P, Ospf::Process>, NetworkError> {
         self.routers
             .get(&id)
             .map(|x| x.as_ref())
@@ -296,7 +307,10 @@ impl<P: Prefix, Q> Network<P, Q> {
     }
 
     /// Returns a reference to an internal router
-    pub fn get_internal_router(&self, id: RouterId) -> Result<&Router<P>, NetworkError> {
+    pub fn get_internal_router(
+        &self,
+        id: RouterId,
+    ) -> Result<&Router<P, Ospf::Process>, NetworkError> {
         match self
             .routers
             .get(&id)
@@ -323,7 +337,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     pub(crate) fn get_internal_router_mut(
         &mut self,
         id: RouterId,
-    ) -> Result<&mut Router<P>, NetworkError> {
+    ) -> Result<&mut Router<P, Ospf::Process>, NetworkError> {
         match self
             .routers
             .get_mut(&id)
@@ -412,11 +426,11 @@ impl<P: Prefix, Q> Network<P, Q> {
     }
 }
 
-impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// Swap out the queue with a different one. This requires that the queue is empty! If it is
     /// not, then nothing is changed.
     #[allow(clippy::result_large_err)]
-    pub fn swap_queue<QA>(self, mut queue: QA) -> Result<Network<P, QA>, Self>
+    pub fn swap_queue<QA>(self, mut queue: QA) -> Result<Network<P, QA, Ospf>, Self>
     where
         QA: EventQueue<P>,
     {
@@ -960,10 +974,11 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q> {
     }
 }
 
-impl<P, Q> Network<P, Q>
+impl<P, Q, Ospf> Network<P, Q, Ospf>
 where
     P: Prefix,
     Q: EventQueue<P> + PartialEq,
+    Ospf: OspfImpl,
 {
     /// Checks for weak equivalence, by only comparing the IGP and BGP tables, as well as the event
     /// queue. The function also checks that the same routers are present.
@@ -1014,10 +1029,11 @@ where
 /// checks "simple" conditions, like the configuration, before checking the state of each individual
 /// router. Use the `Network::weak_eq` function to skip some checks, which can be known beforehand.
 /// This implementation will check the configuration, advertised prefixes and all routers.
-impl<P, Q> PartialEq for Network<P, Q>
+impl<P, Q, Ospf> PartialEq for Network<P, Q, Ospf>
 where
     P: Prefix,
     Q: EventQueue<P> + PartialEq,
+    Ospf: OspfImpl,
 {
     #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {
@@ -1045,11 +1061,11 @@ where
 
 /// Iterator of all devices in the network.
 #[derive(Debug)]
-pub struct DeviceIndices<'a, P: Prefix> {
-    i: std::collections::hash_map::Keys<'a, RouterId, NetworkDevice<P>>,
+pub struct DeviceIndices<'a, P: Prefix, Ospf> {
+    i: std::collections::hash_map::Keys<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix> Iterator for DeviceIndices<'a, P> {
+impl<'a, P: Prefix, Ospf> Iterator for DeviceIndices<'a, P, Ospf> {
     type Item = RouterId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1057,7 +1073,7 @@ impl<'a, P: Prefix> Iterator for DeviceIndices<'a, P> {
     }
 }
 
-impl<'a, P: Prefix> DeviceIndices<'a, P> {
+impl<'a, P: Prefix, Ospf> DeviceIndices<'a, P, Ospf> {
     /// Detach the iterator from the network itself
     pub fn detach(self) -> std::vec::IntoIter<RouterId> {
         self.collect::<Vec<RouterId>>().into_iter()
@@ -1066,11 +1082,11 @@ impl<'a, P: Prefix> DeviceIndices<'a, P> {
 
 /// Iterator of all internal routers in the network.
 #[derive(Debug)]
-pub struct InternalIndices<'a, P: Prefix> {
-    i: std::collections::hash_map::Iter<'a, RouterId, NetworkDevice<P>>,
+pub struct InternalIndices<'a, P: Prefix, Ospf> {
+    i: std::collections::hash_map::Iter<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix> Iterator for InternalIndices<'a, P> {
+impl<'a, P: Prefix, Ospf> Iterator for InternalIndices<'a, P, Ospf> {
     type Item = RouterId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1083,7 +1099,7 @@ impl<'a, P: Prefix> Iterator for InternalIndices<'a, P> {
     }
 }
 
-impl<'a, P: Prefix> InternalIndices<'a, P> {
+impl<'a, P: Prefix, Ospf> InternalIndices<'a, P, Ospf> {
     /// Detach the iterator from the network itself
     pub fn detach(self) -> std::vec::IntoIter<RouterId> {
         self.collect::<Vec<RouterId>>().into_iter()
@@ -1092,11 +1108,11 @@ impl<'a, P: Prefix> InternalIndices<'a, P> {
 
 /// Iterator of all external routers in the network.
 #[derive(Debug)]
-pub struct ExternalIndices<'a, P: Prefix> {
-    i: std::collections::hash_map::Iter<'a, RouterId, NetworkDevice<P>>,
+pub struct ExternalIndices<'a, P: Prefix, Ospf> {
+    i: std::collections::hash_map::Iter<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix> Iterator for ExternalIndices<'a, P> {
+impl<'a, P: Prefix, Ospf> Iterator for ExternalIndices<'a, P, Ospf> {
     type Item = RouterId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1109,7 +1125,7 @@ impl<'a, P: Prefix> Iterator for ExternalIndices<'a, P> {
     }
 }
 
-impl<'a, P: Prefix> ExternalIndices<'a, P> {
+impl<'a, P: Prefix, Ospf> ExternalIndices<'a, P, Ospf> {
     /// Detach the iterator from the network itself
     pub fn detach(self) -> std::vec::IntoIter<RouterId> {
         self.collect::<Vec<RouterId>>().into_iter()
@@ -1118,12 +1134,12 @@ impl<'a, P: Prefix> ExternalIndices<'a, P> {
 
 /// Iterator of all devices in the network.
 #[derive(Debug)]
-pub struct NetworkDevicesIter<'a, P: Prefix> {
-    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P>>,
+pub struct NetworkDevicesIter<'a, P: Prefix, Ospf> {
+    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix> Iterator for NetworkDevicesIter<'a, P> {
-    type Item = NetworkDeviceRef<'a, P>;
+impl<'a, P: Prefix, Ospf> Iterator for NetworkDevicesIter<'a, P, Ospf> {
+    type Item = NetworkDeviceRef<'a, P, Ospf>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.i.next().map(|x| x.as_ref())
@@ -1132,12 +1148,12 @@ impl<'a, P: Prefix> Iterator for NetworkDevicesIter<'a, P> {
 
 /// Iterator of all internal routers in the network.
 #[derive(Debug)]
-pub struct InternalRoutersIter<'a, P: Prefix> {
-    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P>>,
+pub struct InternalRoutersIter<'a, P: Prefix, Ospf> {
+    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix> Iterator for InternalRoutersIter<'a, P> {
-    type Item = &'a Router<P>;
+impl<'a, P: Prefix, Ospf> Iterator for InternalRoutersIter<'a, P, Ospf> {
+    type Item = &'a Router<P, Ospf>;
 
     fn next(&mut self) -> Option<Self::Item> {
         for r in self.i.by_ref() {
@@ -1151,11 +1167,11 @@ impl<'a, P: Prefix> Iterator for InternalRoutersIter<'a, P> {
 
 /// Iterator of all external routers in the network.
 #[derive(Debug)]
-pub struct ExternalRoutersIter<'a, P: Prefix> {
-    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P>>,
+pub struct ExternalRoutersIter<'a, P: Prefix, Ospf> {
+    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix> Iterator for ExternalRoutersIter<'a, P> {
+impl<'a, P: Prefix, Ospf> Iterator for ExternalRoutersIter<'a, P, Ospf> {
     type Item = &'a ExternalRouter<P>;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1170,12 +1186,12 @@ impl<'a, P: Prefix> Iterator for ExternalRoutersIter<'a, P> {
 
 /// Iterator of all internal routers in the network.
 #[derive(Debug)]
-pub(crate) struct InternalRoutersIterMut<'a, P: Prefix> {
-    i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P>>,
+pub(crate) struct InternalRoutersIterMut<'a, P: Prefix, Ospf> {
+    i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix> Iterator for InternalRoutersIterMut<'a, P> {
-    type Item = &'a mut Router<P>;
+impl<'a, P: Prefix, Ospf> Iterator for InternalRoutersIterMut<'a, P, Ospf> {
+    type Item = &'a mut Router<P, Ospf>;
 
     fn next(&mut self) -> Option<Self::Item> {
         for r in self.i.by_ref() {
@@ -1189,11 +1205,11 @@ impl<'a, P: Prefix> Iterator for InternalRoutersIterMut<'a, P> {
 
 /// Iterator of all external routers in the network.
 #[derive(Debug)]
-pub(crate) struct ExternalRoutersIterMut<'a, P: Prefix> {
-    i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P>>,
+pub(crate) struct ExternalRoutersIterMut<'a, P: Prefix, Ospf> {
+    i: std::collections::hash_map::ValuesMut<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix> Iterator for ExternalRoutersIterMut<'a, P> {
+impl<'a, P: Prefix, Ospf> Iterator for ExternalRoutersIterMut<'a, P, Ospf> {
     type Item = &'a mut ExternalRouter<P>;
 
     fn next(&mut self) -> Option<Self::Item> {

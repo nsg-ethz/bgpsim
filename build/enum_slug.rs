@@ -38,8 +38,9 @@
 use super::TopologyZooParser;
 use crate::{
     event::EventQueue,
-    network::Network, 
-    types::{Prefix, RouterId}
+    network::Network,
+    ospf::Ospf,
+    types::{Prefix, RouterId},
 };
 
 use geoutils::Location;
@@ -62,7 +63,7 @@ use serde::{Deserialize, Serialize};
 /// use bgpsim::types::SimplePrefix as P;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
-/// let mut net = TopologyZoo::Abilene.build(BasicEventQueue::<P>::new());
+/// let mut net = TopologyZoo::Abilene.build::<_, _, GlobalOspf>(BasicEventQueue::<P>::new());
 /// let prefix = P::from(0);
 ///
 /// // Make sure that at least 3 external routers exist
@@ -102,7 +103,7 @@ pub enum TopologyZoo {
 impl TopologyZoo {
 
     /// Generate the network.
-    pub fn build<P: Prefix, Q: EventQueue<P>>(&self, queue: Q) -> Network<P, Q> {
+    pub fn build<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(&self, queue: Q) -> Network<P, Q, Ospf> {
         TopologyZooParser::new(self.graphml())
             .unwrap()
             .get_network(queue)

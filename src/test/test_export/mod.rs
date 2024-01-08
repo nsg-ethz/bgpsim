@@ -23,6 +23,7 @@ use crate::{
         DefaultAddressorBuilder, ExternalCfgGen, InternalCfgGen,
     },
     network::Network,
+    ospf::OspfImpl,
     route_map::{RouteMapBuilder, RouteMapDirection},
     types::{NonOverlappingPrefix, Prefix, SimplePrefix},
 };
@@ -31,14 +32,16 @@ mod cisco;
 mod exabgp;
 mod frr;
 
- fn iface_names(target: Target) -> Vec<String> {
+fn iface_names(target: Target) -> Vec<String> {
     match target {
         Target::CiscoNexus7000 => (1..=48).map(|i| format!("Ethernet8/{i}")).collect(),
         Target::Frr => (1..=8).map(|i| format!("eth{i}")).collect(),
     }
 }
 
- fn addressor<P: Prefix, Q>(net: &Network<P, Q>) -> DefaultAddressor<P, Q> {
+fn addressor<P: Prefix, Q, Ospf: OspfImpl>(
+    net: &Network<P, Q, Ospf>,
+) -> DefaultAddressor<P, Q, Ospf> {
     DefaultAddressorBuilder {
         internal_ip_range: "10.0.0.0/8".parse().unwrap(),
         external_ip_range: "20.0.0.0/8".parse().unwrap(),
@@ -48,7 +51,7 @@ mod frr;
     .unwrap()
 }
 
- fn generate_internal_config_full_mesh(target: Target) -> String {
+fn generate_internal_config_full_mesh(target: Target) -> String {
     let mut net: Network<SimplePrefix, _> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
@@ -63,7 +66,7 @@ mod frr;
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
- fn generate_internal_config_route_reflector(target: Target) -> String {
+fn generate_internal_config_route_reflector(target: Target) -> String {
     let mut net: Network<SimplePrefix, _> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
@@ -79,7 +82,7 @@ mod frr;
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
- fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
+fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
     let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
@@ -159,14 +162,14 @@ mod frr;
     net
 }
 
- fn generate_internal_config_route_maps<P: Prefix>(target: Target) -> String {
+fn generate_internal_config_route_maps<P: Prefix>(target: Target) -> String {
     let net = net_for_route_maps::<P>();
     let mut ip = addressor(&net);
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
- fn net_for_route_maps_pec<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
+fn net_for_route_maps_pec<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
     let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
@@ -220,7 +223,7 @@ mod frr;
     net
 }
 
- fn generate_internal_config_route_maps_with_pec<P: Prefix + NonOverlappingPrefix>(
+fn generate_internal_config_route_maps_with_pec<P: Prefix + NonOverlappingPrefix>(
     target: Target,
 ) -> String {
     let net = net_for_route_maps_pec::<P>();
@@ -239,7 +242,7 @@ mod frr;
     InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
- fn generate_external_config<P: Prefix>(target: Target) -> String {
+fn generate_external_config<P: Prefix>(target: Target) -> String {
     let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
@@ -255,9 +258,7 @@ mod frr;
     ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
- fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(
-    target: Target,
-) -> String {
+fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(target: Target) -> String {
     let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
@@ -284,7 +285,7 @@ mod frr;
     ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
 }
 
- fn generate_external_config_withdraw(target: Target) -> (String, String) {
+fn generate_external_config_withdraw(target: Target) -> (String, String) {
     let mut net: Network<SimplePrefix, _> =
         NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())

@@ -16,6 +16,7 @@
 //! Module containing all type definitions
 
 use crate::formatter::NetworkFormatter;
+use crate::ospf::OspfImpl;
 use crate::{
     bgp::BgpSessionType, external_router::ExternalRouter, network::Network, router::Router,
 };
@@ -132,7 +133,7 @@ impl<P> StepUpdate<P> {
 
 impl<P: Prefix> StepUpdate<P> {
     /// Get a struct to display the StepUpdate
-    pub fn fmt<Q>(&self, net: &Network<P, Q>, router: RouterId) -> String {
+    pub fn fmt<Q, Ospf: OspfImpl>(&self, net: &Network<P, Q, Ospf>, router: RouterId) -> String {
         format!(
             "{} => {}: {} > {}",
             router.fmt(net),
@@ -177,18 +178,20 @@ pub enum ConfigError {
 ///
 /// In comparison to `NetworkDeviceRef`, this type does not have a `None` variant.
 #[derive(Debug, Serialize, Deserialize, Clone, PartialEq)]
-#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
-pub enum NetworkDevice<P: Prefix> {
+#[serde(bound(
+    deserialize = "P: for<'a> serde::Deserialize<'a>, Ospf: for<'a> serde::Deserialize<'a>"
+))]
+pub enum NetworkDevice<P: Prefix, Ospf> {
     /// Internal router
-    InternalRouter(Router<P>),
+    InternalRouter(Router<P, Ospf>),
     /// External router
     ExternalRouter(ExternalRouter<P>),
 }
 
-impl<P: Prefix> NetworkDevice<P> {
+impl<P: Prefix, Ospf> NetworkDevice<P, Ospf> {
     /// Get a reference to the device. The returned `NetworkDeviceRef` is always either an internal
     /// or an external router!
-    pub fn as_ref(&self) -> NetworkDeviceRef<'_, P> {
+    pub fn as_ref(&self) -> NetworkDeviceRef<'_, P, Ospf> {
         match self {
             NetworkDevice::InternalRouter(r) => NetworkDeviceRef::InternalRouter(r),
             NetworkDevice::ExternalRouter(r) => NetworkDeviceRef::ExternalRouter(r),
@@ -214,13 +217,13 @@ impl<P: Prefix> NetworkDevice<P> {
     }
 }
 
-impl<P: Prefix> From<Router<P>> for NetworkDevice<P> {
-    fn from(r: Router<P>) -> Self {
+impl<P: Prefix, Ospf> From<Router<P, Ospf>> for NetworkDevice<P, Ospf> {
+    fn from(r: Router<P, Ospf>) -> Self {
         Self::InternalRouter(r)
     }
 }
 
-impl<P: Prefix> From<ExternalRouter<P>> for NetworkDevice<P> {
+impl<P: Prefix, Ospf> From<ExternalRouter<P>> for NetworkDevice<P, Ospf> {
     fn from(r: ExternalRouter<P>) -> Self {
         Self::ExternalRouter(r)
     }
@@ -232,18 +235,18 @@ impl<P: Prefix> From<ExternalRouter<P>> for NetworkDevice<P> {
 /// knows three different `unwrap` functions, the `unwrap_internal`, `unwrap_external` and
 /// `unwrap_none` function, as well as `internal_or` and `external_or`.
 #[derive(Debug)]
-pub enum NetworkDeviceRef<'a, P: Prefix> {
+pub enum NetworkDeviceRef<'a, P: Prefix, Ospf> {
     /// Internal Router
-    InternalRouter(&'a Router<P>),
+    InternalRouter(&'a Router<P, Ospf>),
     /// External Router
     ExternalRouter(&'a ExternalRouter<P>),
 }
 
 #[cfg(not(tarpaulin_include))]
-impl<'a, P: Prefix> NetworkDeviceRef<'a, P> {
+impl<'a, P: Prefix, Ospf> NetworkDeviceRef<'a, P, Ospf> {
     /// Returns the Router or **panics**, if the enum is not a `NetworkDeviceRef::InternalRouter`
     #[track_caller]
-    pub fn unwrap_internal(self) -> &'a Router<P> {
+    pub fn unwrap_internal(self) -> &'a Router<P, Ospf> {
         match self {
             Self::InternalRouter(r) => r,
             Self::ExternalRouter(_) => {
@@ -274,7 +277,7 @@ impl<'a, P: Prefix> NetworkDeviceRef<'a, P> {
     }
 
     /// Maps the `NetworkDevice` to an option, with `Some(r)` only if self is `InternalRouter`.
-    pub fn internal(self) -> Option<&'a Router<P>> {
+    pub fn internal(self) -> Option<&'a Router<P, Ospf>> {
         match self {
             Self::InternalRouter(e) => Some(e),
             _ => None,
@@ -291,7 +294,7 @@ impl<'a, P: Prefix> NetworkDeviceRef<'a, P> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is `InternalRouter`. If
     /// `self` is not `InternalError`, then the provided error is returned.
-    pub fn internal_or<E: std::error::Error>(self, error: E) -> Result<&'a Router<P>, E> {
+    pub fn internal_or<E: std::error::Error>(self, error: E) -> Result<&'a Router<P, Ospf>, E> {
         match self {
             Self::InternalRouter(e) => Ok(e),
             _ => Err(error),
@@ -309,7 +312,7 @@ impl<'a, P: Prefix> NetworkDeviceRef<'a, P> {
 
     /// Maps the `NetworkDevice` to result, with the `Ok` case only if self is
     /// `InternalRouter`. Otherwise, this function will return the appropriate [`NetworkError`].
-    pub fn internal_or_err(self) -> Result<&'a Router<P>, NetworkError> {
+    pub fn internal_or_err(self) -> Result<&'a Router<P, Ospf>, NetworkError> {
         match self {
             Self::InternalRouter(r) => Ok(r),
             Self::ExternalRouter(r) => Err(NetworkError::DeviceIsExternalRouter(r.router_id())),

@@ -33,7 +33,7 @@ use crate::{
     event::Event,
     formatter::NetworkFormatter,
     network::Network,
-    ospf::{LinkWeight, OspfProcess},
+    ospf::{LinkWeight, OspfImpl, OspfProcess},
     route_map::{
         RouteMap,
         RouteMapDirection::{self, Incoming, Outgoing},
@@ -793,7 +793,11 @@ impl<P: Prefix> BgpProcess<P> {
      */
 
     /// Return a formatted string for the BGP table of the given prefix.
-    pub fn fmt_prefix_table<Q>(&self, net: &'_ Network<P, Q>, prefix: P) -> String {
+    pub fn fmt_prefix_table<Q, Ospf: OspfImpl>(
+        &self,
+        net: &'_ Network<P, Q, Ospf>,
+        prefix: P,
+    ) -> String {
         let table = self.get_processed_rib_for_prefix(prefix);
         let mut result = String::new();
         let f = &mut result;
@@ -804,10 +808,10 @@ impl<P: Prefix> BgpProcess<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q> NetworkFormatter<'a, 'n, P, Q> for BgpProcess<P> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for BgpProcess<P> {
     type Formatter = String;
 
-    fn fmt(&'a self, net: &'n crate::network::Network<P, Q>) -> Self::Formatter {
+    fn fmt(&'a self, net: &'n crate::network::Network<P, Q, Ospf>) -> Self::Formatter {
         self.get_processed_rib_in()
             .iter()
             .map(|(p, table)| {
