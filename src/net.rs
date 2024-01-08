@@ -33,6 +33,7 @@ use crate::ip::PrefixInputNoCast;
 pub(crate) struct Net {
     ty: Option<Type>,
     prefix_ty: Option<Type>,
+    ospf_ty: Option<Type>,
     queue_ty: Option<Type>,
     queue: Option<Expr>,
     nodes: HashMap<Ident, Option<(u32, Span)>>,
@@ -47,6 +48,7 @@ impl Parse for Net {
         let mut net = Net {
             ty: Default::default(),
             prefix_ty: Default::default(),
+            ospf_ty: Default::default(),
             queue_ty: Default::default(),
             queue: Default::default(),
             nodes: Default::default(),
@@ -98,10 +100,23 @@ impl Parse for Net {
                     }
                     net.prefix_ty = Some(input.parse()?);
                 }
+                "Ospf" => {
+                    let _: Token![=] = input.parse()?;
+                    if net.ospf_ty.is_some() {
+                        return Err(Error::new(block.span(), "You cannot define the `Ospf` type more than once!"));
+                    }
+                    if net.ty.is_some() {
+                        return Err(Error::new(block.span(), "You cannot define both the `Ospf` type and the `Network` type."));
+                    }
+                    net.ospf_ty = Some(input.parse()?);
+                }
                 "Type" => {
                     let _: Token![=] = input.parse()?;
                     if net.ty.is_some() {
                         return Err(Error::new(block.span(), "You cannot define the `type` more than once!"));
+                    }
+                    if net.ospf_ty.is_some() {
+                        return Err(Error::new(block.span(), "You cannot define both the `Ospf` type and the `Network` type."));
                     }
                     if net.queue_ty.is_some() {
                         return Err(Error::new(block.span(), "You cannot define both the `Queue` type and the `Network` type."));
@@ -251,7 +266,11 @@ impl Net {
                 .prefix_ty
                 .map(|ty| quote!(#ty))
                 .unwrap_or_else(|| quote!(_));
-            quote!(::bgpsim::prelude::Network<#prefix_ty, #queue_ty>)
+            let ospf_ty = self
+                .ospf_ty
+                .map(|ty| quote!(#ty))
+                .unwrap_or_else(|| quote!(::bgpsim::ospf::global::GlobalOspf));
+            quote!(::bgpsim::prelude::Network<#prefix_ty, #queue_ty, #ospf_ty>)
         };
 
         let returns = if let Some(returns) = self.returns {
