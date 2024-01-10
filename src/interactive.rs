@@ -79,9 +79,6 @@ where
 
     /// Get a reference to the queue
     fn queue_mut(&mut self) -> &mut Q;
-
-    /// Set the network into verbose mode (or not)
-    fn verbose(&mut self, verbose: bool);
 }
 
 impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
@@ -125,15 +122,6 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
                 NetworkDevice::ExternalRouter(r) => r.handle_event(event.clone()),
             }?;
 
-            if self.verbose {
-                println!(
-                    "{}| Triggered {} events | {}",
-                    event.fmt(self),
-                    events.len(),
-                    step_update.fmt(self, event.router()),
-                );
-            }
-
             self.enqueue_events(events);
 
             Ok(Some((step_update, event)))
@@ -164,11 +152,6 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
         }
 
         Ok(())
-    }
-
-    /// Set the network into verbose mode (or not)
-    fn verbose(&mut self, verbose: bool) {
-        self.verbose = verbose;
     }
 }
 
@@ -322,7 +305,6 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
         // take the values that are fast to clone
         new.stop_after = source.stop_after;
         new.skip_queue = source.skip_queue;
-        new.verbose = source.verbose;
 
         // clone new.net if the configuration is different
         if !self.reuse_config {

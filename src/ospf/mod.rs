@@ -19,6 +19,7 @@
 
 pub mod global;
 mod iterator;
+pub mod local;
 mod serde_apsp;
 pub use iterator::*;
 
@@ -32,11 +33,13 @@ use crate::{
     formatter::NetworkFormatter,
     forwarding_state::{ForwardingState, TO_DST},
     types::{
-        NetworkDevice, NetworkError, NetworkErrorOption, Prefix, PrefixMap, RouterId, SimplePrefix,
+        DeviceError, NetworkDevice, NetworkError, NetworkErrorOption, Prefix, PrefixMap, RouterId,
+        SimplePrefix,
     },
 };
 
 use global::GlobalOspfOracle;
+use local::OspfEvent;
 
 /// Link Weight for the IGP graph
 pub type LinkWeight = f64;
@@ -737,6 +740,16 @@ pub trait OspfProcess:
 
     /// Get a reference to the physical neighbors in OSPF.
     fn get_neighbors(&self) -> &HashMap<RouterId, LinkWeight>;
+
+    /// Handle an OSPF event and return new OSPF events to be enqueued. This function should return
+    /// either `None` indicating that nothing has changed (and therefore, the BGP decision process
+    /// does not need to be re-run), or `Some(events)` indicating that something has changed, and
+    /// the BGP decision process should be re-run.
+    fn handle_event<P: Prefix, T: Default>(
+        &mut self,
+        from: RouterId,
+        event: OspfEvent,
+    ) -> Result<Option<Vec<Event<P, T>>>, DeviceError>;
 
     /// Get the next-hops to a specific IGP target.
     fn get(&self, target: impl Into<IgpTarget>) -> &[RouterId] {

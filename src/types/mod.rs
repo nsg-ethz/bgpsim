@@ -94,52 +94,79 @@ where
 /// IGP Network graph
 pub type PhysicalNetwork = StableGraph<(), (), Undirected, IndexType>;
 
-/// How does the next hop change after a BGP event has been processed?
+/// A series of FwDeltas
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct StepUpdate<P> {
+pub enum StepUpdate<P> {
+    /// Nothing has changed
+    Unchanged,
+    /// There was a single forwarding state change due to a BGP update
+    Single(FwDelta<P>),
+    /// There are multiple changes due to an OSPF update.
+    Multiple,
+}
+
+impl<P> Default for StepUpdate<P> {
+    fn default() -> Self {
+        Self::Unchanged
+    }
+}
+
+impl<P> From<FwDelta<P>> for StepUpdate<P> {
+    fn from(value: FwDelta<P>) -> Self {
+        Self::Single(value)
+    }
+}
+
+impl<P> From<Option<FwDelta<P>>> for StepUpdate<P> {
+    fn from(value: Option<FwDelta<P>>) -> Self {
+        match value {
+            Some(v) => Self::from(v),
+            None => Self::Unchanged,
+        }
+    }
+}
+
+impl<P> StepUpdate<P> {
+    /// Create a new StepUpdate that changes a single prefix
+    pub fn new(prefix: P, old: Vec<RouterId>, new: Vec<RouterId>) -> Self {
+        FwDelta::new(prefix, old, new).into()
+    }
+
+    /// Check if there was some change
+    pub fn changed(&self) -> bool {
+        !matches!(self, Self::Unchanged)
+    }
+}
+
+/// A single next-hop that has changed.
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct FwDelta<P> {
     /// Which prefix was affected
-    pub prefix: Option<P>,
+    pub prefix: P,
     /// Old next-hop
     pub old: Vec<RouterId>,
     /// New next-hop
     pub new: Vec<RouterId>,
 }
 
-impl<P> Default for StepUpdate<P> {
-    fn default() -> Self {
-        Self {
-            prefix: None,
-            old: Default::default(),
-            new: Default::default(),
-        }
-    }
-}
-
-impl<P> StepUpdate<P> {
+impl<P> FwDelta<P> {
     /// Create a new StepUpdate
-    pub fn new(prefix: P, old: Vec<RouterId>, new: Vec<RouterId>) -> Self {
-        Self {
-            prefix: Some(prefix),
-            old,
-            new,
+    pub fn new(prefix: P, old: Vec<RouterId>, new: Vec<RouterId>) -> Option<Self> {
+        if old == new {
+            None
+        } else {
+            Some(Self { prefix, old, new })
         }
-    }
-
-    /// Returns `true` if the state has changed.
-    pub fn changed(&self) -> bool {
-        self.old != self.new
     }
 }
 
-impl<P: Prefix> StepUpdate<P> {
-    /// Get a struct to display the StepUpdate
-    pub fn fmt<Q, Ospf: OspfImpl>(&self, net: &Network<P, Q, Ospf>, router: RouterId) -> String {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for FwDelta<P> {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
-            "{} => {}: {} > {}",
-            router.fmt(net),
-            self.prefix
-                .map(|p| p.to_string())
-                .unwrap_or_else(|| "?".to_string()),
+            "{}: {} --> {}",
+            self.prefix,
             if self.old.is_empty() {
                 "X".to_string()
             } else {
@@ -157,6 +184,19 @@ impl<P: Prefix> StepUpdate<P> {
                     .join("|")
             },
         )
+    }
+}
+
+impl<P: Prefix> StepUpdate<P> {
+    /// Get a struct to display the StepUpdate
+    pub fn fmt<Q, Ospf: OspfImpl>(&self, net: &Network<P, Q, Ospf>, router: RouterId) -> String {
+        match self {
+            StepUpdate::Unchanged => String::from("Unchanged"),
+            StepUpdate::Single(delta) => format!("{} => {}", router.fmt(net), delta.fmt(net)),
+            StepUpdate::Multiple => {
+                format!("{}: multiple FW changes (due to OSPF)", router.fmt(net),)
+            }
+        }
     }
 }
 

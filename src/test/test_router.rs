@@ -233,6 +233,7 @@ mod t2 {
                     assert_eq!(to, 5.into());
                     assert_eq!(prefix, P::from(200));
                 }
+                Event::Ospf(_, _, _, _) => unreachable!(),
             }
         }
 
@@ -285,6 +286,7 @@ mod t2 {
                     assert_eq!(to, 100.into());
                     assert_eq!(prefix, P::from(200));
                 }
+                Event::Ospf(_, _, _, _) => unreachable!(),
             }
         }
 

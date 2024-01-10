@@ -143,13 +143,29 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
                 let new = self.get_next_hop(prefix);
                 Ok((StepUpdate::new(prefix, old, new), events))
             }
-            Event::Bgp(_, _, _, bgp_event) => {
+            Event::Bgp(_, _, _, _) => {
                 error!(
                     "Recenved a BGP event that is not targeted at this router! Ignore the event!"
                 );
-                let prefix = bgp_event.prefix();
-                let old = self.get_next_hop(prefix);
-                Ok((StepUpdate::new(prefix, old.clone(), old), vec![]))
+                Ok((StepUpdate::Unchanged, vec![]))
+            }
+            Event::Ospf(_, from, to, ospf_event) if to == self.router_id => {
+                // handle the event
+                if let Some(mut ospf_events) = self.ospf.handle_event(from, ospf_event)? {
+                    // re-compute BGP
+                    self.bgp.update_igp(&self.ospf);
+                    let mut bgp_events = self.bgp.update_tables(false)?;
+                    ospf_events.append(&mut bgp_events);
+                    Ok((StepUpdate::Multiple, ospf_events))
+                } else {
+                    Ok((StepUpdate::Unchanged, vec![]))
+                }
+            }
+            Event::Ospf(_, _, _, _) => {
+                error!(
+                    "Recenved an OSPF event that is not targeted at this router! Ignore the event!"
+                );
+                Ok((StepUpdate::Unchanged, vec![]))
             }
         }
     }

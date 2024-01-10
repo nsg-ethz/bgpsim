@@ -28,6 +28,7 @@ pub use rand_queue::{GeoTimingModel, ModelParams, SimpleTimingModel};
 
 use crate::{
     bgp::BgpEvent,
+    ospf::local::OspfEvent,
     types::{Prefix, RouterId, StepUpdate},
 };
 
@@ -40,6 +41,8 @@ use crate::{
 pub enum Event<P: Prefix, T> {
     /// BGP Event from `#1` to `#2`.
     Bgp(T, RouterId, RouterId, BgpEvent<P>),
+    /// OSPF Event from `#1` to `#2`.
+    Ospf(T, RouterId, RouterId, OspfEvent),
 }
 
 impl<P: Prefix, T> Event<P, T> {
@@ -48,6 +51,7 @@ impl<P: Prefix, T> Event<P, T> {
         match self {
             Event::Bgp(_, _, _, BgpEvent::Update(route)) => Some(route.prefix),
             Event::Bgp(_, _, _, BgpEvent::Withdraw(prefix)) => Some(*prefix),
+            Event::Ospf(_, _, _, _) => None,
         }
     }
 
@@ -55,6 +59,7 @@ impl<P: Prefix, T> Event<P, T> {
     pub fn priority(&self) -> &T {
         match self {
             Event::Bgp(p, _, _, _) => p,
+            Event::Ospf(p, _, _, _) => p,
         }
     }
 
@@ -62,6 +67,7 @@ impl<P: Prefix, T> Event<P, T> {
     pub fn priority_mut(&mut self) -> &mut T {
         match self {
             Event::Bgp(p, _, _, _) => p,
+            Event::Ospf(p, _, _, _) => p,
         }
     }
 
@@ -74,6 +80,7 @@ impl<P: Prefix, T> Event<P, T> {
     pub fn source(&self) -> RouterId {
         match self {
             Event::Bgp(_, source, _, _) => *source,
+            Event::Ospf(_, source, _, _) => *source,
         }
     }
 
@@ -81,6 +88,7 @@ impl<P: Prefix, T> Event<P, T> {
     pub fn router(&self) -> RouterId {
         match self {
             Event::Bgp(_, _, router, _) => *router,
+            Event::Ospf(_, _, router, _) => *router,
         }
     }
 }

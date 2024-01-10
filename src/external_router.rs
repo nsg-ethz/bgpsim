@@ -85,13 +85,9 @@ impl<P: Prefix> ExternalRouter<P> {
     /// tell that the forwarding state has not changed.
     pub(crate) fn handle_event<T>(
         &mut self,
-        event: Event<P, T>,
+        _event: Event<P, T>,
     ) -> Result<EventOutcome<P, T>, DeviceError> {
-        if let Some(prefix) = event.prefix() {
-            Ok((StepUpdate::new(prefix, vec![], vec![]), vec![]))
-        } else {
-            Ok((StepUpdate::default(), vec![]))
-        }
+        Ok((StepUpdate::Unchanged, vec![]))
     }
 
     /// Return the ID of the network device

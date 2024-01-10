@@ -23,7 +23,7 @@ use crate::{
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
     network::Network,
-    types::{NetworkError, RouterId, SinglePrefix},
+    types::{NetworkError, RouterId, SinglePrefix, StepUpdate},
 };
 
 /// Extension trait that allows you to record events on the network. This is only available for
@@ -99,9 +99,15 @@ where
     ) -> Result<ConvergenceRecording, NetworkError> {
         let t = initial_time.unwrap_or_default();
         while let Some((step, event)) = self.simulate_step()? {
-            if step.changed() {
-                let time = self.queue().get_time().map(|x| x - t);
-                trace.push((vec![(event.router(), step.old, step.new)], time.into()));
+            match step {
+                StepUpdate::Unchanged => {}
+                StepUpdate::Single(delta) => {
+                    let time = self.queue().get_time().map(|x| x - t);
+                    trace.push((vec![(event.router(), delta.old, delta.new)], time.into()));
+                }
+                StepUpdate::Multiple => {
+                    log::warn!("Ignoring OSPF event that might changed multiple FIB entries!")
+                }
             }
         }
         Ok(ConvergenceRecording::new(initial_fw_state, trace))

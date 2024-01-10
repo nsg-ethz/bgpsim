@@ -250,6 +250,13 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl, T: FmtPriority> NetworkFormatter<'a, 
                 event.fmt(net),
                 p.fmt()
             ),
+            Event::Ospf(p, from, to, event) => format!(
+                "OSPF Event: {} -> {}: {} {}",
+                from.fmt(net),
+                to.fmt(net),
+                event.fmt(net),
+                p.fmt()
+            ),
         }
     }
 }

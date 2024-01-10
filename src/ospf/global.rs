@@ -15,7 +15,7 @@ use super::{
 };
 use crate::{
     event::Event,
-    types::{IndexType, NetworkDevice, NetworkError, Prefix, RouterId},
+    types::{DeviceError, IndexType, NetworkDevice, NetworkError, Prefix, RouterId},
 };
 
 /// Global OSPF is the OSPF implementation that computes the resulting forwarding state atomically
@@ -566,6 +566,16 @@ impl OspfProcess for GlobalOspfProcess {
 
     fn get_neighbors(&self) -> &HashMap<RouterId, LinkWeight> {
         &self.neighbors
+    }
+
+    fn handle_event<P: Prefix, T: Default>(
+        &mut self,
+        _from: RouterId,
+        _event: super::local::OspfEvent,
+    ) -> Result<Option<Vec<Event<P, T>>>, DeviceError> {
+        // ignore any event.
+        log::error!("Received an OSPF event when using a global OSPF oracle! Event is ignored");
+        Ok(None)
     }
 }
 

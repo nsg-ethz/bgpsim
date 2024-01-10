@@ -87,15 +87,19 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         // compute the next time
         let beta = self.model.get_mut(&key).unwrap_or(&mut self.default_params);
         next_time += NotNan::new(beta.sample(&mut rng)).unwrap();
-        // check if there is already something enqueued for this session
-        if let Some((ref mut num, ref mut time)) = self.messages.get_mut(&key) {
-            if *num > 0 && *time > next_time {
-                next_time = *time + beta.collision;
+
+        // in case of a BGP message, we also need to ensure TCP ordering
+        if event.is_bgp_event() {
+            // check if there is already something enqueued for this session
+            if let Some((ref mut num, ref mut time)) = self.messages.get_mut(&key) {
+                if *num > 0 && *time > next_time {
+                    next_time = *time + beta.collision;
+                }
+                *num += 1;
+                *time = next_time;
+            } else {
+                self.messages.insert(key, (1, next_time));
             }
-            *num += 1;
-            *time = next_time;
-        } else {
-            self.messages.insert(key, (1, next_time));
         }
         *event.priority_mut() = next_time;
 
@@ -112,6 +116,8 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
                     *num -= 1;
                 }
             }
+            // Nothing to do for OSPF
+            Event::Ospf(_, _, _, _) => {}
         }
         Some(event)
     }
@@ -447,6 +453,18 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
                 }
                 *t = next_time;
             }
+            Event::Ospf(ref mut t, src, dst, _) => {
+                // compute the propagation time
+                next_time += self.propagation_time(src, dst, &mut rng);
+                // compute the processing time
+                let beta = self
+                    .processing_params
+                    .get_mut(&src)
+                    .unwrap_or(&mut self.default_processing_params);
+                next_time += NotNan::new(beta.sample(&mut rng)).unwrap();
+                // update the time
+                *t = next_time;
+            }
         }
         // enqueue with the computed time
         self.q.push(event, Reverse(next_time));
@@ -461,6 +479,8 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
                     *num -= 1;
                 }
             }
+            // Nothing to do for OSPF
+            Event::Ospf(_, _, _, _) => {}
         }
         Some(event)
     }

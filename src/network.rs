@@ -96,7 +96,6 @@ pub struct Network<
     pub(crate) stop_after: Option<usize>,
     pub(crate) queue: Q,
     pub(crate) skip_queue: bool,
-    pub(crate) verbose: bool,
 }
 
 impl<P: Prefix, Q: Clone, Ospf: OspfImpl> Clone for Network<P, Q, Ospf> {
@@ -113,7 +112,6 @@ impl<P: Prefix, Q: Clone, Ospf: OspfImpl> Clone for Network<P, Q, Ospf> {
             stop_after: self.stop_after,
             queue: self.queue.clone(),
             skip_queue: self.skip_queue,
-            verbose: self.verbose,
         }
     }
 }
@@ -136,7 +134,6 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
             stop_after: Some(DEFAULT_STOP_AFTER),
             queue,
             skip_queue: false,
-            verbose: false,
         }
     }
 
@@ -449,7 +446,6 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
             stop_after: self.stop_after,
             queue,
             skip_queue: self.skip_queue,
-            verbose: self.verbose,
         })
     }
 

@@ -29,7 +29,7 @@ use crate::{
     policies::{FwPolicy, Policy},
     record::{ConvergenceRecording, ConvergenceTrace, RecordNetwork},
     topology_zoo::TopologyZoo,
-    types::SinglePrefix as P,
+    types::{SinglePrefix as P, StepUpdate},
 };
 
 use pretty_assertions::assert_eq;
@@ -155,11 +155,15 @@ fn roland_pacificwave_manual() {
 
         // simulate the event
         while let Some((step, event)) = t.simulate_step().unwrap() {
-            if step.changed() {
-                trace.push((
-                    vec![(event.router(), step.old, step.new)],
-                    net.queue().get_time().map(|x| x - t0).into(),
-                ));
+            match step {
+                StepUpdate::Unchanged => {}
+                StepUpdate::Multiple => unreachable!("OSPF events should be disabled"),
+                StepUpdate::Single(delta) => {
+                    trace.push((
+                        vec![(event.router(), delta.old, delta.new)],
+                        net.queue().get_time().map(|x| x - t0).into(),
+                    ));
+                }
             }
         }
 
@@ -305,11 +309,15 @@ fn roland_arpanet_manual() {
 
         // simulate the event
         while let Some((step, event)) = t.simulate_step().unwrap() {
-            if step.changed() {
-                trace.push((
-                    vec![(event.router(), step.old, step.new)],
-                    t.queue().get_time().map(|x| x - t0).into(),
-                ));
+            match step {
+                StepUpdate::Unchanged => {}
+                StepUpdate::Multiple => unreachable!("OSPF events should be disabled"),
+                StepUpdate::Single(delta) => {
+                    trace.push((
+                        vec![(event.router(), delta.old, delta.new)],
+                        net.queue().get_time().map(|x| x - t0).into(),
+                    ));
+                }
             }
         }
 
@@ -396,11 +404,15 @@ fn roland_arpanet_complete() {
 
     let sample_func = |(mut t, mut trace): (Network<P, SimpleTimingModel<P>>, ConvergenceTrace)| {
         while let Some((step, event)) = t.simulate_step().unwrap() {
-            if step.changed() {
-                trace.push((
-                    vec![(event.router(), step.old, step.new)],
-                    t.queue().get_time().map(|x| x - t0).into(),
-                ));
+            match step {
+                StepUpdate::Unchanged => {}
+                StepUpdate::Multiple => unreachable!("OSPF events should be disabled"),
+                StepUpdate::Single(delta) => {
+                    trace.push((
+                        vec![(event.router(), delta.old, delta.new)],
+                        net.queue().get_time().map(|x| x - t0).into(),
+                    ));
+                }
             }
         }
 
