@@ -22,6 +22,7 @@ use crate::{
     bgp::{BgpSessionType, BgpState, BgpStateRef},
     config::{NetworkConfig, RouteMapEdit},
     event::{BasicEventQueue, Event, EventQueue},
+    export::INTERNAL_AS,
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
@@ -138,7 +139,7 @@ impl<P: Prefix, Q> Network<P, Q> {
     /// function returns the ID of the router, which can be used to reference it while confiugring
     /// the network.
     pub fn add_router(&mut self, name: impl Into<String>) -> RouterId {
-        let new_router = Router::new(name.into(), self.net.add_node(()), AsId(65001));
+        let new_router = Router::new(name.into(), self.net.add_node(()), INTERNAL_AS);
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router.into());
 
