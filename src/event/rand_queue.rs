@@ -111,13 +111,13 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         let (event, _) = self.q.pop()?;
         self.current_time = *event.priority();
         match event {
-            Event::Bgp(_, src, dst, _) => {
+            Event::Bgp { src, dst, .. } => {
                 if let Some((num, _)) = self.messages.get_mut(&(src, dst)) {
                     *num -= 1;
                 }
             }
             // Nothing to do for OSPF
-            Event::Ospf(_, _, _, _) => {}
+            Event::Ospf { .. } => {}
         }
         Some(event)
     }
@@ -430,7 +430,12 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         let mut rng = thread_rng();
         // match on the event
         match event {
-            Event::Bgp(ref mut t, src, dst, _) => {
+            Event::Bgp {
+                p: ref mut t,
+                src,
+                dst,
+                ..
+            } => {
                 // compute the next time
                 let key = (src, dst);
                 // compute the propagation time
@@ -453,7 +458,12 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
                 }
                 *t = next_time;
             }
-            Event::Ospf(ref mut t, src, dst, _) => {
+            Event::Ospf {
+                p: ref mut t,
+                src,
+                dst,
+                ..
+            } => {
                 // compute the propagation time
                 next_time += self.propagation_time(src, dst, &mut rng);
                 // compute the processing time
@@ -474,13 +484,13 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         let (event, _) = self.q.pop()?;
         self.current_time = *event.priority();
         match event {
-            Event::Bgp(_, src, dst, _) => {
+            Event::Bgp { src, dst, .. } => {
                 if let Some((num, _)) = self.messages.get_mut(&(src, dst)) {
                     *num -= 1;
                 }
             }
             // Nothing to do for OSPF
-            Event::Ospf(_, _, _, _) => {}
+            Event::Ospf { .. } => {}
         }
         Some(event)
     }

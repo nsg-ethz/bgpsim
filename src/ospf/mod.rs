@@ -747,9 +747,10 @@ pub trait OspfProcess:
     /// the BGP decision process should be re-run.
     fn handle_event<P: Prefix, T: Default>(
         &mut self,
-        from: RouterId,
+        src: RouterId,
+        area: OspfArea,
         event: OspfEvent,
-    ) -> Result<Option<Vec<Event<P, T>>>, DeviceError>;
+    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError>;
 
     /// Get the next-hops to a specific IGP target.
     fn get(&self, target: impl Into<IgpTarget>) -> &[RouterId] {

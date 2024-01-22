@@ -28,7 +28,7 @@ pub use rand_queue::{GeoTimingModel, ModelParams, SimpleTimingModel};
 
 use crate::{
     bgp::BgpEvent,
-    ospf::local::OspfEvent,
+    ospf::{local::OspfEvent, OspfArea},
     types::{Prefix, RouterId, StepUpdate},
 };
 
@@ -40,55 +40,95 @@ use crate::{
 ))]
 pub enum Event<P: Prefix, T> {
     /// BGP Event from `#1` to `#2`.
-    Bgp(T, RouterId, RouterId, BgpEvent<P>),
-    /// OSPF Event from `#1` to `#2`.
-    Ospf(T, RouterId, RouterId, OspfEvent),
+    Bgp {
+        /// The priority (time). Can be ignored when handling events, (unless you implement a custom
+        /// queue).
+        p: T,
+        /// The source of the message
+        src: RouterId,
+        /// The target of the message
+        dst: RouterId,
+        /// The specific BGP event.
+        e: BgpEvent<P>,
+    },
+    /// OSPF Event from directed towards `#1` from `#2.source()`.
+    Ospf {
+        /// The priority (time). Can be ignored when handling events, (unless you implement a custom
+        /// queue).
+        p: T,
+        /// The source of the message
+        src: RouterId,
+        /// The target of the message
+        dst: RouterId,
+        /// The OSPF area that the message carries
+        area: OspfArea,
+        /// The specific OSPF event.
+        e: OspfEvent,
+    },
 }
 
 impl<P: Prefix, T> Event<P, T> {
+    /// Create a new BGP event
+    pub fn bgp(p: T, src: RouterId, dst: RouterId, e: BgpEvent<P>) -> Self {
+        Self::Bgp { p, src, dst, e }
+    }
+
+    /// Create a new OSPF event
+    pub fn ospf(p: T, src: RouterId, dst: RouterId, area: OspfArea, e: OspfEvent) -> Self {
+        Self::Ospf {
+            p,
+            src,
+            dst,
+            area,
+            e,
+        }
+    }
+
     /// Returns the prefix for which this event talks about.
     pub fn prefix(&self) -> Option<P> {
         match self {
-            Event::Bgp(_, _, _, BgpEvent::Update(route)) => Some(route.prefix),
-            Event::Bgp(_, _, _, BgpEvent::Withdraw(prefix)) => Some(*prefix),
-            Event::Ospf(_, _, _, _) => None,
+            Event::Bgp {
+                e: BgpEvent::Update(route),
+                ..
+            } => Some(route.prefix),
+            Event::Bgp {
+                e: BgpEvent::Withdraw(prefix),
+                ..
+            } => Some(*prefix),
+            Event::Ospf { .. } => None,
         }
     }
 
     /// Get a reference to the priority of this event.
     pub fn priority(&self) -> &T {
         match self {
-            Event::Bgp(p, _, _, _) => p,
-            Event::Ospf(p, _, _, _) => p,
+            Event::Bgp { p, .. } | Event::Ospf { p, .. } => p,
         }
     }
 
     /// Get a reference to the priority of this event.
     pub fn priority_mut(&mut self) -> &mut T {
         match self {
-            Event::Bgp(p, _, _, _) => p,
-            Event::Ospf(p, _, _, _) => p,
+            Event::Bgp { p, .. } | Event::Ospf { p, .. } => p,
         }
     }
 
     /// Returns true if the event is a bgp message
     pub fn is_bgp_event(&self) -> bool {
-        matches!(self, Event::Bgp(_, _, _, _))
+        matches!(self, Event::Bgp { .. })
     }
 
     /// Return the source of the event.
     pub fn source(&self) -> RouterId {
         match self {
-            Event::Bgp(_, source, _, _) => *source,
-            Event::Ospf(_, source, _, _) => *source,
+            Event::Bgp { src, .. } | Event::Ospf { src, .. } => *src,
         }
     }
 
     /// Return the router where the event is processed
     pub fn router(&self) -> RouterId {
         match self {
-            Event::Bgp(_, _, router, _) => *router,
-            Event::Ospf(_, _, router, _) => *router,
+            Event::Bgp { dst, .. } | Event::Ospf { dst, .. } => *dst,
         }
     }
 }

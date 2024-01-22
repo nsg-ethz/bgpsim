@@ -243,18 +243,24 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl, T: FmtPriority> NetworkFormatter<'a, 
 
     fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         match self {
-            Event::Bgp(p, from, to, event) => format!(
+            Event::Bgp { p, src, dst, e } => format!(
                 "BGP Event: {} -> {}: {} {}",
-                from.fmt(net),
-                to.fmt(net),
-                event.fmt(net),
+                src.fmt(net),
+                dst.fmt(net),
+                e.fmt(net),
                 p.fmt()
             ),
-            Event::Ospf(p, from, to, event) => format!(
-                "OSPF Event: {} -> {}: {} {}",
-                from.fmt(net),
-                to.fmt(net),
-                event.fmt(net),
+            Event::Ospf {
+                p,
+                src,
+                dst,
+                area,
+                e,
+            } => format!(
+                "OSPF Event: {} -> {} ({area}): {} {}",
+                src.fmt(net),
+                dst.fmt(net),
+                e.fmt(net),
                 p.fmt()
             ),
         }

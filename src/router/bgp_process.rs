@@ -629,7 +629,7 @@ impl<P: Prefix> BgpProcess<P> {
             };
             // add the event to the queue
             if let Some(event) = event {
-                events.push(Event::Bgp(T::default(), self.router_id, *peer, event));
+                events.push(Event::bgp(T::default(), self.router_id, *peer, event));
             }
         }
 

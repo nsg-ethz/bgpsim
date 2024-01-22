@@ -570,12 +570,13 @@ impl OspfProcess for GlobalOspfProcess {
 
     fn handle_event<P: Prefix, T: Default>(
         &mut self,
-        _from: RouterId,
+        _src: RouterId,
+        _area: OspfArea,
         _event: super::local::OspfEvent,
-    ) -> Result<Option<Vec<Event<P, T>>>, DeviceError> {
+    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
         // ignore any event.
         log::error!("Received an OSPF event when using a global OSPF oracle! Event is ignored");
-        Ok(None)
+        Ok((false, Vec::new()))
     }
 }
 

@@ -24,19 +24,56 @@ pub enum LsaType {
     External,
 }
 
+pub const MAX_AGE: u16 = u16::MAX;
+pub const MAX_SEQ: u32 = u32::MAX;
+
 /// A single LSA header field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct LsaHeader {
     /// The type of LSA
     pub lsa_type: LsaType,
-    /// LS Age (used for clearing old advertisements)
-    pub age: u16,
-    /// LS sequence number
-    pub seq: u32,
     /// The advertising router
     pub router: RouterId,
     /// Target router, only valid for `LsaType::Summary` and `LsaType::External`.
     pub target: Option<RouterId>,
+    /// LS sequence number
+    pub seq: u32,
+    /// LS Age (used for clearing old advertisements)
+    pub age: u16,
+}
+
+impl LsaHeader {
+    /// Determine whether `self` is newer than `other`.
+    pub fn is_newer(&self, other: &Self) -> bool {
+        self.cmp(other).is_gt()
+    }
+}
+
+impl PartialOrd for LsaHeader {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        if self.key() != other.key() {
+            None
+        } else {
+            Some(self.cmp(other))
+        }
+    }
+}
+
+// Larger means newer
+impl Ord for LsaHeader {
+    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
+        let self_dead = self.age == MAX_AGE;
+        let other_dead = other.age == MAX_AGE;
+        if self_dead && other_dead {
+            std::cmp::Ordering::Equal
+        } else if self_dead {
+            std::cmp::Ordering::Less
+        } else if other_dead {
+            std::cmp::Ordering::Greater
+        } else {
+            self.seq.cmp(&other.seq)
+        }
+    }
 }
 
 /// A single LSA
@@ -139,5 +176,87 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
             LinkType::Virtual => " [v]",
         };
         format!("{}: {}{}", self.target.fmt(net), self.weight, ty)
+    }
+}
+
+/// A key used to identify a specific LSA
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+pub struct LsaKey {
+    /// The type of LSA
+    pub lsa_type: LsaType,
+    /// The advertising router
+    pub router: RouterId,
+    /// Target router, only valid for `LsaType::Summary` and `LsaType::External`.
+    pub target: Option<RouterId>,
+}
+
+impl std::hash::Hash for LsaKey {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        self.router.hash(state);
+        self.target.hash(state);
+    }
+}
+
+impl From<LsaHeader> for LsaKey {
+    fn from(value: LsaHeader) -> Self {
+        value.key()
+    }
+}
+
+impl From<&LsaHeader> for LsaKey {
+    fn from(value: &LsaHeader) -> Self {
+        value.key()
+    }
+}
+
+impl From<Lsa> for LsaKey {
+    fn from(value: Lsa) -> Self {
+        value.key()
+    }
+}
+
+impl From<&Lsa> for LsaKey {
+    fn from(value: &Lsa) -> Self {
+        value.key()
+    }
+}
+
+impl LsaHeader {
+    /// Get an `LsaKey` for `self`
+    #[inline]
+    pub fn key(&self) -> LsaKey {
+        LsaKey {
+            lsa_type: self.lsa_type,
+            router: self.router,
+            target: self.target,
+        }
+    }
+
+    /// Whether the LSA has `age` set to `MAX_AGE`.
+    pub(crate) fn is_max_age(&self) -> bool {
+        self.age == MAX_AGE
+    }
+
+    /// Whether the LSA has `seq` set to `MAX_SEQ`.
+    pub(crate) fn is_max_seq(&self) -> bool {
+        self.age == MAX_SEQ
+    }
+}
+
+impl Lsa {
+    /// Get an `LsaKey` for `self`
+    #[inline]
+    pub fn key(&self) -> LsaKey {
+        self.header.key()
+    }
+
+    /// Whether the LSA has `age` set to `MAX_AGE`.
+    pub(crate) fn is_max_age(&self) -> bool {
+        self.header.is_max_age()
+    }
+
+    /// Whether the LSA has `seq` set to `MAX_SEQ`.
+    pub(crate) fn is_max_seq(&self) -> bool {
+        self.header.is_max_seq()
     }
 }

@@ -435,6 +435,12 @@ pub enum DeviceError {
     /// Router was not found in the IGP forwarding table
     #[error("Router {0:?} is not known in the IGP forwarding table")]
     RouterNotFound(RouterId),
+    /// OSPF Neighborhood already exists.
+    #[error("Routers {0:?} and {1:?} are already OSPF neighbors.")]
+    AlreadyOspfNeighbors(RouterId, RouterId),
+    /// OSPF Neighborhood does not exists.
+    #[error("Routers {0:?} and {1:?} are not OSPF neighbors.")]
+    NotAnOspfNeighbor(RouterId, RouterId),
 }
 
 /// Network Errors
