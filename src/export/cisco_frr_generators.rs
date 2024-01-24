@@ -17,7 +17,7 @@
 
 use ipnet::Ipv4Net;
 use itertools::Itertools;
-use std::{net::Ipv4Addr, fmt::Write};
+use std::{fmt::Write, net::Ipv4Addr};
 
 use crate::{
     ospf::OspfArea,
@@ -470,7 +470,8 @@ exit
                         "\n  {}ip address {}",
                         if *state { "" } else { "no " },
                         addr
-                    ).unwrap();
+                    )
+                    .unwrap();
                     s
                 }),
             cost = match (self.cost, self.no_cost) {
@@ -1724,8 +1725,8 @@ impl RouterBgpNeighbor {
 
         // send-community
         match self.send_community.as_ref() {
-            Some(true) => af.push_str(&format!("\n    {tab}{pre}send-community")),
-            Some(false) => af.push_str(&format!("\n    {tab}no {pre}send-community")),
+            Some(true) => af.push_str(&format!("\n    {tab}{pre}send-community both")),
+            Some(false) => af.push_str(&format!("\n    {tab}no {pre}send-community both")),
             _ => {}
         }
 
