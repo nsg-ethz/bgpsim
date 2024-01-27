@@ -23,11 +23,11 @@ use std::{
 
 use crate::{
     bgp::BgpRoute,
-    network::Network,
+    network::{Network, INTERNAL_AS},
     types::{AsId, Prefix, PrefixMap, RouterId},
 };
 
-use super::{Addressor, ExportError, ExternalCfgGen, INTERNAL_AS};
+use super::{Addressor, ExportError, ExternalCfgGen};
 
 /// Config generator for [ExaBGP](https://github.com/Exa-Networks/exabgp)
 ///

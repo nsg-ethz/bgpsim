@@ -22,7 +22,6 @@ use crate::{
     bgp::{BgpSessionType, BgpState, BgpStateRef},
     config::{NetworkConfig, RouteMapEdit},
     event::{BasicEventQueue, Event, EventQueue},
-    export::INTERNAL_AS,
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
@@ -45,6 +44,8 @@ use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 1_000_000;
+/// The AS number assigned to internal routers.
+pub const INTERNAL_AS: AsId = AsId(65535);
 
 /// # Network struct
 /// The struct contains all information about the underlying physical network (Links), a manages

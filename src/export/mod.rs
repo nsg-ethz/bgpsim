@@ -27,7 +27,7 @@ use crate::{
     bgp::BgpRoute,
     config::ConfigModifier,
     network::Network,
-    types::{AsId, NetworkError, NonOverlappingPrefix, Prefix, RouterId},
+    types::{NetworkError, NonOverlappingPrefix, Prefix, RouterId},
 };
 
 mod cisco_frr;
@@ -38,9 +38,6 @@ mod exabgp;
 pub use cisco_frr::CiscoFrrCfgGen;
 pub use default::{DefaultAddressor, DefaultAddressorBuilder};
 pub use exabgp::ExaBgpCfgGen;
-
-/// The internal AS Number
-pub const INTERNAL_AS: AsId = AsId(65535);
 
 /// Link index used in the IP addressor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]

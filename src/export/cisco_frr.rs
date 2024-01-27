@@ -30,7 +30,7 @@ use petgraph::visit::EdgeRef;
 use crate::{
     bgp::BgpRoute,
     config::{ConfigExpr, ConfigModifier},
-    network::Network,
+    network::{Network, INTERNAL_AS},
     ospf::OspfArea,
     prelude::BgpSessionType,
     route_map::{
@@ -47,7 +47,7 @@ use super::{
         RouteMapItem, RouterBgp, RouterBgpNeighbor, RouterOspf, StaticRoute as StaticRouteGen,
         Target,
     },
-    Addressor, ExportError, ExternalCfgGen, InternalCfgGen, INTERNAL_AS,
+    Addressor, ExportError, ExternalCfgGen, InternalCfgGen,
 };
 
 /// constant for the internal AS number
