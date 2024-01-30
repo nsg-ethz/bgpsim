@@ -29,12 +29,13 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        AsId, NetworkDevice, NetworkDeviceRef, NetworkError, PhysicalNetwork, Prefix, PrefixSet,
-        RouterId, SimplePrefix,
+        AsId, NetworkDevice, NetworkDeviceRef, NetworkError, NetworkErrorOption, PhysicalNetwork,
+        Prefix, PrefixSet, RouterId, SimplePrefix,
     },
 };
 
 use log::*;
+use petgraph::visit::IntoNeighbors;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
@@ -467,6 +468,26 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// ```
     pub fn add_link(&mut self, a: RouterId, b: RouterId) -> Result<(), NetworkError> {
         if !self.net.contains_edge(a, b) {
+            // ensure that an external router is only ever connected to a single internal one
+            let a_external = self.routers.get(&a).or_router_not_found(a)?.is_external();
+            let b_external = self.routers.get(&b).or_router_not_found(b)?.is_external();
+            match (a_external, b_external) {
+                (false, false) => {}
+                (false, true) => {
+                    // ensure that a has no links connected yet
+                    if self.net.neighbors(b).count() > 0 {
+                        return Err(NetworkError::ExternalRouterMultipleNeighbors(b));
+                    }
+                }
+                (true, false) => {
+                    // ensure that a has no links connected yet
+                    if self.net.neighbors(a).count() > 0 {
+                        return Err(NetworkError::ExternalRouterMultipleNeighbors(a));
+                    }
+                }
+                (true, true) => return Err(NetworkError::CannotConnectExternalRouters(a, b)),
+            }
+
             self.net.add_edge(a, b, ());
             let events = self.ospf.add_link(a, b, &mut self.routers)?;
             self.enqueue_events(events);

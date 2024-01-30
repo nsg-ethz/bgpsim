@@ -153,14 +153,15 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
                 src, dst, area, e, ..
             } if dst == self.router_id => {
                 // handle the event
-                if let Some(mut ospf_events) = self.ospf.handle_event(src, area, e)? {
+                let (changed, mut ospf_events) = self.ospf.handle_event(src, area, e)?;
+                if changed {
                     // re-compute BGP
                     self.bgp.update_igp(&self.ospf);
                     let mut bgp_events = self.bgp.update_tables(false)?;
                     ospf_events.append(&mut bgp_events);
                     Ok((StepUpdate::Multiple, ospf_events))
                 } else {
-                    Ok((StepUpdate::Unchanged, vec![]))
+                    Ok((StepUpdate::Unchanged, ospf_events))
                 }
             }
             Event::Ospf { .. } => {

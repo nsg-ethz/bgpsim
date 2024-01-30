@@ -24,7 +24,11 @@ pub enum LsaType {
     External,
 }
 
+///  The maximum age that an LSA can attain. When an LSA's LS age field reaches MaxAge, it is
+/// reflooded in an attempt to flush the LSA from the routing domain (See Section 14). LSAs of age
+/// MaxAge are not used in the routing table calculation.
 pub const MAX_AGE: u16 = u16::MAX;
+/// The maximum value that LS Sequence Number can attain.
 pub const MAX_SEQ: u32 = u32::MAX;
 
 /// A single LSA header field.
@@ -44,34 +48,87 @@ pub struct LsaHeader {
 
 impl LsaHeader {
     /// Determine whether `self` is newer than `other`.
-    pub fn is_newer(&self, other: &Self) -> bool {
-        self.cmp(other).is_gt()
+    pub fn compare(&self, other: &Self) -> LsaOrd {
+        match self.seq.cmp(&other.seq) {
+            std::cmp::Ordering::Less => LsaOrd::Older,
+            std::cmp::Ordering::Equal => {
+                let self_dead = self.age == MAX_AGE;
+                let other_dead = other.age == MAX_AGE;
+                match (self_dead, other_dead) {
+                    (true, false) => LsaOrd::Newer,
+                    (false, true) => LsaOrd::Older,
+                    (true, true) | (false, false) => LsaOrd::Same,
+                }
+            }
+            std::cmp::Ordering::Greater => LsaOrd::Newer,
+        }
+    }
+}
+
+/// Comparison of two LSAs
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum LsaOrd {
+    /// Both LSAs are equal
+    Same,
+    /// The LSA is newer than the other
+    Newer,
+    /// THe LSA is older than the other.
+    Older,
+}
+
+impl LsaOrd {
+    /// Returns `true` if `self` is `Self::Newer`.
+    pub fn is_newer(&self) -> bool {
+        matches!(self, Self::Newer)
+    }
+
+    /// Returns `true` if `self` is `Self::Older`.
+    pub fn is_older(&self) -> bool {
+        matches!(self, Self::Older)
+    }
+
+    /// Returns `true` if `self` is `Self::Same`.
+    pub fn is_same(&self) -> bool {
+        matches!(self, Self::Same)
+    }
+}
+
+impl From<std::cmp::Ordering> for LsaOrd {
+    fn from(value: std::cmp::Ordering) -> Self {
+        match value {
+            std::cmp::Ordering::Less => Self::Older,
+            std::cmp::Ordering::Equal => Self::Same,
+            std::cmp::Ordering::Greater => Self::Newer,
+        }
+    }
+}
+
+impl From<LsaOrd> for std::cmp::Ordering {
+    fn from(value: LsaOrd) -> Self {
+        match value {
+            LsaOrd::Older => Self::Less,
+            LsaOrd::Same => Self::Equal,
+            LsaOrd::Newer => Self::Greater,
+        }
     }
 }
 
 impl PartialOrd for LsaHeader {
     fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        if self.key() != other.key() {
-            None
+        if self.key() == other.key() {
+            Some(self.compare(other).into())
         } else {
-            Some(self.cmp(other))
+            None
         }
     }
 }
 
-// Larger means newer
-impl Ord for LsaHeader {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let self_dead = self.age == MAX_AGE;
-        let other_dead = other.age == MAX_AGE;
-        if self_dead && other_dead {
-            std::cmp::Ordering::Equal
-        } else if self_dead {
-            std::cmp::Ordering::Less
-        } else if other_dead {
-            std::cmp::Ordering::Greater
+impl PartialOrd for Lsa {
+    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
+        if self.key() == other.key() {
+            Some(self.compare(other).into())
         } else {
-            self.seq.cmp(&other.seq)
+            None
         }
     }
 }
@@ -239,7 +296,7 @@ impl LsaHeader {
 
     /// Whether the LSA has `seq` set to `MAX_SEQ`.
     pub(crate) fn is_max_seq(&self) -> bool {
-        self.age == MAX_SEQ
+        self.seq == MAX_SEQ
     }
 }
 
@@ -258,5 +315,10 @@ impl Lsa {
     /// Whether the LSA has `seq` set to `MAX_SEQ`.
     pub(crate) fn is_max_seq(&self) -> bool {
         self.header.is_max_seq()
+    }
+
+    /// Compare two LSAs to determine which one is newer.
+    pub fn compare(&self, other: &Self) -> LsaOrd {
+        self.header.compare(&other.header)
     }
 }

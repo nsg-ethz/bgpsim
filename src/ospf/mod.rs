@@ -742,9 +742,8 @@ pub trait OspfProcess:
     fn get_neighbors(&self) -> &HashMap<RouterId, LinkWeight>;
 
     /// Handle an OSPF event and return new OSPF events to be enqueued. This function should return
-    /// either `None` indicating that nothing has changed (and therefore, the BGP decision process
-    /// does not need to be re-run), or `Some(events)` indicating that something has changed, and
-    /// the BGP decision process should be re-run.
+    /// a set of newly triggered events, and a flag indicating whether the BGP state has changed,
+    /// and the BGP process should re-compute its table.
     fn handle_event<P: Prefix, T: Default>(
         &mut self,
         src: RouterId,

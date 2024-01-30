@@ -822,6 +822,10 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
                 a.fmt(net),
                 b.fmt(net)
             ),
+            NetworkError::ExternalRouterMultipleNeighbors(r) => format!(
+                "External router {} cannot be conencted to two or more internal routers.",
+                r.fmt(net)
+            ),
             NetworkError::CannotConfigureExternalLink(a, b) => format!(
                 "Cannot configure an external link between {} and {}.",
                 a.fmt(net),
@@ -841,6 +845,20 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
             }
             DeviceError::NoBgpSession(r) => {
                 format!("No BGP session established with {}!", r.fmt(net))
+            }
+            DeviceError::AlreadyOspfNeighbors(r, n) => {
+                format!(
+                    "Router {} is already an OSPF neighbor of {}.",
+                    n.fmt(net),
+                    r.fmt(net)
+                )
+            }
+            DeviceError::NotAnOspfNeighbor(r, n) => {
+                format!(
+                    "Router {} is not an OSPF neighbor of {}",
+                    n.fmt(net),
+                    r.fmt(net)
+                )
             }
         }
     }

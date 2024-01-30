@@ -18,7 +18,7 @@ use crate::{
     types::RouterId,
 };
 
-use super::{Lsa, LsaData, LsaKey, LsaType, MAX_AGE};
+use super::{Lsa, LsaData, LsaKey, LsaType, MAX_AGE, MAX_SEQ};
 
 /// The OSPF RIB that contains all the different area datastructures.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -153,71 +153,28 @@ impl AreaDataStructure {
         self.lsa_list.get(&key.into())
     }
 
+    /// prematurely age an LSA by setting both the `seq` to `MAX_SEQ` and `age` to `MAX_AGE`.
+    pub fn set_max_seq_and_age(&mut self, key: impl Into<LsaKey>) -> Option<&Lsa> {
+        let key = key.into();
+        if let Some(e) = self.lsa_list.get_mut(&key) {
+            e.header.seq = MAX_SEQ;
+            e.header.age = MAX_AGE;
+        }
+        self.lsa_list.get(&key)
+    }
+
+    /// Set the sequence number of an LSA to a specific value.
+    pub fn set_seq(&mut self, key: impl Into<LsaKey>, target: u32) -> Option<&Lsa> {
+        let key = key.into();
+        if let Some(e) = self.lsa_list.get_mut(&key) {
+            e.header.seq = target;
+        }
+        self.lsa_list.get(&key)
+    }
+
     /// Get an iterator over all stored LSAs.
     pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Lsa> {
         self.lsa_list.values()
-    }
-
-    /// Update the area datastructure with a new LSA. `partial_sync` describes whether any of the
-    /// neighbors are in `Exchange` or `Loading` state. This is used for step 4 in the flooding
-    /// procedure.
-    pub(super) fn update<'a>(&mut self, mut lsa: Lsa, partial_sync: bool) -> UpdateResult<'a> {
-        let key = lsa.key();
-        if let Some(old) = self.lsa_list.get_mut(&key) {
-            // entry `old` available
-            // compare if the new LSA is newer
-            if lsa.header.is_newer(&old.header) {
-                // do something special if it is a self-advertisement
-                if lsa.header.router == self.router_id {
-                    // modify old to have a higher sequence number
-                    // TODO handle overflow!
-                    old.header.seq = lsa.header.seq + 1;
-                    // re-flood everything
-                    UpdateResult::Updated {
-                        new_spt: false,
-                        new_lsa: old,
-                    }
-                } else {
-                    // update the lsa, recompute the SPT and flood the change
-                    let new_spt = self.insert(lsa);
-                    let new_lsa = self.lsa_list.get(&key).unwrap();
-                    UpdateResult::Updated { new_spt, new_lsa }
-                }
-            } else {
-                // if old has MAX_AGE and MAX_SEQ, then simply discard it (don't send an ACK).
-                if old.is_max_age() && old.is_max_seq() {
-                    UpdateResult::Ignore
-                }
-                // did not receive a newer update. acknowledge
-                UpdateResult::Unchanged { lsa: old }
-            }
-        } else {
-            // no entry available
-            // check for step 4 in the floowing procedure
-            if !partial_sync && lsa.is_max_age() {
-                // do not insert the new entry, just signal that the table was unchanged
-                UpdateResult::AckOnly { lsa }
-            // check self-advertisement
-            } else if lsa.header.router == self.router_id {
-                // seems to be an old advertisement around, that we no longer have! It could be
-                // either the router before booting up, or it could be an old advertisement that
-                // we have removed.
-                if lsa.is_max_age() {
-                    // the entry does not exist, and we received something with max_age. Ignore that
-                    // message, but acknowledge it.
-                    UpdateResult::AckOnly { lsa }
-                } else {
-                    // received lsa does not have max age. Flood the same LSA, but with MaxAge
-                    lsa.header.age = MAX_AGE;
-                    UpdateResult::FloodOnly { lsa }
-                }
-            } else {
-                // received a regular, new LSA. Insert it.
-                let new_spt = self.insert(lsa);
-                let new_lsa = self.lsa_list.get(&key).unwrap();
-                UpdateResult::Updated { new_spt, new_lsa }
-            }
-        }
     }
 
     /// Insert an LSA into the datastructure, ignoring the old content. In case there was any update
@@ -248,61 +205,79 @@ impl AreaDataStructure {
         let src = key.router;
         let new = self.lsa_list.get(&key);
         let mut updated_links: BTreeMap<RouterId, (Option<_>, Option<_>)> = BTreeMap::new();
+        let mut new_ext_sum_cost = None;
+        let mut old_ext_sum_cost = None;
         match (key.lsa_type, key.target) {
             (LsaType::Router, _) => {
                 if let Some(Lsa {
                     data: LsaData::Router(v),
-                    ..
+                    header,
                 }) = new
                 {
-                    for l in v {
-                        updated_links.entry(l.target).or_default().0 = Some(l.weight);
+                    if !header.is_max_age() {
+                        for l in v {
+                            updated_links.entry(l.target).or_default().0 = Some(l.weight);
+                        }
                     }
                 }
                 if let Some(Lsa {
                     data: LsaData::Router(v),
-                    ..
+                    header,
                 }) = old
                 {
-                    for l in v {
-                        updated_links.entry(l.target).or_default().1 = Some(l.weight);
+                    if !header.is_max_age() {
+                        for l in v {
+                            updated_links.entry(l.target).or_default().1 = Some(l.weight);
+                        }
                     }
                 }
             }
             (LsaType::Summary, Some(target)) => {
                 if let Some(Lsa {
                     data: LsaData::Summary(w),
-                    ..
+                    header,
                 }) = new
                 {
-                    updated_links.entry(target).or_default().0 = Some(*w);
+                    if !header.is_max_age() {
+                        updated_links.entry(target).or_default().0 = Some(*w);
+                        new_ext_sum_cost = Some(w);
+                    }
                 }
                 if let Some(Lsa {
                     data: LsaData::Summary(w),
-                    ..
+                    header,
                 }) = old
                 {
-                    updated_links.entry(target).or_default().1 = Some(w);
+                    if !header.is_max_age() {
+                        updated_links.entry(target).or_default().1 = Some(w);
+                        old_ext_sum_cost = Some(w);
+                    }
                 }
             }
             (LsaType::External, Some(target)) => {
                 if let Some(Lsa {
                     data: LsaData::External(w),
-                    ..
+                    header,
                 }) = new
                 {
-                    updated_links.entry(target).or_default().0 = Some(*w);
+                    if !header.is_max_age() {
+                        updated_links.entry(target).or_default().0 = Some(*w);
+                        new_ext_sum_cost = Some(w);
+                    }
                 }
                 if let Some(Lsa {
                     data: LsaData::External(w),
-                    ..
+                    header,
                 }) = old
                 {
-                    updated_links.entry(target).or_default().1 = Some(w);
+                    if !header.is_max_age() {
+                        updated_links.entry(target).or_default().1 = Some(w);
+                        old_ext_sum_cost = Some(w);
+                    }
                 }
             }
             _ => unreachable!(),
-        }
+        };
 
         let mut changed = false;
 
@@ -321,7 +296,80 @@ impl AreaDataStructure {
         }
 
         if changed {
-            self.dijkstra()
+            // only recompute the SPT if it is a regular router-LSA
+            match (key.lsa_type, key.target) {
+                (LsaType::Summary, Some(int)) => {
+                    // compute the new weight
+                    if let (Some(r), Some(w)) = (self.spt.get(&key.router), new_ext_sum_cost) {
+                        let fibs = if self.router_id == key.router {
+                            btreeset![int]
+                        } else {
+                            r.fibs.clone()
+                        };
+                        let cost = r.cost + w;
+                        self.spt.insert(
+                            int,
+                            SptNode {
+                                cost,
+                                fibs: fibs.clone(),
+                            },
+                        );
+                        // update all outgoing neighbors of that router
+                        for (ext, w) in self.graph.get(&int).into_iter().flatten() {
+                            // check if ext is really an external router, i.e., if we have an
+                            // ExternalLSA for that one.
+                            if self.lsa_list.contains_key(&LsaKey {
+                                lsa_type: LsaType::External,
+                                router: int,
+                                target: Some(*ext),
+                            }) {
+                                self.spt.insert(
+                                    *ext,
+                                    SptNode {
+                                        cost: cost + *w,
+                                        fibs: fibs.clone(),
+                                    },
+                                );
+                            }
+                        }
+                    } else {
+                        self.spt.remove(&int);
+                        // remove all external routers from the SPT
+                        for (ext, w) in self.graph.get(&int).into_iter().flatten() {
+                            // check if ext is really an external router, i.e., if we have an
+                            // ExternalLSA for that one.
+                            if self.lsa_list.contains_key(&LsaKey {
+                                lsa_type: LsaType::External,
+                                router: int,
+                                target: Some(*ext),
+                            }) {
+                                self.spt.remove(ext);
+                            }
+                        }
+                    }
+                    new_ext_sum_cost == old_ext_sum_cost.as_ref()
+                }
+                (LsaType::External, Some(ext)) => {
+                    // compute the new weight
+                    if let (Some(r), Some(w)) = (self.spt.get(&key.router), new_ext_sum_cost) {
+                        self.spt.insert(
+                            ext,
+                            SptNode {
+                                cost: r.cost + w,
+                                fibs: if self.router_id == key.router {
+                                    btreeset![ext]
+                                } else {
+                                    r.fibs.clone()
+                                },
+                            },
+                        );
+                    } else {
+                        self.spt.remove(&ext);
+                    }
+                    new_ext_sum_cost == old_ext_sum_cost.as_ref()
+                }
+                _ => self.dijkstra(),
+            }
         } else {
             false
         }

@@ -9,6 +9,7 @@ use crate::{
     ospf::{
         local::{
             database::OspfRib,
+            lsa::{Lsa, LsaKey},
             neighbor::{Neighbor, NeighborEvent},
             OspfEvent,
         },
@@ -16,6 +17,8 @@ use crate::{
     },
     types::{DeviceError, Prefix, RouterId},
 };
+
+use super::neighbor::NeighborActions;
 
 /// OSPF router process that computes the IGP routing state by exchanging OSPF (link-state)
 /// messages.
@@ -26,6 +29,9 @@ pub struct LocalOspfProcess {
     table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     neighbor_links: HashMap<RouterId, LinkWeight>,
     neighbors: BTreeMap<RouterId, Neighbor>,
+    /// Sequence of keys to track that all neighbors acknowledge that LSA. Once acknowledged,
+    /// introduce the new LSA into the table and flood it (if `Some`).
+    track_max_age: Vec<(LsaKey, Option<Lsa>)>,
 }
 
 /// Neighborhood change event local to a specific router.
@@ -160,24 +166,55 @@ impl LocalOspfProcess {
         neighbor: RouterId,
         event: NeighborEvent,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
-        let (updated_lsa, mut updated_spt, mut events) = self
+        let NeighborActions {
+            mut events,
+            flood,
+            mut track_max_age,
+            recompute_bgp,
+        } = self
             .neighbors
             .get_mut(&neighbor)
             .ok_or_else(|| DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?
             .handle_event(event, &mut self.areas);
 
+        // register new max_age tracking
+        self.track_max_age.append(&mut track_max_age);
+
+        // handle the flooding
+        events.append(&mut self.flood(flood, neighbor));
+
+        // return the results
+        Ok((recompute_bgp, events))
+    }
+
+    /// Flood the required LSAs received from `from` out to all other interfaces.
+    fn flood<P: Prefix, T: Default>(
+        &mut self,
+        flood: Vec<Lsa>,
+        from: RouterId,
+    ) -> Vec<Event<P, T>> {
+        let mut result = Vec::new();
         for n in self.neighbors.values_mut() {
-            let (new_lsa, new_spt, mut new_events) =
-                n.handle_event(NeighborEvent::Flood(updated_lsa.clone()), &mut self.areas);
+            todo!("handle flooding properly");
+            let NeighborActions {
+                events,
+                flood,
+                track_max_age,
+                recompute_bgp,
+            } = n.handle_event(NeighborEvent::Flood(flood.clone()), &mut self.areas);
             debug_assert!(
-                new_lsa.is_empty(),
+                flood.is_empty(),
                 "`NeighborEvent::UpdatedKeys` cannot cause other keys to be updated"
             );
-            updated_spt |= new_spt;
-            events.append(&mut new_events);
+            debug_assert!(
+                track_max_age.is_empty(),
+                "`NeighborEvent::UpdatedKeys` cannot cause other keys to be updated"
+            );
+            debug_assert!(!recompute_bgp);
+            result.append(&mut events);
         }
 
-        Ok((updated_spt, events))
+        result
     }
 }
 
@@ -189,6 +226,7 @@ impl OspfProcess for LocalOspfProcess {
             table: Default::default(),
             neighbor_links: HashMap::new(),
             neighbors: BTreeMap::new(),
+            track_max_age: Vec::new(),
         }
     }
 
