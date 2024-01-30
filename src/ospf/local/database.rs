@@ -8,8 +8,6 @@ use std::{
     },
 };
 
-use itertools::Itertools;
-use maplit::btreeset;
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
@@ -130,7 +128,6 @@ impl OspfRib {
         Vec<(Lsa, OspfArea)>,
         Vec<(OspfArea, Vec<(LsaKey, Option<Lsa>)>)>,
     ) {
-        //
         todo!()
     }
 }
@@ -677,27 +674,6 @@ impl AreaDataStructure {
 
         changed
     }
-}
-
-#[derive(Debug)]
-pub enum UpdateResult<'a> {
-    Unchanged {
-        lsa: &'a Lsa,
-    },
-    Updated {
-        new_spt: bool,
-        new_lsa: &'a Lsa,
-    },
-    /// Ignored due to step 4 of the flooding procedure
-    AckOnly {
-        lsa: Lsa,
-    },
-    /// Re-flood a self-originating LSA
-    FloodOnly {
-        lsa: Lsa,
-    },
-    /// Simply discard the LSA without acknowledging it.
-    Ignore,
 }
 
 /// Throughout the shortest path calculation, the following data is also associated with each transit

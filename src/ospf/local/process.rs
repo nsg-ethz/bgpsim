@@ -1,9 +1,6 @@
 //! Module containing the actual OSPF router process
 
-use std::{
-    collections::{BTreeMap, HashMap},
-    ops::Not,
-};
+use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
 

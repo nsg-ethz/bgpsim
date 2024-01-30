@@ -16,7 +16,7 @@ use crate::{
 };
 
 use super::{
-    database::{AreaDataStructure, OspfRib, UpdateResult},
+    database::{AreaDataStructure, OspfRib},
     Lsa, LsaHeader, LsaKey, LsaOrd, OspfEvent, MAX_AGE, MAX_SEQ,
 };
 
@@ -335,7 +335,7 @@ impl Neighbor {
                 partial_sync,
             } => Some(self.handle_update(lsa_list, ack, partial_sync, areas)),
             NeighborEvent::Flood(lsas) => {
-                let mut actions = NeighborActions::new();
+                let actions = NeighborActions::new();
                 let to_flood = lsas
                     .into_iter()
                     .filter_map(|lsa| self.flood_lsa(lsa))
@@ -656,7 +656,7 @@ impl Neighbor {
     ///
     /// The decision for whether the LSA should actually be flooded out of this interface (inside
     /// this area) is done outside of this function.
-    fn flood_lsa(&mut self, mut lsa: Lsa) -> Option<Lsa> {
+    fn flood_lsa(&mut self, lsa: Lsa) -> Option<Lsa> {
         let key = lsa.key();
 
         // (1) Each of the neighbors attached to this interface are examined, to determine whether
