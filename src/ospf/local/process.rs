@@ -1,6 +1,9 @@
 //! Module containing the actual OSPF router process
 
-use std::collections::{BTreeMap, HashMap};
+use std::{
+    collections::{BTreeMap, HashMap},
+    ops::Not,
+};
 
 use serde::{Deserialize, Serialize};
 
@@ -31,7 +34,7 @@ pub struct LocalOspfProcess {
     neighbors: BTreeMap<RouterId, Neighbor>,
     /// Sequence of keys to track that all neighbors acknowledge that LSA. Once acknowledged,
     /// introduce the new LSA into the table and flood it (if `Some`).
-    track_max_age: Vec<(LsaKey, Option<Lsa>)>,
+    track_max_age: BTreeMap<OspfArea, Vec<(LsaKey, Option<Lsa>)>>,
 }
 
 /// Neighborhood change event local to a specific router.
@@ -166,41 +169,107 @@ impl LocalOspfProcess {
         neighbor: RouterId,
         event: NeighborEvent,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+        let n = self
+            .neighbors
+            .get_mut(&neighbor)
+            .ok_or_else(|| DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?;
+        let area = n.area;
         let NeighborActions {
             mut events,
             flood,
             mut track_max_age,
-            recompute_bgp,
-        } = self
-            .neighbors
-            .get_mut(&neighbor)
-            .ok_or_else(|| DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?
-            .handle_event(event, &mut self.areas);
+        } = n.handle_event(event, &mut self.areas);
 
         // register new max_age tracking
-        self.track_max_age.append(&mut track_max_age);
+        self.track_max_age
+            .entry(area)
+            .or_default()
+            .append(&mut track_max_age);
 
         // handle the flooding
-        events.append(&mut self.flood(flood, neighbor));
+        let (recompute_bgp, mut flood_events) = self.flood(flood, neighbor);
+        events.append(&mut flood_events);
 
         // return the results
         Ok((recompute_bgp, events))
     }
 
     /// Flood the required LSAs received from `from` out to all other interfaces.
+    ///
+    /// When a new (and more recent) LSA has been received, it must be flooded out some set of the
+    /// router's interfaces. This section describes the second part of flooding procedure (the first
+    /// part being the processing that occurred in Section 13), namely, selecting the outgoing
+    /// interfaces and adding the LSA to the appropriate neighbors' Link state retransmission
+    /// lists. Also included in this part of the flooding procedure is the maintenance of the
+    /// neighbors' Link state request lists.
+    ///
+    /// This section is equally applicable to the flooding of an LSA that the router itself has just
+    /// originated (see Section 12.4). For these LSAs, this section provides the entirety of the
+    /// flooding procedure (i.e., the processing of Section 13 is not performed, since, for example,
+    /// the LSA has not been received from a neighbor and therefore does not need to be
+    /// acknowledged).
+    ///
+    /// Depending upon the LSA's LS type, the LSA can be flooded out only certain interfaces. These
+    /// interfaces, defined by the following, are called the eligible interfaces:
+    ///
+    /// - AS-external-LSAs (LS Type = 5)
+    ///   AS-external-LSAs are flooded throughout the entire AS, with the exception of stub areas
+    ///   (see Section 3.6). The eligible interfaces are all the router's interfaces, excluding
+    ///   virtual links and those interfaces attaching to stub areas.
+    ///
+    /// - All other LS types
+    ///   All other types are specific to a single area (Area A). The eligible interfaces are all
+    ///   those interfaces attaching to the Area A. If Area A is the backbone, this includes all the
+    ///   virtual links.
+    ///
+    /// Link state databases must remain synchronized over all adjacencies associated with the above
+    /// eligible interfaces. This is accomplished by executing the following steps on each eligible
+    /// interface. It should be noted that this procedure may decide not to flood an LSA out a
+    /// particular interface, if there is a high probability that the attached neighbors have
+    /// already received the LSA. However, in these cases the flooding procedure must be absolutely
+    /// sure that the neighbors eventually do receive the LSA, so the LSA is still added to each
+    /// adjacency's Link state retransmission list. For each eligible interface:
     fn flood<P: Prefix, T: Default>(
         &mut self,
         flood: Vec<Lsa>,
         from: RouterId,
-    ) -> Vec<Event<P, T>> {
+    ) -> (bool, Vec<Event<P, T>>) {
+        let from_area = self
+            .neighbors
+            .get(&from)
+            .map(|n| n.area)
+            .unwrap_or_default();
         let mut result = Vec::new();
+
+        let mut flood: Vec<(Lsa, OspfArea)> =
+            flood.into_iter().map(|lsa| (lsa, from_area)).collect();
+
+        let (recompute_bgp, mut redist, track_max_age) =
+            self.areas.refresh_routing_table(from_area);
+        flood.append(&mut redist);
+        track_max_age
+            .into_iter()
+            .for_each(|(area, mut t)| self.track_max_age.entry(area).or_default().append(&mut t));
+
         for n in self.neighbors.values_mut() {
-            todo!("handle flooding properly");
+            let area = n.area;
+            // ignore the neighbor from which we received the LSAs
+            if n.neighbor_id == from {
+                continue;
+            }
+
+            // filter out those SLAs that we actually should flood
+            let flood: Vec<Lsa> = flood
+                .iter()
+                .filter_map(|(lsa, lsa_area)| {
+                    (lsa.is_external() || *lsa_area == area).then_some(lsa.clone())
+                })
+                .collect();
+
             let NeighborActions {
-                events,
+                mut events,
                 flood,
                 track_max_age,
-                recompute_bgp,
             } = n.handle_event(NeighborEvent::Flood(flood.clone()), &mut self.areas);
             debug_assert!(
                 flood.is_empty(),
@@ -210,11 +279,10 @@ impl LocalOspfProcess {
                 track_max_age.is_empty(),
                 "`NeighborEvent::UpdatedKeys` cannot cause other keys to be updated"
             );
-            debug_assert!(!recompute_bgp);
             result.append(&mut events);
         }
 
-        result
+        (recompute_bgp, result)
     }
 }
 
@@ -226,7 +294,7 @@ impl OspfProcess for LocalOspfProcess {
             table: Default::default(),
             neighbor_links: HashMap::new(),
             neighbors: BTreeMap::new(),
-            track_max_age: Vec::new(),
+            track_max_age: BTreeMap::new(),
         }
     }
 

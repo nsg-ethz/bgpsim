@@ -121,7 +121,7 @@ pub(super) struct Neighbor {
     /// The ID of the router itself
     router_id: RouterId,
     /// The ID of the neighbor
-    neighbor_id: RouterId,
+    pub(super) neighbor_id: RouterId,
     /// The OSPF area
     pub(super) area: OspfArea,
     /// If `relation` is `Relation::Leader`, then I am the leader and the other is the follower.
@@ -416,7 +416,6 @@ impl Neighbor {
             let actions = self.recv_lsa(lsa, partial_sync, ads);
 
             // perform the actions
-            res.recompute_bgp |= actions.recompute_bgp;
             if let Some(lsa) = actions.flood {
                 res.flood.push(lsa);
             }
@@ -584,7 +583,7 @@ impl Neighbor {
             //     flooding procedure cannot overwrite the newly installed LSA until MinLSArrival
             //     seconds have elapsed. The LSA installation process is discussed further in
             //     Section 13.2.
-            actions.recompute_bgp = ads.insert(lsa.clone());
+            ads.insert(lsa.clone());
 
             // (e) Possibly acknowledge the receipt of the LSA by sending a Link State
             //     Acknowledgment packet back out the receiving interface. This is explained below
@@ -773,8 +772,6 @@ pub(super) struct NeighborActions<P: Prefix, T: Default> {
     /// The new keys to track their max-age, and the corresponding LSA to put into the database once
     /// the old LSA was acknowledged.
     pub track_max_age: Vec<(LsaKey, Option<Lsa>)>,
-    /// whether to recompute BGP.
-    pub recompute_bgp: bool,
 }
 
 impl<P: Prefix, T: Default> Default for NeighborActions<P, T> {
@@ -783,7 +780,6 @@ impl<P: Prefix, T: Default> Default for NeighborActions<P, T> {
             events: Vec::new(),
             flood: Vec::new(),
             track_max_age: Vec::new(),
-            recompute_bgp: false,
         }
     }
 }
@@ -825,11 +821,6 @@ impl<P: Prefix, T: Default> NeighborActions<P, T> {
         self.track_max_age.extend(list);
         self
     }
-
-    pub fn recompute_bgp(mut self) -> Self {
-        self.recompute_bgp = true;
-        self
-    }
 }
 
 /// Structure that defines the actions upon receiving an Link-State Update event.
@@ -839,7 +830,6 @@ struct RecvLsaActions {
     flood: Option<Lsa>,
     update: Option<Lsa>,
     track_max_age: Option<(LsaKey, Option<Lsa>)>,
-    recompute_bgp: bool,
 }
 
 impl Default for RecvLsaActions {
@@ -849,7 +839,6 @@ impl Default for RecvLsaActions {
             flood: None,
             update: None,
             track_max_age: None,
-            recompute_bgp: false,
         }
     }
 }
@@ -857,11 +846,6 @@ impl Default for RecvLsaActions {
 impl RecvLsaActions {
     pub fn new() -> Self {
         Self::default()
-    }
-
-    pub fn recompute_bgp(mut self) -> Self {
-        self.recompute_bgp = true;
-        self
     }
 
     pub fn acknowledge(mut self, lsa: Lsa) -> Self {

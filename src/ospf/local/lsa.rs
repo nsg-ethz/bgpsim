@@ -31,6 +31,26 @@ pub const MAX_AGE: u16 = u16::MAX;
 /// The maximum value that LS Sequence Number can attain.
 pub const MAX_SEQ: u32 = u32::MAX;
 
+impl LsaType {
+    /// Return `true` if the LSA type is a `LsaType::Router`.
+    #[inline(always)]
+    pub fn is_router(&self) -> bool {
+        matches!(self, LsaType::Router)
+    }
+
+    /// Return `true` if the LSA type is a `LsaType::Summary`.
+    #[inline(always)]
+    pub fn is_summary(&self) -> bool {
+        matches!(self, LsaType::Summary)
+    }
+
+    /// Return `true` if the LSA type is a `LsaType::External`.
+    #[inline(always)]
+    pub fn is_external(&self) -> bool {
+        matches!(self, LsaType::External)
+    }
+}
+
 /// A single LSA header field.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct LsaHeader {
@@ -47,6 +67,24 @@ pub struct LsaHeader {
 }
 
 impl LsaHeader {
+    /// Return `true` if the LSA type is a `LsaType::Router`.
+    #[inline(always)]
+    pub fn is_router(&self) -> bool {
+        self.lsa_type.is_router()
+    }
+
+    /// Return `true` if the LSA type is a `LsaType::Summary`.
+    #[inline(always)]
+    pub fn is_summary(&self) -> bool {
+        self.lsa_type.is_summary()
+    }
+
+    /// Return `true` if the LSA type is a `LsaType::External`.
+    #[inline(always)]
+    pub fn is_external(&self) -> bool {
+        self.lsa_type.is_external()
+    }
+
     /// Determine whether `self` is newer than `other`.
     pub fn compare(&self, other: &Self) -> LsaOrd {
         match self.seq.cmp(&other.seq) {
@@ -142,6 +180,47 @@ pub struct Lsa {
     pub data: LsaData,
 }
 
+impl Lsa {
+    /// Get an `LsaKey` for `self`
+    #[inline]
+    pub fn key(&self) -> LsaKey {
+        self.header.key()
+    }
+
+    /// Whether the LSA has `age` set to `MAX_AGE`.
+    pub(crate) fn is_max_age(&self) -> bool {
+        self.header.is_max_age()
+    }
+
+    /// Whether the LSA has `seq` set to `MAX_SEQ`.
+    pub(crate) fn is_max_seq(&self) -> bool {
+        self.header.is_max_seq()
+    }
+
+    /// Compare two LSAs to determine which one is newer.
+    pub fn compare(&self, other: &Self) -> LsaOrd {
+        self.header.compare(&other.header)
+    }
+
+    /// Return `true` if the LSA type is a `LsaType::Router`.
+    #[inline(always)]
+    pub fn is_router(&self) -> bool {
+        self.header.is_router()
+    }
+
+    /// Return `true` if the LSA type is a `LsaType::Summary`.
+    #[inline(always)]
+    pub fn is_summary(&self) -> bool {
+        self.header.is_summary()
+    }
+
+    /// Return `true` if the LSA type is a `LsaType::External`.
+    #[inline(always)]
+    pub fn is_external(&self) -> bool {
+        self.header.is_external()
+    }
+}
+
 /// The data associated with a specific LsaHeader. This structure is dependent on the Lsa Type.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum LsaData {
@@ -164,6 +243,20 @@ pub enum LinkType {
     Virtual = 4,
 }
 
+impl LinkType {
+    /// Check if the link is a LinkType::PointToPoint
+    #[inline(always)]
+    pub fn is_p2p(&self) -> bool {
+        matches!(self, Self::PointToPoint)
+    }
+
+    /// Check if the link is a LinkType::Virtual
+    #[inline(always)]
+    pub fn is_virtual(&self) -> bool {
+        matches!(self, Self::Virtual)
+    }
+}
+
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Copy, Eq, Hash)]
 /// A single outgoing link described by a Router-LSA.
 pub struct RouterLsaLink {
@@ -173,6 +266,20 @@ pub struct RouterLsaLink {
     pub target: RouterId,
     /// the outgoing weight of the link
     pub weight: NotNan<LinkWeight>,
+}
+
+impl RouterLsaLink {
+    /// Check if the link is a LinkType::PointToPoint
+    #[inline(always)]
+    pub fn is_p2p(&self) -> bool {
+        self.link_type.is_p2p()
+    }
+
+    /// Check if the link is a LinkType::Virtual
+    #[inline(always)]
+    pub fn is_virtual(&self) -> bool {
+        self.link_type.is_virtual()
+    }
 }
 
 impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for LsaHeader {
@@ -297,28 +404,5 @@ impl LsaHeader {
     /// Whether the LSA has `seq` set to `MAX_SEQ`.
     pub(crate) fn is_max_seq(&self) -> bool {
         self.seq == MAX_SEQ
-    }
-}
-
-impl Lsa {
-    /// Get an `LsaKey` for `self`
-    #[inline]
-    pub fn key(&self) -> LsaKey {
-        self.header.key()
-    }
-
-    /// Whether the LSA has `age` set to `MAX_AGE`.
-    pub(crate) fn is_max_age(&self) -> bool {
-        self.header.is_max_age()
-    }
-
-    /// Whether the LSA has `seq` set to `MAX_SEQ`.
-    pub(crate) fn is_max_seq(&self) -> bool {
-        self.header.is_max_seq()
-    }
-
-    /// Compare two LSAs to determine which one is newer.
-    pub fn compare(&self, other: &Self) -> LsaOrd {
-        self.header.compare(&other.header)
     }
 }

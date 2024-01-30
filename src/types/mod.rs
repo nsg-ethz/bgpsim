@@ -464,9 +464,6 @@ pub enum NetworkError {
     /// Cannot connect two external routers together
     #[error("Cannot connect two external routers together: {0:?} and {1:?}")]
     CannotConnectExternalRouters(RouterId, RouterId),
-    /// An external router cannot be connected to two or more internal routers.
-    #[error("External router {0:?} cannot be connected to two or more internal routers.")]
-    ExternalRouterMultipleNeighbors(RouterId),
     /// Cannot configure an external link
     #[error("External links cannot be configured using OSPF: {0:?} and {1:?}")]
     CannotConfigureExternalLink(RouterId, RouterId),
