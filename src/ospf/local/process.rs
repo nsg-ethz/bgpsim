@@ -76,40 +76,60 @@ impl LocalOspfProcess {
                     return Err(DeviceError::AlreadyOspfNeighbors(self.router_id, neighbor));
                 }
                 // update the corresponding LSA and notify all neighbors
-                let (updated_spt1, mut events) =
+                let (recompute_bgp_1, mut events) =
                     self.update_weight(neighbor, area, Some(weight))?;
                 // add the new neighbor
                 self.neighbors
                     .insert(neighbor, Neighbor::new(self.router_id, neighbor, area));
                 // trigger the start event on the neighbor
-                let (updated_spt2, mut start_event) =
+                let (recompute_bgp_2, mut start_event) =
                     self.handle_neighbor_event(neighbor, NeighborEvent::Start)?;
                 events.append(&mut start_event);
-                Ok((updated_spt1 || updated_spt2, events))
+                Ok((recompute_bgp_1 || recompute_bgp_2, events))
             }
             LocalNeighborhoodChange::DelNeigbor(neighbor) => {
                 // first, remove the neighborhood
                 let Some(n) = self.neighbors.remove(&neighbor) else {
                     return Err(DeviceError::NotAnOspfNeighbor(self.router_id, neighbor));
                 };
-                self.update_weight(neighbor, n.area, None)
+                let area = n.area;
+                let (recompute_bgp, events) = self.update_weight(neighbor, area, None)?;
+                // completely remove the area datastructure in case no neighbors exist that have
+                // that area
+                if self.neighbors.values().all(|n| n.area != area) {
+                    self.areas.remove_area(area);
+                }
+                Ok((recompute_bgp, events))
             }
             LocalNeighborhoodChange::Area { neighbor, area } => {
+                if self
+                    .neighbors
+                    .get(&neighbor)
+                    .ok_or_else(|| DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?
+                    .area
+                    == area
+                {
+                    // nothing to do! the area stays the same
+                    return Ok((false, Vec::new()));
+                }
                 // first, remove the neighbor
-                let Some(n) = self.neighbors.remove(&neighbor) else {
-                    return Err(DeviceError::NotAnOspfNeighbor(self.router_id, neighbor));
-                };
+                let n = self.neighbors.remove(&neighbor).unwrap();
                 let old_area = n.area;
                 // then, modify the area in the datastructure
-                let (updated_spt1, mut events) = self.update_area(neighbor, old_area, area);
+                let (recompute_bgp_1, mut events) = self.update_area(neighbor, old_area, area);
                 // then, add the neighbor again
                 self.neighbors
                     .insert(neighbor, Neighbor::new(self.router_id, neighbor, area));
                 // trigger the start event on the neighbor
-                let (updated_spt2, mut start_event) =
+                let (recompute_bgp_2, mut start_event) =
                     self.handle_neighbor_event(neighbor, NeighborEvent::Start)?;
                 events.append(&mut start_event);
-                Ok((updated_spt1 || updated_spt2, events))
+                // completely remove the old area datastructure in case no neighbors exist that have
+                // that area
+                if self.neighbors.values().all(|n| n.area != old_area) {
+                    self.areas.remove_area(old_area);
+                }
+                Ok((recompute_bgp_1 || recompute_bgp_2, events))
             }
             LocalNeighborhoodChange::Weight {
                 neighbor,
@@ -130,85 +150,47 @@ impl LocalOspfProcess {
     /// Update the weight of a link.
     ///
     /// This will change `self.neighbor_links`, update the corresponding LSA, and notify all
-    /// neighbors. This function will panic if the area does not exist yet!
+    /// neighbors.
     fn update_weight<P: Prefix, T: Default>(
         &mut self,
         neighbor: RouterId,
         area: OspfArea,
         weight: Option<LinkWeight>,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
-        // get the current LSA
-        let (header, links) = self
+        // update the LSA
+        let Some((flood, track)) = self
             .areas
             .get_or_insert(area)
-            .get_router_lsa(self.router_id)
-            .unwrap();
-        let mut header = header.clone();
-        let mut links = links.clone();
+            .update_local_lsa(neighbor, weight)
+        else {
+            // nothing has changed, nothing to do!
+            return Ok((false, Vec::new()));
+        };
+        let flood = flood.clone();
 
         // update the local neighbors
         if let Some(new_weight) = weight {
             self.neighbor_links.insert(neighbor, new_weight);
-
-            // update the LSA
-            if let Some(pos) = links.iter().position(|l| l.target == neighbor) {
-                if links[pos].weight == new_weight {
-                    // link weight does not need to be changed. Do nothing.
-                    return Ok((false, Vec::new()));
-                }
-                links[pos].weight = NotNan::new(new_weight).unwrap();
-            } else {
-                links.push(RouterLsaLink {
-                    link_type: LinkType::PointToPoint,
-                    target: neighbor,
-                    weight: NotNan::new(new_weight).unwrap(),
-                })
-            }
         } else {
             self.neighbor_links.remove(&neighbor);
-            if let Some(pos) = links.iter().position(|l| l.target == neighbor) {
-                links.remove(pos);
-            } else {
-                // the link was not there to begin with. Do nothing
-                return Ok((false, Vec::new()));
-            }
         }
 
-        // construct the new LSA
-        let mut lsa = Lsa {
-            header,
-            data: LsaData::Router(links),
-        };
-
-        // check if we can still increment the sequence number
-        if lsa.header.seq < MAX_SEQ - 1 {
-            lsa.header.seq += 1;
-            self.areas.get_or_insert(area).insert(lsa.clone());
-            Ok(self.flood(vec![lsa], Either::Right(area)))
-        } else {
-            // we need to advertise a max-age LSA, and replace it with a new one.
-            let old_lsa = self
-                .areas
-                .get_or_insert(area)
-                .set_max_seq_and_age(lsa.key())
-                .unwrap()
-                .clone();
-            // reset the sequence number and the age
-            lsa.header.seq = 0;
-            lsa.header.age = 0;
-            // keep track of the max-age
+        // update the track_max_age if necessary
+        if let Some(new_lsa) = track {
             self.track_max_age
                 .entry(area)
                 .or_default()
-                .insert(lsa.key(), Some(lsa));
-            // flood the event
-            Ok(self.flood(vec![old_lsa], Either::Right(area)))
+                .insert(new_lsa.key(), Some(new_lsa));
         }
+
+        // flood the LSA
+        Ok(self.flood(vec![flood.clone()], Either::Right(area)))
     }
 
     /// Update the area of a link.
     ///
-    /// This will update the corresponding LSAs and notify all neighbors.
+    /// This will update the corresponding LSAs and notify all neighbors. This function will both
+    /// update the old and the new area, triggering flooding events wherever necessary.
     fn update_area<P: Prefix, T: Default>(
         &mut self,
         neighbor: RouterId,

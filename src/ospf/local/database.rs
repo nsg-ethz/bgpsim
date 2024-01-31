@@ -20,7 +20,7 @@ use crate::{
     types::RouterId,
 };
 
-use super::{Lsa, LsaData, LsaHeader, LsaKey, LsaType, RouterLsaLink, MAX_AGE, MAX_SEQ};
+use super::{LinkType, Lsa, LsaData, LsaHeader, LsaKey, LsaType, RouterLsaLink, MAX_AGE, MAX_SEQ};
 
 /// The OSPF RIB that contains all the different area datastructures.
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
@@ -124,6 +124,14 @@ impl OspfRib {
     /// Get the number of configured areas
     pub fn num_areas(&self) -> usize {
         self.areas.len()
+    }
+
+    /// Remove the area datastructure. This function requires that the router has no links connected
+    /// to that area anymore. The function will panic if that is not the case!
+    pub(super) fn remove_area(&mut self, area: OspfArea) {
+        if let Some(area) = self.areas.remove(&area) {
+            debug_assert!(area.get_router_lsa(self.router_id).unwrap().1.is_empty())
+        }
     }
 
     /// Get an iterator over all configured areas
@@ -347,6 +355,72 @@ impl AreaDataStructure {
                 LsaData::Router(r) => Some((&x.header, r)),
                 _ => None,
             })
+    }
+
+    /// Update the local RouterLSA and set the weight to a neighbor appropriately. Then, return the
+    /// new LSA. There are a couple of possible outcomes:
+    /// - `None`: The LSA must not be changed.
+    /// - `Some((lsa, None))`: The LSA is updated regularly, and `lsa` is the reference to the
+    ///   updated (currently stored) LSA.
+    /// - `Some((lsa, Some(new_lsa)))`: The LSA reached `MAX_SEQ` and was aged prematurely. `lsa` is
+    ///   a reference to the old (currently stored) LSA with `lsa.header.seq = MAX_SEQ` and
+    ///   `lsa.header.age = MAX_AGE`. The `new_lsa` is the new LSA that should be set once the old
+    ///   LSA was acknowledged by all neighbors.
+    pub fn update_local_lsa<'a>(
+        &'a mut self,
+        neighbor: RouterId,
+        weight: Option<LinkWeight>,
+    ) -> Option<(&'a Lsa, Option<Lsa>)> {
+        let router_id = self.router_id;
+        let (header, links) = self.get_router_lsa(router_id).unwrap();
+        let key = header.key();
+        let mut header = header.clone();
+        let mut links = links.clone();
+
+        // update the local neighbors
+        if let Some(new_weight) = weight {
+            // update the LSA
+            if let Some(pos) = links.iter().position(|l| l.target == neighbor) {
+                if links[pos].weight == new_weight {
+                    // link weight does not need to be changed. Do nothing.
+                    return None;
+                }
+                links[pos].weight = NotNan::new(new_weight).unwrap();
+            } else {
+                links.push(RouterLsaLink {
+                    link_type: LinkType::PointToPoint,
+                    target: neighbor,
+                    weight: NotNan::new(new_weight).unwrap(),
+                })
+            }
+        } else {
+            if let Some(pos) = links.iter().position(|l| l.target == neighbor) {
+                links.remove(pos);
+            } else {
+                // the link was not there to begin with. Do nothing
+                return None;
+            }
+        }
+
+        // construct the new LSA
+        let mut lsa = Lsa {
+            header,
+            data: LsaData::Router(links),
+        };
+
+        // check if we can still increment the sequence number
+        if lsa.header.seq < MAX_SEQ - 1 {
+            lsa.header.seq += 1;
+            self.insert(lsa);
+            Some((self.get_lsa(key).unwrap(), None))
+        } else {
+            // we need to advertise a max-age LSA, and replace it with a new one.
+            let old_lsa = self.set_max_seq_and_age(lsa.key()).unwrap();
+            // reset the sequence number and the age
+            lsa.header.seq = 0;
+            lsa.header.age = 0;
+            Some((old_lsa, Some(lsa)))
+        }
     }
 
     /// prematurely age an LSA by setting both the `seq` to `MAX_SEQ` and `age` to `MAX_AGE`.
