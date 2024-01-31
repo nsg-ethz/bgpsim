@@ -77,7 +77,7 @@ impl LocalOspfProcess {
                 }
                 // update the corresponding LSA and notify all neighbors
                 let (recompute_bgp_1, mut events) =
-                    self.update_weight(neighbor, area, Some(weight))?;
+                    self.update_weight(neighbor, area, Some(weight));
                 // add the new neighbor
                 self.neighbors
                     .insert(neighbor, Neighbor::new(self.router_id, neighbor, area));
@@ -93,7 +93,7 @@ impl LocalOspfProcess {
                     return Err(DeviceError::NotAnOspfNeighbor(self.router_id, neighbor));
                 };
                 let area = n.area;
-                let (recompute_bgp, events) = self.update_weight(neighbor, area, None)?;
+                let (recompute_bgp, events) = self.update_weight(neighbor, area, None);
                 // completely remove the area datastructure in case no neighbors exist that have
                 // that area
                 if self.neighbors.values().all(|n| n.area != area) {
@@ -135,7 +135,7 @@ impl LocalOspfProcess {
                 neighbor,
                 area,
                 weight,
-            } => self.update_weight(neighbor, area, Some(weight)),
+            } => Ok(self.update_weight(neighbor, area, Some(weight))),
             LocalNeighborhoodChange::SetExternalLink { ext, weight } => {
                 Ok(self.update_external_link(ext, weight))
             }
@@ -156,7 +156,7 @@ impl LocalOspfProcess {
         neighbor: RouterId,
         area: OspfArea,
         weight: Option<LinkWeight>,
-    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+    ) -> (bool, Vec<Event<P, T>>) {
         // update the LSA
         let Some((flood, track)) = self
             .areas
@@ -164,7 +164,7 @@ impl LocalOspfProcess {
             .update_local_lsa(neighbor, weight)
         else {
             // nothing has changed, nothing to do!
-            return Ok((false, Vec::new()));
+            return (false, Vec::new());
         };
         let flood = flood.clone();
 
@@ -184,10 +184,10 @@ impl LocalOspfProcess {
         }
 
         // flood the LSA
-        Ok(self.flood(vec![flood.clone()], Either::Right(area)))
+        self.flood(vec![flood.clone()], Either::Right(area))
     }
 
-    /// Update the area of a link.
+    /// Update the area of a link, assuming that the new neighborhood is already created.
     ///
     /// This will update the corresponding LSAs and notify all neighbors. This function will both
     /// update the old and the new area, triggering flooding events wherever necessary.
@@ -197,7 +197,53 @@ impl LocalOspfProcess {
         old: OspfArea,
         new: OspfArea,
     ) -> (bool, Vec<Event<P, T>>) {
-        todo!()
+        let weight = *self.neighbor_links.get(&neighbor).unwrap();
+
+        if old == new {
+            return (false, Vec::new());
+        }
+
+        let mut flood = Vec::new();
+
+        if let Some((lsa, track)) = self
+            .areas
+            .get_or_insert(old)
+            .update_local_lsa(neighbor, None)
+        {
+            flood.push((lsa.clone(), old));
+            if let Some(new_lsa) = track {
+                self.track_max_age
+                    .entry(old)
+                    .or_default()
+                    .insert(new_lsa.key(), Some(new_lsa));
+            }
+        };
+
+        if let Some((lsa, track)) = self
+            .areas
+            .get_or_insert(new)
+            .update_local_lsa(neighbor, Some(weight))
+        {
+            flood.push((lsa.clone(), new));
+            if let Some(new_lsa) = track {
+                self.track_max_age
+                    .entry(new)
+                    .or_default()
+                    .insert(new_lsa.key(), Some(new_lsa));
+            }
+        };
+
+        let mut events = Vec::new();
+        let mut recompute_bgp = false;
+        for (flood, area) in flood {
+            let (upd, mut ev) = self.flood(vec![flood], Either::Right(area));
+            recompute_bgp |= upd;
+            events.append(&mut ev);
+        }
+
+        // TODO: group events together
+
+        (recompute_bgp, events)
     }
 
     /// Update the external link (add, modify or remove it), and notify all neighbors about the
