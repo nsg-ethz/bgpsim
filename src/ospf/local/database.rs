@@ -279,7 +279,7 @@ impl PartialEq for AreaDataStructure {
 
 impl AreaDataStructure {
     pub fn new(router_id: RouterId, area: OspfArea) -> Self {
-        Self {
+        let mut s = Self {
             router_id,
             area,
             lsa_list: HashMap::new(),
@@ -289,7 +289,20 @@ impl AreaDataStructure {
             recompute_intra_area: false,
             recompute_inter_area: false,
             recompute_as_external: false,
-        }
+        };
+        // insert self as an RouterLSA
+        let self_lsa = Lsa {
+            header: LsaHeader {
+                lsa_type: LsaType::Router,
+                router: router_id,
+                target: None,
+                seq: 0,
+                age: 0,
+            },
+            data: LsaData::Router(Vec::new()),
+        };
+        s.lsa_list.insert(self_lsa.key(), self_lsa);
+        s
     }
 
     /// This parameter indicates whether the area can carry data traffic that neither originates nor
