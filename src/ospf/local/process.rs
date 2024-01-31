@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use itertools::Either;
 use maplit::btreemap;
 use serde::{Deserialize, Serialize};
 
@@ -184,15 +185,23 @@ impl LocalOspfProcess {
             .or_default()
             .extend(track_max_age);
 
-        // handle the flooding
-        let (recompute_bgp, mut flood_events) = self.flood(flood, neighbor);
+        // handle the flooding (and by doing that, recompute the OSPF table if necessary!)
+        let (recompute_bgp, mut flood_events) = self.flood(flood, Either::Left(neighbor));
         events.append(&mut flood_events);
 
+        // finally, handle the the max-age tracking (which might trigger another round of updates /
+        // floodings)
+        let (max_age_recompute_bgp, mut max_age_events) = self.track_max_age();
+        events.append(&mut max_age_events);
+
         // return the results
-        Ok((recompute_bgp, events))
+        Ok((recompute_bgp || max_age_recompute_bgp, events))
     }
 
-    /// Flood the required LSAs received from `from` out to all other interfaces.
+    /// Flood the required LSAs received from `from` out to all other interfaces. This function is
+    /// called when flooding LSAs that are received from a neighbor (in which case `from` must be
+    /// set to `Left(neighbor_id)`), or if some LSAs need to be flooded due to max-age tracking (in
+    /// which case `from` must be set to `Right(area)`).
     ///
     /// When a new (and more recent) LSA has been received, it must be flooded out some set of the
     /// router's interfaces. This section describes the second part of flooding procedure (the first
@@ -230,13 +239,14 @@ impl LocalOspfProcess {
     fn flood<P: Prefix, T: Default>(
         &mut self,
         flood: Vec<Lsa>,
-        from: RouterId,
+        from: Either<RouterId, OspfArea>,
     ) -> (bool, Vec<Event<P, T>>) {
-        let from_area = self
-            .neighbors
-            .get(&from)
-            .map(|n| n.area)
-            .unwrap_or_default();
+        let from_area = from
+            .left()
+            .and_then(|from| self.neighbors.get(&from).map(|n| n.area))
+            .or_else(|| from.right())
+            .unwrap();
+
         let mut result = Vec::new();
 
         let ext_flood: Vec<Lsa> = flood
@@ -272,7 +282,6 @@ impl LocalOspfProcess {
             }
 
             // update the routing table
-            // table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
             self.table = new_rib
                 .into_iter()
                 .map(|(r, path)| (r, (Vec::from_iter(path.fibs), path.cost.into_inner())))
@@ -282,7 +291,7 @@ impl LocalOspfProcess {
         for n in self.neighbors.values_mut() {
             let area = n.area;
             // ignore the neighbor from which we received the LSAs
-            if n.neighbor_id == from {
+            if Some(n.neighbor_id) == from.left() {
                 continue;
             }
 
@@ -312,6 +321,79 @@ impl LocalOspfProcess {
         }
 
         (spt_updated, result)
+    }
+
+    /// Track whether a max-age LSA can be removed from the table and replaced by a new one.
+    fn track_max_age<P: Prefix, T: Default>(&mut self) -> (bool, Vec<Event<P, T>>) {
+        let mut area_flood: BTreeMap<OspfArea, Vec<Lsa>> = BTreeMap::new();
+
+        // go through all areas without borrowing `self`
+        for area in self.track_max_age.keys().copied().collect::<Vec<_>>() {
+            // get all neighbors that are in that area
+            let neighbors: Vec<RouterId> = self
+                .neighbors
+                .iter()
+                .filter(|(_, n)| n.area == area)
+                .map(|(r, _)| *r)
+                .collect();
+
+            // remove the tracking informatoin
+            let tracking = self.track_max_age.remove(&area).unwrap();
+
+            // go through all trackings and check if the lsa is acknowledge by all neighbors. If so,
+            // then either remove the old LSA from the database or push the new LSA into the
+            // database and re-flood it. All other tracking information are retained.
+            let tracking: HashMap<LsaKey, Option<Lsa>> = tracking
+                .into_iter()
+                .filter_map(|(key, new_lsa)| {
+                    if neighbors
+                        .iter()
+                        .filter_map(|n| self.neighbors.get(n))
+                        .any(|n| n.waiting_for_ack(key))
+                    {
+                        // there are still neighbors that wait for the ack.
+                        Some((key, new_lsa))
+                    } else {
+                        // The LSA is acknowledged by all neighbors
+                        if let Some(new_lsa) = new_lsa {
+                            // insert the new LSA into the table
+                            self.areas.get_or_insert(area).insert(new_lsa.clone());
+                            // remember it to be flooded
+                            area_flood.entry(area).or_default().push(new_lsa);
+                        } else {
+                            // remove it from the table
+                            self.areas.get_or_insert(area).remove(key);
+                        }
+                        None
+                    }
+                })
+                .collect();
+
+            // put the tracking information back
+            if !tracking.is_empty() {
+                self.track_max_age.insert(area, tracking);
+            }
+        }
+
+        // reaching this point, we have updated all routing tables. If there is nothing to flood,
+        // then there is nothing left to do
+        if area_flood.is_empty() {
+            return (false, Vec::new());
+        }
+
+        // Otherwise, recompute the OSPF table, redistribute all routes, and flood the routes out of
+        // all interfaces. This is just as we would flood the events out of all neighbors of that
+        // area.
+        let mut events = Vec::new();
+        let mut recompute_bgp = false;
+
+        for (area, flood) in area_flood {
+            let (updated, mut area_events) = self.flood(flood, Either::Right(area));
+            recompute_bgp |= updated;
+            events.append(&mut area_events);
+        }
+
+        (recompute_bgp, events)
     }
 }
 

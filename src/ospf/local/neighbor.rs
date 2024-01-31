@@ -250,6 +250,11 @@ impl Neighbor {
         }
     }
 
+    /// Wehther we are waiting for the given LSA to be acknowledged.
+    pub(super) fn waiting_for_ack(&self, key: LsaKey) -> bool {
+        self.retransmission_list.contains_key(&key)
+    }
+
     /// Handle a neighbor event. This function also takes a mutable reference to the area
     /// datastructures, as it might modify it. It returns a set of LSA keys that were updated, and
     /// a flag describing whether the OSPF RIB got updated. Finally, it returns (potentially) a new
