@@ -219,6 +219,12 @@ impl Lsa {
     pub fn is_external(&self) -> bool {
         self.header.is_external()
     }
+
+    /// Return the router-id of that LSA. This is either the advertising router of a Router-LSA or
+    /// the target of a Summary-LSA or External-LSA
+    pub(crate) fn target(&self) -> RouterId {
+        self.header.target.unwrap_or(self.header.router)
+    }
 }
 
 /// The data associated with a specific LsaHeader. This structure is dependent on the Lsa Type.

@@ -5,9 +5,12 @@ use std::{
     cmp::Ordering,
     collections::{
         btree_map::Entry as BTreeEntry, hash_map::Entry, BTreeMap, BTreeSet, BinaryHeap, HashMap,
+        HashSet,
     },
 };
 
+use itertools::{EitherOrBoth, Itertools};
+use maplit::btreemap;
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
@@ -24,55 +27,164 @@ use super::{Lsa, LsaData, LsaHeader, LsaKey, LsaType, RouterLsaLink, MAX_AGE, MA
 pub struct OspfRib {
     /// The Router ID to whom this RIB belongs
     router_id: RouterId,
-    /// The RIB storing all the area datastructures.
+    /// all area data structures
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    rib: BTreeMap<OspfArea, AreaDataStructure>,
+    areas: BTreeMap<OspfArea, AreaDataStructure>,
+}
+
+/// A single entry in the routing table
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub struct OspfRibEntry {
+    /// The target router
+    pub router_id: RouterId,
+
+    /// The list of next hops for the current set of shortest paths from the root to this
+    /// vertex. There can be multiple shortest paths due to the equal-cost multipath
+    /// capability. Each next hop indicates the outgoing router interface to use when forwarding
+    /// traffic to the destination. On broadcast, Point-to-MultiPoint and NBMA networks, the next
+    /// hop also includes the IP address of the next router (if any) in the path towards the
+    /// destination.
+    pub fibs: BTreeSet<RouterId>,
+
+    /// The link state cost of the current set of shortest paths from the root to the vertex. The
+    /// link state cost of a path is calculated as the sum of the costs of the path's constituent
+    /// links (as advertised in router-LSAs and network-LSAs). One path is said to be "shorter" than
+    /// another if it has a smaller link state cost.
+    pub cost: NotNan<LinkWeight>,
+
+    /// Whether the path is an intra-area or inter-area
+    pub inter_area: bool,
+
+    /// The set of areas from which the route was learned, together with their associated LSA key
+    pub lsas: BTreeMap<OspfArea, LsaKey>,
+}
+
+impl OspfRibEntry {
+    /// Construct a new entry from an SptNode and OspfArea
+    pub fn new(path: &SptNode, area: OspfArea) -> Self {
+        Self {
+            router_id: path.router_id,
+            fibs: path.fibs.clone(),
+            cost: path.cost,
+            inter_area: path.inter_area,
+            lsas: btreemap! {area => path.key},
+        }
+    }
+
+    /// Construct a new RibEntry from a set of paths.
+    pub fn from_paths<'a>(
+        paths: impl IntoIterator<Item = (OspfArea, &'a SptNode)>,
+    ) -> Option<Self> {
+        let mut paths = paths.into_iter();
+        let (first_area, first_path) = paths.next()?;
+        let mut rib = Self::new(first_path, first_area);
+
+        // go through all other paths
+        for (area, path) in paths {
+            rib.update(path, area)
+        }
+
+        // check if the cost is finite
+        if rib.cost.is_infinite() {
+            None
+        } else {
+            Some(rib)
+        }
+    }
+
+    /// Update an existing entry by comparing it with a path from a specific area.
+    pub fn update(&mut self, path: &SptNode, area: OspfArea) {
+        match (self.inter_area, self.cost).cmp(&(path.inter_area, path.cost)) {
+            // the current cost is lower than the new path
+            Ordering::Less => {}
+            // Both paths are equally preferred. Extend the next-hops
+            Ordering::Equal => {
+                self.fibs.extend(path.fibs.iter().copied());
+                self.lsas.insert(area, path.key);
+            }
+            // The new path is better. Replace it.
+            Ordering::Greater => {
+                self.fibs = path.fibs.clone();
+                self.cost = path.cost;
+                self.inter_area = path.inter_area;
+                self.lsas = btreemap! {area => path.key};
+            }
+        }
+    }
 }
 
 impl OspfRib {
     pub fn new(router_id: RouterId) -> Self {
         Self {
             router_id,
-            rib: Default::default(),
+            areas: Default::default(),
         }
     }
 
     /// Get the number of configured areas
     pub fn num_areas(&self) -> usize {
-        self.rib.len()
+        self.areas.len()
     }
 
     /// Get an iterator over all configured areas
     pub fn areas(&self) -> impl Iterator<Item = OspfArea> + '_ {
-        self.rib.keys().copied()
+        self.areas.keys().copied()
     }
 
     /// Check whether an area is configured or not
     pub fn in_area(&self, area: OspfArea) -> bool {
-        self.rib.contains_key(&area)
+        self.areas.contains_key(&area)
     }
 
     /// Get the area data structure of a given area.
     pub fn get(&self, area: impl AsRef<OspfArea>) -> Option<&AreaDataStructure> {
-        self.rib.get(area.as_ref())
+        self.areas.get(area.as_ref())
     }
 
     /// Get a mutable reference to the area data structure.
     pub(super) fn get_mut(&mut self, area: impl AsRef<OspfArea>) -> Option<&mut AreaDataStructure> {
-        self.rib.get_mut(area.as_ref())
+        self.areas.get_mut(area.as_ref())
     }
 
     /// Get the area data structure of a given area. If the area does not exist, it will be created.
     pub(super) fn get_or_insert(&mut self, area: OspfArea) -> &mut AreaDataStructure {
-        self.rib
+        self.areas
             .entry(area)
             .or_insert_with(|| AreaDataStructure::new(self.router_id, area))
+    }
+
+    /// Construct the RIB for a specific target
+    pub fn get_rib_entry(&self, target: RouterId) -> Option<OspfRibEntry> {
+        OspfRibEntry::from_paths(
+            self.areas
+                .iter()
+                .filter_map(|(a, ds)| ds.spt.get(&target).map(|n| (*a, n))),
+        )
+    }
+
+    /// Construct the complete OSPF Rib
+    pub fn construct_rib(&self) -> HashMap<RouterId, OspfRibEntry> {
+        let mut rib: HashMap<RouterId, OspfRibEntry> = HashMap::new();
+        for (area, area_ds) in self.areas.iter() {
+            for path in area_ds.spt.values() {
+                match rib.entry(path.router_id) {
+                    Entry::Occupied(mut e) => {
+                        e.get_mut().update(path, *area);
+                    }
+                    Entry::Vacant(e) => {
+                        e.insert(OspfRibEntry::new(path, *area));
+                    }
+                }
+            }
+        }
+        rib.retain(|_, v| v.cost.is_finite());
+        rib
     }
 
     /// Insert a new area if it is missing. This function returns `true` if the area was not present
     /// before.
     pub(super) fn insert_if_missing(&mut self, area: OspfArea) -> bool {
-        if let BTreeEntry::Vacant(e) = self.rib.entry(area) {
+        if let BTreeEntry::Vacant(e) = self.areas.entry(area) {
             e.insert(AreaDataStructure::new(self.router_id, area));
             true
         } else {
@@ -80,55 +192,43 @@ impl OspfRib {
         }
     }
 
+    /// Update all necessary Summary-LSAs and generate the set of new LSAs that must be
+    /// propagated. To that end, first redistribute routes into the backbone area, and then
+    /// redistribute them from the backbone area into the others.
+    ///
+    /// During the computation, this function also constructs the RIB and returns it.
+    pub(super) fn update_summary_lsas(
+        &mut self,
+    ) -> (
+        HashMap<RouterId, OspfRibEntry>,
+        BTreeMap<OspfArea, (Vec<Lsa>, Vec<(LsaKey, Option<Lsa>)>)>,
+    ) {
+        let mut result = BTreeMap::new();
+        let rib = self.construct_rib();
+
+        // only redistribute something if we are an area border router!
+        if !self.areas.contains_key(&OspfArea::BACKBONE) && self.areas.len() > 1 {
+            return (rib, result);
+        }
+
+        for (area, area_ds) in self.areas.iter_mut() {
+            let (redistribute, track_max_age) = area_ds.redistribute_into(&rib);
+            result.insert(*area, (redistribute, track_max_age));
+        }
+
+        (rib, result)
+    }
+
     /// Redistribute all routes from a given area to all that need redistributing. Also return the
     /// information on tracking max-age. The function also returns a flag determining whether any of
     /// the forwarding tables has changed.
-    ///
-    /// This section details the OSPF routing table calculation. Using its attached areas' link
-    /// state databases as input, a router runs the following algorithm, building its routing table
-    /// step by step. At each step, the router must access individual pieces of the link state
-    /// databases (e.g., a router-LSA originated by a certain router). This access is performed by
-    /// the lookup function discussed in Section 12.2. The lookup process may return an LSA whose LS
-    /// age is equal to MaxAge. Such an LSA should not be used in the routing table calculation, and
-    /// is treated just as if the lookup process had failed.
-    ///
-    /// The OSPF routing table's organization is explained in Section 11. Two examples of the
-    /// routing table build process are presented in Sections 11.2 and 11.3. This process can be
-    /// broken into the following steps:
-    ///
-    /// (1) The present routing table is invalidated. The routing table is built again from
-    ///     scratch. The old routing table is saved so that changes in routing table entries can be
-    ///     identified.
-    ///
-    /// (2) The intra-area routes are calculated by building the shortest- path tree for each
-    ///     attached area. In particular, all routing table entries whose Destination Type is "area
-    ///     border router" are calculated in this step. This step is described in two parts. At
-    ///     first the tree is constructed by only considering those links between routers and
-    ///     transit networks. Then the stub networks are incorporated into the tree. During the
-    ///     area's shortest-path tree calculation, the area's TransitCapability is also calculated
-    ///     for later use in Step 4.
-    ///
-    /// (3) The inter-area routes are calculated, through examination of summary-LSAs. If the router
-    ///     is attached to multiple areas (i.e., it is an area border router), only backbone
-    ///     summary-LSAs are examined.
-    ///
-    /// (4) In area border routers connecting to one or more transit areas (i.e, non-backbone areas
-    ///     whose TransitCapability is found to be TRUE), the transit areas' summary-LSAs are
-    ///     examined to see whether better paths exist using the transit areas than were found in
-    ///     Steps 2-3 above.
-    ///
-    /// (5) Routes to external destinations are calculated, through examination of AS-external-LSAs.
-    ///     The locations of the AS boundary routers (which originate the AS-external-LSAs) have
-    ///     been determined in steps 2-4.
-    pub(super) fn refresh_routing_table(
-        &mut self,
-        from_area: OspfArea,
-    ) -> (
-        bool,
-        Vec<(Lsa, OspfArea)>,
-        Vec<(OspfArea, Vec<(LsaKey, Option<Lsa>)>)>,
-    ) {
-        todo!()
+    pub(super) fn refresh_routing_table(&mut self) -> bool {
+        let mut changed = false;
+        for adv in self.areas.values_mut() {
+            changed |= adv.update_spt();
+        }
+
+        changed
     }
 }
 
@@ -167,6 +267,8 @@ pub struct AreaDataStructure {
     /// Whether to recompute the forwarding table for external LSAs using the algorithm presented in
     /// section 16.4 of RFC 2328.
     recompute_as_external: bool,
+    /// The set of targets that are redistributed by this router.
+    redistributed_paths: BTreeMap<RouterId, NotNan<LinkWeight>>,
 }
 
 impl PartialEq for AreaDataStructure {
@@ -183,6 +285,7 @@ impl AreaDataStructure {
             lsa_list: HashMap::new(),
             transit_capability: Default::default(),
             spt: HashMap::from_iter([(router_id, SptNode::new(router_id))]),
+            redistributed_paths: Default::default(),
             recompute_intra_area: false,
             recompute_inter_area: false,
             recompute_as_external: false,
@@ -289,7 +392,7 @@ impl AreaDataStructure {
         }
     }
 
-    /// Update the SPT by re-running Dijkstra's algorithm *if* the SPT is no longer up-to-date.
+    /// Update the SPT computation (both intra-area paths, inter-area paths and as-external paths).
     ///
     /// This calculation yields the set of intra-area routes associated with an area (called
     /// hereafter Area A). A router calculates the shortest-path tree using itself as the root.[22]
@@ -302,7 +405,7 @@ impl AreaDataStructure {
     /// 2. The area's link state database is represented as a directed graph. The graph's vertices
     /// are routers, transit networks and stub networks. The first stage of the procedure concerns
     /// only the transit vertices (routers and transit networks) and their connecting links.
-    fn update_spt(&mut self) -> bool {
+    pub fn update_spt(&mut self) -> bool {
         let mut modified = false;
 
         let mut old_spt = HashMap::with_capacity(self.spt.len());
@@ -644,11 +747,23 @@ impl AreaDataStructure {
                     //     addresses.
                     // --> ignore that case
 
-                    // (X) [CUSTOM RULE] Else, compare with the previously seen path. Prefer the
-                    //     path that is learned from an intra-area target, followed by those from
-                    //     inter-area targets. If they are still indistinguishable, then choose the
-                    //     one with the smaller cost. If their cost is the same, then combine their
-                    //     next-hops.
+                    // (f) When multiple intra-AS paths are available to ASBRs/forwarding addresses,
+                    //     the following rules indicate which paths are preferred. These rules apply
+                    //     when the same ASBR is reachable through multiple areas, or when trying to
+                    //     decide which of several AS-external-LSAs should be preferred. In the
+                    //     former case the paths all terminate at the same ASBR, while in the latter
+                    //     the paths terminate at separate ASBRs/forwarding addresses. In either
+                    //     case, each path is represented by a separate routing table entry as
+                    //     defined in Section 11.
+
+                    //     The path preference rules, stated from highest to lowest preference, are
+                    //     as follows. Note that as a result of these rules, there may still be
+                    //     multiple paths of the highest preference. In this case, the path to use
+                    //     must be determined based on cost, as described in Section 16.4.
+                    //     - Intra-area paths using non-backbone areas are always the most
+                    //       preferred.
+                    //     - The other paths, intra-area backbone paths and inter-area paths, are of
+                    //       equal preference.
                     match (e.get().inter_area, e.get().cost).cmp(&(path.inter_area, path.cost)) {
                         // the current cost is lower than the new path
                         Ordering::Less => {}
@@ -673,6 +788,247 @@ impl AreaDataStructure {
         self.spt.extend(new_paths);
 
         changed
+    }
+
+    /// Redistribute routes from `rib` into `self`.
+    ///
+    /// Summary-LSAs are originated by area border routers. The precise summary routes to advertise
+    /// into an area are determined by examining the routing table structure (see Section 11) in
+    /// accordance with the algorithm described below. Note that only intra-area routes are
+    /// advertised into the backbone, while both intra-area and inter-area routes are advertised
+    /// into the other areas.
+    ///
+    /// To determine which routes to advertise into an attached Area A, each routing table entry is
+    /// processed as follows. Remember that each routing table entry describes a set of equal-cost
+    /// best paths to a particular destination.
+    fn redistribute_into(
+        &mut self,
+        rib: &HashMap<RouterId, OspfRibEntry>,
+    ) -> (Vec<Lsa>, Vec<(LsaKey, Option<Lsa>)>) {
+        let mut redistribute = Vec::new();
+        let mut track_max_age = Vec::new();
+
+        // collect the next-hops of the target area
+        let target_neighbors: BTreeSet<RouterId> = self
+            .get_router_lsa(self.router_id)
+            .into_iter()
+            .flat_map(|(_, l)| l)
+            .map(|l| l.target)
+            .collect();
+        if target_neighbors.is_empty() {
+            // if target_neighbors is empty, we are no longer part of that area!
+            return (redistribute, track_max_age);
+        }
+
+        let mut redistributed_paths = BTreeMap::new();
+
+        for (target, path) in rib.iter() {
+            // do not redistribute Router-LSAs that are generated by this router itself.
+            if *target == self.router_id {
+                continue;
+            }
+
+            // - Only Destination Types of network and AS boundary router are advertised in
+            //   summary-LSAs. If the routing table entry's Destination Type is area border router,
+            //   examine the next routing table entry.
+            // --> we do not model this thing.
+
+            // - AS external routes are never advertised in summary-LSAs. If the routing table entry
+            //   has Path-type of type 1 external or type 2 external, examine the next routing table
+            //   entry.
+            if path.lsas.values().any(|key| key.lsa_type.is_external()) {
+                continue;
+            }
+
+            // - Else, if the area associated with this set of paths is the Area A itself, do not
+            //   generate a summary-LSA for the route.[17]
+            if path.lsas.contains_key(&self.area) {
+                continue;
+            }
+
+            // - Else, if the next hops associated with this set of paths belong to Area A itself,
+            //   do not generate a summary-LSA for the route.[18] This is the logical equivalent of
+            //   a Distance Vector protocol's split horizon logic.
+            if path.fibs.iter().any(|nh| target_neighbors.contains(nh)) {
+                continue;
+            }
+
+            // - Else, if the routing table cost equals or exceeds the value LSInfinity, a
+            //   summary-LSA cannot be generated for this route.
+            if path.cost.is_infinite() {
+                continue;
+            }
+
+            // - Else, if the destination of this route is an AS boundary router, a summary-LSA
+            //   should be originated if and only if the routing table entry describes the preferred
+            //   path to the AS boundary router (see Step 3 of Section 16.4). If so, a Type 4
+            //   summary-LSA is originated for the destination, with Link State ID equal to the AS
+            //   boundary router's Router ID and metric equal to the routing table entry's
+            //   cost. Note: these LSAs should not be generated if Area A has been configured as a
+            //   stub area.
+            // --> we only have network types
+
+            // - Else, the Destination type is network. If this is an inter-area route, generate a
+            //   Type 3 summary-LSA for the destination, with Link State ID equal to the network's
+            //   address (if necessary, the Link State ID can also have one or more of the network's
+            //   host bits set; see Appendix E for details) and metric equal to the routing table
+            //   cost.
+
+            // - The one remaining case is an intra-area route to a network. This means that the
+            //   network is contained in one of the router's directly attached areas. In general,
+            //   this information must be condensed before appearing in summary-LSAs. Remember that
+            //   an area has a configured list of address ranges, each range consisting of an
+            //   [address,mask] pair and a status indication of either Advertise or
+            //   DoNotAdvertise. At most a single Type 3 summary-LSA is originated for each
+            //   range. When the range's status indicates Advertise, a Type 3 summary-LSA is
+            //   generated with Link State ID equal to the range's address (if necessary, the Link
+            //   State ID can also have one or more of the range's "host" bits set; see Appendix E
+            //   for details) and cost equal to the largest cost of any of the component
+            //   networks. When the range's status indicates DoNotAdvertise, the Type 3 summary-LSA
+            //   is suppressed and the component networks remain hidden from other areas.
+
+            //   By default, if a network is not contained in any explicitly configured address
+            //   range, a Type 3 summary-LSA is generated with Link State ID equal to the network's
+            //   address (if necessary, the Link State ID can also have one or more of the network's
+            //   "host" bits set; see Appendix E for details) and metric equal to the network's
+            //   routing table cost.
+
+            //   If an area is capable of carrying transit traffic (i.e., its TransitCapability is
+            //   set to TRUE), routing information concerning backbone networks should not be
+            //   condensed before being summarized into the area. Nor should the advertisement of
+            //   backbone networks into transit areas be suppressed. In other words, the backbone's
+            //   configured ranges should be ignored when originating summary-LSAs into transit
+            //   areas.
+
+            // We treat all of these steps above differently! first, check if we should re-advertise
+            // the path. We want to redistribute all paths except if the area the backbone, and the
+            // path is an inter_area path.
+            if self.area.is_backbone() && path.inter_area {
+                continue;
+            }
+
+            // if we get here, then the path must be re-advertised
+            redistributed_paths.insert(path.router_id, path.cost);
+        }
+
+        // prepare all paths to redistribute
+        for m in redistributed_paths
+            .iter()
+            .merge_join_by(self.redistributed_paths.iter(), |(a, _), (b, _)| a.cmp(b))
+        {
+            match m {
+                EitherOrBoth::Both((&r, &new), (_, &old)) if old != new => {
+                    // Path is updated
+                    let key = LsaKey {
+                        lsa_type: LsaType::Summary,
+                        router: self.router_id,
+                        target: Some(r),
+                    };
+                    let lsa = self.lsa_list.get_mut(&key).expect("Key must exist");
+                    // check if the lsa already has max_age
+                    if lsa.is_max_age() {
+                        // in that case, update the tracking information
+                        let mut new_lsa = lsa.clone();
+                        new_lsa.data = LsaData::Summary(new);
+                        new_lsa.header.seq = 0;
+                        new_lsa.header.age = 0;
+                        track_max_age.push((key, Some(new_lsa)));
+                    } else if lsa.header.seq >= MAX_SEQ - 1 {
+                        // sequence number overflow! --> premature aging
+                        lsa.header.seq = MAX_SEQ;
+                        lsa.header.age = MAX_AGE;
+                        redistribute.push(lsa.clone());
+                        // keep track of max-age
+                        let mut new_lsa = lsa.clone();
+                        new_lsa.data = LsaData::Summary(new);
+                        new_lsa.header.seq = 0;
+                        new_lsa.header.age = 0;
+                        track_max_age.push((key, Some(new_lsa)));
+                    } else {
+                        // increment the sequence number, update the weight, and flood
+                        lsa.header.seq += 1;
+                        lsa.data = LsaData::Summary(new);
+                        redistribute.push(lsa.clone());
+                    }
+                }
+                EitherOrBoth::Both(_, _) => {
+                    // path is not modified. Nothing to do here
+                }
+                EitherOrBoth::Left((&r, &new)) => {
+                    // Path is newly advertised!
+                    let lsa = Lsa {
+                        header: LsaHeader {
+                            lsa_type: LsaType::Summary,
+                            router: self.router_id,
+                            target: Some(r),
+                            seq: 0,
+                            age: 0,
+                        },
+                        data: LsaData::Summary(new),
+                    };
+                    let key = lsa.key();
+                    // before insertint into the datastructure, check if it is not already present.
+                    match self.lsa_list.entry(key) {
+                        Entry::Occupied(e) => {
+                            // the lsa must be max-age
+                            debug_assert!(e.get().is_max_age());
+                            // in that case, update the tracking information
+                            track_max_age.push((key, Some(lsa)));
+                        }
+                        Entry::Vacant(e) => {
+                            e.insert(lsa.clone());
+                            redistribute.push(lsa);
+                        }
+                    }
+                }
+                EitherOrBoth::Right((&r, &old)) => {
+                    // Path is no longer advertised!
+                    //
+                    // If a router advertises a summary-LSA for a destination which then becomes
+                    // unreachable, the router must then flush the LSA from the routing domain by
+                    // setting its age to MaxAge and reflooding (see Section 14.1). Also, if the
+                    // destination is still reachable, yet can no longer be advertised according to
+                    // the above procedure (e.g., it is now an inter-area route, when it used to be
+                    // an intra-area route associated with some non-backbone area; it would thus no
+                    // longer be advertisable to the backbone), the LSA should also be flushed from
+                    // the routing domain.
+                    let lsa_type = LsaType::Summary;
+                    let router = self.router_id;
+                    let target = Some(r);
+                    let key = LsaKey {
+                        lsa_type,
+                        router,
+                        target,
+                    };
+                    let seq = self
+                        .lsa_list
+                        .get(&key)
+                        .map(|x| x.header.seq)
+                        .unwrap_or(MAX_SEQ);
+                    let lsa = Lsa {
+                        header: LsaHeader {
+                            lsa_type,
+                            router,
+                            target,
+                            seq,
+                            age: MAX_AGE,
+                        },
+                        data: LsaData::Summary(old),
+                    };
+                    // simply insert the LSA into the list, replacing the old value
+                    self.lsa_list.insert(key, lsa.clone());
+                    // ensure that the update is flooded out
+                    redistribute.push(lsa);
+                    track_max_age.push((key, None));
+                }
+            }
+        }
+
+        // update the redistributed paths
+        self.redistributed_paths = redistributed_paths;
+
+        // return the result
+        (redistribute, track_max_age)
     }
 }
 

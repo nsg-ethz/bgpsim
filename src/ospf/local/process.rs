@@ -2,6 +2,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use maplit::btreemap;
 use serde::{Deserialize, Serialize};
 
 use crate::{
@@ -31,7 +32,7 @@ pub struct LocalOspfProcess {
     neighbors: BTreeMap<RouterId, Neighbor>,
     /// Sequence of keys to track that all neighbors acknowledge that LSA. Once acknowledged,
     /// introduce the new LSA into the table and flood it (if `Some`).
-    track_max_age: BTreeMap<OspfArea, Vec<(LsaKey, Option<Lsa>)>>,
+    track_max_age: BTreeMap<OspfArea, HashMap<LsaKey, Option<Lsa>>>,
 }
 
 /// Neighborhood change event local to a specific router.
@@ -174,14 +175,14 @@ impl LocalOspfProcess {
         let NeighborActions {
             mut events,
             flood,
-            mut track_max_age,
+            track_max_age,
         } = n.handle_event(event, &mut self.areas);
 
         // register new max_age tracking
         self.track_max_age
             .entry(area)
             .or_default()
-            .append(&mut track_max_age);
+            .extend(track_max_age);
 
         // handle the flooding
         let (recompute_bgp, mut flood_events) = self.flood(flood, neighbor);
@@ -238,15 +239,45 @@ impl LocalOspfProcess {
             .unwrap_or_default();
         let mut result = Vec::new();
 
-        let mut flood: Vec<(Lsa, OspfArea)> =
-            flood.into_iter().map(|lsa| (lsa, from_area)).collect();
+        let ext_flood: Vec<Lsa> = flood
+            .iter()
+            .filter(|lsa| lsa.is_external())
+            .cloned()
+            .collect();
+        let mut area_flood: BTreeMap<OspfArea, Vec<Lsa>> = BTreeMap::new();
+        area_flood.insert(
+            from_area,
+            flood.into_iter().filter(|lsa| !lsa.is_external()).collect(),
+        );
 
-        let (recompute_bgp, mut redist, track_max_age) =
-            self.areas.refresh_routing_table(from_area);
-        flood.append(&mut redist);
-        track_max_age
-            .into_iter()
-            .for_each(|(area, mut t)| self.track_max_age.entry(area).or_default().append(&mut t));
+        let spt_updated = self.areas.refresh_routing_table();
+
+        if spt_updated {
+            // update the redistribution
+            let (new_rib, redist_info) = self.areas.update_summary_lsas();
+
+            // deal with the redist_info
+            for (area, (mut redistribute, track_max_age)) in redist_info {
+                // update the flooding information
+                area_flood
+                    .entry(area)
+                    .or_default()
+                    .append(&mut redistribute);
+                // update the track_max_age stuff. Extending here will overwrite all the old values,
+                // such that we will flood the new informatoin once the old information is removed.
+                self.track_max_age
+                    .entry(area)
+                    .or_default()
+                    .extend(track_max_age);
+            }
+
+            // update the routing table
+            // table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+            self.table = new_rib
+                .into_iter()
+                .map(|(r, path)| (r, (Vec::from_iter(path.fibs), path.cost.into_inner())))
+                .collect();
+        }
 
         for n in self.neighbors.values_mut() {
             let area = n.area;
@@ -255,12 +286,13 @@ impl LocalOspfProcess {
                 continue;
             }
 
-            // filter out those SLAs that we actually should flood
-            let flood: Vec<Lsa> = flood
-                .iter()
-                .filter_map(|(lsa, lsa_area)| {
-                    (lsa.is_external() || *lsa_area == area).then_some(lsa.clone())
-                })
+            // get the information to flood
+            let flood: Vec<Lsa> = area_flood
+                .get(&area)
+                .into_iter()
+                .flatten()
+                .chain(&ext_flood)
+                .cloned()
                 .collect();
 
             let NeighborActions {
@@ -279,7 +311,7 @@ impl LocalOspfProcess {
             result.append(&mut events);
         }
 
-        (recompute_bgp, result)
+        (spt_updated, result)
     }
 }
 
