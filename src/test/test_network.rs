@@ -1041,7 +1041,7 @@ mod t {
         };
         let route_r421 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65001), AsId(65104), AsId(100)],
+            as_path: vec![AsId(65535), AsId(65104), AsId(100)],
             next_hop: *R1,
             local_pref: None,
             med: None,
@@ -1218,7 +1218,7 @@ mod t {
         };
         let route_r421 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65001), AsId(65104), AsId(100)],
+            as_path: vec![AsId(65535), AsId(65104), AsId(100)],
             next_hop: *R1,
             local_pref: None,
             med: Some(0),

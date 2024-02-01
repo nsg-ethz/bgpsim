@@ -83,7 +83,7 @@ exit
 route-map neighbor-R0_ext_4-out permit 65535
 exit
 !
-router bgp 65001
+router bgp 65535
   router-id 10.0.0.1
   neighbor 10.0.1.1 remote-as 65535
     update-source Loopback0
@@ -92,7 +92,7 @@ router bgp 65001
       next-hop-self
       route-map neighbor-R1-in in
       route-map neighbor-R1-out out
-      send-community
+      send-community both
       soft-reconfiguration inbound
     exit
   exit
@@ -103,7 +103,7 @@ router bgp 65001
       next-hop-self
       route-map neighbor-R2-in in
       route-map neighbor-R2-out out
-      send-community
+      send-community both
       soft-reconfiguration inbound
     exit
   exit
@@ -114,7 +114,7 @@ router bgp 65001
       next-hop-self
       route-map neighbor-R3-in in
       route-map neighbor-R3-out out
-      send-community
+      send-community both
       soft-reconfiguration inbound
     exit
   exit
