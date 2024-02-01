@@ -481,7 +481,7 @@ impl LocalOspfProcess {
             area_flood.insert(None, flood);
         }
 
-        let spt_updated = self.areas.refresh_routing_table();
+        let spt_updated = self.areas.update_routing_table();
 
         if spt_updated {
             // update the redistribution

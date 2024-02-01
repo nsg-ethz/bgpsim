@@ -337,7 +337,7 @@ impl OspfRib {
     /// Redistribute all routes from a given area to all that need redistributing. Also return the
     /// information on tracking max-age. The function also returns a flag determining whether any of
     /// the forwarding tables has changed.
-    pub(super) fn refresh_routing_table(&mut self) -> bool {
+    pub(super) fn update_routing_table(&mut self) -> bool {
         let mut changed = false;
         for adv in self.areas.values_mut() {
             changed |= adv.update_spt();
@@ -650,8 +650,9 @@ struct AreaDataStructure {
     /// state using the algorithm presented in Section 16.1 of RFC 2328.
     recompute_intra_area: bool,
     /// Whether to recompute the forwarding table for summary LSAs using the algorithm presented in
-    /// section 16.2 of RFC 2328.
-    recompute_inter_area: bool,
+    /// section 16.2 of RFC 2328. Here, we store the inter-area destinations for which we need to
+    /// recompute the results
+    recompute_inter_area: BTreeSet<RouterId>,
     /// The set of targets that are redistributed by this router.
     redistributed_paths: BTreeMap<RouterId, NotNan<LinkWeight>>,
 }
@@ -672,7 +673,7 @@ impl AreaDataStructure {
             spt: HashMap::from_iter([(router_id, SptNode::new(router_id))]),
             redistributed_paths: Default::default(),
             recompute_intra_area: false,
-            recompute_inter_area: false,
+            recompute_inter_area: Default::default(),
         };
         // insert self as an RouterLSA
         let self_lsa = Lsa {
@@ -783,7 +784,7 @@ impl AreaDataStructure {
         if key.is_router() {
             self.recompute_intra_area = true;
         } else if key.is_summary() {
-            self.recompute_inter_area = true;
+            self.recompute_inter_area.insert(key.target());
         } else if key.is_external() {
             unreachable!()
         }
@@ -810,7 +811,7 @@ impl AreaDataStructure {
         if key.is_router() {
             self.recompute_intra_area = true;
         } else if key.is_summary() {
-            self.recompute_inter_area = true;
+            self.recompute_inter_area.insert(key.target());
         } else if key.is_external() {
             unreachable!()
         }
@@ -826,13 +827,14 @@ impl AreaDataStructure {
         if key.is_router() {
             self.recompute_intra_area = true;
         } else if key.is_summary() {
-            self.recompute_inter_area = true;
+            self.recompute_inter_area.insert(key.target());
         } else if key.is_external() {
             unreachable!()
         }
     }
 
     /// Update the SPT computation (both intra-area paths, inter-area paths and as-external paths).
+    /// The function returns `true` if the SPT was updated.
     ///
     /// This calculation yields the set of intra-area routes associated with an area (called
     /// hereafter Area A). A router calculates the shortest-path tree using itself as the root.[22]
@@ -848,9 +850,6 @@ impl AreaDataStructure {
     fn update_spt(&mut self) -> bool {
         let mut modified = false;
 
-        let mut old_spt = HashMap::with_capacity(self.spt.len());
-        std::mem::swap(&mut old_spt, &mut self.spt);
-
         // recompute dijkstra if necessary
         if self.recompute_intra_area {
             self.spt.clear();
@@ -858,13 +857,11 @@ impl AreaDataStructure {
             modified = true;
         }
 
-        if modified || self.recompute_inter_area {
+        if modified || !self.recompute_inter_area.is_empty() {
             // todo!("implement partial updater here!");
-            modified |= self.calculate_inter_area_routes(&old_spt);
+            self.calculate_inter_area_routes(modified);
+            modified = true;
         }
-
-        // check if the number of elements in the SPT changed.
-        modified |= old_spt.len() != self.spt.len();
 
         modified
     }
@@ -963,7 +960,10 @@ impl AreaDataStructure {
     }
 
     /// This algorithm computes the routes from Summary-LSAs using the algorithm presented in
-    /// Section 16.2 of RFC 2328.
+    /// Section 16.2 of RFC 2328. If `all` is set to `true`, then go through all summary-LSAs to
+    /// build the SPT for each inter-area destination (in that case, the SPT was cleared
+    /// before). Otherwhise, only compute the entries related to the summary-LSAs that were actually
+    /// changed.
     ///
     /// The inter-area routes are calculated by examining summary-LSAs. If the router has active
     /// attachments to multiple areas, only backbone summary-LSAs are examined. Routers attached to
@@ -974,15 +974,33 @@ impl AreaDataStructure {
     /// considered in turn. Remember that the destination described by a summary-LSA is either a
     /// network (Type 3 summary-LSAs) or an AS boundary router (Type 4 summary-LSAs). For each
     /// summary-LSA:
-    fn calculate_inter_area_routes(&mut self, old_spt: &HashMap<RouterId, SptNode>) -> bool {
+    fn calculate_inter_area_routes(&mut self, recompute_all: bool) {
         let mut new_paths: HashMap<RouterId, SptNode> = HashMap::new();
+
+        // remove all old values if we don't recompute all entries.
+        if !recompute_all {
+            for r in self.recompute_inter_area.iter() {
+                // remove, but only if the path was learned via an inter_area
+                if let Entry::Occupied(e) = self.spt.entry(*r) {
+                    if e.get().inter_area {
+                        e.remove();
+                    }
+                }
+            }
+        }
 
         for lsa in self.lsa_list.values() {
             // only look at Summary-LSAs
             let LsaData::Summary(weight) = lsa.data else {
                 continue;
             };
-            let target = lsa.header.target.expect("must be set");
+            let target = lsa.target();
+
+            // only continue if we either recompute all targets, or if the target is mentioned in
+            // `self.recompute_intra_area`.
+            if !(recompute_all || self.recompute_inter_area.contains(&target)) {
+                continue;
+            }
 
             // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
             //     to MaxAge, then examine the the next LSA.
@@ -1060,14 +1078,8 @@ impl AreaDataStructure {
             }
         }
 
-        let changed = new_paths
-            .iter()
-            .any(|(k, v)| old_spt.get(k).map(|x| x.cost) != Some(v.cost));
-
         // extend the spt with the new paths
         self.spt.extend(new_paths);
-
-        changed
     }
 
     /// Redistribute routes from `rib` into `self`.
