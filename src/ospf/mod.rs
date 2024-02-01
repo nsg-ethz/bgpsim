@@ -43,6 +43,9 @@ use crate::{
 use global::GlobalOspfOracle;
 use local::OspfEvent;
 
+pub use global::GlobalOspf;
+pub use local::LocalOspf;
+
 /// Link Weight for the IGP graph
 pub type LinkWeight = f64;
 /// The default link weight that is configured when adding a link.
