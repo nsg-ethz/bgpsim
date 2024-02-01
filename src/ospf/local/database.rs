@@ -878,6 +878,7 @@ impl AreaDataStructure {
         #[derive(Clone, Copy, PartialEq, Eq)]
         struct HeapEntry {
             node: RouterId,
+            parent: RouterId,
             cost: NotNan<LinkWeight>,
         }
 
@@ -908,16 +909,17 @@ impl AreaDataStructure {
                 .filter(|l| l.is_p2p())
                 .map(|l| HeapEntry {
                     node: l.target,
+                    parent: root,
                     cost: l.weight,
                 }),
         );
 
-        while let Some(HeapEntry { node, cost }) = visit_next.pop() {
+        while let Some(HeapEntry { node, parent, cost }) = visit_next.pop() {
             // if the cost becomes infinite, break out of the loop
             if cost.into_inner().is_infinite() {
                 break;
             }
-            let from_fibs = self.spt.get(&node).expect("already visited").fibs.clone();
+            let from_fibs = self.spt.get(&parent).expect("not yet visited").fibs.clone();
             // check if already visited
             match self.spt.entry(node) {
                 Entry::Occupied(mut e) => {
@@ -944,6 +946,7 @@ impl AreaDataStructure {
                             .filter(|l| l.is_p2p())
                             .map(|l| HeapEntry {
                                 node: l.target,
+                                parent: node,
                                 cost: cost + l.weight,
                             }),
                     );
