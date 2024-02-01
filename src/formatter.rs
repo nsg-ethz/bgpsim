@@ -924,7 +924,7 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
             nhs
         };
         let cost = self.cost.into_inner();
-        format!("{} -> {nhs} (cost: {cost}{kind})", self.router_id.fmt(net))
+        format!("{} -> {nhs} (cost: {cost} {kind})", self.router_id.fmt(net))
     }
 }
 

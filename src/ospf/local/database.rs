@@ -853,10 +853,13 @@ impl AreaDataStructure {
 
         // recompute dijkstra if necessary
         if self.recompute_intra_area {
-            modified |= self.calculate_intra_area_routes(&old_spt);
+            self.spt.clear();
+            self.calculate_intra_area_routes();
+            modified = true;
         }
 
         if modified || self.recompute_inter_area {
+            // todo!("implement partial updater here!");
             modified |= self.calculate_inter_area_routes(&old_spt);
         }
 
@@ -867,13 +870,12 @@ impl AreaDataStructure {
     }
 
     /// Recompute the distance and next-hops towards each destination using Dijkstra's algorithm.
-    /// This function will update `self.spt` and return `true` if the result is different from the
-    /// old value.
+    /// This function will update `self.spt`.
     ///
     /// The algorithm does *not directly* resemble the algorithm described in 16.1, because there
     /// are lots of aspects that we ignore, e.g., stub networks. Instead, we implement an optimized
     /// Dijkstra algorithm that keeps track of the next-hops from the source.
-    fn calculate_intra_area_routes(&mut self, old_spt: &HashMap<RouterId, SptNode>) -> bool {
+    fn calculate_intra_area_routes(&mut self) {
         // use a heap to always explore the shortest paths first
         #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         struct HeapEntry {
@@ -895,7 +897,6 @@ impl AreaDataStructure {
         }
 
         let root = self.router_id;
-        let mut changed = false;
         let mut visit_next = BinaryHeap::new();
         self.spt.insert(root, SptNode::new(root));
 
@@ -927,6 +928,7 @@ impl AreaDataStructure {
                 debug_assert!(parent == root);
                 from_fibs.insert(node);
             }
+
             // check if already visited
             match self.spt.entry(node) {
                 Entry::Occupied(mut e) => {
@@ -942,8 +944,6 @@ impl AreaDataStructure {
                 Entry::Vacant(e) => {
                     // insert the new node
                     e.insert(SptNode::from(node, cost, from_fibs));
-                    // check if there was an update in terms of cost from before
-                    changed |= old_spt.get(&node).map(|x| x.cost) != Some(cost);
                     // extend the heap
                     visit_next.extend(
                         self.get_router_lsa(node)
@@ -960,8 +960,6 @@ impl AreaDataStructure {
                 }
             }
         }
-
-        changed
     }
 
     /// This algorithm computes the routes from Summary-LSAs using the algorithm presented in
