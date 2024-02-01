@@ -372,10 +372,10 @@ impl LocalOspfProcess {
         neighbor: RouterId,
         event: NeighborEvent,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
-        let n = self
-            .neighbors
-            .get_mut(&neighbor)
-            .ok_or_else(|| DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?;
+        let Some(n) = self.neighbors.get_mut(&neighbor) else {
+            log::trace!("received event from non-existing neighbor. Ignoring the event");
+            return Ok((false, Vec::new()));
+        };
 
         let area = n.area;
 
