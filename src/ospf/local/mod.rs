@@ -6,8 +6,9 @@ mod neighbor;
 mod process;
 use std::collections::{HashMap, HashSet};
 
+pub use database::{OspfRib, OspfRibEntry};
 pub use lsa::*;
-use process::LocalOspfProcess;
+pub use process::LocalOspfProcess;
 
 use itertools::Itertools;
 
@@ -16,7 +17,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     event::Event,
     formatter::NetworkFormatter,
-    types::{NetworkDevice, NetworkError, Prefix, RouterId},
+    ospf::local::process::LocalNeighborhoodChange,
+    types::{NetworkDevice, NetworkError, NetworkErrorOption, Prefix, RouterId},
 };
 
 use super::{LinkWeight, NeighborhoodChange, OspfArea, OspfCoordinator, OspfImpl};
@@ -43,10 +45,21 @@ impl OspfCoordinator for LocalOspfCoordinator {
         &mut self,
         delta: NeighborhoodChange,
         routers: &mut HashMap<RouterId, NetworkDevice<P, Self::Process>>,
-        links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
-        external_links: &HashMap<RouterId, HashSet<RouterId>>,
+        _links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
+        _external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
-        todo!()
+        let mut events = Vec::new();
+
+        for (r, change) in LocalNeighborhoodChange::from_global(delta) {
+            let mut r_events = routers
+                .get_mut(&r)
+                .or_router_not_found(r)?
+                .internal_or_err()?
+                .update_ospf(|ospf| ospf.handle_neighborhood_change(change))?;
+            events.append(&mut r_events);
+        }
+
+        Ok(events)
     }
 }
 

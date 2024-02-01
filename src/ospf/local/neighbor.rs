@@ -15,10 +15,7 @@ use crate::{
     types::{Prefix, RouterId},
 };
 
-use super::{
-    database::{AreaDataStructure, OspfRib},
-    Lsa, LsaHeader, LsaKey, LsaOrd, OspfEvent, MAX_AGE, MAX_SEQ,
-};
+use super::{database::OspfRib, Lsa, LsaHeader, LsaKey, LsaOrd, OspfEvent, MAX_AGE, MAX_SEQ};
 
 /// When the two neighbors are exchanging databases, they form a leader/follower relationship. The
 /// leader sends the first Database Description Packet, and is the only part that is allowed to
@@ -273,7 +270,10 @@ impl Neighbor {
             NeighborEvent::Start => match (&self.state, self.relation) {
                 // transition to exchange, sending the database description packet
                 (NeighborState::Init, Relation::Leader) => {
-                    let summary_list = areas.get_or_insert(self.area).get_lsa_list().clone();
+                    let mut summary_list = areas.get_lsa_list(Some(self.area)).unwrap().clone();
+                    // also add the external-as LSAs
+                    summary_list.extend(areas.get_lsa_list(None).unwrap().clone());
+
                     let dd_event = event!(self, Desc from summary_list);
                     self.state = NeighborState::Exchange { summary_list };
                     Some(NeighborActions::new().event(dd_event))
@@ -300,7 +300,10 @@ impl Neighbor {
                 // Packet.
                 (Relation::Follower, NeighborState::Init) => {
                     // get the list of currently known SLAs
-                    let summary_list = areas.get_or_insert(neigh.area).get_lsa_list().clone();
+                    let mut summary_list = areas.get_lsa_list(Some(self.area)).unwrap().clone();
+                    // also add the external-as LSAs
+                    summary_list.extend(areas.get_lsa_list(None).unwrap().clone());
+
                     let dd_event = event!(self, Desc from summary_list);
                     // transition further into Loading or Full
                     let (state, req_event) = transition_exchange(neigh, summary_list, &headers);
@@ -316,19 +319,24 @@ impl Neighbor {
                 }
                 // re-send the database description packet based on the area datastructure
                 (Relation::Follower, NeighborState::Full) => {
-                    let lsa_list = areas.get_or_insert(self.area).get_lsa_list();
-                    let dd_event = event!(self, Desc from lsa_list);
+                    // get the list of currently known SLAs
+                    let mut summary_list = areas.get_lsa_list(Some(self.area)).unwrap().clone();
+                    // also add the external-as LSAs
+                    summary_list.extend(areas.get_lsa_list(None).unwrap().clone());
+
+                    let dd_event = event!(self, Desc from summary_list);
                     Some(NeighborActions::new().event(dd_event))
                 }
                 _ => None,
             },
             // Always respond with all the requested headers
             NeighborEvent::RecvLinkStateRequest(headers) => {
-                let all_lsas = areas.get_or_insert(self.area).get_lsa_list();
+                let area_lsas = areas.get_lsa_list(Some(self.area)).unwrap();
+                let external_lsas = areas.get_lsa_list(None).unwrap();
                 let lsa_list = headers
                     .iter()
                     .map(|h| h.key())
-                    .filter_map(|k| all_lsas.get(&k))
+                    .filter_map(|k| area_lsas.get(&k).or_else(|| external_lsas.get(&k)))
                     .cloned()
                     .collect();
                 let upd_event = event!(self, Upd, lsa_list);
@@ -416,9 +424,8 @@ impl Neighbor {
         let mut res = NeighborActions::default();
         let mut acks = Vec::new();
         let mut updates = Vec::new();
-        let ads = areas.get_or_insert(self.area);
         for lsa in lsa_list {
-            let actions = self.recv_lsa(lsa, partial_sync, ads);
+            let actions = self.recv_lsa(lsa, partial_sync, areas);
 
             // perform the actions
             if let Some(lsa) = actions.flood {
@@ -464,10 +471,10 @@ impl Neighbor {
         &mut self,
         mut lsa: Lsa,
         partial_sync: bool,
-        ads: &mut AreaDataStructure,
+        areas: &mut OspfRib,
     ) -> RecvLsaActions {
         let key = lsa.key();
-        let old = ads.get_lsa(key);
+        let old = areas.get_lsa(key, Some(self.area));
 
         // (1) Validate the LSA's LS checksum. If the checksum turns out to be invalid, discard the
         //     LSA and get the next one from the Link State Update packet.
@@ -538,7 +545,9 @@ impl Neighbor {
                     // check if we need to wrap the sequence number. In that case, we need to do a
                     // premature aging.
                     if lsa.header.seq == MAX_SEQ || lsa.header.seq + 1 == MAX_SEQ {
-                        let new = ads.set_max_seq_and_age(lsa.key()).unwrap();
+                        let new = areas
+                            .set_max_seq_and_age(lsa.key(), Some(self.area))
+                            .unwrap();
                         let mut after_ack = new.clone();
                         after_ack.header.seq = 0;
                         after_ack.header.age = 0;
@@ -547,7 +556,9 @@ impl Neighbor {
                             .update(new.clone())
                             .track_max_age(key, Some(after_ack));
                     } else {
-                        let new = ads.set_seq(lsa.key(), lsa.header.seq + 1).unwrap();
+                        let new = areas
+                            .set_seq(lsa.key(), Some(self.area), lsa.header.seq + 1)
+                            .unwrap();
                         return actions.flood(new.clone()).update(new.clone());
                     }
                 } else {
@@ -555,7 +566,7 @@ impl Neighbor {
                     // network (while tracking the max-age to remove the entry again from the
                     // database).
                     lsa.header.age = MAX_AGE;
-                    ads.insert(lsa.clone());
+                    areas.insert(lsa.clone(), Some(self.area));
                     return actions
                         .flood(lsa.clone())
                         .update(lsa)
@@ -588,7 +599,7 @@ impl Neighbor {
             //     flooding procedure cannot overwrite the newly installed LSA until MinLSArrival
             //     seconds have elapsed. The LSA installation process is discussed further in
             //     Section 13.2.
-            ads.insert(lsa.clone());
+            areas.insert(lsa.clone(), Some(self.area));
 
             // (e) Possibly acknowledge the receipt of the LSA by sending a Link State
             //     Acknowledgment packet back out the receiving interface. This is explained below
@@ -801,29 +812,6 @@ impl<P: Prefix, T: Default> NeighborActions<P, T> {
 
     pub fn events(mut self, events: impl IntoIterator<Item = Event<P, T>>) -> Self {
         self.events.extend(events);
-        self
-    }
-
-    pub fn flood(mut self, lsa: Lsa) -> Self {
-        self.flood.push(lsa);
-        self
-    }
-
-    pub fn flood_list(mut self, lsas: impl IntoIterator<Item = Lsa>) -> Self {
-        self.flood.extend(lsas);
-        self
-    }
-
-    pub fn track_max_age(mut self, key: LsaKey, lsa_after_remove: Option<Lsa>) -> Self {
-        self.track_max_age.push((key, lsa_after_remove));
-        self
-    }
-
-    pub fn track_max_age_list(
-        mut self,
-        list: impl IntoIterator<Item = (LsaKey, Option<Lsa>)>,
-    ) -> Self {
-        self.track_max_age.extend(list);
         self
     }
 }

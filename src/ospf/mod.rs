@@ -184,27 +184,34 @@ where
                 let weight = DEFAULT_LINK_WEIGHT;
                 match self.links.entry(a).or_default().entry(b) {
                     Entry::Occupied(_) => {
-                        // nothing to do
+                        // link already exists. Only change the weight
+                        deltas.push(NeighborhoodChange::Weight {
+                            src: a,
+                            dst: b,
+                            old: LinkWeight::INFINITY,
+                            new: weight,
+                            area,
+                        });
+                        deltas.push(NeighborhoodChange::Weight {
+                            src: b,
+                            dst: a,
+                            old: LinkWeight::INFINITY,
+                            new: weight,
+                            area,
+                        });
                     }
                     Entry::Vacant(e) => {
+                        // link does not exist yet.
                         e.insert((weight, area));
                         self.links.entry(b).or_default().insert(a, (weight, area));
+                        deltas.push(NeighborhoodChange::AddLink {
+                            a,
+                            b,
+                            area,
+                            weight: (weight, weight),
+                        })
                     }
                 }
-                deltas.push(NeighborhoodChange::Weight {
-                    src: a,
-                    dst: b,
-                    old: LinkWeight::INFINITY,
-                    new: weight,
-                    area,
-                });
-                deltas.push(NeighborhoodChange::Weight {
-                    src: b,
-                    dst: a,
-                    old: LinkWeight::INFINITY,
-                    new: weight,
-                    area,
-                });
             } else {
                 let (int, ext) = if self.externals.contains(&b) {
                     (a, b)
@@ -656,6 +663,17 @@ pub trait OspfImpl {
 /// A single update of the neighborhood.
 #[derive(Debug, Clone, PartialEq, PartialOrd)]
 pub enum NeighborhoodChange {
+    /// Add a link that did not exist before
+    AddLink {
+        /// Endpoint 1
+        a: RouterId,
+        /// Endpoint 2
+        b: RouterId,
+        /// Area of the link
+        area: OspfArea,
+        /// what is the current link weight (first, from `a` to `b`, and then from `b` to `a`).
+        weight: (LinkWeight, LinkWeight),
+    },
     /// OSPF area (bidirectional) has changed
     Area {
         /// Endpoint 1

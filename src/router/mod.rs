@@ -223,25 +223,22 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
     /// Execute a function on the ospf process. Then, update the BGP process if there was any
     /// change in OSPF.
     ///
-    /// If the function returns `Ok(Some(events))`, then there was a change in OSPF, and the BGP
-    /// process must be updated. If the function returns `Ok(None)`, then OSPF did not change, and
-    /// the BGP process needs no update.
+    /// The function must return both the triggered events, and a boolean flag describing whether
+    /// BGP must be recomputed.
     pub(crate) fn update_ospf<F, T: Default>(
         &mut self,
         f: F,
     ) -> Result<Vec<Event<P, T>>, DeviceError>
     where
-        F: FnOnce(&mut Ospf) -> Result<Option<Vec<Event<P, T>>>, DeviceError>,
+        F: FnOnce(&mut Ospf) -> Result<(bool, Vec<Event<P, T>>), DeviceError>,
     {
-        if let Some(mut ospf_events) = f(&mut self.ospf)? {
+        let (recompute_bgp, mut ospf_events) = f(&mut self.ospf)?;
+        if recompute_bgp {
             // changes to BGP necessary
             self.bgp.update_igp(&self.ospf);
             let mut bgp_events = self.bgp.update_tables(false)?;
             ospf_events.append(&mut bgp_events);
-            Ok(ospf_events)
-        } else {
-            // no changes to BGP necessary
-            Ok(Vec::new())
         }
+        Ok(ospf_events)
     }
 }

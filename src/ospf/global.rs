@@ -68,6 +68,16 @@ impl OspfCoordinator for GlobalOspfOracle {
         let mut areas_to_update = HashSet::new();
         while let Some(delta) = deltas.pop() {
             match delta {
+                NeighborhoodChange::AddLink {
+                    a,
+                    b,
+                    area,
+                    weight: (w_a_b, w_b_a),
+                } => {
+                    areas_to_update.insert(area);
+                    self.update_weight(a, b, w_a_b, area);
+                    self.update_weight(b, a, w_b_a, area);
+                }
                 NeighborhoodChange::Area {
                     a,
                     b,
@@ -433,7 +443,7 @@ impl GlobalOspfOracle {
                 NetworkDevice::InternalRouter(r) => {
                     events.extend(r.update_ospf(|ospf| {
                         ospf.update_table(&self, links, external_links);
-                        Ok(Some(Vec::new()))
+                        Ok((true, Vec::new()))
                     })?);
                 }
                 _ => continue,

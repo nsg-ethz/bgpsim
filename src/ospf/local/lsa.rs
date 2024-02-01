@@ -101,6 +101,32 @@ impl LsaHeader {
             std::cmp::Ordering::Greater => LsaOrd::Newer,
         }
     }
+
+    /// Return the router-id of that LSA. This is either the advertising router of a Router-LSA or
+    /// the target of a Summary-LSA or External-LSA
+    pub fn target(&self) -> RouterId {
+        self.target.unwrap_or(self.router)
+    }
+
+    /// Get an `LsaKey` for `self`
+    #[inline]
+    pub fn key(&self) -> LsaKey {
+        LsaKey {
+            lsa_type: self.lsa_type,
+            router: self.router,
+            target: self.target,
+        }
+    }
+
+    /// Whether the LSA has `age` set to `MAX_AGE`.
+    pub(crate) fn is_max_age(&self) -> bool {
+        self.age == MAX_AGE
+    }
+
+    /// Whether the LSA has `seq` set to `MAX_SEQ`.
+    pub(crate) fn is_max_seq(&self) -> bool {
+        self.seq == MAX_SEQ
+    }
 }
 
 /// Comparison of two LSAs
@@ -222,7 +248,7 @@ impl Lsa {
 
     /// Return the router-id of that LSA. This is either the advertising router of a Router-LSA or
     /// the target of a Summary-LSA or External-LSA
-    pub(crate) fn target(&self) -> RouterId {
+    pub fn target(&self) -> RouterId {
         self.header.target.unwrap_or(self.header.router)
     }
 }
@@ -360,6 +386,32 @@ pub struct LsaKey {
     pub target: Option<RouterId>,
 }
 
+impl LsaKey {
+    /// Return `true` if the LSA type is a `LsaType::Router`.
+    #[inline(always)]
+    pub fn is_router(&self) -> bool {
+        self.lsa_type.is_router()
+    }
+
+    /// Return `true` if the LSA type is a `LsaType::Summary`.
+    #[inline(always)]
+    pub fn is_summary(&self) -> bool {
+        self.lsa_type.is_summary()
+    }
+
+    /// Return `true` if the LSA type is a `LsaType::External`.
+    #[inline(always)]
+    pub fn is_external(&self) -> bool {
+        self.lsa_type.is_external()
+    }
+
+    /// Return the router-id of that LSA. This is either the advertising router of a Router-LSA or
+    /// the target of a Summary-LSA or External-LSA
+    pub fn target(&self) -> RouterId {
+        self.target.unwrap_or(self.router)
+    }
+}
+
 impl std::hash::Hash for LsaKey {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
         self.router.hash(state);
@@ -388,27 +440,5 @@ impl From<Lsa> for LsaKey {
 impl From<&Lsa> for LsaKey {
     fn from(value: &Lsa) -> Self {
         value.key()
-    }
-}
-
-impl LsaHeader {
-    /// Get an `LsaKey` for `self`
-    #[inline]
-    pub fn key(&self) -> LsaKey {
-        LsaKey {
-            lsa_type: self.lsa_type,
-            router: self.router,
-            target: self.target,
-        }
-    }
-
-    /// Whether the LSA has `age` set to `MAX_AGE`.
-    pub(crate) fn is_max_age(&self) -> bool {
-        self.age == MAX_AGE
-    }
-
-    /// Whether the LSA has `seq` set to `MAX_SEQ`.
-    pub(crate) fn is_max_seq(&self) -> bool {
-        self.seq == MAX_SEQ
     }
 }

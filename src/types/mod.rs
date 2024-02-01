@@ -238,6 +238,28 @@ impl<P: Prefix, Ospf> NetworkDevice<P, Ospf> {
         }
     }
 
+    /// Get a mutable reference to the internal router datastructure
+    #[allow(dead_code)]
+    pub(crate) fn internal_or_err(&mut self) -> Result<&mut Router<P, Ospf>, NetworkError> {
+        match self {
+            NetworkDevice::InternalRouter(r) => Ok(r),
+            NetworkDevice::ExternalRouter(r) => {
+                Err(NetworkError::DeviceIsExternalRouter(r.router_id()))
+            }
+        }
+    }
+
+    /// Get a mutable reference to the external router datastructure
+    #[allow(dead_code)]
+    pub(crate) fn external_or_err(&mut self) -> Result<&mut ExternalRouter<P>, NetworkError> {
+        match self {
+            NetworkDevice::ExternalRouter(r) => Ok(r),
+            NetworkDevice::InternalRouter(r) => {
+                Err(NetworkError::DeviceIsInternalRouter(r.router_id()))
+            }
+        }
+    }
+
     /// Returns true if and only if self contains an internal router.
     pub fn is_internal(&self) -> bool {
         matches!(self, Self::InternalRouter(_))

@@ -3,10 +3,7 @@
 
 use std::{
     cmp::Ordering,
-    collections::{
-        btree_map::Entry as BTreeEntry, hash_map::Entry, BTreeMap, BTreeSet, BinaryHeap, HashMap,
-        HashSet,
-    },
+    collections::{hash_map::Entry, BTreeMap, BTreeSet, BinaryHeap, HashMap, HashSet},
 };
 
 use itertools::{EitherOrBoth, Itertools};
@@ -30,6 +27,518 @@ pub struct OspfRib {
     /// all area data structures
     #[serde(with = "As::<Vec<(Same, Same)>>")]
     areas: BTreeMap<OspfArea, AreaDataStructure>,
+    /// list of external LSAs
+    external_lsas: HashMap<LsaKey, Lsa>,
+    /// Whether to recompute the forwarding table for external LSAs using the algorithm presented in
+    /// section 16.4 of RFC 2328. We store the external routers for which we need to update the
+    /// computation.
+    recompute_as_external: HashSet<RouterId>,
+    /// The current RIB
+    rib: HashMap<RouterId, OspfRibEntry>,
+}
+
+impl OspfRib {
+    /// Create a new, empty OSPF Rib.
+    pub(super) fn new(router_id: RouterId) -> Self {
+        Self {
+            router_id,
+            areas: Default::default(),
+            rib: Default::default(),
+            external_lsas: Default::default(),
+            recompute_as_external: HashSet::new(),
+        }
+    }
+
+    /// Get the number of configured areas
+    pub fn num_areas(&self) -> usize {
+        self.areas.len()
+    }
+
+    /// Get an iterator over all configured areas
+    pub fn areas(&self) -> impl Iterator<Item = OspfArea> + '_ {
+        self.areas.keys().copied()
+    }
+
+    /// Check whether an area is configured or not
+    pub fn in_area(&self, area: OspfArea) -> bool {
+        self.areas.contains_key(&area)
+    }
+
+    /// Ensrue that a specific area exists
+    pub(super) fn insert_area(&mut self, area: OspfArea) {
+        self.get_or_insert_area(area);
+    }
+
+    /// Get the area data structure of a given area. If the area does not exist, it will be created.
+    fn get_or_insert_area(&mut self, area: OspfArea) -> &mut AreaDataStructure {
+        self.areas
+            .entry(area)
+            .or_insert_with(|| AreaDataStructure::new(self.router_id, area))
+    }
+
+    /// Remove the area datastructure. This function requires that the router has no links connected
+    /// to that area anymore. The function will panic if that is not the case!
+    pub(super) fn remove_area(&mut self, area: OspfArea) {
+        if let Some(area) = self.areas.remove(&area) {
+            debug_assert!(area.get_router_lsa(self.router_id).unwrap().1.is_empty())
+        }
+    }
+
+    /// Get a reference to the LSA list of a specific area. If `area` is `None`, then return the
+    /// external-LSA list.
+    pub fn get_lsa_list(&self, area: Option<OspfArea>) -> Option<&HashMap<LsaKey, Lsa>> {
+        if let Some(area) = area {
+            self.areas.get(&area).map(|ds| &ds.lsa_list)
+        } else {
+            Some(&self.external_lsas)
+        }
+    }
+
+    /// Get a reference to an LSA. `area` can be empty only if `key` is an external-LSA. Otherwise,
+    /// `area` must be set, and the function will return the LSA stored in the specific area.
+    pub fn get_lsa(&self, key: impl Into<LsaKey>, area: Option<OspfArea>) -> Option<&Lsa> {
+        let key = key.into();
+        if key.is_external() {
+            self.external_lsas.get(&key)
+        } else {
+            area.and_then(|area| self.areas.get(&area))
+                .and_then(|ds| ds.lsa_list.get(&key))
+        }
+    }
+
+    /// Get the Router-LSA associated with the `router_id` in `area`.
+    pub fn get_router_lsa<'a, 'b>(
+        &'a self,
+        router_id: RouterId,
+        area: OspfArea,
+    ) -> Option<(&'a LsaHeader, &'a Vec<RouterLsaLink>)> {
+        self.areas
+            .get(&area)
+            .and_then(|ds| ds.get_router_lsa(router_id))
+    }
+
+    /// insert an LSA, ingoring anything that was stored before. If the `lsa` is not an
+    /// external-LSA, then `area` must be `Some`. `area` will be ignored for external-LSAs.
+    pub(super) fn insert(&mut self, lsa: Lsa, area: Option<OspfArea>) {
+        if lsa.is_external() {
+            let target = lsa.target();
+            self.external_lsas.insert(lsa.key(), lsa);
+            // remember that we need to recompute the as-external table.
+            self.recompute_as_external.insert(target);
+        } else {
+            self.get_or_insert_area(area.unwrap()).insert(lsa);
+        }
+    }
+
+    /// remove an LSA, ingoring anything that was stored before. If the `lsa` is not an
+    /// `external-LSA`, then `area` must be `Some`. `area` will be ignored for `external-LSAs.
+    pub fn remove(&mut self, key: impl Into<LsaKey>, area: Option<OspfArea>) {
+        let key = key.into();
+        if key.is_external() {
+            let target = key.target();
+            self.external_lsas.remove(&key);
+            // remember that we need to recompute the as-external table.
+            self.recompute_as_external.insert(target);
+        } else {
+            self.get_or_insert_area(area.unwrap()).remove(key);
+        }
+    }
+
+    /// prematurely age an LSA by setting both the `seq` to `MAX_SEQ` and `age` to `MAX_AGE`. If
+    /// `lsa` is an external-LSA, then ignore the provided `area`. Otherwhise, `area` must be
+    /// `Some`.
+    pub(super) fn set_max_seq_and_age(
+        &mut self,
+        key: impl Into<LsaKey>,
+        area: Option<OspfArea>,
+    ) -> Option<&Lsa> {
+        let key = key.into();
+        if key.is_external() {
+            let target = key.target.unwrap();
+            if let Some(e) = self.external_lsas.get_mut(&key) {
+                e.header.seq = MAX_SEQ;
+                e.header.age = MAX_AGE;
+            }
+            self.recompute_as_external.insert(target);
+            self.external_lsas.get(&key)
+        } else {
+            self.get_or_insert_area(area.unwrap())
+                .set_max_seq_and_age(key)
+        }
+    }
+
+    /// Set the sequence number of an LSA to a specific value. If `lsa` is an external-LSA, then
+    /// `area` will be ignored. Otherwise, `area` must be `Some`. `target` must be lower than
+    /// `MAX_SEQ`!
+    pub(super) fn set_seq(
+        &mut self,
+        key: impl Into<LsaKey>,
+        area: Option<OspfArea>,
+        target: u32,
+    ) -> Option<&Lsa> {
+        let key = key.into();
+        if key.is_external() {
+            if let Some(e) = self.external_lsas.get_mut(&key) {
+                e.header.seq = target;
+            }
+            self.external_lsas.get(&key)
+        } else {
+            self.get_or_insert_area(area.unwrap()).set_seq(key, target)
+        }
+    }
+
+    /// Construct the RIB for a specific target
+    pub fn get_rib_entry(&self, target: RouterId) -> Option<OspfRibEntry> {
+        OspfRibEntry::from_paths(
+            self.areas
+                .iter()
+                .filter_map(|(a, ds)| ds.spt.get(&target).map(|n| (*a, n))),
+        )
+    }
+
+    /// Get a reference to the current RIB.
+    pub fn get_rib(&self) -> &HashMap<RouterId, OspfRibEntry> {
+        &self.rib
+    }
+
+    /// Update the local RouterLSA and set the weight to a neighbor appropriately. Then, return the
+    /// new LSA. There are a couple of possible outcomes:
+    /// - `None`: The LSA must not be changed.
+    /// - `Some((lsa, None))`: The LSA is updated regularly, and `lsa` is the reference to the
+    ///   updated (currently stored) LSA.
+    /// - `Some((lsa, Some(new_lsa)))`: The LSA reached `MAX_SEQ` and was aged prematurely. `lsa` is
+    ///   a reference to the old (currently stored) LSA with `lsa.header.seq = MAX_SEQ` and
+    ///   `lsa.header.age = MAX_AGE`. The `new_lsa` is the new LSA that should be set once the old
+    ///   LSA was acknowledged by all neighbors.
+    pub(super) fn update_local_lsa<'a>(
+        &'a mut self,
+        neighbor: RouterId,
+        area: OspfArea,
+        weight: Option<LinkWeight>,
+    ) -> Option<(&'a Lsa, Option<Lsa>)> {
+        self.get_or_insert_area(area)
+            .update_local_lsa(neighbor, weight)
+    }
+
+    /// Update an external LSA that is advertised by this router. There are a couple of possible
+    /// outcomes:
+    /// - `None`: The LSA must not be changed.
+    /// - `Some((lsa, None))`: The LSA is updated regularly, and `lsa` is the reference to the
+    ///   updated (currently stored) LSA.
+    /// - `Some((lsa, Some(None)))`: The LSA is prematurely aged, such that it is removed from all
+    ///   databases. `lsa` is a reference to the old (currently stored) LSA with `lsa.header.seq =
+    ///   MAX_SEQ`.
+    /// - `Some((lsa, Some(Some(new_lsa))))`: The LSA reached `MAX_SEQ` and was aged
+    ///   prematurely. `lsa` is a reference to the old (currently stored) LSA with `lsa.header.seq =
+    ///   MAX_SEQ` and `lsa.header.age = MAX_AGE`. The `new_lsa` is the new LSA that should be set
+    ///   once the old LSA was acknowledged by all neighbors.
+    pub(super) fn update_external_lsa<'a>(
+        &'a mut self,
+        neighbor: RouterId,
+        weight: Option<LinkWeight>,
+    ) -> Option<(&'a Lsa, Option<Option<Lsa>>)> {
+        let router = self.router_id;
+        let target = Some(neighbor);
+        let key = LsaKey {
+            lsa_type: LsaType::External,
+            router,
+            target,
+        };
+
+        // if the key does not yet exist, then simply create it and return
+        let Some(old_lsa) = self.external_lsas.get(&key) else {
+            // the LSA does not yet exist! Simply create it
+            let Some(weight) = weight else {
+                // It must not be created!
+                return None;
+            };
+            let data = LsaData::External(NotNan::new(weight).unwrap());
+            let lsa = Lsa {
+                header: LsaHeader {
+                    lsa_type: key.lsa_type,
+                    router,
+                    target,
+                    seq: 0,
+                    age: 0,
+                },
+                data,
+            };
+            self.insert(lsa, None);
+            return Some((self.external_lsas.get(&key).unwrap(), None));
+        };
+
+        // if the key does already exist, but weight is None, then remove the entry
+        let Some(weight) = weight else {
+            // remove the old entry
+            let mut lsa = old_lsa.clone();
+            lsa.header.age = MAX_AGE;
+            self.insert(lsa, None);
+            return Some((self.external_lsas.get(&key).unwrap(), Some(None)));
+        };
+
+        let data = LsaData::External(NotNan::new(weight).unwrap());
+
+        // check if the old LSA must be updated
+        if &old_lsa.data == &data {
+            // nothing to do
+            return None;
+        }
+
+        // check if we can update the lsa
+        if old_lsa.header.seq < MAX_SEQ - 1 {
+            // normally update the lsa
+            let lsa = Lsa {
+                header: LsaHeader {
+                    seq: old_lsa.header.seq + 1,
+                    ..old_lsa.header
+                },
+                data,
+            };
+            self.insert(lsa, None);
+            return Some((self.external_lsas.get(&key).unwrap(), None));
+        }
+
+        // If we get here, then we need to prematurely age the current LSA
+        let old_lsa = self.set_max_seq_and_age(key, None).unwrap();
+        let new_lsa = Lsa {
+            header: LsaHeader {
+                lsa_type: LsaType::External,
+                router,
+                target,
+                seq: 0,
+                age: 0,
+            },
+            data,
+        };
+        Some((old_lsa, Some(Some(new_lsa))))
+    }
+
+    /// Update all necessary Summary-LSAs and generate the set of new LSAs that must be
+    /// propagated. To that end, first redistribute routes into the backbone area, and then
+    /// redistribute them from the backbone area into the others.
+    pub(super) fn update_summary_lsas(
+        &mut self,
+    ) -> BTreeMap<OspfArea, (Vec<Lsa>, Vec<(LsaKey, Option<Lsa>)>)> {
+        let mut result = BTreeMap::new();
+
+        // only redistribute something if we are an area border router!
+        if !self.areas.contains_key(&OspfArea::BACKBONE) && self.areas.len() > 1 {
+            return result;
+        }
+
+        for (area, area_ds) in self.areas.iter_mut() {
+            let (redistribute, track_max_age) = area_ds.redistribute_into(&self.rib);
+            result.insert(*area, (redistribute, track_max_age));
+        }
+
+        result
+    }
+
+    /// Redistribute all routes from a given area to all that need redistributing. Also return the
+    /// information on tracking max-age. The function also returns a flag determining whether any of
+    /// the forwarding tables has changed.
+    pub(super) fn refresh_routing_table(&mut self) -> bool {
+        let mut changed = false;
+        for adv in self.areas.values_mut() {
+            changed |= adv.update_spt();
+        }
+
+        if changed {
+            // construct the rib
+            let mut rib: HashMap<RouterId, OspfRibEntry> = HashMap::new();
+            for (area, area_ds) in self.areas.iter() {
+                for path in area_ds.spt.values() {
+                    match rib.entry(path.router_id) {
+                        Entry::Occupied(mut e) => {
+                            e.get_mut().update(path, *area);
+                        }
+                        Entry::Vacant(e) => {
+                            e.insert(OspfRibEntry::new(path, *area));
+                        }
+                    }
+                }
+            }
+            rib.retain(|_, v| v.cost.is_finite());
+            self.rib = rib;
+        }
+
+        if changed || !self.recompute_as_external.is_empty() {
+            self.calculate_as_external_routes(changed);
+            self.recompute_as_external.clear();
+            changed = true;
+        }
+
+        // update changed depending on whether we will need to update external-as routes
+        changed
+    }
+
+    /// This algorithm computes the routes from External-LSAs using the algorithm presented in
+    /// Section 16.4 of RFC 2328.
+    ///
+    /// If `all` is true, then simply update all external targets, assuming they are not present in
+    /// the current `self.rib`. If `all` is false, then only remove the entries to be updated, and
+    /// recompute those.
+    ///
+    /// AS external routes are calculated by examining AS-external-LSAs. Each of the
+    /// AS-external-LSAs is considered in turn. Most AS- external-LSAs describe routes to specific
+    /// IP destinations. An AS-external-LSA can also describe a default route for the Autonomous
+    /// System (Destination ID = DefaultDestination, network/subnet mask = 0x00000000). For each
+    /// AS-external-LSA:
+    fn calculate_as_external_routes(&mut self, all: bool) {
+        if !all {
+            self.rib
+                .retain(|k, _| !self.recompute_as_external.contains(k));
+        }
+
+        for lsa in self.external_lsas.values() {
+            if !(all
+                || self
+                    .recompute_as_external
+                    .contains(&lsa.header.target.unwrap()))
+            {
+                continue;
+            }
+
+            // only look at External-LSAs
+            let LsaData::External(weight) = &lsa.data else {
+                unreachable!()
+            };
+            let target = lsa.header.target.expect("must be set");
+
+            // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
+            //     to MaxAge, then examine the next LSA.
+            if lsa.header.is_max_age() || weight.is_finite() {
+                continue;
+            }
+
+            // (2) If the LSA was originated by the calculating router itself, examine the next LSA.
+            // --> Contrary what the spec tells, we do NOT ignore external LSAs advertised by the
+            //     current router itself.
+
+            // (3) Call the destination described by the LSA TARGET. TARGET's address is obtained by
+            //     masking the LSA's Link State ID with the network/subnet mask contained in the body of
+            //     the LSA. Look up the routing table entries (potentially one per attached area) for
+            //     the AS boundary router (ASBR) that originated the LSA. If no entries exist for router
+            //     ASBR (i.e., ASBR is unreachable), do nothing with this LSA and consider the next in
+            //     the list.
+            // --> this is the only behavior that we implement!
+            //
+            //     Else, this LSA describes an AS external path to destination TARGET. Examine the
+            //     forwarding address specified in the AS- external-LSA. This indicates the IP
+            //     address to which packets for the destination should be forwarded.
+            // --> We don't implement that behavior
+            //
+            //     If the forwarding address is set to 0.0.0.0, packets should be sent to the ASBR
+            //     itself. Among the multiple routing table entries for the ASBR, select the
+            //     preferred entry as follows. If RFC1583 Compatibility is set to "disabled", prune
+            //     the set of routing table entries for the ASBR as described in Section 16.4.1. In
+            //     any case, among the remaining routing table entries, select the routing table
+            //     entry with the least cost; when there are multiple least cost routing table
+            //     entries the entry whose associated area has the largest OSPF Area ID (when
+            //     considered as an unsigned 32-bit integer) is chosen.
+            // --> We don't implement that behavior
+            //
+            //     If the forwarding address is non-zero, look up the forwarding address in the
+            //     routing table.[24] The matching routing table entry must specify an intra-area or
+            //     inter-area path; if no such path exists, do nothing with the LSA and consider the
+            //     next in the list.
+            // --> We don't implement that behavior
+            let Some(adv_rib) = self.rib.get(&lsa.header.router) else {
+                continue;
+            };
+
+            // (4) Let X be the cost specified by the preferred routing table entry for the
+            //     ASBR/forwarding address, and Y the cost specified in the LSA. X is in terms of
+            //     the link state metric, and Y is a type 1 or 2 external metric.
+            // --> we don't model type 1 or type 2 external metrics
+            let mut path = OspfRibEntry {
+                router_id: target,
+                keys: btreemap! {None => lsa.key()},
+                fibs: adv_rib.fibs.clone(),
+                cost: adv_rib.cost + weight,
+                inter_area: adv_rib.inter_area,
+            };
+            // set the fibs appropriately, in case it is directly connected
+            if lsa.header.router == self.router_id {
+                debug_assert!(path.fibs.is_empty());
+                path.fibs.insert(target);
+            }
+
+            // (5) Look up the routing table entry for the destination TARGET. If no entry exists
+            //     for TARGET, install the AS external path to TARGET, with next hop equal to the
+            //     list of next hops to the forwarding address, and advertising router equal to
+            //     ASBR. If the external metric type is 1, then the path-type is set to type 1
+            //     external and the cost is equal to X+Y. If the external metric type is 2, the
+            //     path-type is set to type 2 external, the link state component of the route's cost
+            //     is X, and the type 2 cost is Y.
+            match self.rib.entry(target) {
+                Entry::Vacant(e) => {
+                    e.insert(path);
+                }
+
+                // (6) Compare the AS external path described by the LSA with the existing paths in
+                //     TARGET's routing table entry, as follows. If the new path is preferred, it
+                //     replaces the present paths in TARGET's routing table entry. If the new path
+                //     is of equal preference, it is added to TARGET's routing table entry's list of
+                //     paths.
+                Entry::Occupied(mut e) => {
+                    // (a) Intra-area and inter-area paths are always preferred over AS external
+                    //     paths.
+                    // --> skip that part
+
+                    // (b) Type 1 external paths are always preferred over type 2 external paths.
+                    //     When all paths are type 2 external paths, the paths with the smallest
+                    //     advertised type 2 metric are always preferred.
+                    // --> we ignore the difference between Type 1 and Typ1 2 paths.
+
+                    // (c) If the new AS external path is still indistinguishable from the current
+                    //     paths in the TARGET's routing table entry, and RFC1583Compatibility is
+                    //     set to "disabled", select the preferred paths based on the intra-AS paths
+                    //     to the ASBR/forwarding addresses, as specified in Section 16.4.1.
+                    // --> ignore this case
+
+                    // (d) If the new AS external path is still indistinguishable from the current
+                    //     paths in the TARGET's routing table entry, select the preferred path
+                    //     based on a least cost comparison. Type 1 external paths are compared by
+                    //     looking at the sum of the distance to the forwarding address and the
+                    //     advertised type 1 metric (X+Y). Type 2 external paths advertising equal
+                    //     type 2 metrics are compared by looking at the distance to the forwarding
+                    //     addresses.
+                    // --> ignore that case
+
+                    // (f) When multiple intra-AS paths are available to ASBRs/forwarding addresses,
+                    //     the following rules indicate which paths are preferred. These rules apply
+                    //     when the same ASBR is reachable through multiple areas, or when trying to
+                    //     decide which of several AS-external-LSAs should be preferred. In the
+                    //     former case the paths all terminate at the same ASBR, while in the latter
+                    //     the paths terminate at separate ASBRs/forwarding addresses. In either
+                    //     case, each path is represented by a separate routing table entry as
+                    //     defined in Section 11.
+
+                    //     The path preference rules, stated from highest to lowest preference, are
+                    //     as follows. Note that as a result of these rules, there may still be
+                    //     multiple paths of the highest preference. In this case, the path to use
+                    //     must be determined based on cost, as described in Section 16.4.
+                    //     - Intra-area paths using non-backbone areas are always the most
+                    //       preferred.
+                    //     - The other paths, intra-area backbone paths and inter-area paths, are of
+                    //       equal preference.
+                    match (e.get().inter_area, e.get().cost).cmp(&(path.inter_area, path.cost)) {
+                        // the current cost is lower than the new path
+                        Ordering::Less => {}
+                        // Both paths are equally preferred. Extend the next-hops
+                        Ordering::Equal => {
+                            e.get_mut().fibs.extend(path.fibs);
+                        }
+                        // The new path is better. Replace it.
+                        Ordering::Greater => {
+                            *e.get_mut() = path;
+                        }
+                    }
+                }
+            }
+        }
+    }
 }
 
 /// A single entry in the routing table
@@ -56,25 +565,23 @@ pub struct OspfRibEntry {
     pub inter_area: bool,
 
     /// The set of areas from which the route was learned, together with their associated LSA key
-    pub lsas: BTreeMap<OspfArea, LsaKey>,
+    pub keys: BTreeMap<Option<OspfArea>, LsaKey>,
 }
 
 impl OspfRibEntry {
     /// Construct a new entry from an SptNode and OspfArea
-    pub fn new(path: &SptNode, area: OspfArea) -> Self {
+    fn new(path: &SptNode, area: OspfArea) -> Self {
         Self {
             router_id: path.router_id,
             fibs: path.fibs.clone(),
             cost: path.cost,
             inter_area: path.inter_area,
-            lsas: btreemap! {area => path.key},
+            keys: btreemap! {Some(area) => path.key},
         }
     }
 
     /// Construct a new RibEntry from a set of paths.
-    pub fn from_paths<'a>(
-        paths: impl IntoIterator<Item = (OspfArea, &'a SptNode)>,
-    ) -> Option<Self> {
+    fn from_paths<'a>(paths: impl IntoIterator<Item = (OspfArea, &'a SptNode)>) -> Option<Self> {
         let mut paths = paths.into_iter();
         let (first_area, first_path) = paths.next()?;
         let mut rib = Self::new(first_path, first_area);
@@ -93,150 +600,23 @@ impl OspfRibEntry {
     }
 
     /// Update an existing entry by comparing it with a path from a specific area.
-    pub fn update(&mut self, path: &SptNode, area: OspfArea) {
+    fn update(&mut self, path: &SptNode, area: OspfArea) {
         match (self.inter_area, self.cost).cmp(&(path.inter_area, path.cost)) {
             // the current cost is lower than the new path
             Ordering::Less => {}
             // Both paths are equally preferred. Extend the next-hops
             Ordering::Equal => {
                 self.fibs.extend(path.fibs.iter().copied());
-                self.lsas.insert(area, path.key);
+                self.keys.insert(Some(area), path.key);
             }
             // The new path is better. Replace it.
             Ordering::Greater => {
                 self.fibs = path.fibs.clone();
                 self.cost = path.cost;
                 self.inter_area = path.inter_area;
-                self.lsas = btreemap! {area => path.key};
+                self.keys = btreemap! {Some(area) => path.key};
             }
         }
-    }
-}
-
-impl OspfRib {
-    pub fn new(router_id: RouterId) -> Self {
-        Self {
-            router_id,
-            areas: Default::default(),
-        }
-    }
-
-    /// Get the number of configured areas
-    pub fn num_areas(&self) -> usize {
-        self.areas.len()
-    }
-
-    /// Remove the area datastructure. This function requires that the router has no links connected
-    /// to that area anymore. The function will panic if that is not the case!
-    pub(super) fn remove_area(&mut self, area: OspfArea) {
-        if let Some(area) = self.areas.remove(&area) {
-            debug_assert!(area.get_router_lsa(self.router_id).unwrap().1.is_empty())
-        }
-    }
-
-    /// Get an iterator over all configured areas
-    pub fn areas(&self) -> impl Iterator<Item = OspfArea> + '_ {
-        self.areas.keys().copied()
-    }
-
-    /// Check whether an area is configured or not
-    pub fn in_area(&self, area: OspfArea) -> bool {
-        self.areas.contains_key(&area)
-    }
-
-    /// Get the area data structure of a given area.
-    pub fn get(&self, area: impl AsRef<OspfArea>) -> Option<&AreaDataStructure> {
-        self.areas.get(area.as_ref())
-    }
-
-    /// Get a mutable reference to the area data structure.
-    pub(super) fn get_mut(&mut self, area: impl AsRef<OspfArea>) -> Option<&mut AreaDataStructure> {
-        self.areas.get_mut(area.as_ref())
-    }
-
-    /// Get the area data structure of a given area. If the area does not exist, it will be created.
-    pub(super) fn get_or_insert(&mut self, area: OspfArea) -> &mut AreaDataStructure {
-        self.areas
-            .entry(area)
-            .or_insert_with(|| AreaDataStructure::new(self.router_id, area))
-    }
-
-    /// Construct the RIB for a specific target
-    pub fn get_rib_entry(&self, target: RouterId) -> Option<OspfRibEntry> {
-        OspfRibEntry::from_paths(
-            self.areas
-                .iter()
-                .filter_map(|(a, ds)| ds.spt.get(&target).map(|n| (*a, n))),
-        )
-    }
-
-    /// Construct the complete OSPF Rib
-    pub fn construct_rib(&self) -> HashMap<RouterId, OspfRibEntry> {
-        let mut rib: HashMap<RouterId, OspfRibEntry> = HashMap::new();
-        for (area, area_ds) in self.areas.iter() {
-            for path in area_ds.spt.values() {
-                match rib.entry(path.router_id) {
-                    Entry::Occupied(mut e) => {
-                        e.get_mut().update(path, *area);
-                    }
-                    Entry::Vacant(e) => {
-                        e.insert(OspfRibEntry::new(path, *area));
-                    }
-                }
-            }
-        }
-        rib.retain(|_, v| v.cost.is_finite());
-        rib
-    }
-
-    /// Insert a new area if it is missing. This function returns `true` if the area was not present
-    /// before.
-    pub(super) fn insert_if_missing(&mut self, area: OspfArea) -> bool {
-        if let BTreeEntry::Vacant(e) = self.areas.entry(area) {
-            e.insert(AreaDataStructure::new(self.router_id, area));
-            true
-        } else {
-            false
-        }
-    }
-
-    /// Update all necessary Summary-LSAs and generate the set of new LSAs that must be
-    /// propagated. To that end, first redistribute routes into the backbone area, and then
-    /// redistribute them from the backbone area into the others.
-    ///
-    /// During the computation, this function also constructs the RIB and returns it.
-    pub(super) fn update_summary_lsas(
-        &mut self,
-    ) -> (
-        HashMap<RouterId, OspfRibEntry>,
-        BTreeMap<OspfArea, (Vec<Lsa>, Vec<(LsaKey, Option<Lsa>)>)>,
-    ) {
-        let mut result = BTreeMap::new();
-        let rib = self.construct_rib();
-
-        // only redistribute something if we are an area border router!
-        if !self.areas.contains_key(&OspfArea::BACKBONE) && self.areas.len() > 1 {
-            return (rib, result);
-        }
-
-        for (area, area_ds) in self.areas.iter_mut() {
-            let (redistribute, track_max_age) = area_ds.redistribute_into(&rib);
-            result.insert(*area, (redistribute, track_max_age));
-        }
-
-        (rib, result)
-    }
-
-    /// Redistribute all routes from a given area to all that need redistributing. Also return the
-    /// information on tracking max-age. The function also returns a flag determining whether any of
-    /// the forwarding tables has changed.
-    pub(super) fn refresh_routing_table(&mut self) -> bool {
-        let mut changed = false;
-        for adv in self.areas.values_mut() {
-            changed |= adv.update_spt();
-        }
-
-        changed
     }
 }
 
@@ -249,7 +629,7 @@ impl OspfRib {
 ///
 /// Assumption: point-to-point only,
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct AreaDataStructure {
+struct AreaDataStructure {
     /// The current router.
     router_id: RouterId,
     /// The area of that datastructure
@@ -272,9 +652,6 @@ pub struct AreaDataStructure {
     /// Whether to recompute the forwarding table for summary LSAs using the algorithm presented in
     /// section 16.2 of RFC 2328.
     recompute_inter_area: bool,
-    /// Whether to recompute the forwarding table for external LSAs using the algorithm presented in
-    /// section 16.4 of RFC 2328.
-    recompute_as_external: bool,
     /// The set of targets that are redistributed by this router.
     redistributed_paths: BTreeMap<RouterId, NotNan<LinkWeight>>,
 }
@@ -286,7 +663,7 @@ impl PartialEq for AreaDataStructure {
 }
 
 impl AreaDataStructure {
-    pub fn new(router_id: RouterId, area: OspfArea) -> Self {
+    fn new(router_id: RouterId, area: OspfArea) -> Self {
         let mut s = Self {
             router_id,
             area,
@@ -296,7 +673,6 @@ impl AreaDataStructure {
             redistributed_paths: Default::default(),
             recompute_intra_area: false,
             recompute_inter_area: false,
-            recompute_as_external: false,
         };
         // insert self as an RouterLSA
         let self_lsa = Lsa {
@@ -313,48 +689,20 @@ impl AreaDataStructure {
         s
     }
 
-    /// This parameter indicates whether the area can carry data traffic that neither originates nor
-    /// terminates in the area itself. This parameter is calculated when the area's shortest-path
-    /// tree is built (see Section 16.1, where TransitCapability is set to TRUE if and only if there
-    /// are one or more fully adjacent virtual links using the area as Transit area), and is used as
-    /// an input to a subsequent step of the routing table build process (see Section 16.3). When an
-    /// area's TransitCapability is set to TRUE, the area is said to be a "transit area".
-    pub fn is_transit(&self) -> bool {
-        self.transit_capability
-    }
-
-    /// Get the complete list of LSAs that make up the area link-state database.
-    pub(super) fn get_lsa_list(&self) -> &HashMap<LsaKey, Lsa> {
-        &self.lsa_list
-    }
-
-    /// Get a reference to the shortest path tree result. For each (reachable) destination, it
-    /// stores both the cost, and the set of next-hops.
-    pub fn get_spt(&self) -> &HashMap<RouterId, SptNode> {
-        &self.spt
-    }
-
-    /// Get the LSA as described by the `lsa_header`. here, only the `lsa_header.lsa_type`, al well
-    /// as `lsa_header.router` and `lsa_header.target` is considered.
-    pub fn get_lsa<'a, 'b>(&'a self, key: impl Into<LsaKey>) -> Option<&'a Lsa> {
-        self.lsa_list.get(&key.into())
-    }
-
-    /// Get the Router-LSA associated with the `router_id`.
-    pub fn get_router_lsa<'a, 'b>(
+    /// Get the Router-LSA associated with the `router_id` in `area`.
+    fn get_router_lsa<'a, 'b>(
         &'a self,
         router_id: RouterId,
     ) -> Option<(&'a LsaHeader, &'a Vec<RouterLsaLink>)> {
-        self.lsa_list
-            .get(&LsaKey {
-                lsa_type: LsaType::Router,
-                router: router_id,
-                target: None,
-            })
-            .and_then(|x| match &x.data {
-                LsaData::Router(r) => Some((&x.header, r)),
-                _ => None,
-            })
+        let key = LsaKey {
+            lsa_type: LsaType::Router,
+            router: router_id,
+            target: None,
+        };
+        self.lsa_list.get(&key).and_then(|x| match &x.data {
+            LsaData::Router(r) => Some((&x.header, r)),
+            _ => None,
+        })
     }
 
     /// Update the local RouterLSA and set the weight to a neighbor appropriately. Then, return the
@@ -366,7 +714,7 @@ impl AreaDataStructure {
     ///   a reference to the old (currently stored) LSA with `lsa.header.seq = MAX_SEQ` and
     ///   `lsa.header.age = MAX_AGE`. The `new_lsa` is the new LSA that should be set once the old
     ///   LSA was acknowledged by all neighbors.
-    pub fn update_local_lsa<'a>(
+    fn update_local_lsa<'a>(
         &'a mut self,
         neighbor: RouterId,
         weight: Option<LinkWeight>,
@@ -374,7 +722,7 @@ impl AreaDataStructure {
         let router_id = self.router_id;
         let (header, links) = self.get_router_lsa(router_id).unwrap();
         let key = header.key();
-        let mut header = header.clone();
+        let header = *header;
         let mut links = links.clone();
 
         // update the local neighbors
@@ -412,7 +760,7 @@ impl AreaDataStructure {
         if lsa.header.seq < MAX_SEQ - 1 {
             lsa.header.seq += 1;
             self.insert(lsa);
-            Some((self.get_lsa(key).unwrap(), None))
+            Some((self.lsa_list.get(&key).unwrap(), None))
         } else {
             // we need to advertise a max-age LSA, and replace it with a new one.
             let old_lsa = self.set_max_seq_and_age(lsa.key()).unwrap();
@@ -424,17 +772,27 @@ impl AreaDataStructure {
     }
 
     /// prematurely age an LSA by setting both the `seq` to `MAX_SEQ` and `age` to `MAX_AGE`.
-    pub fn set_max_seq_and_age(&mut self, key: impl Into<LsaKey>) -> Option<&Lsa> {
+    fn set_max_seq_and_age(&mut self, key: impl Into<LsaKey>) -> Option<&Lsa> {
         let key = key.into();
         if let Some(e) = self.lsa_list.get_mut(&key) {
             e.header.seq = MAX_SEQ;
             e.header.age = MAX_AGE;
         }
+
+        // remember what we need to recompute
+        if key.is_router() {
+            self.recompute_intra_area = true;
+        } else if key.is_summary() {
+            self.recompute_inter_area = true;
+        } else if key.is_external() {
+            unreachable!()
+        }
+
         self.lsa_list.get(&key)
     }
 
     /// Set the sequence number of an LSA to a specific value.
-    pub fn set_seq(&mut self, key: impl Into<LsaKey>, target: u32) -> Option<&Lsa> {
+    fn set_seq(&mut self, key: impl Into<LsaKey>, target: u32) -> Option<&Lsa> {
         let key = key.into();
         if let Some(e) = self.lsa_list.get_mut(&key) {
             e.header.seq = target;
@@ -442,40 +800,35 @@ impl AreaDataStructure {
         self.lsa_list.get(&key)
     }
 
-    /// Get an iterator over all stored LSAs.
-    pub fn iter<'a>(&'a self) -> impl Iterator<Item = &'a Lsa> {
-        self.lsa_list.values()
-    }
-
     /// Insert an LSA into the datastructure, ignoring the old content. This function will update
     /// the datastructure to remember which parts of the algorithm must be re-executed.
-    pub(super) fn insert(&mut self, lsa: Lsa) {
+    fn insert(&mut self, lsa: Lsa) {
         let key = lsa.key();
         self.lsa_list.insert(key, lsa);
 
         // remember what we need to recompute
-        if key.lsa_type.is_router() {
+        if key.is_router() {
             self.recompute_intra_area = true;
-        } else if key.lsa_type.is_summary() {
+        } else if key.is_summary() {
             self.recompute_inter_area = true;
-        } else if key.lsa_type.is_external() {
-            self.recompute_as_external = true;
+        } else if key.is_external() {
+            unreachable!()
         }
     }
 
     /// Remove an LSA into the datastructure, ignoring the old content. This function will update
     /// the datastructure to remember which parts of the algorithm must be re-executed.
-    pub(super) fn remove(&mut self, key: impl Into<LsaKey>) {
+    fn remove(&mut self, key: impl Into<LsaKey>) {
         let key = key.into();
         self.lsa_list.remove(&key);
 
         // remember what we need to recompute
-        if key.lsa_type.is_router() {
+        if key.is_router() {
             self.recompute_intra_area = true;
-        } else if key.lsa_type.is_summary() {
+        } else if key.is_summary() {
             self.recompute_inter_area = true;
-        } else if key.lsa_type.is_external() {
-            self.recompute_as_external = true;
+        } else if key.is_external() {
+            unreachable!()
         }
     }
 
@@ -492,7 +845,7 @@ impl AreaDataStructure {
     /// 2. The area's link state database is represented as a directed graph. The graph's vertices
     /// are routers, transit networks and stub networks. The first stage of the procedure concerns
     /// only the transit vertices (routers and transit networks) and their connecting links.
-    pub fn update_spt(&mut self) -> bool {
+    fn update_spt(&mut self) -> bool {
         let mut modified = false;
 
         let mut old_spt = HashMap::with_capacity(self.spt.len());
@@ -505,10 +858,6 @@ impl AreaDataStructure {
 
         if modified || self.recompute_inter_area {
             modified |= self.calculate_inter_area_routes(&old_spt);
-        }
-
-        if modified || self.recompute_as_external {
-            modified |= self.calculate_as_external_routes(&old_spt);
         }
 
         // check if the number of elements in the SPT changed.
@@ -713,170 +1062,6 @@ impl AreaDataStructure {
         changed
     }
 
-    /// This algorithm computes the routes from External-LSAs using the algorithm presented in
-    /// Section 16.4 of RFC 2328.
-    ///
-    /// AS external routes are calculated by examining AS-external-LSAs. Each of the
-    /// AS-external-LSAs is considered in turn. Most AS- external-LSAs describe routes to specific
-    /// IP destinations. An AS-external-LSA can also describe a default route for the Autonomous
-    /// System (Destination ID = DefaultDestination, network/subnet mask = 0x00000000). For each
-    /// AS-external-LSA:
-    fn calculate_as_external_routes(&mut self, old_spt: &HashMap<RouterId, SptNode>) -> bool {
-        let mut new_paths: HashMap<RouterId, SptNode> = HashMap::new();
-
-        for lsa in self.lsa_list.values() {
-            // only look at External-LSAs
-            let LsaData::External(weight) = lsa.data else {
-                continue;
-            };
-            let target = lsa.header.target.expect("must be set");
-
-            // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
-            //     to MaxAge, then examine the next LSA.
-            if lsa.header.is_max_age() || weight.is_finite() {
-                continue;
-            }
-
-            // (2) If the LSA was originated by the calculating router itself, examine the next LSA.
-            // --> Contrary what the spec tells, we do NOT ignore external LSAs advertised by the
-            //     current router itself.
-
-            // (3) Call the destination described by the LSA TARGET. TARGET's address is obtained by
-            //     masking the LSA's Link State ID with the network/subnet mask contained in the body of
-            //     the LSA. Look up the routing table entries (potentially one per attached area) for
-            //     the AS boundary router (ASBR) that originated the LSA. If no entries exist for router
-            //     ASBR (i.e., ASBR is unreachable), do nothing with this LSA and consider the next in
-            //     the list.
-            // --> this is the only behavior that we implement!
-            //
-            //     Else, this LSA describes an AS external path to destination TARGET. Examine the
-            //     forwarding address specified in the AS- external-LSA. This indicates the IP
-            //     address to which packets for the destination should be forwarded.
-            // --> We don't implement that behavior
-            //
-            //     If the forwarding address is set to 0.0.0.0, packets should be sent to the ASBR
-            //     itself. Among the multiple routing table entries for the ASBR, select the
-            //     preferred entry as follows. If RFC1583 Compatibility is set to "disabled", prune
-            //     the set of routing table entries for the ASBR as described in Section 16.4.1. In
-            //     any case, among the remaining routing table entries, select the routing table
-            //     entry with the least cost; when there are multiple least cost routing table
-            //     entries the entry whose associated area has the largest OSPF Area ID (when
-            //     considered as an unsigned 32-bit integer) is chosen.
-            // --> We don't implement that behavior
-            //
-            //     If the forwarding address is non-zero, look up the forwarding address in the
-            //     routing table.[24] The matching routing table entry must specify an intra-area or
-            //     inter-area path; if no such path exists, do nothing with the LSA and consider the
-            //     next in the list.
-            // --> We don't implement that behavior
-            let Some(adv_node) = self.spt.get(&lsa.header.router) else {
-                continue;
-            };
-
-            // (4) Let X be the cost specified by the preferred routing table entry for the
-            //     ASBR/forwarding address, and Y the cost specified in the LSA. X is in terms of
-            //     the link state metric, and Y is a type 1 or 2 external metric.
-            // --> we don't model type 1 or type 2 external metrics
-            let mut path = SptNode {
-                router_id: target,
-                key: lsa.key(),
-                fibs: adv_node.fibs.clone(),
-                cost: adv_node.cost + weight,
-                inter_area: adv_node.inter_area,
-            };
-            // set the fibs appropriately, in case it is directly connected
-            if lsa.header.router == self.router_id {
-                debug_assert!(path.fibs.is_empty());
-                path.fibs.insert(target);
-            }
-
-            // (6a) Intra-area and inter-area paths are always preferred over AS external
-            //      paths.
-            // -->  we do that one before 5, because of the match statment
-            if self.spt.contains_key(&target) {
-                continue;
-            }
-
-            // (5) Look up the routing table entry for the destination TARGET. If no entry exists
-            //     for TARGET, install the AS external path to TARGET, with next hop equal to the
-            //     list of next hops to the forwarding address, and advertising router equal to
-            //     ASBR. If the external metric type is 1, then the path-type is set to type 1
-            //     external and the cost is equal to X+Y. If the external metric type is 2, the
-            //     path-type is set to type 2 external, the link state component of the route's cost
-            //     is X, and the type 2 cost is Y.
-            match new_paths.entry(target) {
-                Entry::Vacant(e) => {
-                    e.insert(path);
-                }
-                // (6) Compare the AS external path described by the LSA with the existing paths in
-                //     TARGET's routing table entry, as follows. If the new path is preferred, it
-                //     replaces the present paths in TARGET's routing table entry. If the new path
-                //     is of equal preference, it is added to TARGET's routing table entry's list of
-                //     paths.
-                Entry::Occupied(mut e) => {
-                    // (b) Type 1 external paths are always preferred over type 2 external paths.
-                    //     When all paths are type 2 external paths, the paths with the smallest
-                    //     advertised type 2 metric are always preferred.
-                    // --> we ignore the difference between Type 1 and Typ1 2 paths.
-
-                    // (c) If the new AS external path is still indistinguishable from the current
-                    //     paths in the TARGET's routing table entry, and RFC1583Compatibility is
-                    //     set to "disabled", select the preferred paths based on the intra-AS paths
-                    //     to the ASBR/forwarding addresses, as specified in Section 16.4.1.
-                    // --> ignore this case
-
-                    // (d) If the new AS external path is still indistinguishable from the current
-                    //     paths in the TARGET's routing table entry, select the preferred path
-                    //     based on a least cost comparison. Type 1 external paths are compared by
-                    //     looking at the sum of the distance to the forwarding address and the
-                    //     advertised type 1 metric (X+Y). Type 2 external paths advertising equal
-                    //     type 2 metrics are compared by looking at the distance to the forwarding
-                    //     addresses.
-                    // --> ignore that case
-
-                    // (f) When multiple intra-AS paths are available to ASBRs/forwarding addresses,
-                    //     the following rules indicate which paths are preferred. These rules apply
-                    //     when the same ASBR is reachable through multiple areas, or when trying to
-                    //     decide which of several AS-external-LSAs should be preferred. In the
-                    //     former case the paths all terminate at the same ASBR, while in the latter
-                    //     the paths terminate at separate ASBRs/forwarding addresses. In either
-                    //     case, each path is represented by a separate routing table entry as
-                    //     defined in Section 11.
-
-                    //     The path preference rules, stated from highest to lowest preference, are
-                    //     as follows. Note that as a result of these rules, there may still be
-                    //     multiple paths of the highest preference. In this case, the path to use
-                    //     must be determined based on cost, as described in Section 16.4.
-                    //     - Intra-area paths using non-backbone areas are always the most
-                    //       preferred.
-                    //     - The other paths, intra-area backbone paths and inter-area paths, are of
-                    //       equal preference.
-                    match (e.get().inter_area, e.get().cost).cmp(&(path.inter_area, path.cost)) {
-                        // the current cost is lower than the new path
-                        Ordering::Less => {}
-                        // Both paths are equally preferred. Extend the next-hops
-                        Ordering::Equal => {
-                            e.get_mut().fibs.extend(path.fibs);
-                        }
-                        // The new path is better. Replace it.
-                        Ordering::Greater => {
-                            *e.get_mut() = path;
-                        }
-                    }
-                }
-            }
-        }
-
-        let changed = new_paths
-            .iter()
-            .any(|(k, v)| old_spt.get(k).map(|x| x.cost) != Some(v.cost));
-
-        // extend the spt with the new paths
-        self.spt.extend(new_paths);
-
-        changed
-    }
-
     /// Redistribute routes from `rib` into `self`.
     ///
     /// Summary-LSAs are originated by area border routers. The precise summary routes to advertise
@@ -923,13 +1108,13 @@ impl AreaDataStructure {
             // - AS external routes are never advertised in summary-LSAs. If the routing table entry
             //   has Path-type of type 1 external or type 2 external, examine the next routing table
             //   entry.
-            if path.lsas.values().any(|key| key.lsa_type.is_external()) {
+            if path.keys.values().any(|key| key.is_external()) {
                 continue;
             }
 
             // - Else, if the area associated with this set of paths is the Area A itself, do not
             //   generate a summary-LSA for the route.[17]
-            if path.lsas.contains_key(&self.area) {
+            if path.keys.contains_key(&Some(self.area)) {
                 continue;
             }
 
@@ -1122,7 +1307,7 @@ impl AreaDataStructure {
 /// Throughout the shortest path calculation, the following data is also associated with each transit
 /// vertex:
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub struct SptNode {
+struct SptNode {
     /// A 32-bit number which together with the vertex type (router or network) uniquely identifies
     /// the vertex. For router vertices the Vertex ID is the router's OSPF Router ID. For network
     /// vertices, it is the IP address of the network's Designated Router.
