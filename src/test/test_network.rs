@@ -26,7 +26,7 @@ mod t {
         config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
         event::BasicEventQueue,
         network::Network,
-        ospf::global::GlobalOspf,
+        ospf::{global::GlobalOspf, local::LocalOspf, OspfImpl},
         prelude::BgpSessionType,
         route_map::{
             RouteMap, RouteMapDirection::*, RouteMapFlow::*, RouteMapSet as Set, RouteMapState::*,
@@ -57,8 +57,8 @@ mod t {
     ///         | .-'   |
     ///         R3 ---- R4 ---- E4
     /// ```
-    fn get_test_net<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
-        let mut net = Network::default();
+    fn get_test_net<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
+        let mut net: Network<P, BasicEventQueue<P>, Ospf> = Network::default();
 
         assert_eq!(*E1, net.add_external_router("E1", AsId(65101)));
         assert_eq!(*R1, net.add_router("R1"));
@@ -88,8 +88,8 @@ mod t {
     ///         | .'     |
     ///         R3 --3-- R4 ---- E4
     /// ```
-    fn get_test_net_igp<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
-        let mut net = get_test_net::<P>();
+    fn get_test_net_igp<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
+        let mut net = get_test_net::<P, Ospf>();
 
         // configure link weights
         net.set_link_weight(*R1, *R2, 5.0).unwrap();
@@ -122,8 +122,8 @@ mod t {
     /// Test network with BGP and link weights configured. No prefixes advertised yet. All internal
     /// routers are connected in an iBGP full mesh, all link weights are set to 1 except the one
     /// between r1 and r2.
-    fn get_test_net_bgp<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
-        let mut net = get_test_net_igp::<P>();
+    fn get_test_net_bgp<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
+        let mut net = get_test_net_igp::<P, Ospf>();
 
         // configure iBGP full mesh
         net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
@@ -141,8 +141,8 @@ mod t {
     }
 
     #[test]
-    fn test_remove_router<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
+    fn test_remove_router<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_bgp::<P, Ospf>();
         let p = P::from(0);
 
         // advertise prefix on e1
@@ -198,8 +198,8 @@ mod t {
     }
 
     #[test]
-    fn test_get_router<P: Prefix>() {
-        let net = get_test_net::<P>();
+    fn test_get_router<P: Prefix, Ospf: OspfImpl>() {
+        let net = get_test_net::<P, Ospf>();
 
         assert_eq!(net.get_router_id("R1"), Ok(*R1));
         assert_eq!(net.get_router_id("R2"), Ok(*R2));
@@ -228,8 +228,8 @@ mod t {
     }
 
     #[test]
-    fn test_bgp_connectivity<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
+    fn test_bgp_connectivity<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_bgp::<P, Ospf>();
 
         let p = P::from(0);
 
@@ -261,10 +261,10 @@ mod t {
     }
 
     #[test]
-    fn test_bgp_rib_entries<P: Prefix>() {
+    fn test_bgp_rib_entries<P: Prefix, Ospf: OspfImpl>() {
         use ordered_float::NotNan;
 
-        let mut net = get_test_net_bgp::<P>();
+        let mut net = get_test_net_bgp::<P, Ospf>();
 
         let p = P::from(0);
 
@@ -372,8 +372,8 @@ mod t {
     }
 
     #[test]
-    fn test_static_route<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
+    fn test_static_route<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_bgp::<P, Ospf>();
 
         let p = P::from(0);
 
@@ -423,8 +423,8 @@ mod t {
     }
 
     #[test]
-    fn test_bgp_decision<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
+    fn test_bgp_decision<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_bgp::<P, Ospf>();
 
         let p = P::from(0);
 
@@ -499,8 +499,8 @@ mod t {
     }
 
     #[test]
-    fn test_route_maps<P: Prefix>() {
-        let mut original_net = get_test_net_bgp::<P>();
+    fn test_route_maps<P: Prefix, Ospf: OspfImpl>() {
+        let mut original_net = get_test_net_bgp::<P, Ospf>();
         let p = P::from(0);
 
         // advertise both prefixes
@@ -671,8 +671,8 @@ mod t {
     }
 
     #[test]
-    fn test_link_failure<P: Prefix>() {
-        let mut original_net = get_test_net_bgp::<P>();
+    fn test_link_failure<P: Prefix, Ospf: OspfImpl>() {
+        let mut original_net = get_test_net_bgp::<P, Ospf>();
 
         // advertise a prefix on both ends
         let p = P::from(0);
@@ -748,8 +748,8 @@ mod t {
     }
 
     #[test]
-    fn test_config_extractor<P: Prefix>() {
-        let mut net = get_test_net_bgp::<P>();
+    fn test_config_extractor<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_bgp::<P, Ospf>();
         let mut original_cfg = net.get_config().unwrap();
 
         let extracted_cfg = net.get_config().unwrap();
@@ -780,8 +780,9 @@ mod t {
     /// Test network with BGP and link weights configured. No prefixes advertised yet. All internal
     /// routers are connected in an iBGP full mesh, all link weights are set to 1 except the one
     /// between r1 and r2.
-    fn get_test_net_bgp_load_balancing<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
-        let mut net = get_test_net::<P>();
+    fn get_test_net_bgp_load_balancing<P: Prefix, Ospf: OspfImpl>(
+    ) -> Network<P, BasicEventQueue<P>, Ospf> {
+        let mut net = get_test_net::<P, Ospf>();
 
         // configure link weights
         net.set_link_weight(*R1, *R2, 2.0).unwrap();
@@ -812,8 +813,8 @@ mod t {
     }
 
     #[test]
-    fn test_load_balancing<P: Prefix>() {
-        let mut net = get_test_net_bgp_load_balancing::<P>();
+    fn test_load_balancing<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_bgp_load_balancing::<P, Ospf>();
 
         let p = P::from(0);
         net.advertise_external_route(*E1, p, vec![AsId(65101)], None, None)
@@ -843,8 +844,8 @@ mod t {
     }
 
     #[test]
-    fn test_static_route_load_balancing<P: Prefix>() {
-        let mut net = get_test_net_bgp_load_balancing::<P>();
+    fn test_static_route_load_balancing<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_bgp_load_balancing::<P, Ospf>();
         let p = P::from(0);
 
         // advertise a route at E1 and E4, and make the one at E4 the preferred one.
@@ -897,7 +898,7 @@ mod t {
     }
 
     #[test]
-    fn bgp_propagation_client_peers<P: Prefix>() {
+    fn bgp_propagation_client_peers<P: Prefix, Ospf: OspfImpl>() {
         let mut net = Network::<_, _, GlobalOspf>::default();
         let r1 = net.add_router("r1");
         let r2 = net.add_router("r2");
@@ -929,8 +930,8 @@ mod t {
     }
 
     #[test]
-    fn bgp_state_incoming<P: Prefix>() {
-        let mut net = get_test_net_igp::<P>();
+    fn bgp_state_incoming<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
@@ -1004,8 +1005,8 @@ mod t {
     }
 
     #[test]
-    fn bgp_state_incoming_2<P: Prefix>() {
-        let mut net = get_test_net_igp::<P>();
+    fn bgp_state_incoming_2<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
@@ -1073,8 +1074,8 @@ mod t {
     }
 
     #[test]
-    fn bgp_state_peers_incoming<P: Prefix>() {
-        let mut net = get_test_net_igp::<P>();
+    fn bgp_state_peers_incoming<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
@@ -1103,8 +1104,8 @@ mod t {
     }
 
     #[test]
-    fn bgp_state_outgoing<P: Prefix>() {
-        let mut net = get_test_net_igp::<P>();
+    fn bgp_state_outgoing<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
@@ -1181,8 +1182,8 @@ mod t {
     }
 
     #[test]
-    fn bgp_state_outgoing_2<P: Prefix>() {
-        let mut net = get_test_net_igp::<P>();
+    fn bgp_state_outgoing_2<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
@@ -1247,8 +1248,8 @@ mod t {
     }
 
     #[test]
-    fn bgp_state_peers_outgoing<P: Prefix>() {
-        let mut net = get_test_net_igp::<P>();
+    fn bgp_state_peers_outgoing<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
@@ -1280,8 +1281,8 @@ mod t {
     }
 
     #[test]
-    fn bgp_state_reach<P: Prefix>() {
-        let mut net = get_test_net_igp::<P>();
+    fn bgp_state_reach<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
@@ -1304,8 +1305,8 @@ mod t {
     }
 
     #[test]
-    fn bgp_state_propagation_path<P: Prefix>() {
-        let mut net = get_test_net_igp::<P>();
+    fn bgp_state_propagation_path<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
@@ -1322,8 +1323,8 @@ mod t {
     }
 
     #[test]
-    fn bgp_state_transform<P: Prefix>() {
-        let mut net = get_test_net_igp::<P>();
+    fn bgp_state_transform<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
@@ -1337,12 +1338,21 @@ mod t {
         );
     }
 
-    #[instantiate_tests(<SinglePrefix>)]
-    mod single {}
+    #[instantiate_tests(<SinglePrefix, GlobalOspf>)]
+    mod single_global_ospf {}
 
-    #[instantiate_tests(<SimplePrefix>)]
-    mod simple {}
+    #[instantiate_tests(<SimplePrefix, GlobalOspf>)]
+    mod simple_global_ospf {}
 
-    #[instantiate_tests(<Ipv4Prefix>)]
-    mod ipv4 {}
+    #[instantiate_tests(<Ipv4Prefix, GlobalOspf>)]
+    mod ipv4_global_ospf {}
+
+    #[instantiate_tests(<SinglePrefix, LocalOspf>)]
+    mod single_local_ospf {}
+
+    #[instantiate_tests(<SimplePrefix, LocalOspf>)]
+    mod simple_local_ospf {}
+
+    #[instantiate_tests(<Ipv4Prefix, LocalOspf>)]
+    mod ipv4_local_ospf {}
 }

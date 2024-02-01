@@ -15,12 +15,13 @@
 
 use crate::{
     network::Network,
+    ospf::OspfImpl,
     types::{NetworkError, Prefix, RouterId},
 };
 
-fn path_result_str<P: Prefix, Q>(
+fn path_result_str<P: Prefix, Q, Ospf: OspfImpl>(
     paths: Result<Vec<Vec<RouterId>>, NetworkError>,
-    net: &Network<P, Q>,
+    net: &Network<P, Q, Ospf>,
 ) -> String {
     match paths {
         Ok(paths) => format!(
@@ -44,16 +45,16 @@ fn path_result_str<P: Prefix, Q>(
     }
 }
 
-fn paths_names<'n, P: Prefix, Q>(
+fn paths_names<'n, P: Prefix, Q, Ospf: OspfImpl>(
     paths: &[Vec<RouterId>],
-    net: &'n Network<P, Q>,
+    net: &'n Network<P, Q, Ospf>,
 ) -> Result<Vec<Vec<&'n str>>, NetworkError> {
     paths.iter().map(|p| path_names(p, net)).collect()
 }
 
-fn path_names<'n, P: Prefix, Q>(
+fn path_names<'n, P: Prefix, Q, Ospf: OspfImpl>(
     path: &[RouterId],
-    net: &'n Network<P, Q>,
+    net: &'n Network<P, Q, Ospf>,
 ) -> Result<Vec<&'n str>, NetworkError> {
     path.iter()
         .map(|r| net.get_device(*r).map(|r| r.name()))
@@ -101,8 +102,8 @@ mod test_config;
 #[cfg(feature = "export")]
 mod test_export;
 mod test_forwarding_state;
-mod test_network;
 mod test_link_failure;
+mod test_network;
 mod test_network_complete;
 mod test_network_config;
 mod test_ospf;
