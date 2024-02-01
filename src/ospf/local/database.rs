@@ -920,7 +920,13 @@ impl AreaDataStructure {
                 break;
             }
 
-            let from_fibs = self.spt.get(&parent).expect("not yet visited").fibs.clone();
+            let mut from_fibs = self.spt.get(&parent).expect("not yet visited").fibs.clone();
+            // if from_fibs is empty, that means that `parent` must be the root. In that case,
+            // insert `node` as the fib, as `node` is a direct neighbor of `root`.
+            if from_fibs.is_empty() {
+                debug_assert!(parent == root);
+                from_fibs.insert(node);
+            }
             // check if already visited
             match self.spt.entry(node) {
                 Entry::Occupied(mut e) => {
