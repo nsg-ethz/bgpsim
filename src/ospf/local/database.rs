@@ -407,7 +407,7 @@ impl OspfRib {
 
             // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
             //     to MaxAge, then examine the next LSA.
-            if lsa.header.is_max_age() || weight.is_finite() {
+            if lsa.header.is_max_age() || weight.is_infinite() {
                 continue;
             }
 
@@ -592,10 +592,10 @@ impl OspfRibEntry {
         }
 
         // check if the cost is finite
-        if rib.cost.is_infinite() {
-            None
-        } else {
+        if rib.cost.is_finite() {
             Some(rib)
+        } else {
+            None
         }
     }
 
@@ -919,6 +919,7 @@ impl AreaDataStructure {
             if cost.into_inner().is_infinite() {
                 break;
             }
+
             let from_fibs = self.spt.get(&parent).expect("not yet visited").fibs.clone();
             // check if already visited
             match self.spt.entry(node) {
@@ -981,7 +982,7 @@ impl AreaDataStructure {
 
             // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
             //     to MaxAge, then examine the the next LSA.
-            if lsa.header.is_max_age() || weight.is_finite() {
+            if lsa.header.is_max_age() || weight.is_infinite() {
                 continue;
             }
 
