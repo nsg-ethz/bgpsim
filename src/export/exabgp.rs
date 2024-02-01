@@ -23,7 +23,6 @@ use std::{
 
 use crate::{
     bgp::BgpRoute,
-    network::Network,
     network::{Network, INTERNAL_AS},
     ospf::OspfImpl,
     types::{AsId, Prefix, PrefixMap, RouterId},
