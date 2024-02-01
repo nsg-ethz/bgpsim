@@ -884,13 +884,13 @@ impl AreaDataStructure {
 
         impl PartialOrd for HeapEntry {
             fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                self.cost.partial_cmp(&other.cost)
+                other.cost.partial_cmp(&self.cost)
             }
         }
 
         impl Ord for HeapEntry {
             fn cmp(&self, other: &Self) -> Ordering {
-                self.cost.cmp(&other.cost)
+                other.cost.cmp(&self.cost)
             }
         }
 
