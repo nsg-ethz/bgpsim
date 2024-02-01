@@ -238,11 +238,11 @@ impl Neighbor {
     }
 
     /// Whether a `NeighborEvent::Timeout` would be handled.
-    pub(super) fn waiting_for_timeout(&self) -> bool {
+    pub(super) fn is_waiting_for_timeout(&self) -> bool {
         match self.state {
             NeighborState::Init => false,
-            NeighborState::Exchange { .. } => todo!(),
-            NeighborState::Loading { .. } => todo!(),
+            NeighborState::Exchange { .. } => matches!(self.relation, Relation::Leader),
+            NeighborState::Loading { .. } => true,
             NeighborState::Full => !self.retransmission_list.is_empty(),
         }
     }

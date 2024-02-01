@@ -807,6 +807,16 @@ pub trait OspfProcess:
     fn is_neighbor(&self, dst: RouterId) -> bool {
         self.get_neighbors().contains_key(&dst)
     }
+
+    /// Whether the OSPF process is waiting for a timeout to expire, upon which it should trigger
+    /// new events.
+    fn is_waiting_for_timeout(&self) -> bool;
+
+    /// Whether the OSPF process is waiting for a timeout to expire, upon which it should trigger
+    /// new events.
+    fn trigger_timeout<P: Prefix, T: Default>(
+        &mut self,
+    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError>;
 }
 
 /// Target for a lookup into the IGP table

@@ -585,7 +585,19 @@ impl OspfProcess for GlobalOspfProcess {
         _event: super::local::OspfEvent,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
         // ignore any event.
-        log::error!("Received an OSPF event when using a global OSPF oracle! Event is ignored");
+        log::error!("Received an OSPF event when using a global OSPF process! Event is ignored");
+        Ok((false, Vec::new()))
+    }
+
+    fn is_waiting_for_timeout(&self) -> bool {
+        false
+    }
+
+    fn trigger_timeout<P: Prefix, T: Default>(
+        &mut self,
+    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+        // ignore any event.
+        log::error!("Triggered a timeout event on a global OSPF process!");
         Ok((false, Vec::new()))
     }
 }

@@ -173,6 +173,18 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
         }
     }
 
+    /// Returns `true` if some process of that router is waiting for some timeout to expire. Only
+    /// OSPF might trigger such a timeout at the moment.
+    pub(crate) fn is_waiting_for_timeout(&self) -> bool {
+        self.ospf.is_waiting_for_timeout()
+    }
+
+    /// Trigger any timeout event that might be registered on that device. Only OSPF might trigger
+    /// such a timeout at the moment.
+    pub(crate) fn trigger_timeout<T: Default>(&mut self) -> Result<Vec<Event<P, T>>, DeviceError> {
+        self.update_ospf(|ospf| ospf.trigger_timeout())
+    }
+
     /// Get the forwarding table of the router. The forwarding table is a mapping from each prefix
     /// to a next-hop.
     ///

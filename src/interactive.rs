@@ -24,7 +24,7 @@ use crate::{
     network::Network,
     ospf::{global::GlobalOspf, OspfImpl},
     types::NetworkError,
-    types::{NetworkDevice, Prefix, StepUpdate},
+    types::{NetworkDevice, NetworkErrorOption, Prefix, RouterId, StepUpdate},
 };
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
@@ -64,6 +64,26 @@ where
     /// network has converged), or until the maximum allowed events have been processed (which can
     /// be set by `self.set_msg_limit`).
     fn simulate(&mut self) -> Result<(), NetworkError>;
+
+    /// Trigger the timeout event on any router. The router is picked randomly if the feature `rand`
+    /// is enabled. The function returns the router on which the timeout was triggered, or `None` if
+    /// no router is waiting for a timeout event.
+    ///
+    /// After calling this function, the queue might contain new events. Run `net.simulate()` to
+    /// execute them.
+    ///
+    /// Timeout might cause OSPF events to be generated at internal routers.
+    fn trigger_timeout(&mut self) -> Result<Option<RouterId>, NetworkError>;
+
+    /// Trigger the timeout event on `router`. If the router is not waiting for a timeout event, the
+    /// function returns `Ok(false)`. Otherwise, the timeout is triggered, and `Ok(true)` is
+    /// returned.
+    ///
+    /// After calling this function, the queue might contain new events. Run `net.simulate()` to
+    /// execute them.
+    ///
+    /// Timeout might cause OSPF events to be generated at internal routers.
+    fn trigger_timeout_at(&mut self, router: RouterId) -> Result<bool, NetworkError>;
 
     /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
     /// will not execute any subsequent event. This function returns the change in forwarding
@@ -140,18 +160,70 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
 
     fn simulate(&mut self) -> Result<(), NetworkError> {
         let mut remaining_iter = self.stop_after;
-        while !self.queue.is_empty() {
-            if let Some(rem) = remaining_iter {
-                if rem == 0 {
-                    debug!("Network could not converge!");
-                    return Err(NetworkError::NoConvergence);
+        'timeout: loop {
+            while !self.queue.is_empty() {
+                if let Some(rem) = remaining_iter {
+                    if rem == 0 {
+                        debug!("Network could not converge!");
+                        return Err(NetworkError::NoConvergence);
+                    }
+                    remaining_iter = Some(rem - 1);
                 }
-                remaining_iter = Some(rem - 1);
+                self.simulate_step()?;
             }
-            self.simulate_step()?;
+
+            // trigger the next timeout event if it exists.
+            let trigger_router = self.trigger_timeout()?;
+
+            // if no timeout was triggered, break out of the loop. We are converged!
+            if trigger_router.is_none() {
+                break 'timeout;
+            }
         }
 
         Ok(())
+    }
+
+    fn trigger_timeout(&mut self) -> Result<Option<RouterId>, NetworkError> {
+        #[allow(unused_mut)]
+        let mut routers_waiting_for_timeout = self
+            .internal_routers()
+            .filter(|r| r.is_waiting_for_timeout())
+            .map(|r| r.router_id());
+
+        #[cfg(not(feature = "rand"))]
+        let router: Option<RouterId> = routers_waiting_for_timeout.next();
+
+        #[cfg(feature = "rand")]
+        let router: Option<RouterId> = {
+            use rand::prelude::*;
+            let mut rng = thread_rng();
+            let waiting = routers_waiting_for_timeout.collect::<Vec<_>>();
+            waiting.as_slice().choose(&mut rng).copied()
+        };
+
+        if let Some(router) = router {
+            Ok(self.trigger_timeout_at(router)?.then_some(router))
+        } else {
+            Ok(None)
+        }
+    }
+
+    fn trigger_timeout_at(&mut self, router: RouterId) -> Result<bool, NetworkError> {
+        let r = self
+            .routers
+            .get_mut(&router)
+            .or_router_not_found(router)?
+            .internal_or_err()?;
+
+        if r.is_waiting_for_timeout() {
+            log::debug!("Trigger timeout on {}", r.name());
+            let events = r.trigger_timeout()?;
+            self.enqueue_events(events);
+            Ok(true)
+        } else {
+            Ok(false)
+        }
     }
 }
 

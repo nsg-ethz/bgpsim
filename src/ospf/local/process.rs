@@ -701,4 +701,41 @@ impl OspfProcess for LocalOspfProcess {
         };
         self.handle_neighbor_event(src, event)
     }
+
+    fn is_waiting_for_timeout(&self) -> bool {
+        self.neighbors.values().any(|n| n.is_waiting_for_timeout())
+    }
+
+    fn trigger_timeout<P: Prefix, T: Default>(
+        &mut self,
+    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+        // get either a random neighbor to trigger the event, or the first one, depending on the
+        // `rand` feature.
+        #[cfg(not(feature = "rand"))]
+        let neighbor: Option<RouterId> =
+            // just trigger the first one
+            self.neighbors
+                .iter()
+                .find(|(_, n)| n.is_waiting_for_timeout())
+                .map(|(r, _)| *r);
+
+        #[cfg(feature = "rand")]
+        let neighbor: Option<RouterId> = {
+            use rand::prelude::*;
+            let mut rng = thread_rng();
+            let neighbors = self
+                .neighbors
+                .iter()
+                .filter(|(_, n)| n.is_waiting_for_timeout())
+                .map(|(r, _)| *r)
+                .collect::<Vec<_>>();
+            neighbors.as_slice().choose(&mut rng).copied()
+        };
+
+        let Some(neighbor) = neighbor else {
+            log::error!("None of the OSPF neighbors are waiting for a timeout event!");
+            return Ok((false, Vec::new()));
+        };
+        self.handle_neighbor_event(neighbor, NeighborEvent::Timeout)
+    }
 }
