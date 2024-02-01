@@ -875,7 +875,7 @@ impl AreaDataStructure {
     /// Dijkstra algorithm that keeps track of the next-hops from the source.
     fn calculate_intra_area_routes(&mut self, old_spt: &HashMap<RouterId, SptNode>) -> bool {
         // use a heap to always explore the shortest paths first
-        #[derive(Clone, Copy, PartialEq, Eq)]
+        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
         struct HeapEntry {
             node: RouterId,
             parent: RouterId,

@@ -64,7 +64,7 @@ impl std::fmt::Display for Relation {
 ///
 /// We assume that the hello protocol immediately finishes, and the two routers are in the ExStart
 /// state.
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Default)]
+#[derive(Clone, PartialEq, Serialize, Deserialize, Eq, Default)]
 pub enum NeighborState {
     #[default]
     /// Initial state where no mesages have been exchanged.
@@ -102,6 +102,33 @@ pub enum NeighborState {
     Full,
 }
 
+impl std::fmt::Debug for NeighborState {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            NeighborState::Init => f.write_str("NeighborState::Init"),
+            NeighborState::Exchange { summary_list } => {
+                write!(
+                    f,
+                    "NeighborState::Exchange {{ has {} LSAs }}",
+                    summary_list.len()
+                )
+            }
+            NeighborState::Loading {
+                summary_list,
+                request_list,
+            } => {
+                write!(
+                    f,
+                    "NeighborState::Loading {{ has {} LSAs, waiting for {} }}",
+                    summary_list.len(),
+                    request_list.len()
+                )
+            }
+            NeighborState::Full => f.write_str("NeighborState::Init"),
+        }
+    }
+}
+
 impl std::fmt::Display for NeighborState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
@@ -133,6 +160,7 @@ pub(super) struct Neighbor {
 }
 
 /// All events that (may) trigger state machine transitions
+#[derive(Debug)]
 pub(super) enum NeighborEvent {
     /// The event that is triggered immediately after initializing a new neighbor relationship. In
     /// this event, the leader transitions from `ExStart` to `Exchange` by sending its current SLA
