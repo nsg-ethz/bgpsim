@@ -466,8 +466,14 @@ impl Neighbor {
             }
         }
 
-        res.event(event!(self, Ack, acks))
-            .event(event!(self, Upd, updates))
+        if !acks.is_empty() {
+            res.events.push(event!(self, Ack, acks));
+        }
+        if !updates.is_empty() {
+            res.events.push(event!(self, Ack, updates));
+        }
+
+        res
     }
 
     /// This function is called for each LSA in `Self::handle_update` if the message is an
@@ -526,6 +532,22 @@ impl Neighbor {
         //     listed in the Link State Update packet.
         if lsa.is_max_age() && old.is_none() && !partial_sync {
             return RecvLsaActions::new().acknowledge(lsa);
+        }
+
+        // In case we are in the state Loading, remove the LSA from the request list
+        let mut expected_from_loading = false;
+        if let NeighborState::Loading { request_list, .. } = &mut self.state {
+            if let Some(exp_header) = request_list.get(&key) {
+                if !exp_header.compare(&lsa.header).is_newer() {
+                    expected_from_loading = true;
+                    request_list.remove(&key);
+                }
+            }
+
+            // transition to to Full state if the request list is empty
+            if request_list.is_empty() {
+                self.state = NeighborState::Full;
+            }
         }
 
         // (5) Otherwise, find the instance of this LSA that is currently contained in the router's
@@ -632,7 +654,9 @@ impl Neighbor {
             // (e) Possibly acknowledge the receipt of the LSA by sending a Link State
             //     Acknowledgment packet back out the receiving interface. This is explained below
             //     in Section 13.5.
-            actions.acknowledge = Some(lsa);
+            if !expected_from_loading {
+                actions.acknowledge = Some(lsa);
+            }
 
             return actions;
         }

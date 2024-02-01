@@ -530,6 +530,11 @@ impl LocalOspfProcess {
                 .cloned()
                 .collect();
 
+            // only flood if there  is actually some data to be flooded
+            if flood.is_empty() {
+                continue;
+            }
+
             let NeighborActions {
                 mut events,
                 flood,
