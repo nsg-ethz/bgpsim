@@ -6,6 +6,8 @@ use serde::{Deserialize, Serialize};
 
 use crate::{
     event::Event,
+    formatter::NetworkFormatter,
+    network::Network,
     ospf::{
         local::{
             database::OspfRib,
@@ -13,7 +15,7 @@ use crate::{
             neighbor::{Neighbor, NeighborActions, NeighborEvent},
             OspfEvent,
         },
-        LinkWeight, NeighborhoodChange, OspfArea, OspfProcess,
+        LinkWeight, NeighborhoodChange, OspfArea, OspfImpl, OspfProcess,
     },
     types::{DeviceError, Prefix, RouterId},
 };
@@ -143,6 +145,11 @@ impl LocalNeighborhoodChange {
 }
 
 impl LocalOspfProcess {
+    /// Get a reference to the internal datastructure
+    pub fn data(&self) -> &OspfRib {
+        &self.areas
+    }
+
     /// Handle a neighborhood change.
     pub(super) fn handle_neighborhood_change<P: Prefix, T: Default>(
         &mut self,
@@ -742,5 +749,13 @@ impl OspfProcess for LocalOspfProcess {
             return Ok((false, Vec::new()));
         };
         self.handle_neighbor_event(neighbor, NeighborEvent::Timeout)
+    }
+
+    fn fmt<P, Q, Ospf>(&self, net: &Network<P, Q, Ospf>) -> String
+    where
+        P: Prefix,
+        Ospf: OspfImpl<Process = Self>,
+    {
+        self.areas.get_rib().fmt(net)
     }
 }

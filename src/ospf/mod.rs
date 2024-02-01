@@ -25,6 +25,7 @@ pub use iterator::*;
 
 use std::collections::{hash_map::Entry, HashMap, HashSet};
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
 
@@ -32,6 +33,7 @@ use crate::{
     event::Event,
     formatter::NetworkFormatter,
     forwarding_state::{ForwardingState, TO_DST},
+    network::Network,
     types::{
         DeviceError, NetworkDevice, NetworkError, NetworkErrorOption, Prefix, PrefixMap, RouterId,
         SimplePrefix,
@@ -817,6 +819,27 @@ pub trait OspfProcess:
     fn trigger_timeout<P: Prefix, T: Default>(
         &mut self,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError>;
+
+    /// Get a formatted string of the process.
+    fn fmt<P, Q, Ospf>(&self, net: &Network<P, Q, Ospf>) -> String
+    where
+        P: Prefix,
+        Ospf: OspfImpl<Process = Self>,
+    {
+        let table = self.get_table();
+        format!(
+            "OspfRib: {{\n{}\n}}",
+            table
+                .iter()
+                .map(|(r, (nhs, cost))| format!(
+                    "  {}: {} (cost: {cost})",
+                    r.fmt(net),
+                    nhs.iter().map(|r| r.fmt(net)).join(" || ")
+                ))
+                .map(|s| if s.is_empty() { "XX".to_string() } else { s })
+                .join("\n")
+        )
+    }
 }
 
 /// Target for a lookup into the IGP table

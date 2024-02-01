@@ -28,7 +28,11 @@ use crate::{
     event::{BasicEventQueue, Event, FmtPriority},
     forwarding_state::{ForwardingState, TO_DST},
     network::Network,
-    ospf::OspfImpl,
+    ospf::{
+        global::GlobalOspfProcess,
+        local::{LocalOspfProcess, OspfRibEntry},
+        OspfImpl, OspfProcess,
+    },
     policies::{FwPolicy, PathCondition, PathConditionCNF, PolicyError, Waypoint},
     record::{ConvergenceRecording, ConvergenceTrace, FwDelta},
     route_map::{RouteMap, RouteMapDirection, RouteMapMatch, RouteMapSet, RouteMapState},
@@ -902,5 +906,57 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
 
     fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         self.0.iter().map(|e| e.fmt(net)).join("\n")
+    }
+}
+
+//
+// formatting OSPF Rib Entries
+//
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for OspfRibEntry {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
+        let kind = if self.inter_area { "R" } else { "I" };
+        let nhs = self.fibs.iter().map(|r| r.fmt(net)).join(" || ");
+        let nhs = if nhs.is_empty() {
+            "XX".to_string()
+        } else {
+            nhs
+        };
+        let cost = self.cost.into_inner();
+        format!("{} -> {nhs} (cost: {cost}{kind})", self.router_id.fmt(net))
+    }
+}
+
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for HashMap<RouterId, OspfRibEntry>
+{
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
+        format!(
+            "OspfRib: {{\n  {}\n}}",
+            self.values().map(|e| e.fmt(net)).join("\n  ")
+        )
+    }
+}
+
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl<Process = GlobalOspfProcess>>
+    NetworkFormatter<'a, 'n, P, Q, Ospf> for GlobalOspfProcess
+{
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
+        OspfProcess::fmt(self, net)
+    }
+}
+
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl<Process = LocalOspfProcess>>
+    NetworkFormatter<'a, 'n, P, Q, Ospf> for LocalOspfProcess
+{
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
+        OspfProcess::fmt(self, net)
     }
 }
