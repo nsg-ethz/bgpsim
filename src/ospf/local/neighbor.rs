@@ -298,13 +298,13 @@ impl Neighbor {
         let event_name = event.name();
         let neigh = self.neighborhood();
         log::trace!(
-            "OSPF {} --> {} ({}:{:?}) in state {:?} gets event {}",
+            "OSPF {} --> {} ({}:{:?}) in state {:?} gets event {:?}",
             self.router_id.index(),
             self.neighbor_id.index(),
             self.area,
             self.relation,
             self.state,
-            event.name(),
+            event,
         );
         // handle the event by matching on it. If none of the patterns match, then the expression is
         // None. This Option will be unwrapped further below, generating warnings for any unhandled

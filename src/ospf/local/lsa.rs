@@ -52,7 +52,7 @@ impl LsaType {
 }
 
 /// A single LSA header field.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct LsaHeader {
     /// The type of LSA
     pub lsa_type: LsaType,
@@ -198,7 +198,7 @@ impl PartialOrd for Lsa {
 }
 
 /// A single LSA
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct Lsa {
     /// The LSA Header
     pub header: LsaHeader,
@@ -254,7 +254,7 @@ impl Lsa {
 }
 
 /// The data associated with a specific LsaHeader. This structure is dependent on the Lsa Type.
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum LsaData {
     /// Type 1 Router-LSA, describing a set of outgoing edges of the advertising router.
     Router(Vec<RouterLsaLink>),
@@ -289,7 +289,7 @@ impl LinkType {
     }
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Copy, Eq, Hash)]
+#[derive(Clone, Serialize, Deserialize, PartialEq, Copy, Eq, Hash)]
 /// A single outgoing link described by a Router-LSA.
 pub struct RouterLsaLink {
     /// The link type (either point-to-point or virtual)
@@ -318,26 +318,58 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
     type Formatter = String;
 
     fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
+        let max_age = if self.is_max_age() { " MaxAge" } else { "" };
         match self.lsa_type {
             LsaType::Router => format!(
-                "RouterLSA {{router={}, seq={}, age={}}}",
+                "RouterLSA({} [{}]{})",
                 self.router.fmt(net),
                 self.seq,
-                self.age
+                max_age
             ),
             LsaType::Summary => format!(
-                "SummaryLSA {{router={}, target={}, seq={}, age={}}}",
+                "SummaryLSA({} --> {} [{}]{})",
                 self.router.fmt(net),
                 self.target.unwrap().fmt(net),
                 self.seq,
-                self.age
+                max_age
             ),
             LsaType::External => format!(
-                "ExternalLSA {{router={}, target={}, seq={}, age={}}}",
+                "ExternalLSA({} --> {} [{}]{})",
                 self.router.fmt(net),
                 self.target.unwrap().fmt(net),
                 self.seq,
-                self.age
+                max_age
+            ),
+        }
+    }
+}
+
+impl std::fmt::Debug for LsaHeader {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let max_age = if self.is_max_age() { " MaxAge" } else { "" };
+        match self.lsa_type {
+            LsaType::Router => write!(
+                f,
+                "RouterLSA({} [{}]{})",
+                self.router.index(),
+                self.seq,
+                max_age
+            ),
+            LsaType::Summary => write!(
+                f,
+                "SummaryLSA({} --> {} [{}]{})",
+                self.router.index(),
+                self.target.unwrap().index(),
+                self.seq,
+                max_age
+            ),
+            LsaType::External => write!(
+                f,
+                "ExternalLSA({} --> {} [{}]{})",
+                self.router.index(),
+                self.target.unwrap().index(),
+                self.seq,
+                max_age
             ),
         }
     }
@@ -355,11 +387,29 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
     }
 }
 
+impl std::fmt::Debug for LsaData {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            LsaData::Router(x) => {
+                write!(f, "{{{}}}", x.iter().map(|x| format!("{x:?}")).join(", "))
+            }
+            LsaData::Summary(weight) => write!(f, "{weight}"),
+            LsaData::External(weight) => write!(f, "{weight}"),
+        }
+    }
+}
+
 impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for Lsa {
     type Formatter = String;
 
     fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!("{} => {}", self.header.fmt(net), self.data.fmt(net))
+    }
+}
+
+impl std::fmt::Debug for Lsa {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{:?} => {:?}", self.header, self.data)
     }
 }
 
@@ -375,8 +425,18 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
     }
 }
 
+impl std::fmt::Debug for RouterLsaLink {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        let ty = match self.link_type {
+            LinkType::PointToPoint => "",
+            LinkType::Virtual => " [v]",
+        };
+        write!(f, "{}: {}{}", self.target.index(), self.weight, ty)
+    }
+}
+
 /// A key used to identify a specific LSA
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub struct LsaKey {
     /// The type of LSA
     pub lsa_type: LsaType,
@@ -440,5 +500,45 @@ impl From<Lsa> for LsaKey {
 impl From<&Lsa> for LsaKey {
     fn from(value: &Lsa) -> Self {
         value.key()
+    }
+}
+
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for LsaKey {
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
+        match self.lsa_type {
+            LsaType::Router => format!("RouterLSA({})", self.router.fmt(net),),
+            LsaType::Summary => format!(
+                "SummaryLSA({} --> {})",
+                self.router.fmt(net),
+                self.target.unwrap().fmt(net),
+            ),
+            LsaType::External => format!(
+                "ExternalLSA({} --> {})",
+                self.router.fmt(net),
+                self.target.unwrap().fmt(net),
+            ),
+        }
+    }
+}
+
+impl std::fmt::Debug for LsaKey {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self.lsa_type {
+            LsaType::Router => write!(f, "RouterLSA({})", self.router.index(),),
+            LsaType::Summary => write!(
+                f,
+                "SummaryLSA({} --> {})",
+                self.router.index(),
+                self.target.unwrap().index(),
+            ),
+            LsaType::External => write!(
+                f,
+                "ExternalLSA({} --> {})",
+                self.router.index(),
+                self.target.unwrap().index(),
+            ),
+        }
     }
 }

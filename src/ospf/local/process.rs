@@ -161,6 +161,11 @@ impl LocalOspfProcess {
                 area,
                 weight,
             } => {
+                log::debug!(
+                    "Add neighbor {} --> {}",
+                    self.router_id.index(),
+                    neighbor.index()
+                );
                 if self.neighbors.contains_key(&neighbor) {
                     return Err(DeviceError::AlreadyOspfNeighbors(self.router_id, neighbor));
                 }
@@ -181,6 +186,11 @@ impl LocalOspfProcess {
                 Ok((recompute_bgp_1 || recompute_bgp_2, events))
             }
             LocalNeighborhoodChange::DelNeigbor(neighbor) => {
+                log::debug!(
+                    "Remove neighbor {} --> {}",
+                    self.router_id.index(),
+                    neighbor.index()
+                );
                 // first, remove the neighborhood
                 let Some(n) = self.neighbors.remove(&neighbor) else {
                     return Err(DeviceError::NotAnOspfNeighbor(self.router_id, neighbor));
@@ -195,6 +205,12 @@ impl LocalOspfProcess {
                 Ok((recompute_bgp, events))
             }
             LocalNeighborhoodChange::Area { neighbor, area } => {
+                log::debug!(
+                    "Set area of neighbor {} --> {} to {area}",
+                    self.router_id.index(),
+                    neighbor.index()
+                );
+
                 // first of all, ensure that the area exists
                 self.areas.insert_area(area);
 
@@ -233,6 +249,11 @@ impl LocalOspfProcess {
                 Ok((recompute_bgp_1 || recompute_bgp_2, events))
             }
             LocalNeighborhoodChange::Weight { neighbor, weight } => {
+                log::debug!(
+                    "Set weight of neighbor {} --> {} to {weight}",
+                    self.router_id.index(),
+                    neighbor.index()
+                );
                 let area = self
                     .neighbors
                     .get(&neighbor)
@@ -241,6 +262,11 @@ impl LocalOspfProcess {
                 Ok(self.update_weight(neighbor, area, Some(weight)))
             }
             LocalNeighborhoodChange::SetExternalLink { ext, weight } => {
+                log::debug!(
+                    "Set external link {} --> {} to {weight:?}",
+                    self.router_id.index(),
+                    ext.index()
+                );
                 Ok(self.update_external_link(ext, weight))
             }
         }
