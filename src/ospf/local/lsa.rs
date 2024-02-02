@@ -11,7 +11,7 @@ use crate::types::{Prefix, RouterId};
 
 /// The different kinds of LSAs. LS type 2 (Network-SLA) and 4 (AS-Boundary Summary LSA) are not
 /// implemented.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
 pub enum LsaType {
     /// These are the router-LSAs. They describe the collected states of the router's interfaces.
     Router,
@@ -436,7 +436,7 @@ impl std::fmt::Debug for RouterLsaLink {
 }
 
 /// A key used to identify a specific LSA
-#[derive(Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, Deserialize)]
 pub struct LsaKey {
     /// The type of LSA
     pub lsa_type: LsaType,

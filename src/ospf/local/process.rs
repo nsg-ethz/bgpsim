@@ -155,6 +155,7 @@ impl LocalOspfProcess {
         &mut self,
         change: LocalNeighborhoodChange,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+        let mut actions = ProcessActions::new();
         match change {
             LocalNeighborhoodChange::AddNeighbor {
                 neighbor,
@@ -174,16 +175,13 @@ impl LocalOspfProcess {
                 self.areas.insert_area(area);
 
                 // update the corresponding LSA and notify all neighbors
-                let (recompute_bgp_1, mut events) =
-                    self.update_weight(neighbor, area, Some(weight));
-                // add the new neighbor
+                actions += self.update_weight(neighbor, area, Some(weight));
+
+                // add the new neighbor and trigger the start event on the neighbor
                 self.neighbors
                     .insert(neighbor, Neighbor::new(self.router_id, neighbor, area));
-                // trigger the start event on the neighbor
-                let (recompute_bgp_2, mut start_event) =
-                    self.handle_neighbor_event(neighbor, NeighborEvent::Start)?;
-                events.append(&mut start_event);
-                Ok((recompute_bgp_1 || recompute_bgp_2, events))
+
+                actions += self.handle_neighbor_event(neighbor, NeighborEvent::Start);
             }
             LocalNeighborhoodChange::DelNeigbor(neighbor) => {
                 log::debug!(
@@ -196,21 +194,17 @@ impl LocalOspfProcess {
                     return Err(DeviceError::NotAnOspfNeighbor(self.router_id, neighbor));
                 };
                 let area = n.area;
-                let (recompute_bgp, events) = self.update_weight(neighbor, area, None);
+
+                actions += self.update_weight(neighbor, area, None);
+
                 // completely remove the area datastructure in case no neighbors exist that have
                 // that area
                 if self.neighbors.values().all(|n| n.area != area) {
                     self.areas.remove_area(area);
+                    self.track_max_age.remove(&Some(area));
                 }
-                Ok((recompute_bgp, events))
             }
             LocalNeighborhoodChange::Area { neighbor, area } => {
-                log::debug!(
-                    "Set area of neighbor {} --> {} to {area}",
-                    self.router_id.index(),
-                    neighbor.index()
-                );
-
                 // first of all, ensure that the area exists
                 self.areas.insert_area(area);
 
@@ -224,29 +218,33 @@ impl LocalOspfProcess {
                     // nothing to do! the area stays the same
                     return Ok((false, Vec::new()));
                 }
+
+                log::debug!(
+                    "Set area of neighbor {} --> {} to {area}",
+                    self.router_id.index(),
+                    neighbor.index()
+                );
+
                 // first, remove the neighbor
                 let n = self.neighbors.remove(&neighbor).unwrap();
                 let old_area = n.area;
 
                 // then, update the area in the datastructure
-                let (recompute_bgp_1, mut events) = self.update_area(neighbor, old_area, area);
+                actions += self.update_area(neighbor, old_area, area);
 
                 // then, add the neighbor again
                 self.neighbors
                     .insert(neighbor, Neighbor::new(self.router_id, neighbor, area));
 
                 // trigger the start event on the neighbor
-                let (recompute_bgp_2, mut start_event) =
-                    self.handle_neighbor_event(neighbor, NeighborEvent::Start)?;
-                events.append(&mut start_event);
+                actions += self.handle_neighbor_event(neighbor, NeighborEvent::Start);
 
                 // completely remove the old area datastructure in case no neighbors exist that have
                 // that area
                 if self.neighbors.values().all(|n| n.area != old_area) {
                     self.areas.remove_area(old_area);
+                    self.track_max_age.remove(&Some(old_area));
                 }
-
-                Ok((recompute_bgp_1 || recompute_bgp_2, events))
             }
             LocalNeighborhoodChange::Weight { neighbor, weight } => {
                 log::debug!(
@@ -259,7 +257,7 @@ impl LocalOspfProcess {
                     .get(&neighbor)
                     .ok_or_else(|| DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?
                     .area;
-                Ok(self.update_weight(neighbor, area, Some(weight)))
+                actions += self.update_weight(neighbor, area, Some(weight));
             }
             LocalNeighborhoodChange::SetExternalLink { ext, weight } => {
                 log::debug!(
@@ -267,9 +265,11 @@ impl LocalOspfProcess {
                     self.router_id.index(),
                     ext.index()
                 );
-                Ok(self.update_external_link(ext, weight))
+                actions += self.update_external_link(ext, weight);
             }
-        }
+        };
+
+        Ok(self.perform_actions(actions))
     }
 
     /// Returns `true` if any neighbor is in `NeighborState::Exchange` or `NeighborState::Loading`.
@@ -279,104 +279,91 @@ impl LocalOspfProcess {
 
     /// Update the weight of a link.
     ///
-    /// This will change `self.neighbor_links`, update the corresponding LSA, and notify all
-    /// neighbors.
+    /// This will change `self.neighbor_links`, update the corresponding LSA, and prepare a list of
+    /// SLAs to flood.
     fn update_weight<P: Prefix, T: Default>(
         &mut self,
         neighbor: RouterId,
         area: OspfArea,
         weight: Option<LinkWeight>,
-    ) -> (bool, Vec<Event<P, T>>) {
+    ) -> ProcessActions<P, T> {
+        let mut result = ProcessActions::new();
+
         // update the LSA
         let Some((flood, track)) = self.areas.update_local_lsa(neighbor, area, weight) else {
             // nothing has changed, nothing to do!
-            return (false, Vec::new());
+            return result;
         };
-        let flood = flood.clone();
+        result.flood(flood.clone(), FloodFrom::Area(area));
 
-        // update the local neighbors
+        // update the track_max_age if necessary
+        if let Some(new_lsa) = track {
+            result.track_max_age(Some(area), new_lsa.key(), Some(new_lsa));
+        }
+
+        // update the local links
         if let Some(new_weight) = weight {
             self.neighbor_links.insert(neighbor, new_weight);
         } else {
             self.neighbor_links.remove(&neighbor);
         }
 
-        // update the track_max_age if necessary
-        if let Some(new_lsa) = track {
-            self.track_max_age
-                .entry(Some(area))
-                .or_default()
-                .insert(new_lsa.key(), Some(new_lsa));
-        }
-
         // flood the LSA
-        self.flood(vec![flood.clone()], FloodFrom::Area(area))
+        result
     }
 
-    /// Update the area of a link, assuming that the new neighborhood is already created.
+    /// Update the area of a link, assuming that the old neighborhood is already created.
     ///
-    /// This will update the corresponding LSAs and notify all neighbors. This function will both
-    /// update the old and the new area, triggering flooding events wherever necessary.
+    /// This function will update the area data structure of both the old and the new area, and
+    /// modify the Router-LSA of this router. It then generates a list of events to be flooded. The
+    /// function will also update `self.neighbor_links`.
     fn update_area<P: Prefix, T: Default>(
         &mut self,
         neighbor: RouterId,
         old: OspfArea,
         new: OspfArea,
-    ) -> (bool, Vec<Event<P, T>>) {
+    ) -> ProcessActions<P, T> {
         let weight = *self.neighbor_links.get(&neighbor).unwrap();
+        let mut actions = ProcessActions::new();
 
         if old == new {
-            return (false, Vec::new());
+            // nothing to do
+            return actions;
         }
 
-        let mut flood = Vec::new();
-
-        if let Some((lsa, track)) = self.areas.update_local_lsa(neighbor, old, None) {
-            flood.push((lsa.clone(), old));
-            if let Some(new_lsa) = track {
-                self.track_max_age
-                    .entry(Some(old))
-                    .or_default()
-                    .insert(new_lsa.key(), Some(new_lsa));
-            }
-        };
+        if self.areas.in_area(old) {
+            if let Some((lsa, track)) = self.areas.update_local_lsa(neighbor, old, None) {
+                actions.flood(lsa.clone(), FloodFrom::Area(old));
+                if let Some(new_lsa) = track {
+                    actions.track_max_age(Some(old), new_lsa.key(), Some(new_lsa));
+                }
+            };
+        }
 
         if let Some((lsa, track)) = self.areas.update_local_lsa(neighbor, new, Some(weight)) {
-            flood.push((lsa.clone(), new));
+            actions.flood(lsa.clone(), FloodFrom::Area(new));
             if let Some(new_lsa) = track {
-                self.track_max_age
-                    .entry(Some(new))
-                    .or_default()
-                    .insert(new_lsa.key(), Some(new_lsa));
+                actions.track_max_age(Some(new), new_lsa.key(), Some(new_lsa));
             }
         };
 
-        let mut events = Vec::new();
-        let mut recompute_bgp = false;
-        for (flood, area) in flood {
-            let (upd, mut ev) = self.flood(vec![flood], FloodFrom::Area(area));
-            recompute_bgp |= upd;
-            events.append(&mut ev);
-        }
-
-        // TODO: group events together
-
-        (recompute_bgp, events)
+        actions
     }
 
-    /// Update the external link (add, modify or remove it), and notify all neighbors about the
-    /// change.
+    /// Update the external link (add, modify or remove it), and prepare the LSAs to be flooded. The
+    /// function will also update `self.neighbor_links`.
     fn update_external_link<P: Prefix, T: Default>(
         &mut self,
         ext: RouterId,
         weight: Option<LinkWeight>,
-    ) -> (bool, Vec<Event<P, T>>) {
+    ) -> ProcessActions<P, T> {
+        let mut result = ProcessActions::new();
         // update the LSA
         let Some((flood, track)) = self.areas.update_external_lsa(ext, weight) else {
             // nothing has changed, nothing to do!
-            return (false, Vec::new());
+            return result;
         };
-        let flood = flood.clone();
+        result.flood(flood.clone(), FloodFrom::External);
 
         // update the local neighbors
         if let Some(new_weight) = weight {
@@ -387,65 +374,123 @@ impl LocalOspfProcess {
 
         // update the track_max_age if necessary
         if let Some(new_lsa) = track {
-            self.track_max_age
-                .entry(None)
-                .or_default()
-                .insert(flood.key(), new_lsa);
+            result.track_max_age(None, flood.key(), new_lsa);
         }
 
-        // flood the LSA
-        self.flood(vec![flood.clone()], FloodFrom::External)
+        result
     }
 
-    /// Handle a neighbor event
+    /// Handle a neighbor event, and create a ProcessAction structure (without yet flooding events,
+    /// or updating the tables.)
     fn handle_neighbor_event<P: Prefix, T: Default>(
         &mut self,
         neighbor: RouterId,
         event: NeighborEvent,
-    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+    ) -> ProcessActions<P, T> {
         let Some(n) = self.neighbors.get_mut(&neighbor) else {
             log::trace!("received event from non-existing neighbor. Ignoring the event");
-            return Ok((false, Vec::new()));
+            return ProcessActions::new();
         };
 
         let area = n.area;
 
-        let NeighborActions {
-            mut events,
-            flood,
-            track_max_age,
-        } = n.handle_event(event, &mut self.areas);
-
-        // register new max_age tracking
-        for (key, after) in track_max_age {
-            let area = if key.lsa_type.is_external() {
-                None
-            } else {
-                Some(area)
-            };
-            self.track_max_age
-                .entry(area)
-                .or_default()
-                .insert(key, after);
-        }
-
-        // handle the flooding (and by doing that, recompute the OSPF table if necessary!)
-        let (recompute_bgp, mut flood_events) = self.flood(flood, FloodFrom::Neighbor(neighbor));
-        events.append(&mut flood_events);
-
-        // finally, handle the the max-age tracking (which might trigger another round of updates /
-        // floodings)
-        let (max_age_recompute_bgp, mut max_age_events) = self.track_max_age();
-        events.append(&mut max_age_events);
-
-        // return the results
-        Ok((recompute_bgp || max_age_recompute_bgp, events))
+        ProcessActions::from_neighbor_actions(
+            n.handle_event(event, &mut self.areas),
+            neighbor,
+            area,
+        )
     }
 
-    /// Flood the required LSAs received from `from` out to all other interfaces. This function is
-    /// called when flooding LSAs that are received from a neighbor (in which case `from` must be
-    /// set to `FloodFrom::Neighbor`), or if some LSAs need to be flooded due to max-age tracking
-    /// (in which case `from` must be set to `FloodFrom::Area` or `FloodFrom::External`).
+    /// Finish an event on the process. This function will do the following:
+    ///
+    /// 1. extend the `track_max_age` as given in the actions (replacing older entries with newer
+    ///    ones).
+    /// 2. Track the acknowledgements of all max_age entries. If all neighbors have acknowledged the
+    ///    MaxAge LSA, update the table (by either removing the old LSA, or inserting the new one),
+    ///    and extend the flooding LSAs, such that those are flooded as well.
+    /// 3. Recompute the routing table. If there was no chagne to the table, then this operation
+    ///    will do nothing. If there was a change, also update `self.table`, and notify the BGP
+    ///    process to recompute its RIB tables.
+    /// 4. flood all LSAs to all neighbors (that are supposed to receive the flooding event).
+    /// 5. Batch together all update and acknowledgements towards the same neighbor into a single
+    ///    message.
+    ///
+    /// The function will return a boolean, whether BGP must be recomputed, and a set of events that
+    /// are triggered.
+    fn perform_actions<P: Prefix, T: Default>(
+        &mut self,
+        actions: ProcessActions<P, T>,
+    ) -> (bool, Vec<Event<P, T>>) {
+        let ProcessActions {
+            mut events,
+            mut flood,
+            track_max_age,
+        } = actions;
+
+        // first, extend track_max_age
+        for (a, t) in track_max_age {
+            if t.is_empty() {
+                continue;
+            }
+
+            let track = self.track_max_age.entry(a).or_default();
+            for (key, new_lsa) in t {
+                track.insert(key, new_lsa);
+            }
+        }
+
+        // then, perform max-age tracking which might extend the messages to be flooded
+        flood.append(&mut self.track_max_age());
+
+        let spt_updated = self.areas.update_routing_table();
+
+        if spt_updated {
+            // update the redistribution
+            let redist_info = self.areas.update_summary_lsas();
+
+            // deal with the redist_info
+            for (area, (redist_flood, track_max_age)) in redist_info {
+                // update the flooding information
+                flood.extend(
+                    redist_flood
+                        .into_iter()
+                        .map(|lsa| (lsa, FloodFrom::Area(area))),
+                );
+                // update the track_max_age stuff. Extending here will overwrite all the old values,
+                // such that we will flood the new informatoin once the old information is removed.
+                // Notice, that `update_summary_lsas` will only require us to track the max-age of a
+                // Summary-LSA, so no need to consider whether the LSA is an external-LSA.
+                self.track_max_age
+                    .entry(Some(area))
+                    .or_default()
+                    .extend(track_max_age);
+            }
+
+            // update the routing table
+            self.table = self
+                .areas
+                .get_rib()
+                .iter()
+                .map(|(r, path)| {
+                    (
+                        *r,
+                        (
+                            Vec::from_iter(path.fibs.iter().copied()),
+                            path.cost.into_inner(),
+                        ),
+                    )
+                })
+                .collect();
+        }
+
+        events.append(&mut self.flood(flood));
+        let events = batch_events(events);
+
+        (spt_updated, events)
+    }
+
+    /// Send the flooding out to all neighbors (that should receive the message), and return the
+    /// generated events.
     ///
     /// When a new (and more recent) LSA has been received, it must be flooded out some set of the
     /// router's interfaces. This section describes the second part of flooding procedure (the first
@@ -480,92 +525,18 @@ impl LocalOspfProcess {
     /// already received the LSA. However, in these cases the flooding procedure must be absolutely
     /// sure that the neighbors eventually do receive the LSA, so the LSA is still added to each
     /// adjacency's Link state retransmission list. For each eligible interface:
-    fn flood<P: Prefix, T: Default>(
-        &mut self,
-        flood: Vec<Lsa>,
-        from: FloodFrom,
-    ) -> (bool, Vec<Event<P, T>>) {
-        let from_area: Option<OspfArea> = from
-            .neighbor()
-            .and_then(|from| self.neighbors.get(&from).map(|n| n.area))
-            .or_else(|| from.area());
-
-        let mut result = Vec::new();
-
-        let mut area_flood: BTreeMap<Option<OspfArea>, Vec<Lsa>> = BTreeMap::new();
-        if let Some(from_area) = from_area {
-            area_flood.insert(
-                None,
-                flood
-                    .iter()
-                    .filter(|lsa| lsa.is_external())
-                    .cloned()
-                    .collect(),
-            );
-            area_flood.insert(
-                Some(from_area),
-                flood.into_iter().filter(|lsa| !lsa.is_external()).collect(),
-            );
-        } else {
-            // add all entries directly to the None area, they are supposed to be flooded out to all
-            // neighbors.
-            area_flood.insert(None, flood);
-        }
-
-        let spt_updated = self.areas.update_routing_table();
-
-        if spt_updated {
-            // update the redistribution
-            let redist_info = self.areas.update_summary_lsas();
-
-            // deal with the redist_info
-            for (area, (mut redistribute, track_max_age)) in redist_info {
-                // update the flooding information
-                area_flood
-                    .entry(Some(area))
-                    .or_default()
-                    .append(&mut redistribute);
-                // update the track_max_age stuff. Extending here will overwrite all the old values,
-                // such that we will flood the new informatoin once the old information is removed.
-                // Notice, that `update_summary_lsas` will only require us to track the max-age of a
-                // Summary-LSA, so no need to consider whether the LSA is an external-LSA.
-                self.track_max_age
-                    .entry(Some(area))
-                    .or_default()
-                    .extend(track_max_age);
-            }
-
-            // update the routing table
-            self.table = self
-                .areas
-                .get_rib()
-                .iter()
-                .map(|(r, path)| {
-                    (
-                        *r,
-                        (
-                            Vec::from_iter(path.fibs.iter().copied()),
-                            path.cost.into_inner(),
-                        ),
-                    )
-                })
-                .collect();
-        }
+    fn flood<P: Prefix, T: Default>(&mut self, flood: Vec<(Lsa, FloodFrom)>) -> Vec<Event<P, T>> {
+        let mut results = Vec::new();
 
         for n in self.neighbors.values_mut() {
             let area = n.area;
-            // ignore the neighbor from which we received the LSAs
-            if Some(n.neighbor_id) == from.neighbor() {
-                continue;
-            }
+            let n_id = n.neighbor_id;
 
             // get the information to flood
-            let flood: Vec<Lsa> = area_flood
-                .get(&Some(area))
-                .into_iter()
-                .flatten()
-                .chain(area_flood.get(&None).into_iter().flatten())
-                .cloned()
+            let flood: Vec<Lsa> = flood
+                .iter()
+                .filter(|(lsa, flood_from)| lsa.is_external() || flood_from.flood_to(n_id, area))
+                .map(|(lsa, _)| lsa.clone())
                 .collect();
 
             // only flood if there  is actually some data to be flooded
@@ -577,24 +548,24 @@ impl LocalOspfProcess {
                 mut events,
                 flood,
                 track_max_age,
-            } = n.handle_event(NeighborEvent::Flood(flood.clone()), &mut self.areas);
+            } = n.handle_event::<P, T>(NeighborEvent::Flood(flood.clone()), &mut self.areas);
             debug_assert!(
                 flood.is_empty(),
-                "`NeighborEvent::UpdatedKeys` cannot cause other keys to be updated"
+                "`NeighborEvent::Flood` cannot cause other keys to be updated"
             );
             debug_assert!(
                 track_max_age.is_empty(),
-                "`NeighborEvent::UpdatedKeys` cannot cause other keys to be updated"
+                "`NeighborEvent::Flood` cannot cause other keys to be updated"
             );
-            result.append(&mut events);
+            results.append(&mut events);
         }
 
-        (spt_updated, result)
+        results
     }
 
-    /// Track whether a max-age LSA can be removed from the table and replaced by a new one.
-    fn track_max_age<P: Prefix, T: Default>(&mut self) -> (bool, Vec<Event<P, T>>) {
-        let mut area_flood: BTreeMap<Option<OspfArea>, Vec<Lsa>> = BTreeMap::new();
+    /// Check each LSA whether the max-age is acknowledged. If so, create new flooding events.
+    fn track_max_age(&mut self) -> Vec<(Lsa, FloodFrom)> {
+        let mut flood = Vec::new();
 
         // go through all areas without borrowing `self`
         for area in self.track_max_age.keys().copied().collect::<Vec<_>>() {
@@ -610,12 +581,13 @@ impl LocalOspfProcess {
                 self.neighbors.keys().copied().collect()
             };
 
-            // remove the tracking informatoin
+            // remove the tracking information (will be added back later)
             let tracking = self.track_max_age.remove(&area).unwrap();
 
             // go through all trackings and check if the lsa is acknowledge by all neighbors. If so,
             // then either remove the old LSA from the database or push the new LSA into the
-            // database and re-flood it. All other tracking information are retained.
+            // database and re-flood it. All other tracking information are retained (collected into
+            // the `tracking` variable).
             let tracking: HashMap<LsaKey, Option<Lsa>> = tracking
                 .into_iter()
                 .filter_map(|(key, new_lsa)| {
@@ -631,8 +603,7 @@ impl LocalOspfProcess {
                         if let Some(new_lsa) = new_lsa {
                             // insert the new LSA into the table
                             self.areas.insert(new_lsa.clone(), area);
-                            // remember it to be flooded
-                            area_flood.entry(area).or_default().push(new_lsa);
+                            flood.push((new_lsa, FloodFrom::opt_area(area)));
                         } else {
                             // remove it from the table
                             self.areas.remove(key, area);
@@ -648,25 +619,102 @@ impl LocalOspfProcess {
             }
         }
 
-        // reaching this point, we have updated all routing tables. If there is nothing to flood,
-        // then there is nothing left to do
-        if area_flood.is_empty() {
-            return (false, Vec::new());
+        flood
+    }
+}
+
+struct ProcessActions<P: Prefix, T: Default> {
+    /// The OSPF events to immediately send out.
+    pub events: Vec<Event<P, T>>,
+    /// The LSAs to be flooded
+    pub flood: Vec<(Lsa, FloodFrom)>,
+    /// The new keys to track their max-age, and the corresponding LSA to put into the database once
+    /// the old LSA was acknowledged.
+    pub track_max_age: BTreeMap<Option<OspfArea>, Vec<(LsaKey, Option<Lsa>)>>,
+}
+
+#[allow(dead_code)]
+impl<P: Prefix, T: Default> ProcessActions<P, T> {
+    fn from_neighbor_actions(e: NeighborActions<P, T>, neighbor: RouterId, area: OspfArea) -> Self {
+        let mut s = Self {
+            events: e.events,
+            flood: e
+                .flood
+                .into_iter()
+                .map(|lsa| (lsa, FloodFrom::Neighbor(area, neighbor)))
+                .collect(),
+            track_max_age: Default::default(),
+        };
+        s.track_max_ages(Some(area), e.track_max_age);
+        s
+    }
+
+    fn new() -> Self {
+        Self {
+            events: Vec::new(),
+            flood: Vec::new(),
+            track_max_age: Default::default(),
         }
+    }
 
-        // Otherwise, recompute the OSPF table, redistribute all routes, and flood the routes out of
-        // all interfaces. This is just as we would flood the events out of all neighbors of that
-        // area.
-        let mut events = Vec::new();
-        let mut recompute_bgp = false;
+    fn track_max_age(
+        &mut self,
+        area: Option<OspfArea>,
+        key: LsaKey,
+        new_lsa: Option<Lsa>,
+    ) -> &mut Self {
+        let a = if key.is_external() { None } else { area };
+        self.track_max_age
+            .entry(a)
+            .or_default()
+            .push((key, new_lsa));
+        self
+    }
 
-        for (area, flood) in area_flood {
-            let (updated, mut area_events) = self.flood(flood, FloodFrom::opt_area(area));
-            recompute_bgp |= updated;
-            events.append(&mut area_events);
+    fn track_max_ages(
+        &mut self,
+        area: Option<OspfArea>,
+        list: Vec<(LsaKey, Option<Lsa>)>,
+    ) -> &mut Self {
+        for (key, new_lsa) in list {
+            self.track_max_age(area, key, new_lsa);
         }
+        self
+    }
 
-        (recompute_bgp, events)
+    fn event(&mut self, event: Event<P, T>) -> &mut Self {
+        self.events.push(event);
+        self
+    }
+
+    fn events(&mut self, mut events: Vec<Event<P, T>>) -> &mut Self {
+        self.events.append(&mut events);
+        self
+    }
+
+    fn flood(&mut self, lsa: Lsa, from: FloodFrom) -> &mut Self {
+        self.flood.push((lsa, from));
+        self
+    }
+
+    fn flood_many(&mut self, mut list: Vec<(Lsa, FloodFrom)>) -> &mut Self {
+        self.flood.append(&mut list);
+        self
+    }
+
+    fn flood_many_from(&mut self, list: Vec<Lsa>, from: FloodFrom) -> &mut Self {
+        self.flood.extend(list.into_iter().map(|lsa| (lsa, from)));
+        self
+    }
+}
+
+impl<P: Prefix, T: Default> std::ops::AddAssign for ProcessActions<P, T> {
+    fn add_assign(&mut self, mut rhs: Self) {
+        self.events.append(&mut rhs.events);
+        self.flood.append(&mut rhs.flood);
+        for (a, mut t) in rhs.track_max_age.into_iter() {
+            self.track_max_age.entry(a).or_default().append(&mut t);
+        }
     }
 }
 
@@ -674,7 +722,7 @@ impl LocalOspfProcess {
 /// information must be sent.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 enum FloodFrom {
-    Neighbor(RouterId),
+    Neighbor(OspfArea, RouterId),
     Area(OspfArea),
     External,
 }
@@ -688,19 +736,12 @@ impl FloodFrom {
         }
     }
 
-    /// Information is coming from a neighbor
-    pub fn neighbor(self) -> Option<RouterId> {
+    /// Whether the message should be flooded towards that neighbor
+    pub fn flood_to(&self, neighbor: RouterId, area: OspfArea) -> bool {
         match self {
-            FloodFrom::Neighbor(r) => Some(r),
-            _ => None,
-        }
-    }
-
-    /// Information is originating at that router, attached to a specific area.
-    pub fn area(self) -> Option<OspfArea> {
-        match self {
-            FloodFrom::Area(a) => Some(a),
-            _ => None,
+            Self::Neighbor(a, n) => *n != neighbor && *a == area,
+            Self::Area(a) => *a == area,
+            Self::External => true,
         }
     }
 }
@@ -742,7 +783,8 @@ impl OspfProcess for LocalOspfProcess {
                 partial_sync: self.is_partial_sync(),
             },
         };
-        self.handle_neighbor_event(src, event)
+        let actions = self.handle_neighbor_event(src, event);
+        Ok(self.perform_actions(actions))
     }
 
     fn is_waiting_for_timeout(&self) -> bool {
@@ -779,7 +821,8 @@ impl OspfProcess for LocalOspfProcess {
             log::error!("None of the OSPF neighbors are waiting for a timeout event!");
             return Ok((false, Vec::new()));
         };
-        self.handle_neighbor_event(neighbor, NeighborEvent::Timeout)
+        let actions = self.handle_neighbor_event(neighbor, NeighborEvent::Timeout);
+        Ok(self.perform_actions(actions))
     }
 
     fn fmt<P, Q, Ospf>(&self, net: &Network<P, Q, Ospf>) -> String
@@ -789,4 +832,64 @@ impl OspfProcess for LocalOspfProcess {
     {
         self.areas.get_rib().fmt(net)
     }
+}
+
+fn batch_events<P: Prefix, T: Default>(events: Vec<Event<P, T>>) -> Vec<Event<P, T>> {
+    let mut result = Vec::new();
+    let mut upds: BTreeMap<(RouterId, RouterId, OspfArea), BTreeMap<LsaKey, Lsa>> = BTreeMap::new();
+    let mut acks: BTreeMap<(RouterId, RouterId, OspfArea), BTreeMap<LsaKey, Lsa>> = BTreeMap::new();
+
+    // parse through all events
+    for event in events {
+        match event {
+            Event::Ospf {
+                src,
+                dst,
+                area,
+                e: OspfEvent::LinkStateUpdate { lsa_list, ack },
+                ..
+            } => {
+                let key = (src, dst, area);
+                let combined_lsas = if ack {
+                    acks.entry(key).or_default()
+                } else {
+                    upds.entry(key).or_default()
+                };
+                for lsa in lsa_list {
+                    combined_lsas.insert(lsa.key(), lsa);
+                }
+            }
+            e => result.push(e),
+        }
+    }
+
+    // generate new events
+    result.extend(
+        acks.into_iter()
+            .map(|((src, dst, area), lsa_list)| Event::Ospf {
+                p: T::default(),
+                src,
+                dst,
+                area,
+                e: OspfEvent::LinkStateUpdate {
+                    lsa_list: lsa_list.into_values().collect(),
+                    ack: true,
+                },
+            }),
+    );
+    result.extend(
+        upds.into_iter()
+            .map(|((src, dst, area), lsa_list)| Event::Ospf {
+                p: T::default(),
+                src,
+                dst,
+                area,
+                e: OspfEvent::LinkStateUpdate {
+                    lsa_list: lsa_list.into_values().collect(),
+                    ack: false,
+                },
+            }),
+    );
+
+    result
 }
