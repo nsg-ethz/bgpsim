@@ -94,6 +94,19 @@ impl OspfRib {
         }
     }
 
+    /// Generate the summary list for a given area. This will combine the `area`'s lsa-list, and the
+    /// external-lsa list. It will also remove all max-age lsas.
+    pub fn get_summary_list(&self, area: OspfArea) -> HashMap<LsaKey, Lsa> {
+        self.areas
+            .get(&area)
+            .into_iter()
+            .flat_map(|ds| ds.lsa_list.iter())
+            .chain(self.external_lsas.iter())
+            .filter(|(_, lsa)| !lsa.is_max_age())
+            .map(|(key, lsa)| (*key, lsa.clone()))
+            .collect()
+    }
+
     /// Get a reference to an LSA. `area` can be empty only if `key` is an external-LSA. Otherwise,
     /// `area` must be set, and the function will return the LSA stored in the specific area.
     pub fn get_lsa(&self, key: impl Into<LsaKey>, area: Option<OspfArea>) -> Option<&Lsa> {

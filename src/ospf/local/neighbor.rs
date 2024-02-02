@@ -313,10 +313,7 @@ impl Neighbor {
             NeighborEvent::Start => match (&self.state, self.relation) {
                 // transition to exchange, sending the database description packet
                 (NeighborState::Init, Relation::Leader) => {
-                    let mut summary_list = areas.get_lsa_list(Some(self.area)).unwrap().clone();
-                    // also add the external-as LSAs
-                    summary_list.extend(areas.get_lsa_list(None).unwrap().clone());
-
+                    let summary_list = areas.get_summary_list(self.area);
                     let dd_event = event!(self, Desc from summary_list);
                     self.state = NeighborState::Exchange { summary_list };
                     Some(NeighborActions::new().event(dd_event))
@@ -342,11 +339,7 @@ impl Neighbor {
                 // Exchange state. Therefore, always answer with another Database Description
                 // Packet.
                 (Relation::Follower, NeighborState::Init) => {
-                    // get the list of currently known SLAs
-                    let mut summary_list = areas.get_lsa_list(Some(self.area)).unwrap().clone();
-                    // also add the external-as LSAs
-                    summary_list.extend(areas.get_lsa_list(None).unwrap().clone());
-
+                    let summary_list = areas.get_summary_list(self.area);
                     let dd_event = event!(self, Desc from summary_list);
                     // transition further into Loading or Full
                     let (state, req_event) = transition_exchange(neigh, summary_list, &headers);
@@ -362,11 +355,7 @@ impl Neighbor {
                 }
                 // re-send the database description packet based on the area datastructure
                 (Relation::Follower, NeighborState::Full) => {
-                    // get the list of currently known SLAs
-                    let mut summary_list = areas.get_lsa_list(Some(self.area)).unwrap().clone();
-                    // also add the external-as LSAs
-                    summary_list.extend(areas.get_lsa_list(None).unwrap().clone());
-
+                    let summary_list = areas.get_summary_list(self.area);
                     let dd_event = event!(self, Desc from summary_list);
                     Some(NeighborActions::new().event(dd_event))
                 }
