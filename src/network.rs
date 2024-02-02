@@ -74,8 +74,8 @@ pub const INTERNAL_AS: AsId = AsId(65535);
 ///   events are processed.
 /// - `Ospf`: The kind of [`OspfImpl`] used to compute the IGP state. By default, this is set to
 ///   [`GlobalOspf`], which computes the state of OSPF atomically and globally without passing
-///   any messages. Alternatively, you can use [`SimulatedOspf`] to simulate OSPF messages being
-///   exchanged.
+///   any messages. Alternatively, you can use [`crate::ospf::LocalOspf`] to simulate OSPF messages
+///   being exchanged.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound(
