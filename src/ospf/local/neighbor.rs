@@ -376,14 +376,19 @@ impl Neighbor {
             NeighborEvent::RecvLinkStateRequest(headers) => {
                 let area_lsas = areas.get_lsa_list(Some(self.area)).unwrap();
                 let external_lsas = areas.get_lsa_list(None).unwrap();
-                let lsa_list = headers
+                let lsa_list: Vec<Lsa> = headers
                     .iter()
                     .map(|h| h.key())
                     .filter_map(|k| area_lsas.get(&k).or_else(|| external_lsas.get(&k)))
                     .cloned()
                     .collect();
-                let upd_event = event!(self, Upd, lsa_list);
-                Some(NeighborActions::new().event(upd_event))
+                if lsa_list.is_empty() {
+                    log::warn!("Requested an LSA that does not exist!");
+                    Some(NeighborActions::default())
+                } else {
+                    let upd_event = event!(self, Upd, lsa_list);
+                    Some(NeighborActions::new().event(upd_event))
+                }
             }
             NeighborEvent::RecvLinkStateUpdate {
                 lsa_list,
@@ -391,12 +396,15 @@ impl Neighbor {
                 partial_sync,
             } => Some(self.handle_update(lsa_list, ack, partial_sync, areas)),
             NeighborEvent::Flood(lsas) => {
-                let actions = NeighborActions::new();
-                let to_flood = lsas
+                let to_flood: Vec<Lsa> = lsas
                     .into_iter()
                     .filter_map(|lsa| self.flood_lsa(lsa))
                     .collect();
-                Some(actions.event(event!(self, Upd, to_flood)))
+                if to_flood.is_empty() {
+                    Some(NeighborActions::default())
+                } else {
+                    Some(NeighborActions::new().event(event!(self, Upd, to_flood)))
+                }
             }
             NeighborEvent::Timeout => match (&self.state, self.relation) {
                 (NeighborState::Exchange { summary_list }, Relation::Leader) => {
@@ -474,6 +482,7 @@ impl Neighbor {
             if let Some(lsa) = actions.flood {
                 res.flood.push(lsa);
             }
+
             acks.extend(actions.acknowledge);
             updates.extend(actions.update);
             if let Some(key) = actions.track_max_age {
@@ -505,11 +514,17 @@ impl Neighbor {
         if let Entry::Occupied(cur) = self.retransmission_list.entry(lsa.key()) {
             // If the acknowledgment is for the same instance that is contained on the list, remove
             // the item from the list and examine the next acknowledgment. Otherwise:
-            if cur.get().compare(&lsa).is_same() {
+            let cmp = cur.get().compare(&lsa);
+            if cmp.is_same() {
                 cur.remove();
+            } else if cmp.is_newer() {
+                // received an ack for an older message. Ignore this event.
             } else {
                 // Log the questionable acknowledgment, and examine the next one.
-                log::warn!("Rceived questionable OSPF Ack!");
+                log::warn!(
+                    "Rceived questionable OSPF Ack! Current entry: {:?}",
+                    cur.get().header
+                );
             }
         }
     }
@@ -744,12 +759,14 @@ impl Neighbor {
 
         // (1) Each of the neighbors attached to this interface are examined, to determine whether
         //     they must receive the new LSA. The following steps are executed for each neighbor:
-        match &mut self.state {
+        let do_flood = match &mut self.state {
             // (a) If the neighbor is in a lesser state than Exchange, it does not participate in
             //     flooding, and the next neighbor should be examined.
             NeighborState::Init => return None,
-            // In exchange, we ignore all events (because the request list is always empty here.)
-            NeighborState::Exchange { .. } => {}
+            // In exchange, we ignore all events (because the request list is always empty here.) We
+            // don't flood the event, but we extend the retransmission list, such that we will
+            // eventually send out the new LSA.
+            NeighborState::Exchange { .. } => false,
             // (b) Else, if the adjacency is not yet full (neighbor state is Exchange or Loading),
             //     examine the Link state request list associated with this adjacency. If there is
             //     an instance of the new LSA on the list, it indicates that the neighboring router
@@ -769,12 +786,17 @@ impl Neighbor {
                         return None;
                     }
                     // Else, the new LSA is more recent. Delete the LSA from the Link state
-                    // request list.
-                    LsaOrd::Newer => {}
+                    // request list. Also, add the new LSA to the retransmission list, but do not
+                    // yet flood it.
+                    LsaOrd::Newer => {
+                        request_list.remove(&key);
+                        false
+                    }
                 }
             }
-            NeighborState::Full => {}
-        }
+            // in that case, extend the retransmission list and flood the event.
+            NeighborState::Full => true,
+        };
 
         // (c) If the new LSA was received from this neighbor, examine the next neighbor.
         // --> This is never the case, because of the way we call this flooding event.
@@ -826,7 +848,11 @@ impl Neighbor {
         //     On non-broadcast networks, separate Link State Update packets must be sent, as
         //     unicasts, to each adjacent neighbor (i.e., those in state Exchange or greater). The
         //     destination IP addresses for these packets are the neighbors' IP addresses.
-        Some(lsa)
+        if do_flood {
+            Some(lsa)
+        } else {
+            None
+        }
     }
 
     /// Check if the neighbor state is either in exchange or loading
@@ -964,6 +990,9 @@ fn compute_request_list(
 ) -> HashMap<LsaKey, LsaHeader> {
     headers
         .iter()
+        // ignore max-age headers
+        .filter(|h| !h.is_max_age())
+        // only take those that are newer than the local copy
         .filter(|h| {
             summary_list
                 .get(&h.key())
