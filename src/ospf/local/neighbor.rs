@@ -124,7 +124,7 @@ impl std::fmt::Debug for NeighborState {
                     request_list.len()
                 )
             }
-            NeighborState::Full => f.write_str("NeighborState::Init"),
+            NeighborState::Full => f.write_str("NeighborState::Full"),
         }
     }
 }
@@ -193,7 +193,7 @@ impl NeighborEvent {
             NeighborEvent::RecvDatabaseDescription { .. } => "RecvDatabaseDescription",
             NeighborEvent::RecvLinkStateRequest(_) => "RecvLinkStateRequest",
             NeighborEvent::RecvLinkStateUpdate { .. } => "RecvLinkStateUpdate",
-            NeighborEvent::Flood(_) => "UpdatedKeys",
+            NeighborEvent::Flood(_) => "Flood",
             NeighborEvent::Timeout => "Timeout",
         }
     }
@@ -251,6 +251,12 @@ macro_rules! event {
 
 impl Neighbor {
     pub fn new(router_id: RouterId, neighbor_id: RouterId, area: OspfArea) -> Self {
+        log::trace!(
+            "OSPF create neighbor {} --> {} ({})",
+            router_id.index(),
+            neighbor_id.index(),
+            area,
+        );
         Self {
             router_id,
             neighbor_id,
@@ -291,6 +297,15 @@ impl Neighbor {
     ) -> NeighborActions<P, T> {
         let event_name = event.name();
         let neigh = self.neighborhood();
+        log::trace!(
+            "OSPF {} --> {} ({}:{:?}) in state {:?} gets event {}",
+            self.router_id.index(),
+            self.neighbor_id.index(),
+            self.area,
+            self.relation,
+            self.state,
+            event.name(),
+        );
         // handle the event by matching on it. If none of the patterns match, then the expression is
         // None. This Option will be unwrapped further below, generating warnings for any unhandled
         // events.

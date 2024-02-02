@@ -211,20 +211,25 @@ impl LocalOspfProcess {
                 // first, remove the neighbor
                 let n = self.neighbors.remove(&neighbor).unwrap();
                 let old_area = n.area;
-                // then, modify the area in the datastructure
+
+                // then, update the area in the datastructure
                 let (recompute_bgp_1, mut events) = self.update_area(neighbor, old_area, area);
+
                 // then, add the neighbor again
                 self.neighbors
                     .insert(neighbor, Neighbor::new(self.router_id, neighbor, area));
+
                 // trigger the start event on the neighbor
                 let (recompute_bgp_2, mut start_event) =
                     self.handle_neighbor_event(neighbor, NeighborEvent::Start)?;
                 events.append(&mut start_event);
+
                 // completely remove the old area datastructure in case no neighbors exist that have
                 // that area
                 if self.neighbors.values().all(|n| n.area != old_area) {
                     self.areas.remove_area(old_area);
                 }
+
                 Ok((recompute_bgp_1 || recompute_bgp_2, events))
             }
             LocalNeighborhoodChange::Weight { neighbor, weight } => {
