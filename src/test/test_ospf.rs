@@ -28,6 +28,9 @@ mod t {
 
     #[test]
     fn only_backbone<Ospf: OspfImpl>() {
+        // setup logger
+        let _ = env_logger::try_init();
+
         let (mut net, r, p8, p9, p10) = test_net::<Ospf>().unwrap();
 
         let mut state = net.get_forwarding_state();
@@ -78,14 +81,24 @@ mod t {
 
     #[test]
     fn left_right<Ospf: OspfImpl>() {
+        // setup logger
+        let _ = env_logger::try_init();
+
         let (mut net, r, p8, p9, p10) = test_net::<Ospf>().unwrap();
+        println!("Network initialized!\n\n");
 
         net.set_ospf_area(r.0, r.1, 1).unwrap();
+        println!("Configured Area 1 between 0 and 1\n\n");
         net.set_ospf_area(r.1, r.2, 1).unwrap();
+        println!("Configured Area 1 between 1 and 2\n\n");
         net.set_ospf_area(r.1, r.5, 1).unwrap();
+        println!("Configured Area 1 between 1 and 5\n\n");
         net.set_ospf_area(r.2, r.6, 1).unwrap();
+        println!("Configured Area 1 between 2 and 6\n\n");
         net.set_ospf_area(r.4, r.5, 1).unwrap();
+        println!("Configured Area 1 between 4 and 5\n\n");
         net.set_ospf_area(r.5, r.6, 1).unwrap();
+        println!("Configured Area 1 between 5 and 6\n\n");
 
         let mut state = net.get_forwarding_state();
         assert_eq!(
@@ -133,11 +146,17 @@ mod t {
 
         // remove all osf areas again
         net.set_ospf_area(r.0, r.1, OspfArea::BACKBONE).unwrap();
+        println!("Configured backbone between 0 and 1\n\n");
         net.set_ospf_area(r.1, r.2, OspfArea::BACKBONE).unwrap();
+        println!("Configured backbone between 1 and 2\n\n");
         net.set_ospf_area(r.1, r.5, OspfArea::BACKBONE).unwrap();
+        println!("Configured backbone between 1 and 5\n\n");
         net.set_ospf_area(r.2, r.6, OspfArea::BACKBONE).unwrap();
+        println!("Configured backbone between 2 and 6\n\n");
         net.set_ospf_area(r.4, r.5, OspfArea::BACKBONE).unwrap();
+        println!("Configured backbone between 4 and 5\n\n");
         net.set_ospf_area(r.5, r.6, OspfArea::BACKBONE).unwrap();
+        println!("Configured backbone between 5 and 6\n\n");
 
         // check that the network state is as it was originally.
         let mut state = net.get_forwarding_state();
@@ -164,6 +183,9 @@ mod t {
 
     #[test]
     fn left_mid_right<Ospf: OspfImpl>() {
+        // setup logger
+        let _ = env_logger::try_init();
+
         let (mut net, r, p8, p9, p10) = test_net::<Ospf>().unwrap();
 
         net.set_ospf_area(r.4, r.0, 1).unwrap();
@@ -238,7 +260,10 @@ mod t {
     }
 
     #[test]
-    fn left_right_bottom<Ospf: OspfImpl>() {
+    fn bottom_left_right<Ospf: OspfImpl>() {
+        // setup logger
+        let _ = env_logger::try_init();
+
         let (mut net, r, p8, p9, p10) = test_net::<Ospf>().unwrap();
 
         net.set_ospf_area(r.4, r.0, 1).unwrap();
@@ -311,6 +336,9 @@ mod t {
 
     #[test]
     fn disconnected<Ospf: OspfImpl>() {
+        // setup logger
+        let _ = env_logger::try_init();
+
         let (mut net, r, p9, p10) = test_net_disconnected::<Ospf>().unwrap();
 
         net.set_ospf_area(r.4, r.8, 1).unwrap();
@@ -336,6 +364,8 @@ mod t {
 
     #[test]
     fn disconnected_backbone<Ospf: OspfImpl>() {
+        // setup logger
+        let _ = env_logger::try_init();
         let (mut net, r, p9, p10) = test_net_disconnected::<Ospf>().unwrap();
 
         net.set_ospf_area(r.0, r.1, 1).unwrap();

@@ -4,6 +4,8 @@ mod database;
 mod lsa;
 mod neighbor;
 mod process;
+#[cfg(test)]
+mod test;
 use std::collections::{HashMap, HashSet};
 
 pub use database::{OspfRib, OspfRibEntry};
