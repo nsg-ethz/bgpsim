@@ -576,10 +576,6 @@ impl Neighbor {
                 self.state = NeighborState::Full;
                 // in case we transition into the full state, we must immediately send all messages in
                 // the retransmission list to the neighbor!
-                println!(
-                    "re-send the retransmission list: {:?}",
-                    self.retransmission_list
-                );
                 actions.update_list(self.retransmission_list.values().cloned().collect());
             }
         }
