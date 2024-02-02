@@ -882,12 +882,14 @@ impl AreaDataStructure {
         if self.recompute_intra_area {
             self.spt.clear();
             self.calculate_intra_area_routes();
+            self.recompute_intra_area = false;
             modified = true;
         }
 
         if modified || !self.recompute_inter_area.is_empty() {
             // todo!("implement partial updater here!");
             self.calculate_inter_area_routes(modified);
+            self.recompute_inter_area.clear();
             modified = true;
         }
 

@@ -15,11 +15,7 @@
 
 //! Module that deals with interaction with a neighbor
 
-use std::{
-    collections::{hash_map::Entry, HashMap},
-    iter::once,
-    mem::take,
-};
+use std::collections::{hash_map::Entry, HashMap};
 
 use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
@@ -79,7 +75,7 @@ impl std::fmt::Display for Relation {
 ///
 /// We assume that the hello protocol immediately finishes, and the two routers are in the ExStart
 /// state.
-#[derive(Clone, PartialEq, Serialize, Deserialize, Eq, Default)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize, Eq, Default)]
 pub enum NeighborState {
     #[default]
     /// Initial state where no mesages have been exchanged.
@@ -91,57 +87,13 @@ pub enum NeighborState {
     /// asking for the neighbor's more recent LSAs. All adjacencies in Exchange state or greater
     /// are used by the flooding procedure. In fact, these adjacencies are fully capable of
     /// transmitting and receiving all types of OSPF routing protocol packets.
-    Exchange {
-        /// The complete list of LSAs that make up the area link-state database, at the moment the
-        /// neighbor goes into Database Exchange state. This list is sent to the neighbor in
-        /// Database Description packets.
-        #[serde(with = "As::<Vec<(Same, Same)>>")]
-        summary_list: HashMap<LsaKey, Lsa>,
-    },
+    Exchange,
     /// In this state, Link State Request packets are sent to the neighbor asking for the more
     /// recent LSAs that have been discovered (but not yet received) in the Exchange state.
-    Loading {
-        /// The complete list of LSAs that make up the area link-state database, at the moment the
-        /// neighbor goes into Database Exchange state. This list is sent to the neighbor in
-        /// Database Description packets.
-        #[serde(with = "As::<Vec<(Same, Same)>>")]
-        summary_list: HashMap<LsaKey, Lsa>,
-        /// The list of LSAs that need to be received from this neighbor in order to synchronize the
-        /// two neighbors' link-state databases. This list is created as Database Description
-        /// packets are received, and is then sent to the neighbor in Link State Request packets.
-        /// The list is depleted as appropriate Link State Update packets are received.
-        request_list: HashMap<LsaKey, LsaHeader>,
-    },
+    Loading,
     /// In this state, the neighboring routers are fully adjacent. These adjacencies will now appear
     /// in router-LSAs and network-LSAs.
     Full,
-}
-
-impl std::fmt::Debug for NeighborState {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            NeighborState::Init => f.write_str("NeighborState::Init"),
-            NeighborState::Exchange { summary_list } => {
-                write!(
-                    f,
-                    "NeighborState::Exchange {{ has {} LSAs }}",
-                    summary_list.len()
-                )
-            }
-            NeighborState::Loading {
-                summary_list,
-                request_list,
-            } => {
-                write!(
-                    f,
-                    "NeighborState::Loading {{ has {} LSAs, waiting for {} }}",
-                    summary_list.len(),
-                    request_list.len()
-                )
-            }
-            NeighborState::Full => f.write_str("NeighborState::Full"),
-        }
-    }
 }
 
 impl std::fmt::Display for NeighborState {
@@ -172,6 +124,17 @@ pub(super) struct Neighbor {
     /// is destroyed.
     #[serde(with = "As::<Vec<(Same, Same)>>")]
     retransmission_list: HashMap<LsaKey, Lsa>,
+    /// The complete list of LSAs that make up the area link-state database, at the moment the
+    /// neighbor goes into Database Exchange state. This list is sent to the neighbor in Database
+    /// Description packets.
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
+    summary_list: HashMap<LsaKey, Lsa>,
+    /// The list of LSAs that need to be received from this neighbor in order to synchronize the two
+    /// neighbors' link-state databases. This list is created as Database Description packets are
+    /// received, and is then sent to the neighbor in Link State Request packets. The list is
+    /// depleted as appropriate Link State Update packets are received.
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
+    request_list: HashMap<LsaKey, LsaHeader>,
 }
 
 /// All events that (may) trigger state machine transitions
@@ -233,7 +196,7 @@ macro_rules! event {
     ($s:ident, Desc, $headers:expr) => {
         event!($s, OspfEvent::DatabaseDescription { headers: $headers })
     };
-    ($s:ident, Desc from $summary_list:ident) => {
+    ($s:ident, Desc from $summary_list:expr) => {
         event!(
             $s,
             OspfEvent::DatabaseDescription {
@@ -283,6 +246,8 @@ impl Neighbor {
             },
             state: NeighborState::Init,
             retransmission_list: Default::default(),
+            summary_list: Default::default(),
+            request_list: Default::default(),
         }
     }
 
@@ -311,7 +276,6 @@ impl Neighbor {
         areas: &mut OspfRib,
     ) -> NeighborActions<P, T> {
         let event_name = event.name();
-        let neigh = self.neighborhood();
         log::trace!(
             "OSPF {} --> {} ({}:{:?}) in state {:?} gets event {:?}",
             self.router_id.index(),
@@ -328,10 +292,11 @@ impl Neighbor {
             NeighborEvent::Start => match (&self.state, self.relation) {
                 // transition to exchange, sending the database description packet
                 (NeighborState::Init, Relation::Leader) => {
-                    let summary_list = areas.get_summary_list(self.area);
-                    let dd_event = event!(self, Desc from summary_list);
-                    self.state = NeighborState::Exchange { summary_list };
-                    Some(NeighborActions::new().event(dd_event))
+                    let mut actions = NeighborActions::new();
+                    self.summary_list = areas.get_summary_list(self.area);
+                    actions.event(event!(self, Desc from self.summary_list));
+                    self.state = NeighborState::Exchange;
+                    Some(actions)
                 }
                 // do nothing
                 (NeighborState::Init, Relation::Follower) => Some(NeighborActions::default()),
@@ -342,57 +307,56 @@ impl Neighbor {
                 // received my headers, and already transitioned from Init to either Loading or
                 // Full. Thus, we don't expect a second DatabaseDescription packet to receive.
                 (Relation::Leader, NeighborState::Exchange { .. }) => {
-                    let NeighborState::Exchange { summary_list } = take(&mut self.state) else {
-                        unreachable!()
-                    };
-                    // transition into Loading or Full
-                    let (state, req_event) = transition_exchange(neigh, summary_list, &headers);
-                    self.state = state;
-                    Some(NeighborActions::new().events(req_event))
+                    Some(self.transition_exchange(&headers))
                 }
                 // A follower receiving this message indicates that the leader is still in the
                 // Exchange state. Therefore, always answer with another Database Description
                 // Packet.
                 (Relation::Follower, NeighborState::Init) => {
-                    let summary_list = areas.get_summary_list(self.area);
-                    let dd_event = event!(self, Desc from summary_list);
-                    // transition further into Loading or Full
-                    let (state, req_event) = transition_exchange(neigh, summary_list, &headers);
-                    self.state = state;
-                    let events = once(dd_event).chain(req_event);
-                    Some(NeighborActions::new().events(events))
+                    let mut actions = NeighborActions::new();
+                    self.summary_list = areas.get_summary_list(self.area);
+                    actions.event(event!(self, Desc from self.summary_list));
+                    actions += self.transition_exchange(&headers);
+                    Some(actions)
                 }
                 // re-send the database description packet
-                (Relation::Follower, NeighborState::Exchange { summary_list })
-                | (Relation::Follower, NeighborState::Loading { summary_list, .. }) => {
-                    let dd_event = event!(self, Desc from summary_list);
-                    Some(NeighborActions::new().event(dd_event))
+                (Relation::Follower, NeighborState::Exchange)
+                | (Relation::Follower, NeighborState::Loading) => {
+                    let mut actions = NeighborActions::new();
+                    actions.event(event!(self, Desc from self.summary_list));
+                    Some(actions)
                 }
                 // re-send the database description packet based on the area datastructure
                 (Relation::Follower, NeighborState::Full) => {
+                    let mut actions = NeighborActions::new();
                     let summary_list = areas.get_summary_list(self.area);
-                    let dd_event = event!(self, Desc from summary_list);
-                    Some(NeighborActions::new().event(dd_event))
+                    actions.event(event!(self, Desc from summary_list));
+                    Some(actions)
                 }
                 _ => None,
             },
             // Always respond with all the requested headers
             NeighborEvent::RecvLinkStateRequest(headers) => {
-                let area_lsas = areas.get_lsa_list(Some(self.area)).unwrap();
-                let external_lsas = areas.get_lsa_list(None).unwrap();
-                let lsa_list: Vec<Lsa> = headers
-                    .iter()
-                    .map(|h| h.key())
-                    .filter_map(|k| area_lsas.get(&k).or_else(|| external_lsas.get(&k)))
-                    .cloned()
-                    .collect();
+                // get the lsa-list depending on whether we are in exchange, loading or full state
+                let mut actions = NeighborActions::new();
+                let lsa_list: Vec<Lsa> = match &self.state {
+                    NeighborState::Init => {
+                        log::warn!("Requested LSA before neighborhood is established!");
+                        return actions;
+                    }
+                    _ => headers
+                        .iter()
+                        .map(|h| h.key())
+                        .filter_map(|k| self.summary_list.get(&k))
+                        .cloned()
+                        .collect(),
+                };
                 if lsa_list.is_empty() {
                     log::warn!("Requested an LSA that does not exist!");
-                    Some(NeighborActions::default())
                 } else {
-                    let upd_event = event!(self, Upd, lsa_list);
-                    Some(NeighborActions::new().event(upd_event))
+                    actions.event(event!(self, Upd, lsa_list));
                 }
+                Some(actions)
             }
             NeighborEvent::RecvLinkStateUpdate {
                 lsa_list,
@@ -400,33 +364,36 @@ impl Neighbor {
                 partial_sync,
             } => Some(self.handle_update(lsa_list, ack, partial_sync, areas)),
             NeighborEvent::Flood(lsas) => {
+                let mut actions = NeighborActions::new();
                 let to_flood: Vec<Lsa> = lsas
                     .into_iter()
                     .filter_map(|lsa| self.flood_lsa(lsa))
                     .collect();
-                if to_flood.is_empty() {
-                    Some(NeighborActions::default())
-                } else {
-                    Some(NeighborActions::new().event(event!(self, Upd, to_flood)))
+                if !to_flood.is_empty() {
+                    actions.event(event!(self, Upd, to_flood));
                 }
+                Some(actions)
             }
             NeighborEvent::Timeout => match (&self.state, self.relation) {
-                (NeighborState::Exchange { summary_list }, Relation::Leader) => {
+                (NeighborState::Exchange, Relation::Leader) => {
                     // re-send the database description packet.
-                    let dd_event = event!(neigh, Desc from summary_list);
-                    Some(NeighborActions::new().event(dd_event))
+                    let mut actions = NeighborActions::new();
+                    actions.event(event!(self, Desc from self.summary_list));
+                    Some(actions)
                 }
-                (NeighborState::Loading { request_list, .. }, _) => {
+                (NeighborState::Loading, _) => {
                     // re-send the request-list
-                    let request = request_list.values().cloned().collect();
-                    let req_event = event!(self, Req, request);
-                    Some(NeighborActions::new().event(req_event))
+                    let mut actions = NeighborActions::new();
+                    let request = self.request_list.values().cloned().collect();
+                    actions.event(event!(self, Req, request));
+                    Some(actions)
                 }
                 (NeighborState::Full, _) if !self.retransmission_list.is_empty() => {
                     // re-send the retransmission list
+                    let mut actions = NeighborActions::new();
                     let ret = self.retransmission_list.values().cloned().collect();
-                    let upd_event = event!(self, Upd, ret);
-                    Some(NeighborActions::new().event(upd_event))
+                    actions.event(event!(self, Upd, ret));
+                    Some(actions)
                 }
                 _ => Some(NeighborActions::default()),
             },
@@ -478,30 +445,54 @@ impl Neighbor {
         // otherwise, it is an update.
         let mut res = NeighborActions::default();
         let mut acks = Vec::new();
-        let mut updates = Vec::new();
+        let mut upds = Vec::new();
         for lsa in lsa_list {
-            let actions = self.recv_lsa(lsa, partial_sync, areas);
+            let mut actions = self.recv_lsa(lsa, partial_sync, areas);
 
             // perform the actions
-            if let Some(lsa) = actions.flood {
-                res.flood.push(lsa);
-            }
-
-            acks.extend(actions.acknowledge);
-            updates.extend(actions.update);
-            if let Some(key) = actions.track_max_age {
+            res.flood.append(&mut actions.flood);
+            // only add the last track_max_age to the actions (because this is the one that will
+            // actually take precedence)
+            if let Some(key) = actions.track_max_age.pop() {
                 res.track_max_age.push(key);
             }
+            acks.extend(actions.acknowledge);
+            upds.extend(actions.update);
         }
 
         if !acks.is_empty() {
             res.events.push(event!(self, Ack, acks));
         }
-        if !updates.is_empty() {
-            res.events.push(event!(self, Ack, updates));
+        if !upds.is_empty() {
+            res.events.push(event!(self, Upd, upds));
         }
 
         res
+    }
+
+    /// Prepare the transition from Exchange to either Loading or Full, depending on the
+    /// summary-list received from the neighbor
+    fn transition_exchange<P: Prefix, T: Default>(
+        &mut self,
+        headers: &[LsaHeader],
+    ) -> NeighborActions<P, T> {
+        let mut actions = NeighborActions::new();
+        self.request_list = compute_request_list(&self.summary_list, headers);
+        if self.request_list.is_empty() {
+            self.state = NeighborState::Full;
+            // in case we transition into the full state, we must immediately send all messages in
+            // the retransmission list to the neighbor!
+            actions.event(event!(
+                self,
+                Upd,
+                self.retransmission_list.values().cloned().collect()
+            ));
+        } else {
+            let req_event = event!(self, Req, self.request_list.values().copied().collect());
+            self.state = NeighborState::Loading;
+            actions.event(req_event);
+        }
+        actions
     }
 
     /// This function is called for each LSA in `Self::handle_update` if the message is an
@@ -543,6 +534,7 @@ impl Neighbor {
     ) -> RecvLsaActions {
         let key = lsa.key();
         let old = areas.get_lsa(key, Some(self.area));
+        let mut actions = RecvLsaActions::new();
 
         // (1) Validate the LSA's LS checksum. If the checksum turns out to be invalid, discard the
         //     LSA and get the next one from the Link State Update packet.
@@ -565,22 +557,30 @@ impl Neighbor {
         //     neighbor (see Section 13.5), and b) Discard the LSA and examine the next LSA (if any)
         //     listed in the Link State Update packet.
         if lsa.is_max_age() && old.is_none() && !partial_sync {
-            return RecvLsaActions::new().acknowledge(lsa);
+            actions.acknowledge(lsa);
+            return actions;
         }
 
         // In case we are in the state Loading, remove the LSA from the request list
         let mut expected_from_loading = false;
-        if let NeighborState::Loading { request_list, .. } = &mut self.state {
-            if let Some(exp_header) = request_list.get(&key) {
+        if self.state == NeighborState::Loading {
+            if let Some(exp_header) = self.request_list.get(&key) {
                 if !exp_header.compare(&lsa.header).is_newer() {
                     expected_from_loading = true;
-                    request_list.remove(&key);
+                    self.request_list.remove(&key);
                 }
             }
 
             // transition to to Full state if the request list is empty
-            if request_list.is_empty() {
+            if self.request_list.is_empty() {
                 self.state = NeighborState::Full;
+                // in case we transition into the full state, we must immediately send all messages in
+                // the retransmission list to the neighbor!
+                println!(
+                    "re-send the retransmission list: {:?}",
+                    self.retransmission_list
+                );
+                actions.update_list(self.retransmission_list.values().cloned().collect());
             }
         }
 
@@ -591,8 +591,6 @@ impl Neighbor {
         //
         // We perform step (f) first!
         if old.map(|old| lsa.compare(old).is_newer()).unwrap_or(true) {
-            let mut actions = RecvLsaActions::new();
-
             // (f) If this new LSA indicates that it was originated by the receiving router itself
             //     (i.e., is considered a self- originated LSA), the router must take special
             //     action, either updating the LSA or in some cases flushing it from the routing
@@ -635,15 +633,17 @@ impl Neighbor {
                         let mut after_ack = new.clone();
                         after_ack.header.seq = 0;
                         after_ack.header.age = 0;
-                        return actions
+                        actions
                             .flood(new.clone())
                             .update(new.clone())
                             .track_max_age(key, Some(after_ack));
+                        return actions;
                     } else {
                         let new = areas
                             .set_seq(lsa.key(), Some(self.area), lsa.header.seq + 1)
                             .unwrap();
-                        return actions.flood(new.clone()).update(new.clone());
+                        actions.flood(new.clone()).update(new.clone());
+                        return actions;
                     }
                 } else {
                     // set the lsa to MAX-AGE, store it in the database, and re-flood it in the
@@ -651,10 +651,11 @@ impl Neighbor {
                     // database).
                     lsa.header.age = MAX_AGE;
                     areas.insert(lsa.clone(), Some(self.area));
-                    return actions
+                    actions
                         .flood(lsa.clone())
                         .update(lsa)
                         .track_max_age(key, None);
+                    return actions;
                 }
             }
 
@@ -669,7 +670,7 @@ impl Neighbor {
             //     interface is DR and the LSA was received from a router other than the Backup DR)
             //     the LSA will be flooded back out the receiving interface. This occurrence should
             //     be noted for later use by the acknowledgment process (Section 13.5).
-            actions.flood = Some(lsa.clone());
+            actions.flood(lsa.clone());
 
             // (c) Remove the current database copy from all neighbors' Link state retransmission
             //     lists.
@@ -689,7 +690,7 @@ impl Neighbor {
             //     Acknowledgment packet back out the receiving interface. This is explained below
             //     in Section 13.5.
             if !expected_from_loading {
-                actions.acknowledge = Some(lsa);
+                actions.acknowledge(lsa);
             }
 
             return actions;
@@ -702,7 +703,7 @@ impl Neighbor {
         //     sending neighbor and stop processing the Link State Update packet.
         // Instead of restarting the exchange process, we simply ignore the message.
         if !matches!(self.state, NeighborState::Full) {
-            return RecvLsaActions::default();
+            return actions;
         }
 
         // (7) Else, if the received LSA is the same instance as the database copy (i.e., neither
@@ -720,7 +721,8 @@ impl Neighbor {
             //     Acknowledgment packet back out the receiving interface. This is explained below
             //     in Section 13.5.
             // --> since we do not model backup neighbors, we always acknowledge the message
-            return RecvLsaActions::new().acknowledge(lsa);
+            actions.acknowledge(lsa);
+            return actions;
         }
 
         // (8) Else, the database copy is more recent. If the database copy has LS age equal to
@@ -733,11 +735,10 @@ impl Neighbor {
         //     The Link State Update Packet should be sent directly to the neighbor. In so doing, do
         //     not put the database copy of the LSA on the neighbor's link state retransmission
         //     list, and do not acknowledge the received (less recent) LSA instance.
-        if old.is_max_age() && old.is_max_seq() {
-            RecvLsaActions::new()
-        } else {
-            RecvLsaActions::new().update(old.clone())
+        if !(old.is_max_age() && old.is_max_seq()) {
+            actions.update(old.clone());
         }
+        actions
     }
 
     /// This function is called for each flooding LSA event in `Self::handle_update`. It implements
@@ -770,13 +771,14 @@ impl Neighbor {
             // In exchange, we ignore all events (because the request list is always empty here.) We
             // don't flood the event, but we extend the retransmission list, such that we will
             // eventually send out the new LSA.
-            NeighborState::Exchange { .. } => false,
+            NeighborState::Exchange => false,
             // (b) Else, if the adjacency is not yet full (neighbor state is Exchange or Loading),
             //     examine the Link state request list associated with this adjacency. If there is
             //     an instance of the new LSA on the list, it indicates that the neighboring router
             //     has an instance of the LSA already. Compare the new LSA to the neighbor's copy:
-            NeighborState::Loading { request_list, .. } => {
-                let cmp = request_list
+            NeighborState::Loading => {
+                let cmp = self
+                    .request_list
                     .get(&key)
                     .map(|req| lsa.header.compare(req))
                     .unwrap_or(LsaOrd::Newer);
@@ -786,14 +788,14 @@ impl Neighbor {
                     // If the two copies are the same instance, then delete the LSA from the Link
                     // state request list, and examine the next neighbor.[20]
                     LsaOrd::Same => {
-                        request_list.remove(&key);
+                        self.request_list.remove(&key);
                         return None;
                     }
                     // Else, the new LSA is more recent. Delete the LSA from the Link state
                     // request list. Also, add the new LSA to the retransmission list, but do not
                     // yet flood it.
                     LsaOrd::Newer => {
-                        request_list.remove(&key);
+                        self.request_list.remove(&key);
                         false
                     }
                 }
@@ -866,14 +868,6 @@ impl Neighbor {
             NeighborState::Exchange { .. } | NeighborState::Loading { .. }
         )
     }
-
-    fn neighborhood(&self) -> Neighborhood {
-        Neighborhood {
-            router_id: self.router_id,
-            neighbor_id: self.neighbor_id,
-            area: self.area,
-        }
-    }
 }
 
 /// Structure that defines that actions to take upon receiving any kind of OSPF event.
@@ -902,33 +896,36 @@ impl<P: Prefix, T: Default> NeighborActions<P, T> {
         Self::default()
     }
 
-    pub fn event(mut self, event: Event<P, T>) -> Self {
+    pub fn event(&mut self, event: Event<P, T>) -> &mut Self {
         self.events.push(event);
         self
     }
+}
 
-    pub fn events(mut self, events: impl IntoIterator<Item = Event<P, T>>) -> Self {
-        self.events.extend(events);
-        self
+impl<P: Prefix, T: Default> std::ops::AddAssign for NeighborActions<P, T> {
+    fn add_assign(&mut self, mut rhs: Self) {
+        self.events.append(&mut rhs.events);
+        self.flood.append(&mut rhs.flood);
+        self.track_max_age.append(&mut rhs.track_max_age);
     }
 }
 
 /// Structure that defines the actions upon receiving an Link-State Update event.
 #[derive(Debug)]
 struct RecvLsaActions {
-    acknowledge: Option<Lsa>,
-    flood: Option<Lsa>,
-    update: Option<Lsa>,
-    track_max_age: Option<(LsaKey, Option<Lsa>)>,
+    acknowledge: Vec<Lsa>,
+    flood: Vec<Lsa>,
+    update: Vec<Lsa>,
+    track_max_age: Vec<(LsaKey, Option<Lsa>)>,
 }
 
 impl Default for RecvLsaActions {
     fn default() -> Self {
         Self {
-            acknowledge: None,
-            flood: None,
-            update: None,
-            track_max_age: None,
+            acknowledge: Vec::new(),
+            flood: Vec::new(),
+            update: Vec::new(),
+            track_max_age: Vec::new(),
         }
     }
 }
@@ -938,51 +935,29 @@ impl RecvLsaActions {
         Self::default()
     }
 
-    pub fn acknowledge(mut self, lsa: Lsa) -> Self {
-        self.acknowledge = Some(lsa);
+    pub fn acknowledge(&mut self, lsa: Lsa) -> &mut Self {
+        self.acknowledge.push(lsa);
         self
     }
 
-    pub fn flood(mut self, lsa: Lsa) -> Self {
-        self.flood = Some(lsa);
+    pub fn flood(&mut self, lsa: Lsa) -> &mut Self {
+        self.flood.push(lsa);
         self
     }
 
-    pub fn update(mut self, lsa: Lsa) -> Self {
-        self.update = Some(lsa);
+    pub fn update(&mut self, lsa: Lsa) -> &mut Self {
+        self.update.push(lsa);
         self
     }
 
-    pub fn track_max_age(mut self, key: LsaKey, lsa_after_remove: Option<Lsa>) -> Self {
-        self.track_max_age = Some((key, lsa_after_remove));
+    pub fn update_list(&mut self, mut lsas: Vec<Lsa>) -> &mut Self {
+        self.update.append(&mut lsas);
         self
     }
-}
 
-#[derive(Debug, Clone, Copy)]
-struct Neighborhood {
-    router_id: RouterId,
-    neighbor_id: RouterId,
-    area: OspfArea,
-}
-
-fn transition_exchange<P: Prefix, T: Default>(
-    neigh: Neighborhood,
-    summary_list: HashMap<LsaKey, Lsa>,
-    headers: &[LsaHeader],
-) -> (NeighborState, Option<Event<P, T>>) {
-    let request_list = compute_request_list(&summary_list, headers);
-    if request_list.is_empty() {
-        (NeighborState::Full, None)
-    } else {
-        let req_event = event!(neigh, Req, request_list.values().copied().collect());
-        (
-            NeighborState::Loading {
-                summary_list,
-                request_list,
-            },
-            Some(req_event),
-        )
+    pub fn track_max_age(&mut self, key: LsaKey, lsa_after_remove: Option<Lsa>) -> &mut Self {
+        self.track_max_age.push((key, lsa_after_remove));
+        self
     }
 }
 
