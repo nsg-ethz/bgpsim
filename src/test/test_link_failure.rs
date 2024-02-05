@@ -20,6 +20,7 @@ mod t {
 
     use lazy_static::lazy_static;
 
+    use crate::ospf::{GlobalOspf, LocalOspf, OspfImpl};
     use crate::prelude::*;
 
     lazy_static! {
@@ -40,10 +41,10 @@ mod t {
     ///         |        |
     ///         R3 --5-- R4 ---- E4
     /// ```
-    fn link_weights<P: Prefix, Q>(
+    fn link_weights<P: Prefix, Q, Ospf: OspfImpl>(
         src: RouterId,
         dst: RouterId,
-        _: &Network<P, Q>,
+        _: &Network<P, Q, Ospf>,
         _: (),
     ) -> LinkWeight {
         match (src.index(), dst.index()) {
@@ -52,7 +53,7 @@ mod t {
             _ => 1.0,
         }
     }
-    fn get_test_topo<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
+    fn get_test_topo<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
         let mut net = Network::default();
 
         assert_eq!(*E1, net.add_external_router("E1", AsId(65101)));
@@ -73,8 +74,8 @@ mod t {
     }
 
     #[test]
-    fn simple_failure<P: Prefix>() {
-        let mut net = get_test_topo::<P>();
+    fn simple_failure<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_topo::<P, Ospf>();
         net.build_link_weights(link_weights, ()).unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_ibgp_full_mesh().unwrap();
@@ -97,7 +98,7 @@ mod t {
             .get_sessions()
             .is_empty());
 
-        net.set_link_weight(*R3, *R1, f64::INFINITY).unwrap();
+        net.remove_link(*R3, *R1).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R4, *E4]);
@@ -110,7 +111,7 @@ mod t {
             .get_sessions()
             .is_empty());
 
-        net.set_link_weight(*R3, *R4, f64::INFINITY).unwrap();
+        net.remove_link(*R3, *R4).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_bad_route!(black_hole, net, *R3, p, [*R3]);
@@ -123,6 +124,7 @@ mod t {
             .get_sessions()
             .is_empty());
 
+        net.add_link(*R3, *R1).unwrap();
         net.set_link_weight(*R3, *R1, 1.0).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
@@ -138,8 +140,8 @@ mod t {
     }
 
     #[test]
-    fn rr_failure<P: Prefix>() {
-        let mut net = get_test_topo::<P>();
+    fn rr_failure<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_topo::<P, Ospf>();
         let rr = net.add_router("rr");
         net.add_link(rr, *R3).unwrap();
         net.build_link_weights(link_weights, ()).unwrap();
@@ -158,13 +160,14 @@ mod t {
         test_route!(net, *R4, p, [*R4, *E4]);
         test_route!(net, rr, p, [rr, *R3, *R1, *E1]);
 
-        net.set_link_weight(rr, *R3, LinkWeight::INFINITY).unwrap();
+        net.remove_link(rr, *R3).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_bad_route!(black_hole, net, *R2, p, [*R2]);
         test_bad_route!(black_hole, net, *R3, p, [*R3]);
         test_route!(net, *R4, p, [*R4, *E4]);
         test_bad_route!(black_hole, net, rr, p, [rr]);
 
+        net.add_link(rr, *R3).unwrap();
         net.set_link_weight(rr, *R3, 1.0).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R1, *E1]);
@@ -173,12 +176,21 @@ mod t {
         test_route!(net, rr, p, [rr, *R3, *R1, *E1]);
     }
 
-    #[instantiate_tests(<SinglePrefix>)]
-    mod single {}
+    #[instantiate_tests(<SinglePrefix, GlobalOspf>)]
+    mod single_global {}
 
-    #[instantiate_tests(<SimplePrefix>)]
-    mod simple {}
+    #[instantiate_tests(<SimplePrefix, GlobalOspf>)]
+    mod simple_global {}
 
-    #[instantiate_tests(<Ipv4Prefix>)]
-    mod ipv4 {}
+    #[instantiate_tests(<Ipv4Prefix, GlobalOspf>)]
+    mod ipv4_global {}
+
+    #[instantiate_tests(<SinglePrefix, LocalOspf>)]
+    mod single_local {}
+
+    #[instantiate_tests(<SimplePrefix, LocalOspf>)]
+    mod simple_local {}
+
+    #[instantiate_tests(<Ipv4Prefix, LocalOspf>)]
+    mod ipv4_local {}
 }
