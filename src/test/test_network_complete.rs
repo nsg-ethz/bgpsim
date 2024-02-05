@@ -26,7 +26,10 @@ use crate::event::{GeoTimingModel, ModelParams, SimpleTimingModel};
 #[generic_tests::define]
 mod t {
 
-    use crate::types::{Ipv4Prefix, SinglePrefix};
+    use crate::{
+        ospf::{GlobalOspf, LocalOspf, OspfImpl},
+        types::{Ipv4Prefix, SinglePrefix},
+    };
 
     use super::*;
 
@@ -40,12 +43,13 @@ mod t {
     /// |........|............
     /// |        |    external
     /// e0       e1
-    fn setup_simple<P, Q>(
-        net: &mut Network<P, Q>,
+    fn setup_simple<P, Q, Ospf>(
+        net: &mut Network<P, Q, Ospf>,
     ) -> (RouterId, RouterId, RouterId, RouterId, RouterId, RouterId)
     where
         P: Prefix,
         Q: EventQueue<P>,
+        Ospf: OspfImpl,
     {
         let e0 = net.add_external_router("E0", AsId(1));
         let b0 = net.add_router("B0");
@@ -76,8 +80,8 @@ mod t {
     }
 
     #[test]
-    fn test_simple<P: Prefix>() {
-        let mut net: Network<P, _> = Network::default();
+    fn test_simple<P: Prefix, Ospf: OspfImpl>() {
+        let mut net: Network<P, _, Ospf> = Network::default();
         let prefix = P::from(0);
 
         let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net);
@@ -97,8 +101,8 @@ mod t {
 
     #[test]
     #[cfg(feature = "rand_queue")]
-    fn test_simple_model<P: Prefix>() {
-        let mut net: Network<P, _> = Network::new(SimpleTimingModel::new(ModelParams::new(
+    fn test_simple_model<P: Prefix, Ospf: OspfImpl>() {
+        let mut net: Network<P, _, Ospf> = Network::new(SimpleTimingModel::new(ModelParams::new(
             0.1, 1.0, 2.0, 5.0, 0.1,
         )));
 
@@ -121,12 +125,12 @@ mod t {
 
     #[test]
     #[cfg(feature = "rand_queue")]
-    fn test_geo_model<P: Prefix>() {
+    fn test_geo_model<P: Prefix, Ospf: OspfImpl>() {
         use maplit::hashmap;
 
         use crate::interactive::InteractiveNetwork;
 
-        let mut net: Network<P, _> = Network::new(GeoTimingModel::new(
+        let mut net: Network<P, _, Ospf> = Network::new(GeoTimingModel::new(
             ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.1),
             ModelParams::new(0.01, 0.01, 2.0, 5.0, 0.0),
             &hashmap! {},
@@ -171,12 +175,13 @@ mod t {
     ///          |    .-'|
     ///          | .-'   |
     ///          r3 ---- r4 ---- e4
-    fn setup_external<P, Q>(
-        net: &mut Network<P, Q>,
+    fn setup_external<P, Q, Ospf>(
+        net: &mut Network<P, Q, Ospf>,
     ) -> (RouterId, RouterId, RouterId, RouterId, RouterId, RouterId)
     where
         P: Prefix,
         Q: EventQueue<P>,
+        Ospf: OspfImpl,
     {
         // add routers
         let r1 = net.add_router("r1");
@@ -215,8 +220,8 @@ mod t {
     }
 
     #[test]
-    fn test_external_router<P: Prefix>() {
-        let mut net: Network<P, _> = Network::default();
+    fn test_external_router<P: Prefix, Ospf: OspfImpl>() {
+        let mut net: Network<P, _, Ospf> = Network::default();
         let prefix = P::from(0);
 
         let (e1, r1, r2, r3, r4, e4) = setup_external(&mut net);
@@ -250,8 +255,8 @@ mod t {
 
     #[test]
     #[cfg(feature = "rand_queue")]
-    fn test_external_router_model<P: Prefix>() {
-        let mut net: Network<P, _> = Network::new(SimpleTimingModel::new(ModelParams::new(
+    fn test_external_router_model<P: Prefix, Ospf: OspfImpl>() {
+        let mut net: Network<P, _, Ospf> = Network::new(SimpleTimingModel::new(ModelParams::new(
             0.1, 1.0, 2.0, 5.0, 0.1,
         )));
         let prefix = P::from(0);
@@ -286,7 +291,7 @@ mod t {
     }
 
     #[test]
-    fn test_route_order1<P: Prefix>() {
+    fn test_route_order1<P: Prefix, Ospf: OspfImpl>() {
         // All weights are 1
         // r0 and b0 form a iBGP cluster, and so does r1 and b1
         //
@@ -297,7 +302,7 @@ mod t {
         // |........|............
         // |        |    external
         // e1       e0
-        let mut net: Network<P, _> = Network::default();
+        let mut net: Network<P, _, Ospf> = Network::default();
 
         let prefix = P::from(0);
 
@@ -340,7 +345,7 @@ mod t {
     }
 
     #[test]
-    fn test_route_order2<P: Prefix>() {
+    fn test_route_order2<P: Prefix, Ospf: OspfImpl>() {
         // All weights are 1
         // r0 and b0 form a iBGP cluster, and so does r1 and b1
         //
@@ -351,7 +356,7 @@ mod t {
         // |........|............
         // |        |    external
         // e1       e0
-        let mut net: Network<P, _> = Network::default();
+        let mut net: Network<P, _, Ospf> = Network::default();
 
         let prefix = P::from(0);
 
@@ -394,7 +399,7 @@ mod t {
     }
 
     #[test]
-    fn test_bad_gadget<P: Prefix>() {
+    fn test_bad_gadget<P: Prefix, Ospf: OspfImpl>() {
         // weights between ri and bi are 5, weights between ri and bi+1 are 1
         // ri and bi form a iBGP cluster
         //
@@ -407,7 +412,7 @@ mod t {
         //    |........|........|............
         //    |        |        |external
         //    e0       e1       e2
-        let mut net: Network<P, _> = Network::default();
+        let mut net: Network<P, _, Ospf> = Network::default();
 
         let prefix = P::from(0);
 
@@ -470,7 +475,7 @@ mod t {
     }
 
     #[test]
-    fn change_ibgp_topology_1<P: Prefix>() {
+    fn change_ibgp_topology_1<P: Prefix, Ospf: OspfImpl>() {
         // Example from L. Vanbever bgpmig_ton, figure 1
         //
         // igp topology
@@ -505,7 +510,7 @@ mod t {
         //      |    |    |
         //      e1   e2   e3
 
-        let mut net: Network<P, _> = Network::default();
+        let mut net: Network<P, _, Ospf> = Network::default();
 
         let prefix = P::from(0);
 
@@ -589,7 +594,7 @@ mod t {
     }
 
     #[test]
-    fn change_ibgp_topology_2<P: Prefix>() {
+    fn change_ibgp_topology_2<P: Prefix, Ospf: OspfImpl>() {
         // Example from L. Vanbever bgpmig_ton, figure 1
         //
         // igp topology
@@ -625,7 +630,7 @@ mod t {
         //      |    |    |
         //      e1   e2   e3
 
-        let mut net: Network<P, _> = Network::default();
+        let mut net: Network<P, _, Ospf> = Network::default();
 
         let prefix = P::from(0);
 
@@ -734,9 +739,9 @@ mod t {
     }
 
     #[test]
-    fn test_pylon_gadget<P: Prefix>() {
+    fn test_pylon_gadget<P: Prefix, Ospf: OspfImpl>() {
         // Example from L. Vanbever bgpmig_ton, figure 5
-        let mut net: Network<P, _> = Network::default();
+        let mut net: Network<P, _, Ospf> = Network::default();
         let prefix = P::from(0);
 
         let s = net.add_router("s");
@@ -827,319 +832,341 @@ mod t {
         test_route!(net, r2, prefix, [r2, r1, e1, p1]);
     }
 
-    #[instantiate_tests(<SinglePrefix>)]
-    mod single {}
+    #[instantiate_tests(<SinglePrefix, GlobalOspf>)]
+    mod single_global {}
 
-    #[instantiate_tests(<SimplePrefix>)]
-    mod simple {}
+    #[instantiate_tests(<SimplePrefix, GlobalOspf>)]
+    mod simple_global {}
 
-    #[instantiate_tests(<Ipv4Prefix>)]
-    mod ipv4 {}
+    #[instantiate_tests(<Ipv4Prefix, GlobalOspf>)]
+    mod ipv4_global {}
+
+    #[instantiate_tests(<SinglePrefix, LocalOspf>)]
+    mod single_local {}
+
+    #[instantiate_tests(<SimplePrefix, LocalOspf>)]
+    mod simple_local {}
+
+    #[instantiate_tests(<Ipv4Prefix, LocalOspf>)]
+    mod ipv4_local {}
 }
 
-#[test]
-fn carousel_gadget() {
-    use crate::route_map::*;
+#[generic_tests::define]
+mod t2 {
 
-    // Example from L. Vanbever bgpmig_ton, figure 6
-    let mut net: Network<SimplePrefix, _> = Network::default();
-    let prefix1 = SimplePrefix::from(1);
-    let prefix2 = SimplePrefix::from(2);
+    use super::*;
+    use crate::ospf::{GlobalOspf, LocalOspf, OspfImpl};
 
-    let rr = net.add_router("rr");
-    let r1 = net.add_router("r1");
-    let r2 = net.add_router("r2");
-    let r3 = net.add_router("r3");
-    let r4 = net.add_router("r4");
-    let e1 = net.add_router("e1");
-    let e2 = net.add_router("e2");
-    let e3 = net.add_router("e3");
-    let e4 = net.add_router("e4");
-    let pr = net.add_external_router("pr", AsId(65100));
-    let p1 = net.add_external_router("p1", AsId(65101));
-    let p2 = net.add_external_router("p2", AsId(65102));
-    let p3 = net.add_external_router("p3", AsId(65103));
-    let p4 = net.add_external_router("p4", AsId(65104));
+    #[test]
+    fn carousel_gadget<Ospf: OspfImpl>() {
+        use crate::route_map::*;
 
-    // make igp topology
-    net.add_link(rr, r1).unwrap();
-    net.add_link(rr, r2).unwrap();
-    net.add_link(rr, r3).unwrap();
-    net.add_link(rr, r4).unwrap();
-    net.add_link(r1, r2).unwrap();
-    net.add_link(r1, e2).unwrap();
-    net.add_link(r1, e3).unwrap();
-    net.add_link(r2, e1).unwrap();
-    net.add_link(r3, r4).unwrap();
-    net.add_link(r3, e4).unwrap();
-    net.add_link(r4, e2).unwrap();
-    net.add_link(r4, e3).unwrap();
-    net.add_link(rr, pr).unwrap();
-    net.add_link(e1, p1).unwrap();
-    net.add_link(e2, p2).unwrap();
-    net.add_link(e3, p3).unwrap();
-    net.add_link(e4, p4).unwrap();
+        // Example from L. Vanbever bgpmig_ton, figure 6
+        let mut net: Network<SimplePrefix, _, Ospf> = Network::default();
+        let prefix1 = SimplePrefix::from(1);
+        let prefix2 = SimplePrefix::from(2);
 
-    net.set_link_weight(rr, r1, 100.0).unwrap();
-    net.set_link_weight(rr, r2, 100.0).unwrap();
-    net.set_link_weight(rr, r3, 100.0).unwrap();
-    net.set_link_weight(rr, r4, 100.0).unwrap();
-    net.set_link_weight(r1, r2, 1.0).unwrap();
-    net.set_link_weight(r1, e2, 5.0).unwrap();
-    net.set_link_weight(r1, e3, 1.0).unwrap();
-    net.set_link_weight(r2, e1, 9.0).unwrap();
-    net.set_link_weight(r3, r4, 1.0).unwrap();
-    net.set_link_weight(r3, e4, 9.0).unwrap();
-    net.set_link_weight(r4, e2, 1.0).unwrap();
-    net.set_link_weight(r4, e3, 4.0).unwrap();
-    net.set_link_weight(r1, rr, 100.0).unwrap();
-    net.set_link_weight(r2, rr, 100.0).unwrap();
-    net.set_link_weight(r3, rr, 100.0).unwrap();
-    net.set_link_weight(r4, rr, 100.0).unwrap();
-    net.set_link_weight(r2, r1, 1.0).unwrap();
-    net.set_link_weight(e2, r1, 5.0).unwrap();
-    net.set_link_weight(e3, r1, 1.0).unwrap();
-    net.set_link_weight(e1, r2, 9.0).unwrap();
-    net.set_link_weight(r4, r3, 1.0).unwrap();
-    net.set_link_weight(e4, r3, 9.0).unwrap();
-    net.set_link_weight(e2, r4, 1.0).unwrap();
-    net.set_link_weight(e3, r4, 4.0).unwrap();
-    net.set_bgp_session(rr, r1, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(rr, r2, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(rr, r3, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(rr, r4, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r1, e1, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r1, e3, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r2, e1, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r2, e2, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r2, e3, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r3, e2, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r3, e3, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r3, e4, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r4, e2, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r4, e4, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(e1, p1, Some(EBgp)).unwrap();
-    net.set_bgp_session(e2, p2, Some(EBgp)).unwrap();
-    net.set_bgp_session(e3, p3, Some(EBgp)).unwrap();
-    net.set_bgp_session(e4, p4, Some(EBgp)).unwrap();
-    net.set_bgp_session(rr, pr, Some(EBgp)).unwrap();
+        let rr = net.add_router("rr");
+        let r1 = net.add_router("r1");
+        let r2 = net.add_router("r2");
+        let r3 = net.add_router("r3");
+        let r4 = net.add_router("r4");
+        let e1 = net.add_router("e1");
+        let e2 = net.add_router("e2");
+        let e3 = net.add_router("e3");
+        let e4 = net.add_router("e4");
+        let pr = net.add_external_router("pr", AsId(65100));
+        let p1 = net.add_external_router("p1", AsId(65101));
+        let p2 = net.add_external_router("p2", AsId(65102));
+        let p3 = net.add_external_router("p3", AsId(65103));
+        let p4 = net.add_external_router("p4", AsId(65104));
 
-    net.set_bgp_route_map(
-        e2,
-        p2,
-        RouteMapDirection::Incoming,
-        RouteMap::new(
-            10,
-            RouteMapState::Allow,
-            vec![],
-            vec![RouteMapSet::LocalPref(Some(50))],
-            RouteMapFlow::Continue,
-        ),
-    )
-    .unwrap();
-    net.set_bgp_route_map(
-        e3,
-        p3,
-        RouteMapDirection::Incoming,
-        RouteMap::new(
-            10,
-            RouteMapState::Allow,
-            vec![],
-            vec![RouteMapSet::LocalPref(Some(50))],
-            RouteMapFlow::Continue,
-        ),
-    )
-    .unwrap();
+        // make igp topology
+        net.add_link(rr, r1).unwrap();
+        net.add_link(rr, r2).unwrap();
+        net.add_link(rr, r3).unwrap();
+        net.add_link(rr, r4).unwrap();
+        net.add_link(r1, r2).unwrap();
+        net.add_link(r1, e2).unwrap();
+        net.add_link(r1, e3).unwrap();
+        net.add_link(r2, e1).unwrap();
+        net.add_link(r3, r4).unwrap();
+        net.add_link(r3, e4).unwrap();
+        net.add_link(r4, e2).unwrap();
+        net.add_link(r4, e3).unwrap();
+        net.add_link(rr, pr).unwrap();
+        net.add_link(e1, p1).unwrap();
+        net.add_link(e2, p2).unwrap();
+        net.add_link(e3, p3).unwrap();
+        net.add_link(e4, p4).unwrap();
 
-    // start advertising
-    net.advertise_external_route(pr, prefix1, vec![AsId(1)], None, None)
+        net.set_link_weight(rr, r1, 100.0).unwrap();
+        net.set_link_weight(rr, r2, 100.0).unwrap();
+        net.set_link_weight(rr, r3, 100.0).unwrap();
+        net.set_link_weight(rr, r4, 100.0).unwrap();
+        net.set_link_weight(r1, r2, 1.0).unwrap();
+        net.set_link_weight(r1, e2, 5.0).unwrap();
+        net.set_link_weight(r1, e3, 1.0).unwrap();
+        net.set_link_weight(r2, e1, 9.0).unwrap();
+        net.set_link_weight(r3, r4, 1.0).unwrap();
+        net.set_link_weight(r3, e4, 9.0).unwrap();
+        net.set_link_weight(r4, e2, 1.0).unwrap();
+        net.set_link_weight(r4, e3, 4.0).unwrap();
+        net.set_link_weight(r1, rr, 100.0).unwrap();
+        net.set_link_weight(r2, rr, 100.0).unwrap();
+        net.set_link_weight(r3, rr, 100.0).unwrap();
+        net.set_link_weight(r4, rr, 100.0).unwrap();
+        net.set_link_weight(r2, r1, 1.0).unwrap();
+        net.set_link_weight(e2, r1, 5.0).unwrap();
+        net.set_link_weight(e3, r1, 1.0).unwrap();
+        net.set_link_weight(e1, r2, 9.0).unwrap();
+        net.set_link_weight(r4, r3, 1.0).unwrap();
+        net.set_link_weight(e4, r3, 9.0).unwrap();
+        net.set_link_weight(e2, r4, 1.0).unwrap();
+        net.set_link_weight(e3, r4, 4.0).unwrap();
+        net.set_bgp_session(rr, r1, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(rr, r2, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(rr, r3, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(rr, r4, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r1, e1, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r1, e3, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r2, e1, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r2, e2, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r2, e3, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r3, e2, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r3, e3, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r3, e4, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r4, e2, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r4, e4, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(e1, p1, Some(EBgp)).unwrap();
+        net.set_bgp_session(e2, p2, Some(EBgp)).unwrap();
+        net.set_bgp_session(e3, p3, Some(EBgp)).unwrap();
+        net.set_bgp_session(e4, p4, Some(EBgp)).unwrap();
+        net.set_bgp_session(rr, pr, Some(EBgp)).unwrap();
+
+        net.set_bgp_route_map(
+            e2,
+            p2,
+            RouteMapDirection::Incoming,
+            RouteMap::new(
+                10,
+                RouteMapState::Allow,
+                vec![],
+                vec![RouteMapSet::LocalPref(Some(50))],
+                RouteMapFlow::Continue,
+            ),
+        )
         .unwrap();
-    net.advertise_external_route(pr, prefix2, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(p1, prefix1, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(p2, prefix1, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(p2, prefix2, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(p3, prefix1, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(p3, prefix2, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(p4, prefix2, vec![AsId(1)], None, None)
+        net.set_bgp_route_map(
+            e3,
+            p3,
+            RouteMapDirection::Incoming,
+            RouteMap::new(
+                10,
+                RouteMapState::Allow,
+                vec![],
+                vec![RouteMapSet::LocalPref(Some(50))],
+                RouteMapFlow::Continue,
+            ),
+        )
         .unwrap();
 
-    test_route!(net, rr, prefix1, [rr, pr]);
-    test_route!(net, rr, prefix2, [rr, pr]);
-    test_route!(net, r1, prefix1, [r1, r2, e1, p1]);
-    test_route!(net, r1, prefix2, [r1, rr, pr]);
-    test_route!(net, r2, prefix1, [r2, e1, p1]);
-    test_route!(net, r2, prefix2, [r2, rr, pr]);
-    test_route!(net, r3, prefix1, [r3, rr, pr]);
-    test_route!(net, r3, prefix2, [r3, e4, p4]);
-    test_route!(net, r4, prefix1, [r4, rr, pr]);
-    test_route!(net, r4, prefix2, [r4, r3, e4, p4]);
-    test_route!(net, e1, prefix1, [e1, p1]);
-    test_route!(net, e1, prefix2, [e1, r2, rr, pr]);
-    test_route!(net, e2, prefix1, [e2, r1, r2, e1, p1]);
-    test_route!(net, e2, prefix2, [e2, r4, r3, e4, p4]);
-    test_route!(net, e3, prefix1, [e3, r1, r2, e1, p1]);
-    test_route!(net, e3, prefix2, [e3, r4, r3, e4, p4]);
-    test_route!(net, e4, prefix1, [e4, r3, rr, pr]);
-    test_route!(net, e4, prefix2, [e4, p4]);
+        // start advertising
+        net.advertise_external_route(pr, prefix1, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(pr, prefix2, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(p1, prefix1, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(p2, prefix1, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(p2, prefix2, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(p3, prefix1, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(p3, prefix2, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(p4, prefix2, vec![AsId(1)], None, None)
+            .unwrap();
 
-    // reconfigure e2
-    net.remove_bgp_route_map(e2, p2, RouteMapDirection::Incoming, 10)
-        .unwrap();
+        test_route!(net, rr, prefix1, [rr, pr]);
+        test_route!(net, rr, prefix2, [rr, pr]);
+        test_route!(net, r1, prefix1, [r1, r2, e1, p1]);
+        test_route!(net, r1, prefix2, [r1, rr, pr]);
+        test_route!(net, r2, prefix1, [r2, e1, p1]);
+        test_route!(net, r2, prefix2, [r2, rr, pr]);
+        test_route!(net, r3, prefix1, [r3, rr, pr]);
+        test_route!(net, r3, prefix2, [r3, e4, p4]);
+        test_route!(net, r4, prefix1, [r4, rr, pr]);
+        test_route!(net, r4, prefix2, [r4, r3, e4, p4]);
+        test_route!(net, e1, prefix1, [e1, p1]);
+        test_route!(net, e1, prefix2, [e1, r2, rr, pr]);
+        test_route!(net, e2, prefix1, [e2, r1, r2, e1, p1]);
+        test_route!(net, e2, prefix2, [e2, r4, r3, e4, p4]);
+        test_route!(net, e3, prefix1, [e3, r1, r2, e1, p1]);
+        test_route!(net, e3, prefix2, [e3, r4, r3, e4, p4]);
+        test_route!(net, e4, prefix1, [e4, r3, rr, pr]);
+        test_route!(net, e4, prefix2, [e4, p4]);
 
-    test_route!(net, rr, prefix1, [rr, pr]);
-    test_route!(net, rr, prefix2, [rr, pr]);
-    test_bad_route!(fw_loop, net, r1, prefix1, [r1, r2, r1]);
-    test_route!(net, r1, prefix2, [r1, rr, pr]);
-    test_bad_route!(fw_loop, net, r2, prefix1, [r2, r1, r2]);
-    test_route!(net, r2, prefix2, [r2, r1, rr, pr]);
-    test_route!(net, r3, prefix1, [r3, r4, e2, p2]);
-    test_route!(net, r3, prefix2, [r3, r4, e2, p2]);
-    test_route!(net, r4, prefix1, [r4, e2, p2]);
-    test_route!(net, r4, prefix2, [r4, e2, p2]);
-    test_route!(net, e1, prefix1, [e1, p1]);
-    test_route!(net, e1, prefix2, [e1, r2, r1, rr, pr]);
-    test_route!(net, e2, prefix1, [e2, p2]);
-    test_route!(net, e2, prefix2, [e2, p2]);
-    test_route!(net, e3, prefix1, [e3, r4, e2, p2]);
-    test_route!(net, e3, prefix2, [e3, r4, e2, p2]);
-    test_route!(net, e4, prefix1, [e4, r3, r4, e2, p2]);
-    test_route!(net, e4, prefix2, [e4, p4]);
+        // reconfigure e2
+        net.remove_bgp_route_map(e2, p2, RouteMapDirection::Incoming, 10)
+            .unwrap();
 
-    // reconfigure e3
-    net.remove_bgp_route_map(e3, p3, RouteMapDirection::Incoming, 10)
-        .unwrap();
+        test_route!(net, rr, prefix1, [rr, pr]);
+        test_route!(net, rr, prefix2, [rr, pr]);
+        test_bad_route!(fw_loop, net, r1, prefix1, [r1, r2, r1]);
+        test_route!(net, r1, prefix2, [r1, rr, pr]);
+        test_bad_route!(fw_loop, net, r2, prefix1, [r2, r1, r2]);
+        test_route!(net, r2, prefix2, [r2, r1, rr, pr]);
+        test_route!(net, r3, prefix1, [r3, r4, e2, p2]);
+        test_route!(net, r3, prefix2, [r3, r4, e2, p2]);
+        test_route!(net, r4, prefix1, [r4, e2, p2]);
+        test_route!(net, r4, prefix2, [r4, e2, p2]);
+        test_route!(net, e1, prefix1, [e1, p1]);
+        test_route!(net, e1, prefix2, [e1, r2, r1, rr, pr]);
+        test_route!(net, e2, prefix1, [e2, p2]);
+        test_route!(net, e2, prefix2, [e2, p2]);
+        test_route!(net, e3, prefix1, [e3, r4, e2, p2]);
+        test_route!(net, e3, prefix2, [e3, r4, e2, p2]);
+        test_route!(net, e4, prefix1, [e4, r3, r4, e2, p2]);
+        test_route!(net, e4, prefix2, [e4, p4]);
 
-    test_route!(net, rr, prefix1, [rr, pr]);
-    test_route!(net, rr, prefix2, [rr, pr]);
-    test_route!(net, r1, prefix1, [r1, e3, p3]);
-    test_route!(net, r1, prefix2, [r1, e3, p3]);
-    test_route!(net, r2, prefix1, [r2, r1, e3, p3]);
-    test_route!(net, r2, prefix2, [r2, r1, e3, p3]);
-    test_route!(net, r3, prefix1, [r3, r4, e2, p2]);
-    test_route!(net, r3, prefix2, [r3, r4, e2, p2]);
-    test_route!(net, r4, prefix1, [r4, e2, p2]);
-    test_route!(net, r4, prefix2, [r4, e2, p2]);
-    test_route!(net, e1, prefix1, [e1, p1]);
-    test_route!(net, e1, prefix2, [e1, r2, r1, e3, p3]);
-    test_route!(net, e2, prefix1, [e2, p2]);
-    test_route!(net, e2, prefix2, [e2, p2]);
-    test_route!(net, e3, prefix1, [e3, p3]);
-    test_route!(net, e3, prefix2, [e3, p3]);
-    test_route!(net, e4, prefix1, [e4, r3, r4, e2, p2]);
-    test_route!(net, e4, prefix2, [e4, p4]);
-}
+        // reconfigure e3
+        net.remove_bgp_route_map(e3, p3, RouteMapDirection::Incoming, 10)
+            .unwrap();
 
-#[test]
-fn test_twicebad_gadget() {
-    // Example from L. Vanbever bgpmig_ton, figure 4
-    let mut net: Network<SimplePrefix, _> = Network::default();
-    let prefix1 = SimplePrefix::from(1);
-    let prefix2 = SimplePrefix::from(2);
+        test_route!(net, rr, prefix1, [rr, pr]);
+        test_route!(net, rr, prefix2, [rr, pr]);
+        test_route!(net, r1, prefix1, [r1, e3, p3]);
+        test_route!(net, r1, prefix2, [r1, e3, p3]);
+        test_route!(net, r2, prefix1, [r2, r1, e3, p3]);
+        test_route!(net, r2, prefix2, [r2, r1, e3, p3]);
+        test_route!(net, r3, prefix1, [r3, r4, e2, p2]);
+        test_route!(net, r3, prefix2, [r3, r4, e2, p2]);
+        test_route!(net, r4, prefix1, [r4, e2, p2]);
+        test_route!(net, r4, prefix2, [r4, e2, p2]);
+        test_route!(net, e1, prefix1, [e1, p1]);
+        test_route!(net, e1, prefix2, [e1, r2, r1, e3, p3]);
+        test_route!(net, e2, prefix1, [e2, p2]);
+        test_route!(net, e2, prefix2, [e2, p2]);
+        test_route!(net, e3, prefix1, [e3, p3]);
+        test_route!(net, e3, prefix2, [e3, p3]);
+        test_route!(net, e4, prefix1, [e4, r3, r4, e2, p2]);
+        test_route!(net, e4, prefix2, [e4, p4]);
+    }
 
-    let r1 = net.add_router("r1");
-    let r2 = net.add_router("r2");
-    let r3 = net.add_router("r3");
-    let r4 = net.add_router("r4");
-    let e1 = net.add_router("e1");
-    let ex = net.add_router("ex");
-    let e2 = net.add_router("e2");
-    let e3 = net.add_router("e3");
-    let e4 = net.add_router("e4");
-    let pr = net.add_external_router("pr", AsId(65100));
-    let p1 = net.add_external_router("p1", AsId(65101));
-    let px = net.add_external_router("px", AsId(65105));
-    let p2 = net.add_external_router("p2", AsId(65102));
-    let p3 = net.add_external_router("p3", AsId(65103));
-    let p4 = net.add_external_router("p4", AsId(65104));
+    #[test]
+    fn test_twicebad_gadget<Ospf: OspfImpl>() {
+        // Example from L. Vanbever bgpmig_ton, figure 4
+        let mut net: Network<SimplePrefix, _, Ospf> = Network::default();
+        let prefix1 = SimplePrefix::from(1);
+        let prefix2 = SimplePrefix::from(2);
 
-    net.add_link(r1, pr).unwrap();
-    net.add_link(e1, p1).unwrap();
-    net.add_link(ex, px).unwrap();
-    net.add_link(e2, p2).unwrap();
-    net.add_link(e3, p3).unwrap();
-    net.add_link(e4, p4).unwrap();
-    net.add_link(r1, e1).unwrap();
-    net.add_link(r1, e2).unwrap();
-    net.add_link(r2, ex).unwrap();
-    net.add_link(r2, e2).unwrap();
-    net.add_link(r2, e3).unwrap();
-    net.add_link(r2, e4).unwrap();
-    net.add_link(r3, e1).unwrap();
-    net.add_link(r3, ex).unwrap();
-    net.add_link(r3, e3).unwrap();
-    net.add_link(r4, e1).unwrap();
-    net.add_link(r4, e4).unwrap();
+        let r1 = net.add_router("r1");
+        let r2 = net.add_router("r2");
+        let r3 = net.add_router("r3");
+        let r4 = net.add_router("r4");
+        let e1 = net.add_router("e1");
+        let ex = net.add_router("ex");
+        let e2 = net.add_router("e2");
+        let e3 = net.add_router("e3");
+        let e4 = net.add_router("e4");
+        let pr = net.add_external_router("pr", AsId(65100));
+        let p1 = net.add_external_router("p1", AsId(65101));
+        let px = net.add_external_router("px", AsId(65105));
+        let p2 = net.add_external_router("p2", AsId(65102));
+        let p3 = net.add_external_router("p3", AsId(65103));
+        let p4 = net.add_external_router("p4", AsId(65104));
 
-    net.set_link_weight(r1, e1, 2.0).unwrap();
-    net.set_link_weight(r1, e2, 1.0).unwrap();
-    net.set_link_weight(r2, ex, 4.0).unwrap();
-    net.set_link_weight(r2, e2, 6.0).unwrap();
-    net.set_link_weight(r2, e3, 5.0).unwrap();
-    net.set_link_weight(r2, e4, 3.0).unwrap();
-    net.set_link_weight(r3, e1, 8.0).unwrap();
-    net.set_link_weight(r3, ex, 7.0).unwrap();
-    net.set_link_weight(r3, e3, 9.0).unwrap();
-    net.set_link_weight(r4, e1, 8.0).unwrap();
-    net.set_link_weight(r4, e4, 9.0).unwrap();
-    net.set_link_weight(e1, r1, 2.0).unwrap();
-    net.set_link_weight(e2, r1, 1.0).unwrap();
-    net.set_link_weight(ex, r2, 4.0).unwrap();
-    net.set_link_weight(e2, r2, 6.0).unwrap();
-    net.set_link_weight(e3, r2, 5.0).unwrap();
-    net.set_link_weight(e4, r2, 3.0).unwrap();
-    net.set_link_weight(e1, r3, 8.0).unwrap();
-    net.set_link_weight(ex, r3, 7.0).unwrap();
-    net.set_link_weight(e3, r3, 9.0).unwrap();
-    net.set_link_weight(e1, r4, 8.0).unwrap();
-    net.set_link_weight(e4, r4, 9.0).unwrap();
+        net.add_link(r1, pr).unwrap();
+        net.add_link(e1, p1).unwrap();
+        net.add_link(ex, px).unwrap();
+        net.add_link(e2, p2).unwrap();
+        net.add_link(e3, p3).unwrap();
+        net.add_link(e4, p4).unwrap();
+        net.add_link(r1, e1).unwrap();
+        net.add_link(r1, e2).unwrap();
+        net.add_link(r2, ex).unwrap();
+        net.add_link(r2, e2).unwrap();
+        net.add_link(r2, e3).unwrap();
+        net.add_link(r2, e4).unwrap();
+        net.add_link(r3, e1).unwrap();
+        net.add_link(r3, ex).unwrap();
+        net.add_link(r3, e3).unwrap();
+        net.add_link(r4, e1).unwrap();
+        net.add_link(r4, e4).unwrap();
 
-    net.set_bgp_session(r1, e1, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r1, ex, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r2, ex, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r2, e2, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r3, e3, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r4, e4, Some(IBgpClient)).unwrap();
-    net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
-    net.set_bgp_session(r1, r3, Some(IBgpPeer)).unwrap();
-    net.set_bgp_session(r1, r4, Some(IBgpPeer)).unwrap();
-    net.set_bgp_session(r2, r3, Some(IBgpPeer)).unwrap();
-    net.set_bgp_session(r2, r4, Some(IBgpPeer)).unwrap();
-    net.set_bgp_session(r3, r4, Some(IBgpPeer)).unwrap();
-    net.set_bgp_session(r1, pr, Some(EBgp)).unwrap();
-    net.set_bgp_session(e1, p1, Some(EBgp)).unwrap();
-    net.set_bgp_session(ex, px, Some(EBgp)).unwrap();
-    net.set_bgp_session(e2, p2, Some(EBgp)).unwrap();
-    net.set_bgp_session(e3, p3, Some(EBgp)).unwrap();
-    net.set_bgp_session(e4, p4, Some(EBgp)).unwrap();
+        net.set_link_weight(r1, e1, 2.0).unwrap();
+        net.set_link_weight(r1, e2, 1.0).unwrap();
+        net.set_link_weight(r2, ex, 4.0).unwrap();
+        net.set_link_weight(r2, e2, 6.0).unwrap();
+        net.set_link_weight(r2, e3, 5.0).unwrap();
+        net.set_link_weight(r2, e4, 3.0).unwrap();
+        net.set_link_weight(r3, e1, 8.0).unwrap();
+        net.set_link_weight(r3, ex, 7.0).unwrap();
+        net.set_link_weight(r3, e3, 9.0).unwrap();
+        net.set_link_weight(r4, e1, 8.0).unwrap();
+        net.set_link_weight(r4, e4, 9.0).unwrap();
+        net.set_link_weight(e1, r1, 2.0).unwrap();
+        net.set_link_weight(e2, r1, 1.0).unwrap();
+        net.set_link_weight(ex, r2, 4.0).unwrap();
+        net.set_link_weight(e2, r2, 6.0).unwrap();
+        net.set_link_weight(e3, r2, 5.0).unwrap();
+        net.set_link_weight(e4, r2, 3.0).unwrap();
+        net.set_link_weight(e1, r3, 8.0).unwrap();
+        net.set_link_weight(ex, r3, 7.0).unwrap();
+        net.set_link_weight(e3, r3, 9.0).unwrap();
+        net.set_link_weight(e1, r4, 8.0).unwrap();
+        net.set_link_weight(e4, r4, 9.0).unwrap();
 
-    net.advertise_external_route(p1, prefix1, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(p1, prefix2, vec![AsId(2)], None, None)
-        .unwrap();
-    net.advertise_external_route(px, prefix1, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(px, prefix2, vec![AsId(2)], None, None)
-        .unwrap();
-    net.advertise_external_route(p2, prefix1, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(p3, prefix1, vec![AsId(1)], None, None)
-        .unwrap();
-    net.advertise_external_route(p4, prefix2, vec![AsId(2)], None, None)
-        .unwrap();
-    net.advertise_external_route(pr, prefix2, vec![AsId(2)], None, None)
-        .unwrap();
+        net.set_bgp_session(r1, e1, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r1, ex, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r2, ex, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r2, e2, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r3, e3, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r4, e4, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r1, r3, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r1, r4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r2, r3, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r2, r4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r3, r4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r1, pr, Some(EBgp)).unwrap();
+        net.set_bgp_session(e1, p1, Some(EBgp)).unwrap();
+        net.set_bgp_session(ex, px, Some(EBgp)).unwrap();
+        net.set_bgp_session(e2, p2, Some(EBgp)).unwrap();
+        net.set_bgp_session(e3, p3, Some(EBgp)).unwrap();
+        net.set_bgp_session(e4, p4, Some(EBgp)).unwrap();
 
-    net.set_msg_limit(Some(5_000));
+        net.advertise_external_route(p1, prefix1, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(p1, prefix2, vec![AsId(2)], None, None)
+            .unwrap();
+        net.advertise_external_route(px, prefix1, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(px, prefix2, vec![AsId(2)], None, None)
+            .unwrap();
+        net.advertise_external_route(p2, prefix1, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(p3, prefix1, vec![AsId(1)], None, None)
+            .unwrap();
+        net.advertise_external_route(p4, prefix2, vec![AsId(2)], None, None)
+            .unwrap();
+        net.advertise_external_route(pr, prefix2, vec![AsId(2)], None, None)
+            .unwrap();
 
-    // now, remove the session between ex and r2
-    assert_eq!(
-        net.set_bgp_session(r3, e1, Some(IBgpClient)),
-        Err(NetworkError::NoConvergence)
-    );
+        net.set_msg_limit(Some(5_000));
+
+        // now, remove the session between ex and r2
+        assert_eq!(
+            net.set_bgp_session(r3, e1, Some(IBgpClient)),
+            Err(NetworkError::NoConvergence)
+        );
+    }
+
+    #[instantiate_tests(<GlobalOspf>)]
+    mod global {}
+
+    #[instantiate_tests(<LocalOspf>)]
+    mod local {}
 }
