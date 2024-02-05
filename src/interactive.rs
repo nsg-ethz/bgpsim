@@ -169,7 +169,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
                     }
                     remaining_iter = Some(rem - 1);
                 }
-                self.simulate_step()?;
+                let step_update = self.simulate_step()?;
+                if matches!(step_update, Some((_, Event::Ospf { .. }))) {
+                    // OSPF event received! Check the BGP session state
+                    self.refresh_bgp_sessions()?;
+                }
             }
 
             // trigger the next timeout event if it exists.
