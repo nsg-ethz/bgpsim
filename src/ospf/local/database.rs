@@ -229,6 +229,43 @@ impl OspfRib {
         &self.rib
     }
 
+    /// Remove all LSAs that are unreachable.
+    ///
+    /// This is a workaround for the case when old LSAs are present. In real OSPF, the age of LSAs
+    /// is periodically increased until they reach `MaxAge` (typically after 1 hour). At this point,
+    /// those LSAs are removed from the table. Other LSAs are periodically refreshed (typically
+    /// after 30 minutes). However, we do not periodically re-advertise messages, and we do not
+    /// automatically increase the age. Thus, we might end up with LSAs that are unreachable.
+    ///
+    /// To circumvent this issue, we remove all LSAs for which the `router` is not reachable. This
+    /// works because of the following reasons:
+    ///
+    /// 1. We only have bi-directional links. Any link failure is bi-directional.
+    /// 2. When the router originating that LSA re-advertises it with a larger sequence number (to
+    ///    resetht age), the udpate would not propagate to this router (because the originator is
+    ///    unreachable).
+    ///
+    /// More precisely, for each area, and for each LSA, we chech whether we can still reach the
+    /// originating router within that area. If not, we remove the LSA (without flushing this update
+    /// out to neighbors). We repeat the same thing for External-LSAs, but check for a path in all
+    /// available areas.
+    pub(super) fn remove_unreachable_lsas(&mut self) {
+        // remove unreachable LSAs from all areas
+        self.areas
+            .values_mut()
+            .for_each(|ds| ds.remove_unreachable_lsas());
+
+        // remove the unreachable External-LSAs
+        self.external_lsas.retain(|k, _| {
+            k.router == self.router_id
+                || self
+                    .rib
+                    .get(&k.router)
+                    .map(|r| r.cost.is_finite())
+                    .unwrap_or(false)
+        })
+    }
+
     /// Update the local RouterLSA and set the weight to a neighbor appropriately. Then, return the
     /// new LSA. There are a couple of possible outcomes:
     /// - `None`: The LSA must not be changed.
@@ -1368,6 +1405,20 @@ impl AreaDataStructure {
 
         // return the result
         (redistribute, track_max_age)
+    }
+
+    /// Remove all LSAs that are unreachable using a intra-area path. See the function
+    /// `OspfRib::remove_unreachable_lsas` for more details.
+    fn remove_unreachable_lsas(&mut self) {
+        // remove the unreachable External-LSAs
+        self.lsa_list.retain(|k, _| {
+            k.router == self.router_id
+                || self
+                    .spt
+                    .get(&k.router)
+                    .map(|path| path.cost.is_finite() && !path.inter_area)
+                    .unwrap_or(false)
+        })
     }
 }
 

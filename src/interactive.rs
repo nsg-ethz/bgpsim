@@ -22,7 +22,7 @@ use crate::{
     event::{Event, EventQueue},
     formatter::NetworkFormatter,
     network::Network,
-    ospf::{global::GlobalOspf, OspfImpl},
+    ospf::{global::GlobalOspf, OspfImpl, OspfProcess},
     types::NetworkError,
     types::{NetworkDevice, NetworkErrorOption, Prefix, RouterId, StepUpdate},
 };
@@ -180,6 +180,10 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
                 break 'timeout;
             }
         }
+
+        // remove unreachable OSPF LSAs
+        self.internal_routers_mut()
+            .for_each(|r| r.ospf.remove_unreachable_lsas());
 
         Ok(())
     }

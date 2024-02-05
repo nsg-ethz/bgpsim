@@ -823,6 +823,19 @@ pub trait OspfProcess:
         &mut self,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError>;
 
+    /// Remove all old LSAs from the database. These are LSAs that are no longer being advertised
+    /// (due to the advertising router leaving the area). In real OSPF, this would happen
+    /// automatically by the aging of LSAs (which does not happen in this simulation). Instead, we
+    /// call this function after the convergence process has finished (after all messages are
+    /// exchanged in [`crate::interactive::InteractiveNetwork::simulate]).
+    ///
+    /// This function should remove all LSAs that originate from a router that is no longer
+    /// reachable within the area itself (which indicates that its refreshed LSAs would not reach
+    /// that router, and thus, the LSA would reach `MAX_AGE`).
+    ///
+    /// For [`GlobalOspf`], this function does nothing.
+    fn remove_unreachable_lsas(&mut self) {}
+
     /// Get a formatted string of the process.
     fn fmt<P, Q, Ospf>(&self, net: &Network<P, Q, Ospf>) -> String
     where
