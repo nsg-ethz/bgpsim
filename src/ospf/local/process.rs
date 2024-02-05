@@ -17,6 +17,7 @@
 
 use std::collections::{BTreeMap, HashMap};
 
+use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
 
@@ -76,6 +77,7 @@ pub(super) enum LocalNeighborhoodChange {
         /// Link weight towards that externa neighbor. use `None` to remove that link.
         weight: Option<LinkWeight>,
     },
+    Batch(Vec<LocalNeighborhoodChange>),
 }
 
 impl LocalNeighborhoodChange {
@@ -159,6 +161,9 @@ impl LocalNeighborhoodChange {
             NeighborhoodChange::Batch(v) => v
                 .into_iter()
                 .flat_map(LocalNeighborhoodChange::from_global)
+                .into_group_map()
+                .into_iter()
+                .map(|(r, updates)| (r, LocalNeighborhoodChange::Batch(updates)))
                 .collect(),
         }
     }
@@ -175,6 +180,15 @@ impl LocalOspfProcess {
         &mut self,
         change: LocalNeighborhoodChange,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+        let actions = self.prepare_neighborhood_change(change)?;
+        Ok(self.perform_actions(actions))
+    }
+
+    /// Prepare the neighborhood change without performing any actions yet.
+    fn prepare_neighborhood_change<P: Prefix, T: Default>(
+        &mut self,
+        change: LocalNeighborhoodChange,
+    ) -> Result<ProcessActions<P, T>, DeviceError> {
         let mut actions = ProcessActions::new();
         match change {
             LocalNeighborhoodChange::AddNeighbor {
@@ -236,7 +250,7 @@ impl LocalOspfProcess {
                     == area
                 {
                     // nothing to do! the area stays the same
-                    return Ok((false, Vec::new()));
+                    return Ok(actions);
                 }
 
                 log::debug!(
@@ -287,9 +301,14 @@ impl LocalOspfProcess {
                 );
                 actions += self.update_external_link(ext, weight);
             }
+            LocalNeighborhoodChange::Batch(changes) => {
+                for change in changes {
+                    actions += self.prepare_neighborhood_change(change)?
+                }
+            }
         };
 
-        Ok(self.perform_actions(actions))
+        Ok(actions)
     }
 
     /// Returns `true` if any neighbor is in `NeighborState::Exchange` or `NeighborState::Loading`.
