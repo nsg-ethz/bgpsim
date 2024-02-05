@@ -350,13 +350,20 @@ impl OspfRib {
         let mut result = BTreeMap::new();
 
         // only redistribute something if we are an area border router!
-        if !self.areas.contains_key(&OspfArea::BACKBONE) && self.areas.len() > 1 {
-            return result;
-        }
-
-        for (area, area_ds) in self.areas.iter_mut() {
-            let (redistribute, track_max_age) = area_ds.redistribute_into(&self.rib);
-            result.insert(*area, (redistribute, track_max_age));
+        if self.areas.contains_key(&OspfArea::BACKBONE) && self.areas.len() > 1 {
+            // the router is an ABR! Re-compute the summary-LSAs.
+            for (area, area_ds) in self.areas.iter_mut() {
+                let (redistribute, track_max_age) = area_ds.redistribute_into(&self.rib);
+                result.insert(*area, (redistribute, track_max_age));
+            }
+        } else {
+            // The router is not an ABR! Update the area's redistribute, because we might need to
+            // flush out old LSAs.
+            for (area, area_ds) in self.areas.iter_mut() {
+                let (redistribute, track_max_age) =
+                    area_ds.redistribute_from_paths(Default::default());
+                result.insert(*area, (redistribute, track_max_age));
+            }
         }
 
         result
@@ -1127,9 +1134,6 @@ impl AreaDataStructure {
         &mut self,
         rib: &HashMap<RouterId, OspfRibEntry>,
     ) -> (Vec<Lsa>, Vec<(LsaKey, Option<Lsa>)>) {
-        let mut redistribute = Vec::new();
-        let mut track_max_age = Vec::new();
-
         // collect the next-hops of the target area
         let target_neighbors: BTreeSet<RouterId> = self
             .get_router_lsa(self.router_id)
@@ -1139,7 +1143,7 @@ impl AreaDataStructure {
             .collect();
         if target_neighbors.is_empty() {
             // if target_neighbors is empty, we are no longer part of that area!
-            return (redistribute, track_max_age);
+            return (Vec::new(), Vec::new());
         }
 
         let mut redistributed_paths = BTreeMap::new();
@@ -1232,6 +1236,19 @@ impl AreaDataStructure {
             // if we get here, then the path must be re-advertised
             redistributed_paths.insert(path.router_id, path.cost);
         }
+
+        self.redistribute_from_paths(redistributed_paths)
+    }
+
+    /// Redistribute the given paths into the area. In contrast to `Self::redistribute_into`, it
+    /// simply redistributes the generated Summary-LSAs, keeping in mind what it has redistributed
+    /// earlier. `Self::redistribute_into` calls `Self::redistribute_from_paths`.
+    fn redistribute_from_paths(
+        &mut self,
+        redistributed_paths: BTreeMap<RouterId, NotNan<LinkWeight>>,
+    ) -> (Vec<Lsa>, Vec<(LsaKey, Option<Lsa>)>) {
+        let mut redistribute = Vec::new();
+        let mut track_max_age = Vec::new();
 
         // prepare all paths to redistribute
         for m in redistributed_paths
