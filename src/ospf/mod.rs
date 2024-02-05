@@ -805,7 +805,15 @@ pub trait OspfProcess:
 
     /// Test if a destination is reachable using OSPF.
     fn is_reachable(&self, dst: RouterId) -> bool {
-        self.get_table().contains_key(&dst) || self.get_neighbors().contains_key(&dst)
+        self.get_table()
+            .get(&dst)
+            .map(|(_, w)| w.is_finite())
+            .unwrap_or(false)
+            || self
+                .get_neighbors()
+                .get(&dst)
+                .map(|w| w.is_finite())
+                .unwrap_or(false)
     }
 
     /// Returns `true` if `dst` is a neighbor.

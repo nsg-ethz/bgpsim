@@ -74,6 +74,112 @@ mod t {
     }
 
     #[test]
+    fn simple_failure_infinity<P: Prefix, Ospf: OspfImpl>() {
+        let _ = env_logger::try_init();
+
+        let mut net = get_test_topo::<P, Ospf>();
+        net.build_link_weights(link_weights, ()).unwrap();
+        net.build_ebgp_sessions().unwrap();
+        net.build_ibgp_full_mesh().unwrap();
+
+        let p = P::from(0);
+        net.advertise_external_route(*E1, p, &[1], None, None)
+            .unwrap();
+        net.advertise_external_route(*E4, p, &[4], None, None)
+            .unwrap();
+
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+        assert!(!net
+            .get_device(*R3)
+            .unwrap()
+            .unwrap_internal()
+            .bgp
+            .get_sessions()
+            .is_empty());
+
+        net.set_link_weight(*R3, *R1, LinkWeight::INFINITY).unwrap();
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R3, p, [*R3, *R4, *E4]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+        assert!(!net
+            .get_device(*R3)
+            .unwrap()
+            .unwrap_internal()
+            .bgp
+            .get_sessions()
+            .is_empty());
+
+        net.set_link_weight(*R3, *R4, LinkWeight::INFINITY).unwrap();
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_bad_route!(black_hole, net, *R3, p, [*R3]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+        assert!(net
+            .get_device(*R3)
+            .unwrap()
+            .unwrap_internal()
+            .bgp
+            .get_sessions()
+            .is_empty());
+
+        net.set_link_weight(*R3, *R1, 1.0).unwrap();
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+        assert!(!net
+            .get_device(*R3)
+            .unwrap()
+            .unwrap_internal()
+            .bgp
+            .get_sessions()
+            .is_empty());
+    }
+
+    #[test]
+    fn rr_failure_infinity<P: Prefix, Ospf: OspfImpl>() {
+        let _ = env_logger::try_init();
+
+        // let mut net = get_test_topo::<P, Ospf>();
+        let mut net = get_test_topo::<P, LocalOspf>();
+        let rr = net.add_router("rr");
+        net.add_link(rr, *R3).unwrap();
+        net.build_link_weights(link_weights, ()).unwrap();
+        net.build_ebgp_sessions().unwrap();
+        net.build_ibgp_route_reflection(|_, rr| [rr], rr).unwrap();
+
+        let p = P::from(0);
+        net.advertise_external_route(*E1, p, &[1], None, None)
+            .unwrap();
+        net.advertise_external_route(*E4, p, &[4], None, None)
+            .unwrap();
+
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R1, *E1]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+        test_route!(net, rr, p, [rr, *R3, *R1, *E1]);
+
+        net.set_link_weight(rr, *R3, LinkWeight::INFINITY).unwrap();
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_bad_route!(black_hole, net, *R2, p, [*R2]);
+        test_bad_route!(black_hole, net, *R3, p, [*R3]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+        test_bad_route!(black_hole, net, rr, p, [rr]);
+
+        net.set_link_weight(rr, *R3, 1.0).unwrap();
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R1, *E1]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+        test_route!(net, rr, p, [rr, *R3, *R1, *E1]);
+    }
+
+    #[test]
     fn simple_failure<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_topo::<P, Ospf>();
         net.build_link_weights(link_weights, ()).unwrap();

@@ -15,6 +15,39 @@
 
 //! Module that contains the implementation of a Link State Database, including shortest-path
 //! computation.
+//!
+//! # Special remarks for the OSPF implementation
+//!
+//! We implement OSPF with some special rules:
+//!
+//! ## Aging LSAs
+//!
+//! This is a workaround for the case when old LSAs are present. In real OSPF, the age of LSAs is
+//! periodically increased until they reach `MaxAge` (typically after 1 hour). At this point, those
+//! LSAs are removed from the table. Other LSAs are periodically refreshed (typically after 30
+//! minutes). However, we do not periodically re-advertise messages, and we do not automatically
+//! increase the age. Thus, we might end up with LSAs that are unreachable.
+//!
+//! To circumvent this issue, we remove all LSAs for which the `router` is not reachable. This works
+//! because of the following reasons:
+//!
+//! 1. We only have bi-directional links. Any link failure is bi-directional.
+//! 2. When the router originating that LSA re-advertises it with a larger sequence number (to
+//!    resetht age), the udpate would not propagate to this router (because the originator is
+//!    unreachable).
+//!
+//! More precisely, for each area, and for each LSA, we chech whether we can still reach the
+//! originating router within that area. If not, we remove the LSA (without flushing this update out
+//! to neighbors). We repeat the same thing for External-LSAs, but check for a path in all available
+//! areas.
+//!
+//! ## LSInfinity
+//!
+//! We ignore all checks for LSINfinity. There are two main reasons for that: First, the routing
+//! table computation later filters out any entry that has a weight of infinity, and therefore, we
+//! are allowed to keep it around in the RIB. Second, we keep the LSInfinity in the rib such that we
+//! don't remove those entries (see aging LSAs above), even though the neighborhood is still
+//! up-to-date.
 
 use std::{
     cmp::Ordering,
@@ -162,7 +195,7 @@ impl OspfRib {
 
     /// remove an LSA, ingoring anything that was stored before. If the `lsa` is not an
     /// `external-LSA`, then `area` must be `Some`. `area` will be ignored for `external-LSAs.
-    pub fn remove(&mut self, key: impl Into<LsaKey>, area: Option<OspfArea>) {
+    pub(super) fn remove(&mut self, key: impl Into<LsaKey>, area: Option<OspfArea>) {
         let key = key.into();
         if key.is_external() {
             let target = key.target();
@@ -258,14 +291,8 @@ impl OspfRib {
             .for_each(|ds| ds.remove_unreachable_lsas());
 
         // remove the unreachable External-LSAs
-        self.external_lsas.retain(|k, _| {
-            k.router == self.router_id
-                || self
-                    .rib
-                    .get(&k.router)
-                    .map(|r| r.cost.is_finite())
-                    .unwrap_or(false)
-        })
+        self.external_lsas
+            .retain(|k, _| k.router == self.router_id || self.rib.contains_key(&k.router))
     }
 
     /// Update the local RouterLSA and set the weight to a neighbor appropriately. Then, return the
@@ -432,7 +459,6 @@ impl OspfRib {
                     }
                 }
             }
-            rib.retain(|_, v| v.cost.is_finite());
             self.rib = rib;
         }
 
@@ -481,7 +507,8 @@ impl OspfRib {
 
             // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
             //     to MaxAge, then examine the next LSA.
-            if lsa.header.is_max_age() || weight.is_infinite() {
+            // --> ignore LSInfinity
+            if lsa.header.is_max_age() {
                 continue;
             }
 
@@ -666,12 +693,7 @@ impl OspfRibEntry {
             rib.update(path, area)
         }
 
-        // check if the cost is finite
-        if rib.cost.is_finite() {
-            Some(rib)
-        } else {
-            None
-        }
+        Some(rib)
     }
 
     /// Update an existing entry by comparing it with a path from a specific area.
@@ -992,11 +1014,6 @@ impl AreaDataStructure {
         );
 
         while let Some(HeapEntry { node, parent, cost }) = visit_next.pop() {
-            // if the cost becomes infinite, break out of the loop
-            if cost.into_inner().is_infinite() {
-                break;
-            }
-
             let mut from_fibs = self.spt.get(&parent).expect("not yet visited").fibs.clone();
             // if from_fibs is empty, that means that `parent` must be the root. In that case,
             // insert `node` as the fib, as `node` is a direct neighbor of `root`.
@@ -1083,7 +1100,8 @@ impl AreaDataStructure {
 
             // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
             //     to MaxAge, then examine the the next LSA.
-            if lsa.header.is_max_age() || weight.is_infinite() {
+            // --> ignore LS-INFINITY! We are dealing with that later.
+            if lsa.header.is_max_age() {
                 continue;
             }
 
@@ -1421,7 +1439,7 @@ impl AreaDataStructure {
                 || self
                     .spt
                     .get(&k.router)
-                    .map(|path| path.cost.is_finite() && !path.inter_area)
+                    .map(|path| !path.inter_area)
                     .unwrap_or(false)
         })
     }
