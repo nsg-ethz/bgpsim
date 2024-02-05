@@ -674,6 +674,12 @@ impl Neighbor {
             //     processing the event `NeighborEvent::Flood`.
             self.retransmission_list.remove(&lsa.key());
 
+            // extend max-age tracking if the LSA is max-age, such that we remove it once all
+            // neighbors have acknowledged it
+            if lsa.is_max_age() {
+                actions.track_max_age(lsa.key(), None);
+            }
+
             // (d) Install the new LSA in the link state database (replacing the current database
             //     copy). This may cause the routing table calculation to be scheduled. In addition,
             //     timestamp the new LSA with the current time (i.e., the time it was received). The

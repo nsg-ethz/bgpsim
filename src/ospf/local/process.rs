@@ -420,13 +420,13 @@ impl LocalOspfProcess {
     ///
     /// 1. extend the `track_max_age` as given in the actions (replacing older entries with newer
     ///    ones).
-    /// 2. Track the acknowledgements of all max_age entries. If all neighbors have acknowledged the
-    ///    MaxAge LSA, update the table (by either removing the old LSA, or inserting the new one),
-    ///    and extend the flooding LSAs, such that those are flooded as well.
-    /// 3. Recompute the routing table. If there was no chagne to the table, then this operation
+    /// 2. Recompute the routing table. If there was no chagne to the table, then this operation
     ///    will do nothing. If there was a change, also update `self.table`, and notify the BGP
     ///    process to recompute its RIB tables.
-    /// 4. flood all LSAs to all neighbors (that are supposed to receive the flooding event).
+    /// 3. flood all LSAs to all neighbors (that are supposed to receive the flooding event).
+    /// 4. Track the acknowledgements of all max_age entries. If all neighbors have acknowledged the
+    ///    MaxAge LSA, update the table (by either removing the old LSA, or inserting the new one),
+    ///    and extend the flooding LSAs, such that those are flooded as well.
     /// 5. Batch together all update and acknowledgements towards the same neighbor into a single
     ///    message.
     ///
@@ -453,9 +453,6 @@ impl LocalOspfProcess {
                 track.insert(key, new_lsa);
             }
         }
-
-        // then, perform max-age tracking which might extend the messages to be flooded
-        flood.append(&mut self.track_max_age());
 
         let spt_updated = self.areas.update_routing_table();
 
@@ -498,7 +495,13 @@ impl LocalOspfProcess {
                 .collect();
         }
 
+        // perform the flooding
         events.append(&mut self.flood(flood));
+
+        // track max-age (after flooding the data initially!) and potentially flood the events
+        let max_age_flood = self.track_max_age();
+        events.append(&mut self.flood(max_age_flood));
+
         let events = batch_events(events);
 
         (spt_updated, events)
