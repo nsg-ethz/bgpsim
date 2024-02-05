@@ -1424,7 +1424,19 @@ impl<'a, 'n, P: crate::types::Prefix, Q>
     type Formatter = String;
 
     fn fmt(&'a self, net: &'n crate::network::Network<P, Q, super::LocalOspf>) -> Self::Formatter {
-        self.areas.values().map(|ds| ds.fmt(net)).join("\n")
+        let external_lsas = format!(
+            "external LSAs: {{\n  {}\n}}",
+            self.external_lsas
+                .iter()
+                .sorted_by_key(|(k, _)| *k)
+                .map(|(_, lsa)| lsa.fmt(net))
+                .join("\n  ")
+        );
+        self.areas
+            .values()
+            .map(|ds| ds.fmt(net))
+            .chain(std::iter::once(external_lsas))
+            .join("\n")
     }
 }
 
@@ -1435,7 +1447,7 @@ impl<'a, 'n, P: crate::types::Prefix, Q>
 
     fn fmt(&'a self, net: &'n crate::network::Network<P, Q, super::LocalOspf>) -> Self::Formatter {
         format!(
-            "{}: {{\n  {}\n}}",
+            "{} LSAs: {{\n  {}\n}}",
             self.area,
             self.lsa_list
                 .iter()
