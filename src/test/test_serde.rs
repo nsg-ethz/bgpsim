@@ -17,17 +17,19 @@ use crate::{
     builder::*,
     event::BasicEventQueue,
     network::Network,
+    ospf::{GlobalOspf, LocalOspf, OspfImpl},
     types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
 };
 use serde_json::{from_str, to_string_pretty};
 
 #[generic_tests::define]
 mod t {
+
     use super::*;
 
     #[test]
-    fn serialization_small<P: Prefix>() {
-        let mut net: Network<P, BasicEventQueue<P>> =
+    fn serialization_small<P: Prefix, Ospf: OspfImpl>() {
+        let mut net: Network<P, BasicEventQueue<P>, Ospf> =
             NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 10);
         net.build_ibgp_route_reflection(k_random_nodes, 3).unwrap();
         net.build_external_routers(k_random_nodes, 5).unwrap();
@@ -46,16 +48,25 @@ mod t {
             println!("{i: >5} | {l}");
         }
 
-        let clone: Network<P, BasicEventQueue<P>> = from_str(&json_str).unwrap();
+        let clone: Network<P, BasicEventQueue<P>, Ospf> = from_str(&json_str).unwrap();
         assert!(net == clone);
     }
 
-    #[instantiate_tests(<SinglePrefix>)]
-    mod single {}
+    #[instantiate_tests(<SinglePrefix, GlobalOspf>)]
+    mod single_global {}
 
-    #[instantiate_tests(<SimplePrefix>)]
-    mod simple {}
+    #[instantiate_tests(<SimplePrefix, GlobalOspf>)]
+    mod simple_global {}
 
-    #[instantiate_tests(<Ipv4Prefix>)]
-    mod ipv4 {}
+    #[instantiate_tests(<Ipv4Prefix, GlobalOspf>)]
+    mod ipv4_global {}
+
+    #[instantiate_tests(<SinglePrefix, LocalOspf>)]
+    mod single_local {}
+
+    #[instantiate_tests(<SimplePrefix, LocalOspf>)]
+    mod simple_local {}
+
+    #[instantiate_tests(<Ipv4Prefix, LocalOspf>)]
+    mod ipv4_local {}
 }

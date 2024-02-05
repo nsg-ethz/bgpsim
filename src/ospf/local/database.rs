@@ -43,12 +43,14 @@ pub struct OspfRib {
     #[serde(with = "As::<Vec<(Same, Same)>>")]
     areas: BTreeMap<OspfArea, AreaDataStructure>,
     /// list of external LSAs
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     external_lsas: HashMap<LsaKey, Lsa>,
     /// Whether to recompute the forwarding table for external LSAs using the algorithm presented in
     /// section 16.4 of RFC 2328. We store the external routers for which we need to update the
     /// computation.
     recompute_as_external: HashSet<RouterId>,
     /// The current RIB
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     rib: HashMap<RouterId, OspfRibEntry>,
 }
 
@@ -637,6 +639,7 @@ pub struct OspfRibEntry {
     pub inter_area: bool,
 
     /// The set of areas from which the route was learned, together with their associated LSA key
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     pub keys: BTreeMap<Option<OspfArea>, LsaKey>,
 }
 
@@ -717,6 +720,7 @@ struct AreaDataStructure {
     /// area's TransitCapability is set to TRUE, the area is said to be a "transit area".
     transit_capability: bool,
     /// The result of the shortest path tree computation.
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     spt: HashMap<RouterId, SptNode>,
     /// Whether to re-execute the Dijkstra algorithm for constructing the internal-area forwarding
     /// state using the algorithm presented in Section 16.1 of RFC 2328.
@@ -726,6 +730,7 @@ struct AreaDataStructure {
     /// recompute the results
     recompute_inter_area: BTreeSet<RouterId>,
     /// The set of targets that are redistributed by this router.
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     redistributed_paths: BTreeMap<RouterId, NotNan<LinkWeight>>,
 }
 

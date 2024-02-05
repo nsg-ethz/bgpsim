@@ -18,6 +18,7 @@
 use std::collections::{BTreeMap, HashMap};
 
 use serde::{Deserialize, Serialize};
+use serde_with::{As, Same};
 
 use crate::{
     event::Event,
@@ -41,11 +42,15 @@ use crate::{
 pub struct LocalOspfProcess {
     router_id: RouterId,
     areas: OspfRib,
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     neighbor_links: HashMap<RouterId, LinkWeight>,
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     neighbors: BTreeMap<RouterId, Neighbor>,
     /// Sequence of keys to track that all neighbors acknowledge that LSA. Once acknowledged,
     /// introduce the new LSA into the table and flood it (if `Some`).
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
     track_max_age: BTreeMap<Option<OspfArea>, HashMap<LsaKey, Option<Lsa>>>,
 }
 
