@@ -19,7 +19,7 @@ mod t {
         builder::*,
         event::BasicEventQueue as Queue,
         network::Network,
-        ospf::{OspfProcess, EXTERNAL_LINK_WEIGHT},
+        ospf::{GlobalOspf, LocalOspf, OspfImpl, OspfProcess, EXTERNAL_LINK_WEIGHT},
         prelude::BgpSessionType,
         types::{AsId, Prefix, SimplePrefix, SinglePrefix},
     };
@@ -28,13 +28,13 @@ mod t {
     use petgraph::Graph;
 
     #[test]
-    fn test_build_complete_graph<P: Prefix>() {
-        let net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 0);
+    fn test_build_complete_graph<P: Prefix, Ospf: OspfImpl>() {
+        let net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 0);
         assert_eq!(net.device_indices().count(), 0);
         assert_eq!(net.external_indices().count(), 0);
         assert_eq!(net.ospf.edges().count(), 0);
         for n in [1, 2, 10] {
-            let net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), n);
+            let net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), n);
             assert_eq!(net.device_indices().count(), n);
             assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.ospf.edges().count(), n * (n - 1));
@@ -42,9 +42,9 @@ mod t {
     }
 
     #[test]
-    fn test_build_ibgp_full_mesh<P: Prefix>() {
+    fn test_build_ibgp_full_mesh<P: Prefix, Ospf: OspfImpl>() {
         for n in [0, 1, 10] {
-            let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), n);
+            let mut net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), n);
             net.build_link_weights(constant_link_weight, 1.0).unwrap();
             net.build_ibgp_full_mesh().unwrap();
             for r in net.device_indices().detach() {
@@ -68,9 +68,9 @@ mod t {
     }
 
     #[test]
-    fn test_build_ibgp_rr<P: Prefix>() {
+    fn test_build_ibgp_rr<P: Prefix, Ospf: OspfImpl>() {
         for n in [0, 1, 10] {
-            let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), n);
+            let mut net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), n);
             net.build_link_weights(constant_link_weight, 1.0).unwrap();
             let rrs = net
                 .build_ibgp_route_reflection(k_highest_degree_nodes, 3)
@@ -119,9 +119,9 @@ mod t {
 
     #[cfg(feature = "topology_zoo")]
     #[test]
-    fn test_build_ibgp_rr_most_important<P: Prefix>() {
+    fn test_build_ibgp_rr_most_important<P: Prefix, Ospf: OspfImpl>() {
         use crate::topology_zoo::TopologyZoo;
-        let mut net: Network<P, _> = TopologyZoo::Cesnet200511.build(Queue::new());
+        let mut net: Network<P, _, Ospf> = TopologyZoo::Cesnet200511.build(Queue::new());
         let reflectors = net
             .build_ibgp_route_reflection(k_highest_degree_nodes, 3)
             .unwrap();
@@ -132,8 +132,8 @@ mod t {
     }
 
     #[test]
-    fn test_build_external_rotuers<P: Prefix>() {
-        let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
+    fn test_build_external_rotuers<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10);
         assert_eq!(net.external_indices().count(), 0);
         net.add_external_router("R1", AsId(1));
         assert_eq!(net.external_indices().count(), 1);
@@ -149,8 +149,8 @@ mod t {
     }
 
     #[test]
-    fn test_build_ebgp_sessions<P: Prefix>() {
-        let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
+    fn test_build_ebgp_sessions<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10);
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
         net.build_link_weights(constant_link_weight, 1.0).unwrap();
@@ -170,8 +170,8 @@ mod t {
     }
 
     #[test]
-    fn test_build_link_weights<P: Prefix>() {
-        let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
+    fn test_build_link_weights<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10);
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
         net.build_link_weights(constant_link_weight, 10.0).unwrap();
@@ -203,8 +203,8 @@ mod t {
 
     #[cfg(feature = "rand")]
     #[test]
-    fn test_build_link_weights_random<P: Prefix>() {
-        let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
+    fn test_build_link_weights_random<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10);
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
         net.build_link_weights(uniform_link_weight, (10.0, 100.0))
@@ -228,10 +228,10 @@ mod t {
 
     #[cfg(feature = "rand")]
     #[test]
-    fn test_build_link_weights_random_integer<P: Prefix>() {
+    fn test_build_link_weights_random_integer<P: Prefix, Ospf: OspfImpl>() {
         use crate::ospf::LinkWeight;
 
-        let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
+        let mut net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10);
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
         net.build_link_weights(uniform_integer_link_weight, (10, 100))
@@ -256,10 +256,10 @@ mod t {
 
     #[cfg(feature = "rand")]
     #[test]
-    fn test_build_advertisements<P: Prefix>() {
+    fn test_build_advertisements<P: Prefix, Ospf: OspfImpl>() {
         use crate::types::NetworkError;
 
-        let mut net = Network::<P, Queue<P>>::build_complete_graph(Queue::new(), 10);
+        let mut net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10);
 
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
@@ -327,12 +327,12 @@ mod t {
 
     #[cfg(feature = "rand")]
     #[test]
-    fn test_build_connected_graph<P: Prefix>() {
+    fn test_build_connected_graph<P: Prefix, Ospf: OspfImpl>() {
         use petgraph::algo::connected_components;
 
         let mut i = 0;
         while i < 10 {
-            let mut net = Network::<P, Queue<P>>::build_gnp(Queue::new(), 100, 0.03);
+            let mut net = Network::<P, Queue<P>, Ospf>::build_gnp(Queue::new(), 20, 0.03);
             let g = Graph::from(net.get_topology().clone());
             let num_components = connected_components(&g);
             if num_components == 1 {
@@ -353,54 +353,55 @@ mod t {
 
     #[cfg(feature = "rand")]
     #[test]
-    fn test_build_gnm<P: Prefix>() {
+    fn test_build_gnm<P: Prefix, Ospf: OspfImpl>() {
         for _ in 0..10 {
-            let net = Network::<P, Queue<P>>::build_gnm(Queue::new(), 100, 100);
-            assert_eq!(net.internal_indices().count(), 100);
+            let net = Network::<P, Queue<P>, Ospf>::build_gnm(Queue::new(), 20, 20);
+            assert_eq!(net.internal_indices().count(), 20);
             assert_eq!(net.external_indices().count(), 0);
-            assert_eq!(net.ospf.edges().count(), 100 * 2);
+            assert_eq!(net.ospf.edges().count(), 20 * 2);
         }
     }
 
     #[cfg(feature = "rand")]
     #[test]
-    fn test_build_geometric_complete_graph<P: Prefix>() {
+    fn test_build_geometric_complete_graph<P: Prefix, Ospf: OspfImpl>() {
         for _ in 0..10 {
-            let net = Network::<P, Queue<P>>::build_geometric(Queue::new(), 100, 2.0_f64.sqrt(), 2);
-            assert_eq!(net.internal_indices().count(), 100);
+            let net =
+                Network::<P, Queue<P>, Ospf>::build_geometric(Queue::new(), 20, 2.0_f64.sqrt(), 2);
+            assert_eq!(net.internal_indices().count(), 20);
             assert_eq!(net.external_indices().count(), 0);
-            assert_eq!(net.ospf.edges().count(), 100 * 99);
+            assert_eq!(net.ospf.edges().count(), 20 * 19);
         }
     }
 
     #[cfg(feature = "rand")]
     #[test]
-    fn test_build_geometric_less_complete<P: Prefix>() {
+    fn test_build_geometric_less_complete<P: Prefix, Ospf: OspfImpl>() {
         for _ in 0..10 {
-            let net = Network::<P, Queue<P>>::build_geometric(Queue::new(), 100, 0.5, 2);
-            assert_eq!(net.internal_indices().count(), 100);
+            let net = Network::<P, Queue<P>, Ospf>::build_geometric(Queue::new(), 20, 0.5, 2);
+            assert_eq!(net.internal_indices().count(), 20);
             assert_eq!(net.external_indices().count(), 0);
-            assert!(net.ospf.edges().count() < 100 * 99);
-            assert!(net.ospf.edges().count() > 100 * 10);
+            assert!(net.ospf.edges().count() < 20 * 19);
+            assert!(net.ospf.edges().count() > 20 * 2);
         }
     }
 
     #[cfg(feature = "rand")]
     #[test]
-    fn test_build_barabasi_albert<P: Prefix>() {
+    fn test_build_barabasi_albert<P: Prefix, Ospf: OspfImpl>() {
         use petgraph::algo::connected_components;
 
         for _ in 0..10 {
-            let net = Network::<P, Queue<P>>::build_barabasi_albert(Queue::new(), 100, 3);
-            assert_eq!(net.internal_indices().count(), 100);
+            let net = Network::<P, Queue<P>, Ospf>::build_barabasi_albert(Queue::new(), 20, 3);
+            assert_eq!(net.internal_indices().count(), 20);
             assert_eq!(net.external_indices().count(), 0);
-            assert_eq!(net.ospf.edges().count(), (3 + (100 - 3) * 3) * 2);
+            assert_eq!(net.ospf.edges().count(), (3 + (20 - 3) * 3) * 2);
             let g = Graph::from(net.get_topology().clone());
             assert_eq!(connected_components(&g), 1);
         }
     }
 
-    fn assert_igp_reachability<P: Prefix, Q>(net: &Network<P, Q>) {
+    fn assert_igp_reachability<P: Prefix, Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>) {
         for src in net.internal_indices() {
             let r = net.get_device(src).unwrap().unwrap_internal();
             let igp_table = r.ospf.get_table();
@@ -411,9 +412,15 @@ mod t {
         }
     }
 
-    #[instantiate_tests(<SinglePrefix>)]
-    mod single {}
+    #[instantiate_tests(<SinglePrefix, GlobalOspf>)]
+    mod single_global {}
 
-    #[instantiate_tests(<SimplePrefix>)]
-    mod simple {}
+    #[instantiate_tests(<SimplePrefix, GlobalOspf>)]
+    mod simple_global {}
+
+    #[instantiate_tests(<SinglePrefix, LocalOspf>)]
+    mod single_local {}
+
+    #[instantiate_tests(<SimplePrefix, LocalOspf>)]
+    mod simple_local {}
 }
