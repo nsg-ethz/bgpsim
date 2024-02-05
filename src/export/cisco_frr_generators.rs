@@ -1522,7 +1522,7 @@ impl RouterBgpNeighbor {
     ///     "\
     ///   neighbor 20.0.0.1
     ///     address-family ipv4 unicast
-    ///       send-community
+    ///       send-community both
     ///     exit
     ///   exit
     /// "
@@ -1559,7 +1559,7 @@ impl RouterBgpNeighbor {
     ///     "\
     ///   neighbor 20.0.0.1
     ///     address-family ipv4 unicast
-    ///       no send-community
+    ///       no send-community both
     ///     exit
     ///   exit
     /// "
@@ -1724,9 +1724,14 @@ impl RouterBgpNeighbor {
         }
 
         // send-community
+        let both = if matches!(target, Target::CiscoNexus7000) {
+            " both"
+        } else {
+            ""
+        };
         match self.send_community.as_ref() {
-            Some(true) => af.push_str(&format!("\n    {tab}{pre}send-community both")),
-            Some(false) => af.push_str(&format!("\n    {tab}no {pre}send-community both")),
+            Some(true) => af.push_str(&format!("\n    {tab}{pre}send-community{both}")),
+            Some(false) => af.push_str(&format!("\n    {tab}no {pre}send-community{both}")),
             _ => {}
         }
 

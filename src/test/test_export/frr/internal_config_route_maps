@@ -90,19 +90,19 @@ router bgp 65535
     neighbor 10.0.1.1 next-hop-self
     neighbor 10.0.1.1 route-map neighbor-R1-in in
     neighbor 10.0.1.1 route-map neighbor-R1-out out
-    neighbor 10.0.1.1 send-community both
+    neighbor 10.0.1.1 send-community
     neighbor 10.0.1.1 soft-reconfiguration inbound
     neighbor 10.0.2.1 weight 100
     neighbor 10.0.2.1 next-hop-self
     neighbor 10.0.2.1 route-map neighbor-R2-in in
     neighbor 10.0.2.1 route-map neighbor-R2-out out
-    neighbor 10.0.2.1 send-community both
+    neighbor 10.0.2.1 send-community
     neighbor 10.0.2.1 soft-reconfiguration inbound
     neighbor 10.0.3.1 weight 100
     neighbor 10.0.3.1 next-hop-self
     neighbor 10.0.3.1 route-map neighbor-R3-in in
     neighbor 10.0.3.1 route-map neighbor-R3-out out
-    neighbor 10.0.3.1 send-community both
+    neighbor 10.0.3.1 send-community
     neighbor 10.0.3.1 soft-reconfiguration inbound
     neighbor 10.192.0.2 weight 100
     neighbor 10.192.0.2 next-hop-self
