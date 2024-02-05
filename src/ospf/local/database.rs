@@ -1417,3 +1417,31 @@ impl SptNode {
         }
     }
 }
+
+impl<'a, 'n, P: crate::types::Prefix, Q>
+    crate::formatter::NetworkFormatter<'a, 'n, P, Q, super::LocalOspf> for OspfRib
+{
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n crate::network::Network<P, Q, super::LocalOspf>) -> Self::Formatter {
+        self.areas.values().map(|ds| ds.fmt(net)).join("\n")
+    }
+}
+
+impl<'a, 'n, P: crate::types::Prefix, Q>
+    crate::formatter::NetworkFormatter<'a, 'n, P, Q, super::LocalOspf> for AreaDataStructure
+{
+    type Formatter = String;
+
+    fn fmt(&'a self, net: &'n crate::network::Network<P, Q, super::LocalOspf>) -> Self::Formatter {
+        format!(
+            "{}: {{\n  {}\n}}",
+            self.area,
+            self.lsa_list
+                .iter()
+                .sorted_by_key(|(k, _)| *k)
+                .map(|(_, lsa)| lsa.fmt(net))
+                .join("\n  ")
+        )
+    }
+}
