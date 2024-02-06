@@ -952,7 +952,7 @@ impl AreaDataStructure {
         // recompute dijkstra if necessary
         if self.recompute_intra_area {
             self.spt.clear();
-            self.calculate_intra_area_routes();
+            self.spt = compute_intra_area_routes(self.router_id, &self.lsa_list);
             self.recompute_intra_area = false;
             modified = true;
         }
@@ -965,94 +965,6 @@ impl AreaDataStructure {
         }
 
         modified
-    }
-
-    /// Recompute the distance and next-hops towards each destination using Dijkstra's algorithm.
-    /// This function will update `self.spt`.
-    ///
-    /// The algorithm does *not directly* resemble the algorithm described in 16.1, because there
-    /// are lots of aspects that we ignore, e.g., stub networks. Instead, we implement an optimized
-    /// Dijkstra algorithm that keeps track of the next-hops from the source.
-    fn calculate_intra_area_routes(&mut self) {
-        // use a heap to always explore the shortest paths first
-        #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-        struct HeapEntry {
-            node: RouterId,
-            parent: RouterId,
-            cost: NotNan<LinkWeight>,
-        }
-
-        impl PartialOrd for HeapEntry {
-            fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-                other.cost.partial_cmp(&self.cost)
-            }
-        }
-
-        impl Ord for HeapEntry {
-            fn cmp(&self, other: &Self) -> Ordering {
-                other.cost.cmp(&self.cost)
-            }
-        }
-
-        let root = self.router_id;
-        let mut visit_next = BinaryHeap::new();
-        self.spt.insert(root, SptNode::new(root));
-
-        // fill in the first nodes. To that end, first compute all btreesets of length 1 and store
-        // them.
-        visit_next.extend(
-            self.get_router_lsa(root)
-                .into_iter()
-                .filter(|(h, _)| !h.is_max_age())
-                .flat_map(|(_, l)| l)
-                .filter(|l| l.is_p2p())
-                .map(|l| HeapEntry {
-                    node: l.target,
-                    parent: root,
-                    cost: l.weight,
-                }),
-        );
-
-        while let Some(HeapEntry { node, parent, cost }) = visit_next.pop() {
-            let mut from_fibs = self.spt.get(&parent).expect("not yet visited").fibs.clone();
-            // if from_fibs is empty, that means that `parent` must be the root. In that case,
-            // insert `node` as the fib, as `node` is a direct neighbor of `root`.
-            if from_fibs.is_empty() {
-                debug_assert!(parent == root);
-                from_fibs.insert(node);
-            }
-
-            // check if already visited
-            match self.spt.entry(node) {
-                Entry::Occupied(mut e) => {
-                    // check if the cost is the same. If so, extend fibs
-                    let e = e.get_mut();
-                    if cost == e.cost {
-                        // if the cost is the same, extend the fibs.
-                        e.fibs.extend(from_fibs);
-                    } else if cost < e.cost {
-                        unreachable!("Negative link-weights are not allowed!")
-                    }
-                }
-                Entry::Vacant(e) => {
-                    // insert the new node
-                    e.insert(SptNode::from(node, cost, from_fibs));
-                    // extend the heap
-                    visit_next.extend(
-                        self.get_router_lsa(node)
-                            .into_iter()
-                            .filter(|(h, _)| !h.is_max_age())
-                            .flat_map(|(_, l)| l)
-                            .filter(|l| l.is_p2p())
-                            .map(|l| HeapEntry {
-                                node: l.target,
-                                parent: node,
-                                cost: cost + l.weight,
-                            }),
-                    );
-                }
-            }
-        }
     }
 
     /// This algorithm computes the routes from Summary-LSAs using the algorithm presented in
@@ -1287,6 +1199,116 @@ impl AreaDataStructure {
                     .unwrap_or(false)
         })
     }
+}
+
+/// Recompute the distance and next-hops towards each destination using Dijkstra's algorithm.
+/// This function will update `self.spt`.
+///
+/// The algorithm does *not directly* resemble the algorithm described in 16.1, because there
+/// are lots of aspects that we ignore, e.g., stub networks. Instead, we implement an optimized
+/// Dijkstra algorithm that keeps track of the next-hops from the source.
+///
+/// The arguments to that function are the following:
+/// - `root`: The root from which to compute the SPT.
+/// - `lsa-list`: List of LSAs
+///
+pub(crate) fn compute_intra_area_routes(
+    root: RouterId,
+    lsa_list: &HashMap<LsaKey, Lsa>,
+) -> HashMap<RouterId, SptNode> {
+    // closure that captures `lsa_list` to get the router-lsa
+    let get_router_lsa = |r| {
+        let key = LsaKey {
+            lsa_type: LsaType::Router,
+            router: r,
+            target: None,
+        };
+        lsa_list
+            .get(&key)
+            .and_then(|lsa| lsa.data.router().map(|links| (&lsa.header, links)))
+    };
+
+    // use a heap to always explore the shortest paths first
+    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
+    struct HeapEntry {
+        node: RouterId,
+        parent: RouterId,
+        cost: NotNan<LinkWeight>,
+    }
+
+    impl PartialOrd for HeapEntry {
+        fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+            other.cost.partial_cmp(&self.cost)
+        }
+    }
+
+    impl Ord for HeapEntry {
+        fn cmp(&self, other: &Self) -> Ordering {
+            other.cost.cmp(&self.cost)
+        }
+    }
+
+    let mut spt = HashMap::new();
+    let mut visit_next = BinaryHeap::new();
+    spt.insert(root, SptNode::new(root));
+
+    // fill in the first nodes. To that end, first compute all btreesets of length 1 and store
+    // them.
+    visit_next.extend(
+        get_router_lsa(root)
+            .into_iter()
+            .filter(|(h, _)| !h.is_max_age())
+            .flat_map(|(_, l)| l)
+            .filter(|l| l.is_p2p())
+            .map(|l| HeapEntry {
+                node: l.target,
+                parent: root,
+                cost: l.weight,
+            }),
+    );
+
+    while let Some(HeapEntry { node, parent, cost }) = visit_next.pop() {
+        let mut from_fibs = spt.get(&parent).expect("not yet visited").fibs.clone();
+        // if from_fibs is empty, that means that `parent` must be the root. In that case,
+        // insert `node` as the fib, as `node` is a direct neighbor of `root`.
+        if from_fibs.is_empty() {
+            debug_assert!(parent == root);
+            from_fibs.insert(node);
+        }
+
+        // check if already visited
+        match spt.entry(node) {
+            Entry::Occupied(mut e) => {
+                // check if the cost is the same. If so, extend fibs
+                let e = e.get_mut();
+                if cost == e.cost {
+                    // if the cost is the same, extend the fibs.
+                    e.fibs.extend(from_fibs);
+                } else if cost < e.cost {
+                    unreachable!("Negative link-weights are not allowed!")
+                }
+            }
+            Entry::Vacant(e) => {
+                // insert the new node
+                e.insert(SptNode::from(node, cost, from_fibs));
+                // extend the heap
+                visit_next.extend(
+                    get_router_lsa(node)
+                        .into_iter()
+                        .filter(|(h, _)| !h.is_max_age())
+                        .flat_map(|(_, l)| l)
+                        .filter(|l| l.is_p2p())
+                        .map(|l| HeapEntry {
+                            node: l.target,
+                            parent: node,
+                            cost: cost + l.weight,
+                        }),
+                );
+            }
+        }
+    }
+
+    spt
 }
 
 /// This algorithm computes the Summary-LSAs using the algorithm presented in Section 16.2 of

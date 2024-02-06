@@ -281,6 +281,24 @@ pub enum LsaData {
     External(NotNan<LinkWeight>),
 }
 
+impl LsaData {
+    /// Get the data of the RouterLSA or `None`.
+    pub fn router(&self) -> Option<&Vec<RouterLsaLink>> {
+        match self {
+            Self::Router(links) => Some(links),
+            _ => None,
+        }
+    }
+
+    /// Get the data of either the SummaryLSA or ExternalLsa, or `None`.
+    pub fn summary_external(&self) -> Option<NotNan<LinkWeight>> {
+        match self {
+            Self::Summary(w) | Self::External(w) => Some(*w),
+            _ => None,
+        }
+    }
+}
+
 /// The link type. Currently, we only support point-to-point and virtual links.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub enum LinkType {
