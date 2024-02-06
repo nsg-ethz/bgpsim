@@ -1086,10 +1086,6 @@ impl AreaDataStructure {
         }
 
         for lsa in self.lsa_list.values() {
-            // only look at Summary-LSAs
-            let LsaData::Summary(weight) = lsa.data else {
-                continue;
-            };
             let target = lsa.target();
 
             // only continue if we either recompute all targets, or if the target is mentioned in
@@ -1098,76 +1094,19 @@ impl AreaDataStructure {
                 continue;
             }
 
-            // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
-            //     to MaxAge, then examine the the next LSA.
-            // --> ignore LS-INFINITY! We are dealing with that later.
-            if lsa.header.is_max_age() {
-                continue;
-            }
-
-            // (2) If the LSA was originated by the calculating router itself, examine the next LSA.
-            if lsa.header.router == self.router_id {
-                continue;
-            }
-
-            // (3) If it is a Type 3 summary-LSA, and the collection of destinations described by
-            //     the summary-LSA equals one of the router's configured area address ranges (see
-            //     Section 3.5), and the particular area address range is active, then the
-            //     summary-LSA should be ignored. "Active" means that there are one or more
-            //     reachable (by intra-area paths) networks contained in the area range.
-            let Some(adv_node) = self.spt.get(&lsa.header.router) else {
+            // get the inter-area route
+            let Some(path) = compute_inter_area_route(self.router_id, lsa, &self.spt) else {
                 continue;
             };
-
-            // (4) Else, call the destination described by the LSA TARGET (for Type 3 summary-LSAs,
-            //     TARGET's address is obtained by masking the LSA's Link State ID with the
-            //     network/subnet mask contained in the body of the LSA), and the area border
-            //     originating the LSA BR. Look up the routing table entry for BR having Area A as
-            //     its associated area. If no such entry exists for router BR (i.e., BR is
-            //     unreachable in Area A), do nothing with this LSA and consider the next in the
-            //     list. Else, this LSA describes an inter-area path to destination N, whose cost is
-            //     the distance to BR plus the cost specified in the LSA. Call the cost of this
-            //     inter-area path IAC.
-            let path = SptNode {
-                router_id: target,
-                key: lsa.key(),
-                fibs: adv_node.fibs.clone(),
-                cost: adv_node.cost + weight,
-                inter_area: true,
-            };
-
-            // (5) Next, look up the routing table entry for the destination TARGET. (If TARGET is
-            //     an AS boundary router, look up the "router" routing table entry associated with
-            //     Area A). If no entry exists for TARGET or if the entry's path type is "type 1
-            //     external" or "type 2 external", then install the inter-area path to N, with
-            //     associated area Area A, cost IAC, next hop equal to the list of next hops to
-            //     router BR, and Advertising router equal to B
-            // --> we ignore type 1 or type 2 external paths!
-
-            // (6) Else, if the paths present in the table are intra-area paths, do nothing with the
-            //     LSA (intra-area paths are always preferred).
-            if self.spt.contains_key(&target) {
-                continue;
-            }
 
             // (7) Else, the paths present in the routing table are also inter-area paths. Install
             //     the new path through BR if it is cheaper, overriding the paths in the routing
             //     table. Otherwise, if the new path is the same cost, add it to the list of paths
             //     that appear in the routing table entry.
+            // --> This behavior is implemented in `std::ops::AddAssign` for `SptNode`.
             match new_paths.entry(target) {
                 Entry::Occupied(mut e) => {
-                    match e.get().cost.cmp(&path.cost) {
-                        // the current cost is lower than the new path
-                        Ordering::Less => {}
-                        // Both paths are equally preferred. Extend the next-hops
-                        Ordering::Equal => {
-                            e.get_mut().fibs.extend(path.fibs);
-                        }
-                        // The new path is better. Replace it.
-                        Ordering::Greater => {
-                            *e.get_mut() = path;
-                        }
-                    }
+                    *e.get_mut() += path;
                 }
                 Entry::Vacant(e) => {
                     e.insert(path);
@@ -1350,6 +1289,91 @@ impl AreaDataStructure {
     }
 }
 
+/// This algorithm computes the Summary-LSAs using the algorithm presented in Section 16.2 of
+/// RFC 2328.
+///
+/// The arguments to that function are the following:
+/// - `router_id`: The ID of the computing router.
+/// - `lsa`: The SummaryLsa to compute the route to.
+/// - `spt`: The currently known (intra-area or inter-area) paths.
+///
+/// The inter-area routes are calculated by examining summary-LSAs. If the router has active
+/// attachments to multiple areas, only backbone summary-LSAs are examined. Routers attached to
+/// a single area examine that area's summary-LSAs. In either case, the summary-LSAs examined
+/// below are all part of a single area's link state database (call it Area A).
+///
+/// Summary-LSAs are originated by the area border routers. Each summary-LSA in Area A is
+/// considered in turn. Remember that the destination described by a summary-LSA is either a
+/// network (Type 3 summary-LSAs) or an AS boundary router (Type 4 summary-LSAs). For each
+/// summary-LSA:
+pub(crate) fn compute_inter_area_route(
+    router_id: RouterId,
+    lsa: &Lsa,
+    spt: &HashMap<RouterId, SptNode>,
+) -> Option<SptNode> {
+    // only look at Summary-LSAs
+    let LsaData::Summary(weight) = lsa.data else {
+        return None;
+    };
+    let target = lsa.target();
+
+    // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
+    //     to MaxAge, then examine the the next LSA.
+    // --> ignore LS-INFINITY! We are dealing with that later.
+    if lsa.header.is_max_age() {
+        return None;
+    }
+
+    // (2) If the LSA was originated by the calculating router itself, examine the next LSA.
+    if lsa.header.router == router_id {
+        return None;
+    }
+
+    // (3) If it is a Type 3 summary-LSA, and the collection of destinations described by
+    //     the summary-LSA equals one of the router's configured area address ranges (see
+    //     Section 3.5), and the particular area address range is active, then the
+    //     summary-LSA should be ignored. "Active" means that there are one or more
+    //     reachable (by intra-area paths) networks contained in the area range.
+    let adv_node = spt.get(&lsa.header.router)?;
+
+    // (6) Else, if the paths present in the table are intra-area paths, do nothing with the
+    //     LSA (intra-area paths are always preferred).
+    if let Some(current_path) = spt.get(&target) {
+        if !current_path.inter_area {
+            // already know an intra-area path towards `target`.
+            return None;
+        }
+    }
+
+    // (4) Else, call the destination described by the LSA TARGET (for Type 3 summary-LSAs,
+    //     TARGET's address is obtained by masking the LSA's Link State ID with the
+    //     network/subnet mask contained in the body of the LSA), and the area border
+    //     originating the LSA BR. Look up the routing table entry for BR having Area A as
+    //     its associated area. If no such entry exists for router BR (i.e., BR is
+    //     unreachable in Area A), do nothing with this LSA and consider the next in the
+    //     list. Else, this LSA describes an inter-area path to destination N, whose cost is
+    //     the distance to BR plus the cost specified in the LSA. Call the cost of this
+    //     inter-area path IAC.
+    let path = SptNode {
+        router_id: target,
+        key: lsa.key(),
+        fibs: adv_node.fibs.clone(),
+        cost: adv_node.cost + weight,
+        inter_area: true,
+    };
+
+    // (5) Next, look up the routing table entry for the destination TARGET. (If TARGET is
+    //     an AS boundary router, look up the "router" routing table entry associated with
+    //     Area A). If no entry exists for TARGET or if the entry's path type is "type 1
+    //     external" or "type 2 external", then install the inter-area path to N, with
+    //     associated area Area A, cost IAC, next hop equal to the list of next hops to
+    //     router BR, and Advertising router equal to B
+    // --> we ignore type 1 or type 2 external paths!
+
+    // if we reach this point, then the path should be advertised
+    Some(path)
+}
+
 /// Decision process whether to redistribute a given path into an area.
 ///
 /// The arguments to that function are the following:
@@ -1465,8 +1489,8 @@ pub(crate) fn is_path_redistributed(
 
 /// Throughout the shortest path calculation, the following data is also associated with each transit
 /// vertex:
-#[derive(Debug, Clone, Serialize, Deserialize)]
-struct SptNode {
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+pub(crate) struct SptNode {
     /// A 32-bit number which together with the vertex type (router or network) uniquely identifies
     /// the vertex. For router vertices the Vertex ID is the router's OSPF Router ID. For network
     /// vertices, it is the IP address of the network's Designated Router.
@@ -1492,8 +1516,32 @@ struct SptNode {
     /// another if it has a smaller link state cost.
     pub cost: NotNan<LinkWeight>,
 
-    /// Whether the path is an intra-area or inter-area
+    /// Whether the path is an intra-area oor inter-area
     pub inter_area: bool,
+}
+
+impl PartialOrd for SptNode {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some((self.inter_area, self.cost).cmp(&(other.inter_area, other.cost)))
+    }
+}
+
+impl std::ops::AddAssign for SptNode {
+    fn add_assign(&mut self, mut rhs: Self) {
+        match self.partial_cmp(&&mut rhs).unwrap_or(Ordering::Less) {
+            Ordering::Less => {
+                // do nothing, self is preferred over other
+            }
+            Ordering::Equal => {
+                // extend the next-hops from self by those from rhs
+                self.fibs.extend(rhs.fibs.clone());
+            }
+            Ordering::Greater => {
+                // replace self by rhs
+                *self = rhs;
+            }
+        }
+    }
 }
 
 impl SptNode {
