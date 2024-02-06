@@ -463,7 +463,7 @@ impl OspfRib {
         }
 
         if changed || !self.recompute_as_external.is_empty() {
-            self.calculate_as_external_routes(changed);
+            self.compute_as_external_routes(changed);
             self.recompute_as_external.clear();
             changed = true;
         }
@@ -484,7 +484,7 @@ impl OspfRib {
     /// IP destinations. An AS-external-LSA can also describe a default route for the Autonomous
     /// System (Destination ID = DefaultDestination, network/subnet mask = 0x00000000). For each
     /// AS-external-LSA:
-    fn calculate_as_external_routes(&mut self, all: bool) {
+    fn compute_as_external_routes(&mut self, all: bool) {
         if !all {
             self.rib
                 .retain(|k, _| !self.recompute_as_external.contains(k));
@@ -499,71 +499,10 @@ impl OspfRib {
                 continue;
             }
 
-            // only look at External-LSAs
-            let LsaData::External(weight) = &lsa.data else {
-                unreachable!()
-            };
-            let target = lsa.header.target.expect("must be set");
-
-            // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
-            //     to MaxAge, then examine the next LSA.
-            // --> ignore LSInfinity
-            if lsa.header.is_max_age() {
-                continue;
-            }
-
-            // (2) If the LSA was originated by the calculating router itself, examine the next LSA.
-            // --> Contrary what the spec tells, we do NOT ignore external LSAs advertised by the
-            //     current router itself.
-
-            // (3) Call the destination described by the LSA TARGET. TARGET's address is obtained by
-            //     masking the LSA's Link State ID with the network/subnet mask contained in the body of
-            //     the LSA. Look up the routing table entries (potentially one per attached area) for
-            //     the AS boundary router (ASBR) that originated the LSA. If no entries exist for router
-            //     ASBR (i.e., ASBR is unreachable), do nothing with this LSA and consider the next in
-            //     the list.
-            // --> this is the only behavior that we implement!
-            //
-            //     Else, this LSA describes an AS external path to destination TARGET. Examine the
-            //     forwarding address specified in the AS- external-LSA. This indicates the IP
-            //     address to which packets for the destination should be forwarded.
-            // --> We don't implement that behavior
-            //
-            //     If the forwarding address is set to 0.0.0.0, packets should be sent to the ASBR
-            //     itself. Among the multiple routing table entries for the ASBR, select the
-            //     preferred entry as follows. If RFC1583 Compatibility is set to "disabled", prune
-            //     the set of routing table entries for the ASBR as described in Section 16.4.1. In
-            //     any case, among the remaining routing table entries, select the routing table
-            //     entry with the least cost; when there are multiple least cost routing table
-            //     entries the entry whose associated area has the largest OSPF Area ID (when
-            //     considered as an unsigned 32-bit integer) is chosen.
-            // --> We don't implement that behavior
-            //
-            //     If the forwarding address is non-zero, look up the forwarding address in the
-            //     routing table.[24] The matching routing table entry must specify an intra-area or
-            //     inter-area path; if no such path exists, do nothing with the LSA and consider the
-            //     next in the list.
-            // --> We don't implement that behavior
-            let Some(adv_rib) = self.rib.get(&lsa.header.router) else {
+            // compute the path. This performs steps (1), (2), (3), and (4).
+            let Some(path) = compute_as_external_route(self.router_id, lsa, &self.rib) else {
                 continue;
             };
-
-            // (4) Let X be the cost specified by the preferred routing table entry for the
-            //     ASBR/forwarding address, and Y the cost specified in the LSA. X is in terms of
-            //     the link state metric, and Y is a type 1 or 2 external metric.
-            // --> we don't model type 1 or type 2 external metrics
-            let mut path = OspfRibEntry {
-                router_id: target,
-                keys: btreemap! {None => lsa.key()},
-                fibs: adv_rib.fibs.clone(),
-                cost: adv_rib.cost + weight,
-                inter_area: adv_rib.inter_area,
-            };
-            // set the fibs appropriately, in case it is directly connected
-            if lsa.header.router == self.router_id {
-                debug_assert!(path.fibs.is_empty());
-                path.fibs.insert(target);
-            }
 
             // (5) Look up the routing table entry for the destination TARGET. If no entry exists
             //     for TARGET, install the AS external path to TARGET, with next hop equal to the
@@ -572,7 +511,7 @@ impl OspfRib {
             //     external and the cost is equal to X+Y. If the external metric type is 2, the
             //     path-type is set to type 2 external, the link state component of the route's cost
             //     is X, and the type 2 cost is Y.
-            match self.rib.entry(target) {
+            match self.rib.entry(path.router_id) {
                 Entry::Vacant(e) => {
                     e.insert(path);
                 }
@@ -585,7 +524,9 @@ impl OspfRib {
                 Entry::Occupied(mut e) => {
                     // (a) Intra-area and inter-area paths are always preferred over AS external
                     //     paths.
-                    // --> skip that part
+                    if e.get().keys.contains_key(&None) {
+                        continue;
+                    }
 
                     // (b) Type 1 external paths are always preferred over type 2 external paths.
                     //     When all paths are type 2 external paths, the paths with the smallest
@@ -615,27 +556,7 @@ impl OspfRib {
                     //     the paths terminate at separate ASBRs/forwarding addresses. In either
                     //     case, each path is represented by a separate routing table entry as
                     //     defined in Section 11.
-
-                    //     The path preference rules, stated from highest to lowest preference, are
-                    //     as follows. Note that as a result of these rules, there may still be
-                    //     multiple paths of the highest preference. In this case, the path to use
-                    //     must be determined based on cost, as described in Section 16.4.
-                    //     - Intra-area paths using non-backbone areas are always the most
-                    //       preferred.
-                    //     - The other paths, intra-area backbone paths and inter-area paths, are of
-                    //       equal preference.
-                    match (e.get().inter_area, e.get().cost).cmp(&(path.inter_area, path.cost)) {
-                        // the current cost is lower than the new path
-                        Ordering::Less => {}
-                        // Both paths are equally preferred. Extend the next-hops
-                        Ordering::Equal => {
-                            e.get_mut().fibs.extend(path.fibs);
-                        }
-                        // The new path is better. Replace it.
-                        Ordering::Greater => {
-                            *e.get_mut() = path;
-                        }
-                    }
+                    *e.get_mut() += path;
                 }
             }
         }
@@ -712,6 +633,30 @@ impl OspfRibEntry {
                 self.cost = path.cost;
                 self.inter_area = path.inter_area;
                 self.keys = btreemap! {Some(area) => path.key};
+            }
+        }
+    }
+}
+
+impl std::ops::AddAssign for OspfRibEntry {
+    /// The path preference rules, stated from highest to lowest preference, are as follows. Note
+    /// that as a result of these rules, there may still be multiple paths of the highest
+    /// preference. In this case, the path to use must be determined based on cost, as described in
+    /// Section 16.4.
+    /// - Intra-area paths using non-backbone areas are always the most preferred.
+    /// - The other paths, intra-area backbone paths and inter-area paths, are of equal preference.
+    fn add_assign(&mut self, rhs: Self) {
+        match (self.inter_area, self.cost).cmp(&(rhs.inter_area, rhs.cost)) {
+            // the current cost is lower than the new path
+            Ordering::Less => {}
+            // Both paths are equally preferred. Extend the next-hops
+            Ordering::Equal => {
+                self.fibs.extend(rhs.fibs);
+                self.keys.extend(rhs.keys);
+            }
+            // The new path is better. Replace it.
+            Ordering::Greater => {
+                *self = rhs;
             }
         }
     }
@@ -959,7 +904,7 @@ impl AreaDataStructure {
 
         if modified || !self.recompute_inter_area.is_empty() {
             // todo!("implement partial updater here!");
-            self.calculate_inter_area_routes(modified);
+            self.compute_inter_area_routes(modified);
             self.recompute_inter_area.clear();
             modified = true;
         }
@@ -982,7 +927,7 @@ impl AreaDataStructure {
     /// considered in turn. Remember that the destination described by a summary-LSA is either a
     /// network (Type 3 summary-LSAs) or an AS boundary router (Type 4 summary-LSAs). For each
     /// summary-LSA:
-    fn calculate_inter_area_routes(&mut self, recompute_all: bool) {
+    fn compute_inter_area_routes(&mut self, recompute_all: bool) {
         let mut new_paths: HashMap<RouterId, SptNode> = HashMap::new();
 
         // remove all old values if we don't recompute all entries.
@@ -1393,6 +1338,92 @@ pub(crate) fn compute_inter_area_route(
     // --> we ignore type 1 or type 2 external paths!
 
     // if we reach this point, then the path should be advertised
+    Some(path)
+}
+
+/// This algorithm computes the routes from External-LSAs using the algorithm presented in
+/// Section 16.4 of RFC 2328.
+///
+/// The arguments to that function are the following:
+/// - `router_id`: The ID of the computing router.
+/// - `lsa`: The SummaryLsa to compute the route to.
+/// - `rib`: the curently known RIB.
+///
+/// AS external routes are calculated by examining AS-external-LSAs. Each of the
+/// AS-external-LSAs is considered in turn. Most AS- external-LSAs describe routes to specific
+/// IP destinations. An AS-external-LSA can also describe a default route for the Autonomous
+/// System (Destination ID = DefaultDestination, network/subnet mask = 0x00000000). For each
+/// AS-external-LSA:
+fn compute_as_external_route(
+    router_id: RouterId,
+    lsa: &Lsa,
+    rib: &HashMap<RouterId, OspfRibEntry>,
+) -> Option<OspfRibEntry> {
+    // only look at External-LSAs
+    let LsaData::External(weight) = &lsa.data else {
+        return None;
+    };
+    let target = lsa.target();
+
+    // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
+    //     to MaxAge, then examine the next LSA.
+    // --> ignore LSInfinity
+    if lsa.header.is_max_age() {
+        return None;
+    }
+
+    // (2) If the LSA was originated by the calculating router itself, examine the next LSA.
+    // --> Contrary what the spec tells, we do NOT ignore external LSAs advertised by the
+    //     current router itself.
+
+    // (3) Call the destination described by the LSA TARGET. TARGET's address is obtained by
+    //     masking the LSA's Link State ID with the network/subnet mask contained in the body of
+    //     the LSA. Look up the routing table entries (potentially one per attached area) for
+    //     the AS boundary router (ASBR) that originated the LSA. If no entries exist for router
+    //     ASBR (i.e., ASBR is unreachable), do nothing with this LSA and consider the next in
+    //     the list.
+    // --> this is the only behavior that we implement!
+    //
+    //     Else, this LSA describes an AS external path to destination TARGET. Examine the
+    //     forwarding address specified in the AS- external-LSA. This indicates the IP
+    //     address to which packets for the destination should be forwarded.
+    // --> We don't implement that behavior
+    //
+    //     If the forwarding address is set to 0.0.0.0, packets should be sent to the ASBR
+    //     itself. Among the multiple routing table entries for the ASBR, select the
+    //     preferred entry as follows. If RFC1583 Compatibility is set to "disabled", prune
+    //     the set of routing table entries for the ASBR as described in Section 16.4.1. In
+    //     any case, among the remaining routing table entries, select the routing table
+    //     entry with the least cost; when there are multiple least cost routing table
+    //     entries the entry whose associated area has the largest OSPF Area ID (when
+    //     considered as an unsigned 32-bit integer) is chosen.
+    // --> We don't implement that behavior
+    //
+    //     If the forwarding address is non-zero, look up the forwarding address in the
+    //     routing table.[24] The matching routing table entry must specify an intra-area or
+    //     inter-area path; if no such path exists, do nothing with the LSA and consider the
+    //     next in the list.
+    // --> We don't implement that behavior
+    let adv_rib = rib.get(&lsa.header.router)?;
+
+    // (4) Let X be the cost specified by the preferred routing table entry for the
+    //     ASBR/forwarding address, and Y the cost specified in the LSA. X is in terms of
+    //     the link state metric, and Y is a type 1 or 2 external metric.
+    // --> we don't model type 1 or type 2 external metrics
+    let mut path = OspfRibEntry {
+        router_id: target,
+        keys: btreemap! {None => lsa.key()},
+        fibs: adv_rib.fibs.clone(),
+        cost: adv_rib.cost + weight,
+        inter_area: adv_rib.inter_area,
+    };
+    // set the fibs appropriately, in case it is directly connected
+    if lsa.header.router == router_id {
+        debug_assert!(path.fibs.is_empty());
+        path.fibs.insert(target);
+    }
+
+    // return the computed path
     Some(path)
 }
 
