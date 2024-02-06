@@ -734,11 +734,7 @@ impl AreaDataStructure {
         &'a self,
         router_id: RouterId,
     ) -> Option<(&'a LsaHeader, &'a Vec<RouterLsaLink>)> {
-        let key = LsaKey {
-            lsa_type: LsaType::Router,
-            router: router_id,
-            target: None,
-        };
+        let key = LsaKey::router(router_id);
         self.lsa_list.get(&key).and_then(|x| match &x.data {
             LsaData::Router(r) => Some((&x.header, r)),
             _ => None,
@@ -1014,11 +1010,7 @@ impl AreaDataStructure {
             match m {
                 EitherOrBoth::Both((&r, &new), (_, &old)) if old != new => {
                     // Path is updated
-                    let key = LsaKey {
-                        lsa_type: LsaType::Summary,
-                        router: self.router_id,
-                        target: Some(r),
-                    };
+                    let key = LsaKey::summary(self.router_id, r);
                     let lsa = self.lsa_list.get_mut(&key).expect("Key must exist");
                     // check if the lsa already has max_age
                     if lsa.is_max_age() {
@@ -1087,14 +1079,7 @@ impl AreaDataStructure {
                     // an intra-area route associated with some non-backbone area; it would thus no
                     // longer be advertisable to the backbone), the LSA should also be flushed from
                     // the routing domain.
-                    let lsa_type = LsaType::Summary;
-                    let router = self.router_id;
-                    let target = Some(r);
-                    let key = LsaKey {
-                        lsa_type,
-                        router,
-                        target,
-                    };
+                    let key = LsaKey::summary(self.router_id, r);
                     let seq = self
                         .lsa_list
                         .get(&key)
@@ -1102,9 +1087,9 @@ impl AreaDataStructure {
                         .unwrap_or(MAX_SEQ);
                     let lsa = Lsa {
                         header: LsaHeader {
-                            lsa_type,
-                            router,
-                            target,
+                            lsa_type: key.lsa_type,
+                            router: key.router,
+                            target: key.target,
                             seq,
                             age: MAX_AGE,
                         },
@@ -1158,11 +1143,7 @@ pub(crate) fn compute_intra_area_routes(
 ) -> HashMap<RouterId, SptNode> {
     // closure that captures `lsa_list` to get the router-lsa
     let get_router_lsa = |r| {
-        let key = LsaKey {
-            lsa_type: LsaType::Router,
-            router: r,
-            target: None,
-        };
+        let key = LsaKey::router(r);
         lsa_list
             .get(&key)
             .and_then(|lsa| lsa.data.router().map(|links| (&lsa.header, links)))
@@ -1274,9 +1255,7 @@ pub(crate) fn compute_inter_area_route(
     spt: &HashMap<RouterId, SptNode>,
 ) -> Option<SptNode> {
     // only look at Summary-LSAs
-    let LsaData::Summary(weight) = lsa.data else {
-        return None;
-    };
+    let weight = lsa.data.summary()?;
     let target = lsa.target();
 
     // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
@@ -1355,9 +1334,7 @@ pub(crate) fn compute_as_external_route(
     rib: &HashMap<RouterId, OspfRibEntry>,
 ) -> Option<OspfRibEntry> {
     // only look at External-LSAs
-    let LsaData::External(weight) = &lsa.data else {
-        return None;
-    };
+    let weight = lsa.data.external()?;
     let target = lsa.target();
 
     // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
@@ -1597,11 +1574,7 @@ impl SptNode {
     pub fn new(router_id: RouterId) -> Self {
         Self {
             router_id,
-            key: LsaKey {
-                lsa_type: LsaType::Router,
-                router: router_id,
-                target: None,
-            },
+            key: LsaKey::router(router_id),
             fibs: Default::default(),
             cost: Default::default(),
             inter_area: false,
@@ -1611,11 +1584,7 @@ impl SptNode {
     pub fn from(router_id: RouterId, cost: NotNan<LinkWeight>, fibs: BTreeSet<RouterId>) -> Self {
         Self {
             router_id,
-            key: LsaKey {
-                lsa_type: LsaType::Router,
-                router: router_id,
-                target: None,
-            },
+            key: LsaKey::router(router_id),
             fibs,
             cost,
             inter_area: false,

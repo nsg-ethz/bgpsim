@@ -290,6 +290,22 @@ impl LsaData {
         }
     }
 
+    /// Get the data of the SummaryLSA, or `None`.
+    pub fn summary(&self) -> Option<NotNan<LinkWeight>> {
+        match self {
+            Self::Summary(w) => Some(*w),
+            _ => None,
+        }
+    }
+
+    /// Get the data of the ExternalLSA, or `None`.
+    pub fn external(&self) -> Option<NotNan<LinkWeight>> {
+        match self {
+            Self::External(w) => Some(*w),
+            _ => None,
+        }
+    }
+
     /// Get the data of either the SummaryLSA or ExternalLsa, or `None`.
     pub fn summary_external(&self) -> Option<NotNan<LinkWeight>> {
         match self {
