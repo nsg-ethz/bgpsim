@@ -15,7 +15,7 @@
 
 //! Local OSPF implementation
 
-mod database;
+pub(crate) mod database;
 mod lsa;
 mod neighbor;
 mod process;

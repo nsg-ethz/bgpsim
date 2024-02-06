@@ -491,11 +491,7 @@ impl OspfRib {
         }
 
         for lsa in self.external_lsas.values() {
-            if !(all
-                || self
-                    .recompute_as_external
-                    .contains(&lsa.header.target.unwrap()))
-            {
+            if !(all || self.recompute_as_external.contains(&lsa.target())) {
                 continue;
             }
 
@@ -524,9 +520,8 @@ impl OspfRib {
                 Entry::Occupied(mut e) => {
                     // (a) Intra-area and inter-area paths are always preferred over AS external
                     //     paths.
-                    if e.get().keys.contains_key(&None) {
-                        continue;
-                    }
+                    // --> this is already ensured by the fact that we will never have ExternalLSAs
+                    //     for targets that can be internal
 
                     // (b) Type 1 external paths are always preferred over type 2 external paths.
                     //     When all paths are type 2 external paths, the paths with the smallest
@@ -593,7 +588,7 @@ pub struct OspfRibEntry {
 
 impl OspfRibEntry {
     /// Construct a new entry from an SptNode and OspfArea
-    fn new(path: &SptNode, area: OspfArea) -> Self {
+    pub(crate) fn new(path: &SptNode, area: OspfArea) -> Self {
         Self {
             router_id: path.router_id,
             fibs: path.fibs.clone(),
@@ -618,7 +613,7 @@ impl OspfRibEntry {
     }
 
     /// Update an existing entry by comparing it with a path from a specific area.
-    fn update(&mut self, path: &SptNode, area: OspfArea) {
+    pub(crate) fn update(&mut self, path: &SptNode, area: OspfArea) {
         match (self.inter_area, self.cost).cmp(&(path.inter_area, path.cost)) {
             // the current cost is lower than the new path
             Ordering::Less => {}
@@ -1354,7 +1349,7 @@ pub(crate) fn compute_inter_area_route(
 /// IP destinations. An AS-external-LSA can also describe a default route for the Autonomous
 /// System (Destination ID = DefaultDestination, network/subnet mask = 0x00000000). For each
 /// AS-external-LSA:
-fn compute_as_external_route(
+pub(crate) fn compute_as_external_route(
     router_id: RouterId,
     lsa: &Lsa,
     rib: &HashMap<RouterId, OspfRibEntry>,
@@ -1547,13 +1542,13 @@ pub(crate) struct SptNode {
     /// A 32-bit number which together with the vertex type (router or network) uniquely identifies
     /// the vertex. For router vertices the Vertex ID is the router's OSPF Router ID. For network
     /// vertices, it is the IP address of the network's Designated Router.
-    router_id: RouterId,
+    pub router_id: RouterId,
 
     /// Each transit vertex has an associated LSA. For router vertices, this is a router-LSA. For
     /// transit networks, this is a network-LSA (which is actually originated by the network's
     /// Designated Router). In any case, the LSA's Link State ID is always equal to the above Vertex
     /// ID.
-    key: LsaKey,
+    pub key: LsaKey,
 
     /// The list of next hops for the current set of shortest paths from the root to this
     /// vertex. There can be multiple shortest paths due to the equal-cost multipath

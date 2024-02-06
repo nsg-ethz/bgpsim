@@ -480,6 +480,33 @@ pub struct LsaKey {
 }
 
 impl LsaKey {
+    /// Create a new RouterLSA key.
+    pub fn router(router: RouterId) -> Self {
+        Self {
+            lsa_type: LsaType::Router,
+            router,
+            target: None,
+        }
+    }
+
+    /// Create a new SummaryLSA key.
+    pub fn summary(router: RouterId, target: RouterId) -> Self {
+        Self {
+            lsa_type: LsaType::Summary,
+            router,
+            target: Some(target),
+        }
+    }
+
+    /// Create a new ExternalLSA key.
+    pub fn external(router: RouterId, target: RouterId) -> Self {
+        Self {
+            lsa_type: LsaType::External,
+            router,
+            target: Some(target),
+        }
+    }
+
     /// Return `true` if the LSA type is a `LsaType::Router`.
     #[inline(always)]
     pub fn is_router(&self) -> bool {
