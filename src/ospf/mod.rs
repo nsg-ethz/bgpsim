@@ -20,7 +20,6 @@
 pub mod global;
 mod iterator;
 pub mod local;
-mod serde_apsp;
 pub use iterator::*;
 
 use std::collections::{hash_map::Entry, HashMap, HashSet};

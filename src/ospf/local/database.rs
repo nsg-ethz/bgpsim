@@ -1545,21 +1545,15 @@ pub(crate) struct SptNode {
     pub inter_area: bool,
 }
 
-impl PartialOrd for SptNode {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some((self.inter_area, self.cost).cmp(&(other.inter_area, other.cost)))
-    }
-}
-
 impl std::ops::AddAssign for SptNode {
-    fn add_assign(&mut self, mut rhs: Self) {
-        match self.partial_cmp(&&mut rhs).unwrap_or(Ordering::Less) {
+    fn add_assign(&mut self, rhs: Self) {
+        match (self.inter_area, self.cost).cmp(&(rhs.inter_area, rhs.cost)) {
             Ordering::Less => {
                 // do nothing, self is preferred over other
             }
             Ordering::Equal => {
                 // extend the next-hops from self by those from rhs
-                self.fibs.extend(rhs.fibs.clone());
+                self.fibs.extend(rhs.fibs);
             }
             Ordering::Greater => {
                 // replace self by rhs
