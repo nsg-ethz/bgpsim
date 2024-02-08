@@ -74,17 +74,17 @@ pub struct OspfRib {
     router_id: RouterId,
     /// all area data structures
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    pub(in super::super) areas: BTreeMap<OspfArea, AreaDataStructure>,
+    pub(super) areas: BTreeMap<OspfArea, AreaDataStructure>,
     /// list of external LSAs
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    pub(in super::super) external_lsas: HashMap<LsaKey, Lsa>,
+    pub(super) external_lsas: HashMap<LsaKey, Lsa>,
     /// Whether to recompute the forwarding table for external LSAs using the algorithm presented in
     /// section 16.4 of RFC 2328. We store the external routers for which we need to update the
     /// computation.
     recompute_as_external: HashSet<RouterId>,
     /// The current RIB
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    pub(in super::super) rib: HashMap<RouterId, OspfRibEntry>,
+    pub(super) rib: HashMap<RouterId, OspfRibEntry>,
 }
 
 impl OspfRib {
@@ -721,7 +721,7 @@ impl std::ops::AddAssign for OspfRibEntry {
 ///
 /// Assumption: point-to-point only,
 #[derive(Debug, Clone, Serialize, Deserialize)]
-pub(in super::super) struct AreaDataStructure {
+pub(super) struct AreaDataStructure {
     /// The current router.
     router_id: RouterId,
     /// The area of that datastructure
@@ -785,7 +785,7 @@ impl AreaDataStructure {
     }
 
     /// Create a new area datastructure from raw data
-    pub(in super::super) fn from_raw(
+    pub(super) fn from_raw(
         router_id: RouterId,
         area: OspfArea,
         lsa_list: HashMap<LsaKey, Lsa>,
@@ -828,7 +828,7 @@ impl AreaDataStructure {
 
     /// Turn the area datastructure into its raw parts, consisting of the `lsa_list`, the `spt`, and
     /// the `redistributed_paths`.
-    pub(in super::super) fn into_raw(
+    pub(super) fn into_raw(
         self,
     ) -> (
         HashMap<LsaKey, Lsa>,

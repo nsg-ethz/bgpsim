@@ -709,8 +709,8 @@ fn do_clone(
     nets_g: &mut Vec<Network<Prefix, BasicEventQueue<Prefix>, GlobalOspf>>,
     nets_l: &mut Vec<Network<Prefix, BasicEventQueue<Prefix>, LocalOspf>>,
 ) {
-    nets_l.push(nets_g[0].clone().into_local_osfp().unwrap());
-    nets_g.push(nets_l[0].clone().into_global_osfp().unwrap());
+    nets_l.push(nets_g[0].clone().into_local_ospf().unwrap());
+    nets_g.push(nets_l[0].clone().into_global_ospf().unwrap());
 }
 
 type Net<Ospf> = Network<Prefix, BasicEventQueue<Prefix>, Ospf>;

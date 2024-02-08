@@ -17,7 +17,6 @@
 //! used by routers to write their IGP table. No message passing is simulated, but the final state
 //! is computed using shortest path algorithms.
 
-pub(crate) mod convert;
 pub mod global;
 mod iterator;
 pub mod local;
@@ -40,11 +39,13 @@ use crate::{
     },
 };
 
-use global::GlobalOspfOracle;
+use global::GlobalOspfCoordinator;
 use local::OspfEvent;
 
 pub use global::GlobalOspf;
 pub use local::LocalOspf;
+
+use self::global::GlobalOspfProcess;
 
 /// Link Weight for the IGP graph
 pub type LinkWeight = f64;
@@ -135,7 +136,7 @@ impl From<isize> for OspfArea {
 
 /// Structure that stores the global OSPF configuration.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct OspfNetwork<Ospf = GlobalOspfOracle> {
+pub struct OspfNetwork<Ospf = GlobalOspfCoordinator> {
     externals: HashSet<RouterId>,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
     external_links: HashMap<RouterId, HashSet<RouterId>>,
@@ -677,6 +678,19 @@ pub trait OspfImpl {
     type Coordinator: OspfCoordinator<Process = Self::Process>;
     /// Type used for the router-local process
     type Process: OspfProcess;
+
+    /// Transform the datastructures (both the coordinator and the process) into the `GlobalOspf`.
+    fn into_global(
+        coordinators: (Self::Coordinator, &mut GlobalOspfCoordinator),
+        processes: HashMap<RouterId, (Self::Process, &mut GlobalOspfProcess)>,
+    ) -> Result<(), NetworkError>;
+
+    /// Transform `GlobalOspf` datastructures (both the coordinator and the process) into to the
+    /// datastructures for `Self`.
+    fn from_global(
+        coordinators: (&mut Self::Coordinator, GlobalOspfCoordinator),
+        processes: HashMap<RouterId, (&mut Self::Process, GlobalOspfProcess)>,
+    ) -> Result<(), NetworkError>;
 }
 
 /// A single update of the neighborhood.

@@ -990,41 +990,44 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q, GlobalOspf> {
     /// `into_local_ospf` before applying the event that we you to measure.
     ///
     /// This function will ensure that the network has fully converged!
-    #[allow(clippy::result_large_err)]
-    pub fn into_local_osfp(self) -> Result<Network<P, Q, LocalOspf>, NetworkError> {
-        self.swap_ospf(|global_coord, global_proc, _, local_proc| {
-            crate::ospf::convert::global_to_local(global_coord, global_proc, local_proc)
-        })
+    pub fn into_local_ospf(self) -> Result<Network<P, Q, LocalOspf>, NetworkError> {
+        Network::<P, Q, LocalOspf>::from_global_ospf(self)
     }
 }
 
-impl<P: Prefix, Q: EventQueue<P>> Network<P, Q, LocalOspf> {
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
+    /// Convert a network that uses GlobalOSPF into a network that uses a different kind of OSPF
+    /// implementation (according to the type parameter `Ospf`). See [`Network::into_local_ospf`] in
+    /// case you wish to create a network that computes the OSPF state by exchanging OSPF messages.
+    pub fn from_global_ospf(net: Network<P, Q, GlobalOspf>) -> Result<Self, NetworkError> {
+        net.swap_ospf(|global_c, mut global_p, c, p| {
+            let coordinators = (c, global_c);
+            let processes = p
+                .into_iter()
+                .map(|(r, p)| (r, (p, global_p.remove(&r).unwrap())))
+                .collect();
+            Ospf::from_global(coordinators, processes)
+        })
+    }
+
     /// Enable the OSPF implementation that *magically* computes the IGP state for each router
     /// centrally, and distributes the new state *instantly*. No OSPF messages are exchanged in the
     /// `GlobalOspf` state.
     ///
     /// This function will convert a `Network<P, Q, LocalOspf` into `Network<P, Q, GlobalOspf>`.
-    #[allow(clippy::result_large_err)]
-    pub fn into_global_osfp(self) -> Result<Network<P, Q, GlobalOspf>, NetworkError> {
-        self.swap_ospf(|_, local_proc, global_coord, global_proc| {
-            crate::ospf::convert::local_to_global(local_proc, global_coord, global_proc)
+    pub fn into_global_ospf(self) -> Result<Network<P, Q, GlobalOspf>, NetworkError> {
+        self.swap_ospf(|c, p, global_c, mut global_p| {
+            let coordinators = (c, global_c);
+            let processes = p
+                .into_iter()
+                .map(|(r, p)| (r, (p, global_p.remove(&r).unwrap())))
+                .collect();
+            Ospf::into_global(coordinators, processes)
         })
     }
-}
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
-    /// Swap the OSPF implementation by providing a `convert` function. See
-    /// [`Network::into_local_ospf]` and [`Network::into_global_ospf`] to convert from and to
-    /// `LocalOspf` and `GlobalOspf`. Only if you provide your own OSPF implementatoin, then
-    /// consider using this function.
-    ///
-    /// The `convert` function takes as an input:
-    /// 1. the old global coordinator structure,
-    /// 2. all the old OSPF processes, and
-    /// 3. a mutable reference to all the new OSPF processes.
-    ///
-    /// The function will ensure the network is fully converged by executing all enqueued events.
-    pub fn swap_ospf<F, Ospf2>(mut self, convert: F) -> Result<Network<P, Q, Ospf2>, NetworkError>
+    /// Swap the OSPF implementation. Only used internally.
+    fn swap_ospf<F, Ospf2>(mut self, convert: F) -> Result<Network<P, Q, Ospf2>, NetworkError>
     where
         Ospf2: OspfImpl,
         F: FnOnce(

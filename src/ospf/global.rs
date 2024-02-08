@@ -45,13 +45,37 @@ use crate::{
 pub struct GlobalOspf;
 
 impl OspfImpl for GlobalOspf {
-    type Coordinator = GlobalOspfOracle;
+    type Coordinator = GlobalOspfCoordinator;
     type Process = GlobalOspfProcess;
+
+    fn into_global(
+        coordinators: (Self::Coordinator, &mut GlobalOspfCoordinator),
+        processes: HashMap<RouterId, (Self::Process, &mut GlobalOspfProcess)>,
+    ) -> Result<(), NetworkError> {
+        let (from, into) = coordinators;
+        *into = from;
+        for (from, into) in processes.into_values() {
+            *into = from;
+        }
+        Ok(())
+    }
+
+    fn from_global(
+        coordinators: (&mut Self::Coordinator, GlobalOspfCoordinator),
+        processes: HashMap<RouterId, (&mut Self::Process, GlobalOspfProcess)>,
+    ) -> Result<(), NetworkError> {
+        let (into, from) = coordinators;
+        *into = from;
+        for (into, from) in processes.into_values() {
+            *into = from;
+        }
+        Ok(())
+    }
 }
 
 /// Data struture capturing the distributed OSPF state.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct GlobalOspfOracle {
+pub struct GlobalOspfCoordinator {
     /// Area membership
     pub(super) membership: HashMap<RouterId, BTreeSet<OspfArea>>,
     /// The set of all LSAs known in all areas, excluding external-lsas
@@ -127,13 +151,13 @@ impl std::ops::AddAssign for Actions {
     }
 }
 
-impl PartialEq for GlobalOspfOracle {
+impl PartialEq for GlobalOspfCoordinator {
     fn eq(&self, _other: &Self) -> bool {
         true
     }
 }
 
-impl OspfCoordinator for GlobalOspfOracle {
+impl OspfCoordinator for GlobalOspfCoordinator {
     type Process = GlobalOspfProcess;
 
     fn update<P: Prefix, T: Default>(
@@ -149,7 +173,7 @@ impl OspfCoordinator for GlobalOspfOracle {
 }
 
 // some getter functions on the global OSPF oracle
-impl GlobalOspfOracle {
+impl GlobalOspfCoordinator {
     /// Get a reference to the network-wide RIB.
     pub fn get_ribs(&self) -> &HashMap<RouterId, HashMap<RouterId, OspfRibEntry>> {
         &self.ribs
@@ -171,7 +195,7 @@ impl GlobalOspfOracle {
     }
 }
 
-impl GlobalOspfOracle {
+impl GlobalOspfCoordinator {
     /// Update the local tables and prepare the `actions` structure.
     fn prepare_actions(&mut self, delta: NeighborhoodChange) -> Actions {
         let mut actions = Actions::new();

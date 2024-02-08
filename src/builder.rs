@@ -66,6 +66,9 @@ use crate::{
 /// # Ok(())
 /// # }
 /// ```
+///
+/// Consider using builder functions on a network running `GlobalOspf`, and switching to `LocalOspf`
+/// only after building the internal network.
 pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     /// Setup an iBGP full-mesh. This function will create a BGP peering session between every pair
     /// of internal router, removing old sessions in the process.
