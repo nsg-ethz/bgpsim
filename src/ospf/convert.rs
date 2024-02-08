@@ -44,6 +44,8 @@ pub(crate) fn global_to_local(
         // extract the relevant information for the given router
         let mut spts = global_oracle.spts.remove(&router).unwrap_or_default();
 
+        // create all adjacencies
+        local_p.neighbors.clear();
         // add the per-area data
         for &area in global_oracle.membership.get(&router).into_iter().flatten() {
             // get the physical neighbors of that area
@@ -56,8 +58,6 @@ pub(crate) fn global_to_local(
                 .flatten()
                 .map(|l| l.target);
 
-            // create all adjacencies
-            local_p.neighbors.clear();
             for neighbor in neighbors {
                 local_p.neighbors.insert(
                     neighbor,
@@ -130,6 +130,9 @@ pub(crate) fn local_to_global(
 
         // extend the external LSAs
         for (key, lsa) in local_p.areas.external_lsas {
+            if lsa.is_max_age() {
+                return Err(NetworkError::InconsistentOspfState(key));
+            }
             let expected_header = lsa.header;
             let old_lsa = external_lsas.insert(key, lsa);
             // check if it has changed
@@ -152,7 +155,7 @@ pub(crate) fn local_to_global(
                 (router, area),
                 router_redistributed_paths
                     .into_iter()
-                    .map(|(t, w)| (LsaKey::external(router, t), w))
+                    .map(|(t, w)| (LsaKey::summary(router, t), w))
                     .collect(),
             );
 
@@ -160,6 +163,9 @@ pub(crate) fn local_to_global(
             let lsa_list = lsa_lists.entry(area).or_default();
 
             for (key, lsa) in router_lsa_list {
+                if lsa.is_max_age() {
+                    return Err(NetworkError::InconsistentOspfState(key));
+                }
                 let expected_header = lsa.header;
                 let old_lsa = lsa_list.insert(key, lsa);
                 if let Some(old_lsa) = old_lsa {
@@ -168,6 +174,13 @@ pub(crate) fn local_to_global(
                     }
                 }
             }
+
+            // update the membership
+            global_oracle
+                .membership
+                .entry(router)
+                .or_default()
+                .insert(area);
         }
     }
 

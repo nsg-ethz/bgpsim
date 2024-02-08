@@ -63,7 +63,7 @@ pub struct GlobalOspfOracle {
     /// Set of all per-area SPTs for each router.
     pub(super) spts: HashMap<RouterId, BTreeMap<OspfArea, HashMap<RouterId, SptNode>>>,
     /// Set of all OspfRibs for each router
-    pub(super) ribs: HashMap<RouterId, HashMap<RouterId, OspfRibEntry>>,
+    pub(crate) ribs: HashMap<RouterId, HashMap<RouterId, OspfRibEntry>>,
     /// Set of LSAs that are redistributed
     #[serde(with = "As::<Vec<(Same, Vec<(Same, Same)>)>>")]
     pub(super) redistributed_paths:

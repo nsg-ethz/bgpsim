@@ -564,7 +564,7 @@ impl OspfRib {
 }
 
 /// A single entry in the routing table
-#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
+#[derive(Clone, Serialize, Deserialize)]
 pub struct OspfRibEntry {
     /// The target router
     pub router_id: RouterId,
@@ -611,6 +611,25 @@ impl std::fmt::Debug for OspfRibEntry {
         )
     }
 }
+
+impl PartialEq for OspfRibEntry {
+    fn eq(&self, other: &Self) -> bool {
+        (
+            self.router_id,
+            &self.fibs,
+            self.cost,
+            self.inter_area,
+            self.keys.keys().collect::<Vec<_>>(),
+        ) == (
+            other.router_id,
+            &other.fibs,
+            other.cost,
+            other.inter_area,
+            other.keys.keys().collect::<Vec<_>>(),
+        )
+    }
+}
+
 impl OspfRibEntry {
     /// Construct a new entry from an SptNode and OspfArea
     pub(crate) fn new(path: &SptNode, area: OspfArea) -> Self {
