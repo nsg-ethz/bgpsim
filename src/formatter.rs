@@ -831,6 +831,9 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
                 a.fmt(net),
                 b.fmt(net)
             ),
+            NetworkError::InconsistentOspfState(k) => {
+                format!("OSPF state is inconsistent for key {}", k.fmt(net))
+            }
         }
     }
 }

@@ -108,7 +108,7 @@ impl std::fmt::Display for NeighborState {
 }
 
 #[derive(Debug, Clone, PartialEq, Eq, Deserialize, Serialize)]
-pub(super) struct Neighbor {
+pub(in super::super) struct Neighbor {
     /// The ID of the router itself
     router_id: RouterId,
     /// The ID of the neighbor
@@ -242,6 +242,19 @@ impl Neighbor {
             retransmission_list: Default::default(),
             summary_list: Default::default(),
             request_list: Default::default(),
+        }
+    }
+
+    /// Create a new neighbor that is alreaduy in the `Full` state. This function is used for
+    /// converting the GlobalOSPF into LocalOSPF.
+    pub(in super::super) fn new_in_full_state(
+        router_id: RouterId,
+        neighbor_id: RouterId,
+        area: OspfArea,
+    ) -> Self {
+        Self {
+            state: NeighborState::Full,
+            ..Self::new(router_id, neighbor_id, area)
         }
     }
 

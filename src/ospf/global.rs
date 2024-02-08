@@ -53,20 +53,21 @@ impl OspfImpl for GlobalOspf {
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct GlobalOspfOracle {
     /// Area membership
-    membership: HashMap<RouterId, BTreeSet<OspfArea>>,
+    pub(super) membership: HashMap<RouterId, BTreeSet<OspfArea>>,
     /// The set of all LSAs known in all areas, excluding external-lsas
     #[serde(with = "As::<Vec<(Same, Vec<(Same, Same)>)>>")]
-    lsa_lists: BTreeMap<OspfArea, HashMap<LsaKey, Lsa>>,
+    pub(super) lsa_lists: BTreeMap<OspfArea, HashMap<LsaKey, Lsa>>,
     /// List of all external LSAs.
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    external_lsas: HashMap<LsaKey, Lsa>,
+    pub(super) external_lsas: HashMap<LsaKey, Lsa>,
     /// Set of all per-area SPTs for each router.
-    spts: HashMap<RouterId, BTreeMap<OspfArea, HashMap<RouterId, SptNode>>>,
+    pub(super) spts: HashMap<RouterId, BTreeMap<OspfArea, HashMap<RouterId, SptNode>>>,
     /// Set of all OspfRibs for each router
-    ribs: HashMap<RouterId, HashMap<RouterId, OspfRibEntry>>,
+    pub(super) ribs: HashMap<RouterId, HashMap<RouterId, OspfRibEntry>>,
     /// Set of LSAs that are redistributed
     #[serde(with = "As::<Vec<(Same, Vec<(Same, Same)>)>>")]
-    redistributed_paths: HashMap<(RouterId, OspfArea), BTreeMap<LsaKey, NotNan<LinkWeight>>>,
+    pub(super) redistributed_paths:
+        HashMap<(RouterId, OspfArea), BTreeMap<LsaKey, NotNan<LinkWeight>>>,
 }
 
 /// The actions that must be performed when some updates occurr.

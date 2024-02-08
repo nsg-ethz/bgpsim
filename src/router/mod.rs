@@ -253,4 +253,21 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
         }
         Ok(ospf_events)
     }
+
+    /// Swap out the OSPF process by `Ospf2`. The new value of `ospf` will be set to the default
+    /// value by calling `OspfProcess::new`.
+    pub(crate) fn swap_ospf<Ospf2: OspfProcess>(self) -> (Router<P, Ospf2>, Ospf) {
+        (
+            Router {
+                name: self.name,
+                router_id: self.router_id,
+                as_id: self.as_id,
+                ospf: Ospf2::new(self.router_id),
+                sr: self.sr,
+                bgp: self.bgp,
+                do_load_balancing: self.do_load_balancing,
+            },
+            self.ospf,
+        )
+    }
 }

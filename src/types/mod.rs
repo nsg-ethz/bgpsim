@@ -16,6 +16,7 @@
 //! Module containing all type definitions
 
 use crate::formatter::NetworkFormatter;
+use crate::ospf::local::LsaKey;
 use crate::ospf::OspfImpl;
 use crate::{
     bgp::BgpSessionType, external_router::ExternalRouter, network::Network, router::Router,
@@ -515,6 +516,9 @@ pub enum NetworkError {
     /// The BGP table is invalid
     #[error("Invalid BGP table for router {0:?}")]
     InvalidBgpTable(RouterId),
+    /// Inconsistent OSPF State
+    #[error("The OSPF distributed OSPF state is inconsistent for the LSA {0:?}")]
+    InconsistentOspfState(LsaKey),
     /// Json error
     #[error("{0}")]
     JsonError(Box<serde_json::Error>),

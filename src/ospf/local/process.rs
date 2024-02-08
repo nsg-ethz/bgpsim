@@ -42,13 +42,13 @@ use crate::{
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 pub struct LocalOspfProcess {
     router_id: RouterId,
-    areas: OspfRib,
+    pub(in super::super) areas: OspfRib,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+    pub(in super::super) table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    neighbor_links: HashMap<RouterId, LinkWeight>,
+    pub(in super::super) neighbor_links: HashMap<RouterId, LinkWeight>,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    neighbors: BTreeMap<RouterId, Neighbor>,
+    pub(in super::super) neighbors: BTreeMap<RouterId, Neighbor>,
     /// Sequence of keys to track that all neighbors acknowledge that LSA. Once acknowledged,
     /// introduce the new LSA into the table and flood it (if `Some`).
     #[serde(with = "As::<Vec<(Same, Same)>>")]

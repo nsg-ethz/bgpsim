@@ -25,7 +25,7 @@ use crate::{
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
-    ospf::{global::GlobalOspf, LinkWeight, OspfArea, OspfImpl, OspfNetwork},
+    ospf::{global::GlobalOspf, LinkWeight, LocalOspf, OspfArea, OspfImpl, OspfNetwork},
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
@@ -74,8 +74,8 @@ pub const INTERNAL_AS: AsId = AsId(65535);
 ///   events are processed.
 /// - `Ospf`: The kind of [`OspfImpl`] used to compute the IGP state. By default, this is set to
 ///   [`GlobalOspf`], which computes the state of OSPF atomically and globally without passing
-///   any messages. Alternatively, you can use [`crate::ospf::LocalOspf`] to simulate OSPF messages
-///   being exchanged.
+///   any messages. Alternatively, you can use [`LocalOspf`] to simulate OSPF messages being
+///   exchanged.
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound(
@@ -974,6 +974,107 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     #[inline(always)]
     pub(crate) fn enqueue_events(&mut self, events: Vec<Event<P, Q::Priority>>) {
         events.into_iter().for_each(|e| self.enqueue_event(e))
+    }
+}
+
+impl<P: Prefix, Q: EventQueue<P>> Network<P, Q, GlobalOspf> {
+    /// Enable the OSPF implementation that passes messages.
+    ///
+    /// This function will convert a `Network<P, Q, GlobalOspf` into `Network<P, Q, LocalOspf>`. The
+    /// resulting network recompute the routing state upon topology changes by exchanging OSPF
+    /// messages.
+    ///
+    /// A network running `LocalOspf` is much less performant, as shortest paths are recomputed
+    /// `O(n)` times, even though just a single link weight was modified. Therefore, consider using
+    /// `GlobalOspf` to setup the network and ensure it is in the desired state, then call
+    /// `into_local_ospf` before applying the event that we you to measure.
+    ///
+    /// This function will ensure that the network has fully converged!
+    #[allow(clippy::result_large_err)]
+    pub fn into_local_osfp(self) -> Result<Network<P, Q, LocalOspf>, NetworkError> {
+        self.swap_ospf(|global_coord, global_proc, _, local_proc| {
+            crate::ospf::convert::global_to_local(global_coord, global_proc, local_proc)
+        })
+    }
+}
+
+impl<P: Prefix, Q: EventQueue<P>> Network<P, Q, LocalOspf> {
+    /// Enable the OSPF implementation that *magically* computes the IGP state for each router
+    /// centrally, and distributes the new state *instantly*. No OSPF messages are exchanged in the
+    /// `GlobalOspf` state.
+    ///
+    /// This function will convert a `Network<P, Q, LocalOspf` into `Network<P, Q, GlobalOspf>`.
+    #[allow(clippy::result_large_err)]
+    pub fn into_global_osfp(self) -> Result<Network<P, Q, GlobalOspf>, NetworkError> {
+        self.swap_ospf(|_, local_proc, global_coord, global_proc| {
+            crate::ospf::convert::local_to_global(local_proc, global_coord, global_proc)
+        })
+    }
+}
+
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
+    /// Swap the OSPF implementation by providing a `convert` function. See
+    /// [`Network::into_local_ospf]` and [`Network::into_global_ospf`] to convert from and to
+    /// `LocalOspf` and `GlobalOspf`. Only if you provide your own OSPF implementatoin, then
+    /// consider using this function.
+    ///
+    /// The `convert` function takes as an input:
+    /// 1. the old global coordinator structure,
+    /// 2. all the old OSPF processes, and
+    /// 3. a mutable reference to all the new OSPF processes.
+    ///
+    /// The function will ensure the network is fully converged by executing all enqueued events.
+    pub fn swap_ospf<F, Ospf2>(mut self, convert: F) -> Result<Network<P, Q, Ospf2>, NetworkError>
+    where
+        Ospf2: OspfImpl,
+        F: FnOnce(
+            Ospf::Coordinator,
+            HashMap<RouterId, Ospf::Process>,
+            &mut Ospf2::Coordinator,
+            HashMap<RouterId, &mut Ospf2::Process>,
+        ) -> Result<(), NetworkError>,
+    {
+        self.simulate()?;
+
+        let (mut ospf, old_coordinator) = self.ospf.swap_coordinator();
+        let mut old_processes = HashMap::new();
+        let mut routers = HashMap::new();
+        for (router_id, device) in self.routers {
+            match device {
+                NetworkDevice::InternalRouter(r) => {
+                    let (r, old_p) = r.swap_ospf();
+                    old_processes.insert(router_id, old_p);
+                    routers.insert(router_id, NetworkDevice::InternalRouter(r));
+                }
+                NetworkDevice::ExternalRouter(r) => {
+                    routers.insert(router_id, NetworkDevice::ExternalRouter(r));
+                }
+            }
+        }
+        let new_processes = routers
+            .values_mut()
+            .filter_map(|d| d.internal_or_err().ok())
+            .map(|r| (r.router_id(), &mut r.ospf))
+            .collect();
+
+        // perform the conversion
+        convert(
+            old_coordinator,
+            old_processes,
+            &mut ospf.coordinator,
+            new_processes,
+        )?;
+
+        Ok(Network {
+            net: self.net,
+            ospf,
+            routers,
+            bgp_sessions: self.bgp_sessions,
+            known_prefixes: self.known_prefixes,
+            stop_after: self.stop_after,
+            queue: self.queue,
+            skip_queue: self.skip_queue,
+        })
     }
 }
 

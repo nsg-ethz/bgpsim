@@ -74,17 +74,17 @@ pub struct OspfRib {
     router_id: RouterId,
     /// all area data structures
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    areas: BTreeMap<OspfArea, AreaDataStructure>,
+    pub(in super::super) areas: BTreeMap<OspfArea, AreaDataStructure>,
     /// list of external LSAs
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    external_lsas: HashMap<LsaKey, Lsa>,
+    pub(in super::super) external_lsas: HashMap<LsaKey, Lsa>,
     /// Whether to recompute the forwarding table for external LSAs using the algorithm presented in
     /// section 16.4 of RFC 2328. We store the external routers for which we need to update the
     /// computation.
     recompute_as_external: HashSet<RouterId>,
     /// The current RIB
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    rib: HashMap<RouterId, OspfRibEntry>,
+    pub(in super::super) rib: HashMap<RouterId, OspfRibEntry>,
 }
 
 impl OspfRib {
@@ -666,7 +666,7 @@ impl std::ops::AddAssign for OspfRibEntry {
 ///
 /// Assumption: point-to-point only,
 #[derive(Debug, Clone, Serialize, Deserialize)]
-struct AreaDataStructure {
+pub(in super::super) struct AreaDataStructure {
     /// The current router.
     router_id: RouterId,
     /// The area of that datastructure
@@ -727,6 +727,60 @@ impl AreaDataStructure {
         };
         s.lsa_list.insert(self_lsa.key(), self_lsa);
         s
+    }
+
+    /// Create a new area datastructure from raw data
+    pub(in super::super) fn from_raw(
+        router_id: RouterId,
+        area: OspfArea,
+        lsa_list: HashMap<LsaKey, Lsa>,
+        spt: HashMap<RouterId, SptNode>,
+        redistributed_paths: BTreeMap<RouterId, NotNan<LinkWeight>>,
+    ) -> Self {
+        let mut s = Self {
+            router_id,
+            area,
+            lsa_list,
+            transit_capability: Default::default(),
+            spt,
+            redistributed_paths,
+            recompute_intra_area: false,
+            recompute_inter_area: Default::default(),
+        };
+
+        // ensure that self is in the lsa
+        if s.lsa_list.is_empty() {
+            let self_lsa = Lsa {
+                header: LsaHeader {
+                    lsa_type: LsaType::Router,
+                    router: router_id,
+                    target: None,
+                    seq: 0,
+                    age: 0,
+                },
+                data: LsaData::Router(Vec::new()),
+            };
+            s.lsa_list.insert(self_lsa.key(), self_lsa);
+        }
+
+        // ensure the spt is correct
+        if s.spt.is_empty() {
+            s.spt = HashMap::from_iter([(router_id, SptNode::new(router_id))]);
+        }
+
+        s
+    }
+
+    /// Turn the area datastructure into its raw parts, consisting of the `lsa_list`, the `spt`, and
+    /// the `redistributed_paths`.
+    pub(in super::super) fn into_raw(
+        self,
+    ) -> (
+        HashMap<LsaKey, Lsa>,
+        HashMap<RouterId, SptNode>,
+        BTreeMap<RouterId, NotNan<LinkWeight>>,
+    ) {
+        (self.lsa_list, self.spt, self.redistributed_paths)
     }
 
     /// Get the Router-LSA associated with the `router_id` in `area`.

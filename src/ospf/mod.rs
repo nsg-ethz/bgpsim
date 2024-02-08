@@ -17,6 +17,7 @@
 //! used by routers to write their IGP table. No message passing is simulated, but the final state
 //! is computed using shortest path algorithms.
 
+pub(crate) mod convert;
 pub mod global;
 mod iterator;
 pub mod local;
@@ -141,7 +142,7 @@ pub struct OspfNetwork<Ospf = GlobalOspfOracle> {
     #[serde(with = "As::<Vec<(Same, Vec<(Same, Same)>)>>")]
     pub(crate) links: HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
     failures: HashSet<(RouterId, RouterId)>,
-    coordinator: Ospf,
+    pub(crate) coordinator: Ospf,
 }
 
 impl<Ospf> PartialEq for OspfNetwork<Ospf> {
@@ -154,6 +155,20 @@ impl<Ospf> OspfNetwork<Ospf>
 where
     Ospf: OspfCoordinator,
 {
+    /// Swap the coordinator by replacing it with the default of the new type `Ospf2`.
+    pub(crate) fn swap_coordinator<Ospf2: OspfCoordinator>(self) -> (OspfNetwork<Ospf2>, Ospf) {
+        (
+            OspfNetwork {
+                externals: self.externals,
+                external_links: self.external_links,
+                links: self.links,
+                failures: self.failures,
+                coordinator: Ospf2::default(),
+            },
+            self.coordinator,
+        )
+    }
+
     /// Add an internal or external router.
     pub(crate) fn add_router(&mut self, id: RouterId, internal: bool) {
         if internal {

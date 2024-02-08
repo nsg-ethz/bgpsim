@@ -17,7 +17,7 @@
 
 pub(crate) mod database;
 mod lsa;
-mod neighbor;
+pub(super) mod neighbor;
 mod process;
 #[cfg(test)]
 mod test;
