@@ -939,7 +939,10 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
     fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
             "OspfRib: {{\n  {}\n}}",
-            self.values().map(|e| e.fmt(net)).join("\n  ")
+            self.iter()
+                .sorted_by_key(|(r, _)| *r)
+                .map(|(_, e)| e.fmt(net))
+                .join("\n  ")
         )
     }
 }

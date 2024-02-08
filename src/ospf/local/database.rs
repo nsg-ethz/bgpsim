@@ -586,6 +586,26 @@ pub struct OspfRibEntry {
     pub keys: BTreeMap<Option<OspfArea>, LsaKey>,
 }
 
+impl std::fmt::Debug for OspfRibEntry {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(
+            f,
+            "OspfRibEntry({} --> {}, cost {} {} from {})",
+            self.router_id.index(),
+            if self.fibs.is_empty() {
+                "XX".to_string()
+            } else {
+                self.fibs.iter().map(|x| x.index()).join(" || ")
+            },
+            self.cost,
+            if self.inter_area { "R" } else { "I" },
+            self.keys
+                .keys()
+                .map(|x| x.map(|x| x.to_string()).unwrap_or("External".to_string()))
+                .join(" & ")
+        )
+    }
+}
 impl OspfRibEntry {
     /// Construct a new entry from an SptNode and OspfArea
     pub(crate) fn new(path: &SptNode, area: OspfArea) -> Self {
