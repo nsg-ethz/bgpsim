@@ -32,7 +32,7 @@ use crate::{
     event::EventQueue,
     network::Network,
     ospf::{LinkWeight, OspfImpl},
-    prelude::BgpSessionType,
+    prelude::{BgpSessionType, GlobalOspf},
     types::IndexType,
     types::{AsId, NetworkError, Prefix, RouterId},
 };
@@ -509,7 +509,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
     }
 
     fn build_complete_graph(queue: Q, n: usize) -> Self {
-        let mut net = Network::new(queue);
+        let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
             net.add_router(format!("R{i}"));
@@ -520,7 +520,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
                 net.add_link(i.into(), j.into()).unwrap();
             }
         }
-        net
+        Network::from_global_ospf(net).unwrap()
     }
 
     #[cfg(feature = "rand")]
@@ -530,7 +530,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             return Self::build_complete_graph(queue, n);
         }
         let mut rng = thread_rng();
-        let mut net = Network::new(queue);
+        let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
             net.add_router(format!("R{i}"));
@@ -549,7 +549,8 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
                 .filter(|_| rng.gen_bool(p)),
         )
         .unwrap();
-        net
+
+        Network::from_global_ospf(net).unwrap()
     }
 
     #[cfg(feature = "rand")]
@@ -561,7 +562,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         }
 
         let mut rng = thread_rng();
-        let mut net = Network::new(queue);
+        let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
             net.add_router(format!("R{i}"));
@@ -569,7 +570,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
 
         // early exit condition
         if n <= 1 {
-            return net;
+            return Network::from_global_ospf(net).unwrap();
         }
 
         // pick the complete graph if m is bigger than max_edges or equal to
@@ -583,13 +584,14 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             }
         }
         net.add_links_from(links).unwrap();
-        net
+
+        Network::from_global_ospf(net).unwrap()
     }
 
     #[cfg(feature = "rand")]
     fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize) -> Self {
         let mut rng = thread_rng();
-        let mut net = Network::new(queue);
+        let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
             net.add_router(format!("R{i}"));
@@ -613,13 +615,13 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             }
         }
         net.add_links_from(links).unwrap();
-        net
+        Network::from_global_ospf(net).unwrap()
     }
 
     #[cfg(feature = "rand")]
     fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Self {
         let mut rng = thread_rng();
-        let mut net = Network::new(queue);
+        let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
             net.add_router(format!("R{i}"));
@@ -639,7 +641,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
 
         // if n <= (m + 1), then just create a complete graph with n nodes.
         if n <= (m + 1) {
-            return net;
+            return Network::from_global_ospf(net).unwrap();
         }
 
         // build the preference list
@@ -670,7 +672,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
 
         net.add_links_from(links).unwrap();
 
-        net
+        Network::from_global_ospf(net).unwrap()
     }
 
     fn build_connected_graph(&mut self) {
