@@ -144,9 +144,28 @@ impl OspfRib {
         }
     }
 
+    /// Get a reference to the shortest-path tree datastructure of a specific area.
+    pub fn get_spt(&self, area: OspfArea) -> Option<&HashMap<RouterId, SptNode>> {
+        self.areas.get(&area).map(|ds| &ds.spt)
+    }
+
+    /// Construct the RIB for a specific target
+    pub fn get_rib_entry(&self, target: RouterId) -> Option<OspfRibEntry> {
+        OspfRibEntry::from_paths(
+            self.areas
+                .iter()
+                .filter_map(|(a, ds)| ds.spt.get(&target).map(|n| (*a, n))),
+        )
+    }
+
+    /// Get a reference to the current RIB.
+    pub fn get_rib(&self) -> &HashMap<RouterId, OspfRibEntry> {
+        &self.rib
+    }
+
     /// Generate the summary list for a given area. This will combine the `area`'s lsa-list, and the
     /// external-lsa list. It will also remove all max-age lsas.
-    pub fn get_summary_list(&self, area: OspfArea) -> HashMap<LsaKey, Lsa> {
+    pub(crate) fn get_summary_list(&self, area: OspfArea) -> HashMap<LsaKey, Lsa> {
         self.areas
             .get(&area)
             .into_iter()
@@ -248,20 +267,6 @@ impl OspfRib {
         } else {
             self.get_or_insert_area(area.unwrap()).set_seq(key, target)
         }
-    }
-
-    /// Construct the RIB for a specific target
-    pub fn get_rib_entry(&self, target: RouterId) -> Option<OspfRibEntry> {
-        OspfRibEntry::from_paths(
-            self.areas
-                .iter()
-                .filter_map(|(a, ds)| ds.spt.get(&target).map(|n| (*a, n))),
-        )
-    }
-
-    /// Get a reference to the current RIB.
-    pub fn get_rib(&self) -> &HashMap<RouterId, OspfRibEntry> {
-        &self.rib
     }
 
     /// Remove all LSAs that are unreachable.
@@ -1589,7 +1594,7 @@ pub(crate) fn is_path_redistributed(
 /// Throughout the shortest path calculation, the following data is also associated with each transit
 /// vertex:
 #[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
-pub(crate) struct SptNode {
+pub struct SptNode {
     /// A 32-bit number which together with the vertex type (router or network) uniquely identifies
     /// the vertex. For router vertices the Vertex ID is the router's OSPF Router ID. For network
     /// vertices, it is the IP address of the network's Designated Router.

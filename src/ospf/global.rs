@@ -148,6 +148,29 @@ impl OspfCoordinator for GlobalOspfOracle {
     }
 }
 
+// some getter functions on the global OSPF oracle
+impl GlobalOspfOracle {
+    /// Get a reference to the network-wide RIB.
+    pub fn get_ribs(&self) -> &HashMap<RouterId, HashMap<RouterId, OspfRibEntry>> {
+        &self.ribs
+    }
+
+    /// Get a reference to the set of External-LSAs
+    pub fn get_external_lsas(&self) -> &HashMap<LsaKey, Lsa> {
+        &self.external_lsas
+    }
+
+    /// Get a reference to the lsa-list for each OSPF area.
+    pub fn get_lsa_lists(&self) -> &BTreeMap<OspfArea, HashMap<LsaKey, Lsa>> {
+        &self.lsa_lists
+    }
+
+    /// Get a reference to each constructed Shortest-Path Tree for each router.
+    pub fn get_spts(&self) -> &HashMap<RouterId, BTreeMap<OspfArea, HashMap<RouterId, SptNode>>> {
+        &self.spts
+    }
+}
+
 impl GlobalOspfOracle {
     /// Update the local tables and prepare the `actions` structure.
     fn prepare_actions(&mut self, delta: NeighborhoodChange) -> Actions {
