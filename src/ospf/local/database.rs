@@ -289,15 +289,26 @@ impl OspfRib {
     /// originating router within that area. If not, we remove the LSA (without flushing this update
     /// out to neighbors). We repeat the same thing for External-LSAs, but check for a path in all
     /// available areas.
+    ///
+    /// We are not allowed to remove unreachable external LSAs. The reason is that, due to a
+    /// misconfiguration in OSPF areas, other border routers may be unreachable, while their
+    /// External-LSAs still would propagate towards the router.
+    ///
+    /// TODO: We need to find a better technique to deal with old LSAs! Because as it is now, old
+    /// External-LSAs could remain in the network. However, the chance of them to remain is small,
+    /// as OSPF must be disconnected when the external router is removed. One possible fix could be
+    /// that this function expects a list of external routers that are still connected to the
+    /// network, such that they will be kept around (well, those that are connected to the current
+    /// router via internal links!)
     pub(super) fn remove_unreachable_lsas(&mut self) {
         // remove unreachable LSAs from all areas
         self.areas
             .values_mut()
             .for_each(|ds| ds.remove_unreachable_lsas());
 
-        // remove the unreachable External-LSAs
-        self.external_lsas
-            .retain(|k, _| k.router == self.router_id || self.rib.contains_key(&k.router))
+        // removing unreachable externla-lsas is unsound!
+        // self.external_lsas
+        //     .retain(|k, _| k.router == self.router_id || self.rib.contains_key(&k.router))
     }
 
     /// Update the local RouterLSA and set the weight to a neighbor appropriately. Then, return the
