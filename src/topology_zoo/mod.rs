@@ -54,6 +54,7 @@ use crate::{
     event::EventQueue,
     network::Network,
     ospf::OspfImpl,
+    prelude::GlobalOspf,
     types::{IndexType, NetworkError, Prefix, RouterId},
 };
 
@@ -117,7 +118,7 @@ impl TopologyZooParser {
         &self,
         queue: Q,
     ) -> Result<Network<P, Q, Ospf>, TopologyZooError> {
-        let mut net: Network<P, Q, Ospf> = Network::new(queue);
+        let mut net: Network<P, Q, GlobalOspf> = Network::new(queue);
 
         let mut last_as_id = 1000;
         let nodes_lut: HashMap<&str, RouterId> = self
@@ -167,7 +168,8 @@ impl TopologyZooParser {
         }
         net.add_links_from(links)?;
 
-        Ok(net)
+        // now, convert to the wanted OSPF protocol
+        Ok(Network::from_global_ospf(net).unwrap())
     }
 
     /// Extract the geo location of every router in the network.

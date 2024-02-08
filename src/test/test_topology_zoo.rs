@@ -16,12 +16,13 @@
 use crate::{
     event::BasicEventQueue,
     network::Network,
+    ospf::LocalOspf,
     topology_zoo::TopologyZoo,
     types::{SimplePrefix, SinglePrefix},
 };
 
 #[test]
-fn test_all_single() {
+fn test_all_single_global() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
         println!("{topo:?}");
         let n: Network<SinglePrefix, _> = topo.build(BasicEventQueue::new());
@@ -33,10 +34,34 @@ fn test_all_single() {
 }
 
 #[test]
-fn test_all_simple() {
+fn test_all_simple_global() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
         println!("{topo:?}");
         let n: Network<SimplePrefix, _> = topo.build(BasicEventQueue::new());
+        assert_eq!(n.internal_indices().count(), topo.num_internals());
+        assert_eq!(n.external_indices().count(), topo.num_externals());
+        assert_eq!(n.get_topology().node_count(), topo.num_routers());
+        assert_eq!(n.get_topology().edge_count(), topo.num_edges());
+    }
+}
+
+#[test]
+fn test_all_single_local() {
+    for topo in TopologyZoo::topologies_increasing_nodes() {
+        println!("{topo:?}");
+        let n: Network<SinglePrefix, _, LocalOspf> = topo.build(BasicEventQueue::new());
+        assert_eq!(n.internal_indices().count(), topo.num_internals());
+        assert_eq!(n.external_indices().count(), topo.num_externals());
+        assert_eq!(n.get_topology().node_count(), topo.num_routers());
+        assert_eq!(n.get_topology().edge_count(), topo.num_edges());
+    }
+}
+
+#[test]
+fn test_all_simple_local() {
+    for topo in TopologyZoo::topologies_increasing_nodes() {
+        println!("{topo:?}");
+        let n: Network<SimplePrefix, _, LocalOspf> = topo.build(BasicEventQueue::new());
         assert_eq!(n.internal_indices().count(), topo.num_internals());
         assert_eq!(n.external_indices().count(), topo.num_externals());
         assert_eq!(n.get_topology().node_count(), topo.num_routers());
