@@ -81,6 +81,11 @@ impl Dim {
         self.t_screen.inverse(p)
     }
 
+    /// Transform from screen CS to data CS.
+    pub fn screen_to_data(&self, p: Point) -> Point {
+        self.t.inverse(p)
+    }
+
     /// Get the size of the canvas (including the border)
     pub fn true_size(&self) -> Point {
         self.size

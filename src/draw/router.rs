@@ -237,9 +237,6 @@ fn prepare_onclick(
                     let update_net = move |_: MouseEvent| {
                         Dispatch::<Net>::new().reduce_mut(move |n| {
                             n.net_mut().add_link(src, id).unwrap();
-                            let w = if external || src_external { 1.0 } else { 100.0 };
-                            n.net_mut().set_link_weight(src, id, w).unwrap();
-                            n.net_mut().set_link_weight(id, src, w).unwrap();
                         })
                     };
                     return (clear_selection.reform(update_net), true);

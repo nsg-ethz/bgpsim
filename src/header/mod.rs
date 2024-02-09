@@ -156,17 +156,19 @@ fn add_router() -> Html {
     let (_, net_dispatch) = use_store::<Net>();
     let add_internal = {
         let shown = shown.clone();
-        net_dispatch
-            .reduce_mut_callback(|n| add_new_router(n, true))
-            .reform(move |_| shown.set(false))
+        let net_dispatch = net_dispatch.clone();
+        move |event| {
+            shown.set(false);
+            net_dispatch.reduce_mut(|n| add_new_router(n, true, event));
+        }
     };
     let add_external = {
         let shown = shown.clone();
-        net_dispatch
-            .reduce_mut_callback(|n| {
-                add_new_router(n, false);
-            })
-            .reform(move |_| shown.set(false))
+        let net_dispatch = net_dispatch.clone();
+        move |event| {
+            shown.set(false);
+            net_dispatch.reduce_mut(|n| add_new_router(n, false, event));
+        }
     };
 
     html! {
@@ -182,7 +184,7 @@ fn add_router() -> Html {
     }
 }
 
-fn add_new_router(net: &mut Net, internal: bool) {
+fn add_new_router(net: &mut Net, internal: bool, event: MouseEvent) {
     let prefix = if internal { "R" } else { "E" };
     let name = (1..)
         .map(|x| format!("{prefix}{x}"))
@@ -201,7 +203,11 @@ fn add_new_router(net: &mut Net, internal: bool) {
         let as_id = (1..).map(AsId).find(|x| !used_as.contains(x)).unwrap();
         net.net_mut().add_external_router(name, as_id)
     };
-    net.pos_mut().insert(router_id, Point::new(0, 0));
+    // get the point of where to add the router
+    let screen_point = Point::new(event.client_x(), event.client_y());
+    let point = net.dim.screen_to_data(screen_point);
+    log::debug!("add router at {point:?}");
+    net.pos_mut().insert(router_id, point);
 }
 
 struct PrefixSelection {
