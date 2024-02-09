@@ -128,13 +128,6 @@ fn entry() -> Html {
                 if let Some(d) = params.get("data") {
                     import_url(d);
                 }
-
-                if let Some(scenario) = params.get("scenario").or_else(|| params.get("s")) {
-                    let _ = window().location().replace(&format!(
-                        "bgpsim.github.io/legacy/v0_13?s={}",
-                        scenario.as_str()
-                    ));
-                }
             }
 
             last_query.set(query);

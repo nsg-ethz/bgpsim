@@ -12,5 +12,12 @@
     <link rel="icon" href="favicon_only.svg">
     <meta name="viewport" content="width=device-width, initial-scale=1, user-scalable=no" />
     <meta name="apple-mobile-web-app-capable" content="no" />
+    <script>
+      const paramsString = window.location.search;
+      const params = new URLSearchParams(paramsString);
+      if (params.has("s") || params.has("scenario")) {
+        window.location.replace("https://bgpsim.github.io/legacy/v0_13" + window.location.search);
+      }
+    </script>
   </head>
 </html>
