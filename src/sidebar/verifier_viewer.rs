@@ -18,6 +18,7 @@
 use std::{iter::repeat, ops::Deref};
 
 use bgpsim::{
+    ospf::LocalOspf,
     policies::FwPolicy,
     prelude::{Network, NetworkFormatter},
     types::RouterId,
@@ -106,7 +107,7 @@ pub fn property_viewer(props: &PropertyViewerProps) -> Html {
     }
 }
 
-fn format_spec(spec: &FwPolicy<Pfx>, net: &Network<Pfx, Queue>) -> String {
+fn format_spec(spec: &FwPolicy<Pfx>, net: &Network<Pfx, Queue, LocalOspf>) -> String {
     match spec {
         FwPolicy::Reachable(r, p) => format!("{} can reach {p}", r.fmt(net)),
         FwPolicy::NotReachable(r, p) => format!("{} cannot reach {p}", r.fmt(net)),

@@ -29,7 +29,7 @@ use bgpsim::{
     config::ConfigExpr,
     event::{Event, EventQueue},
     network::Network,
-    ospf::OspfProcess,
+    ospf::{LocalOspf, OspfProcess},
     policies::{FwPolicy, PolicyError},
     prelude::NetworkConfig,
     topology_zoo::TopologyZoo,
@@ -128,12 +128,11 @@ impl EventQueue<Pfx> for Queue {
 #[allow(clippy::type_complexity)]
 #[derive(Clone, PartialEq, Store)]
 pub struct Net {
-    pub net: Mrc<Network<Pfx, Queue>>,
+    pub net: Mrc<Network<Pfx, Queue, LocalOspf>>,
     pub pos: Mrc<HashMap<RouterId, Point>>,
     pub spec: Mrc<HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>>,
     pub dim: Dim,
     pub topology_zoo: Option<TopologyZoo>,
-    recorder: Option<Network<Pfx, Queue>>,
     speed: Mrc<HashMap<RouterId, Point>>,
 }
 
@@ -146,17 +145,16 @@ impl Default for Net {
             dim: Default::default(),
             topology_zoo: None,
             speed: Default::default(),
-            recorder: None,
         }
     }
 }
 
 impl Net {
-    pub fn net(&self) -> impl Deref<Target = Network<Pfx, Queue>> + '_ {
+    pub fn net(&self) -> impl Deref<Target = Network<Pfx, Queue, LocalOspf>> + '_ {
         self.net.borrow()
     }
 
-    pub fn net_mut(&mut self) -> impl DerefMut<Target = Network<Pfx, Queue>> + '_ {
+    pub fn net_mut(&mut self) -> impl DerefMut<Target = Network<Pfx, Queue, LocalOspf>> + '_ {
         self.net.borrow_mut()
     }
 

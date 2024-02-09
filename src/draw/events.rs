@@ -78,10 +78,7 @@ pub fn BgpSessionQueue(props: &BgpSessionQueueProps) -> Html {
                 } => {
                     html! { <BgpEvent {p} {src} {dst} {event} {i} /> }
                 }
-                Event::Ospf { .. } => {
-                    // TODO implement this
-                    html!()
-                }
+                Event::Ospf { .. } => todo!(),
             }
         })
         .collect()

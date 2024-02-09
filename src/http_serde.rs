@@ -18,6 +18,7 @@
 use std::{collections::HashMap, ops::Deref};
 
 use bgpsim::{
+    ospf::GlobalOspf,
     policies::{FwPolicy, PolicyError},
     prelude::{InteractiveNetwork, Network},
     types::RouterId,
@@ -157,8 +158,13 @@ pub fn export_json_str(compact: bool) -> String {
 }
 
 fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
-    // first, try to deserialize the network. If that works, ignore the config
-    let net = Network::from_json_str(s, Queue::default).map_err(|x| x.to_string())?;
+    // Deserialize the network using the BGPSim method.
+    let net = Network::from_json_str(s, Queue::default)
+        .or_else(|_| {
+            Network::<_, _, GlobalOspf>::from_json_str(s, Queue::default)
+                .and_then(|net| net.into_local_ospf())
+        })
+        .map_err(|x| x.to_string())?;
     let content: Value =
         serde_json::from_str(s).map_err(|e| format!("cannot parse json file! {e}"))?;
     let spec = content

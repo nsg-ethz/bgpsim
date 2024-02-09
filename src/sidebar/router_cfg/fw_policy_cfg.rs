@@ -18,6 +18,7 @@
 use std::{rc::Rc, str::FromStr};
 
 use bgpsim::{
+    ospf::LocalOspf,
     policies::{FwPolicy, PathCondition, Policy, Waypoint},
     prelude::{Network, NetworkFormatter},
     types::RouterId,
@@ -259,14 +260,14 @@ fn policy_name(pol: &FwPolicy<Pfx>) -> &'static str {
     }
 }
 
-fn regex_text(pol: &FwPolicy<Pfx>, net: &Network<Pfx, Queue>) -> Option<String> {
+fn regex_text(pol: &FwPolicy<Pfx>, net: &Network<Pfx, Queue, LocalOspf>) -> Option<String> {
     match pol {
         FwPolicy::PathCondition(_, _, c) => Some(path_condition_to_text(c, net)),
         _ => None,
     }
 }
 
-fn path_condition_to_text(cond: &PathCondition, net: &Network<Pfx, Queue>) -> String {
+fn path_condition_to_text(cond: &PathCondition, net: &Network<Pfx, Queue, LocalOspf>) -> String {
     match cond {
         PathCondition::Node(r) => path_condition_to_text(
             &PathCondition::Positional(vec![Waypoint::Star, Waypoint::Fix(*r), Waypoint::Star]),
@@ -305,13 +306,19 @@ fn path_condition_to_text(cond: &PathCondition, net: &Network<Pfx, Queue>) -> St
     }
 }
 
-fn text_to_path_condition(text: &str, net: &Network<Pfx, Queue>) -> Option<PathCondition> {
+fn text_to_path_condition(
+    text: &str,
+    net: &Network<Pfx, Queue, LocalOspf>,
+) -> Option<PathCondition> {
     let mut parser = sise::Parser::new(text);
     let tree = sise::parse_tree(&mut parser).ok()?;
     node_to_path_condition(tree, net)
 }
 
-fn node_to_path_condition(node: TreeNode, net: &Network<Pfx, Queue>) -> Option<PathCondition> {
+fn node_to_path_condition(
+    node: TreeNode,
+    net: &Network<Pfx, Queue, LocalOspf>,
+) -> Option<PathCondition> {
     // node must be a list
     let mut elems = node.into_list()?;
     // node must have at least 2 elements
