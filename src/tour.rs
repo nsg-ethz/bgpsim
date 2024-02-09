@@ -31,7 +31,6 @@ use crate::{
 
 const STEPS: &[TourStep] = &[
     TourStep::Text {
-        chameleon_only: false,
         paragraphs: &[
             #[cfg(feature = "atomic_bgp")]
             "Welcome to the online simulator for Chameleon.",
@@ -42,7 +41,6 @@ const STEPS: &[TourStep] = &[
         actions: &[],
     },
     TourStep::Element {
-        chameleon_only: false,
         element_id: "layer-selection",
         alternative: None,
         actions: &[
@@ -60,7 +58,6 @@ const STEPS: &[TourStep] = &[
         align: Align::Bottom,
     },
     TourStep::Element {
-        chameleon_only: false,
         element_id: "prefix-selection",
         alternative: None,
         actions: &[Action::CreateFirstRouter, Action::SelectFirstRouter],
@@ -68,7 +65,6 @@ const STEPS: &[TourStep] = &[
         align: Align::Bottom,
     },
     TourStep::Element {
-        chameleon_only: false,
         element_id: "add-new-router",
         alternative: Some(&["The simulator distinguishes between internal routers and external networks (routers). External networks only advertise BGP routes, while internal routers run BGP and OSPF."]),
         actions: &[],
@@ -79,7 +75,6 @@ const STEPS: &[TourStep] = &[
         align: Align::Bottom,
     },
     TourStep::Element {
-        chameleon_only: false,
         element_id: "selected-router",
         alternative: None,
         actions: &[],
@@ -87,7 +82,6 @@ const STEPS: &[TourStep] = &[
         align: Align::Fit,
     },
     TourStep::Element {
-        chameleon_only: false,
         element_id: "sidebar",
         alternative: None,
         actions: &[],
@@ -97,7 +91,6 @@ const STEPS: &[TourStep] = &[
         align: Align::Left,
     },
     TourStep::Element {
-        chameleon_only: false,
         element_id: "queue-controls",
         alternative: None,
         actions: &[Action::ShowQueue],
@@ -110,30 +103,6 @@ const STEPS: &[TourStep] = &[
         align: Align::Bottom,
     },
     TourStep::Element {
-        chameleon_only: true,
-        element_id: "migration-button",
-        alternative: None,
-        actions: &[Action::ShowMigration],
-        paragraphs: &[
-            "The current scenario comes with a predefined reconfiguration plan. By clicking this button, the complete configuration plan shows on the right.",
-        ],
-        align: Align::Bottom,
-    },
-    TourStep::Element {
-        chameleon_only: true,
-        element_id: "sidebar",
-        alternative: None,
-        actions: &[],
-        paragraphs: &[
-            "The reconfiguration is separated into three pahses: the setup, the main update phase, and the cleanup. Each phase is further divided into multiple steps.",
-            "Chameleon requires each step to be completed before moving to the next one. Within each step, different commands can be executed in any order, as long as their precondition is satisfied.",
-            "The sidebar will show all individual commands, including their pre- and postconditions. By clicking on any command (that has its preconditions satisfied), the modifications are performed.",
-            "Note, that the network does by default not automatically process BGP messages. You will need to process some messages of the queue in order to complete the reconfiguration.",
-        ],
-        align: Align::Left,
-    },
-    TourStep::Element {
-        chameleon_only: false,
         element_id: "specification-button",
         alternative: None,
         actions: &[Action::ShowSpecification],
@@ -144,7 +113,6 @@ const STEPS: &[TourStep] = &[
         align: Align::Bottom,
     },
     TourStep::Text {
-        chameleon_only: false,
         paragraphs: &[
             "You now understand the basics of the simulator.",
         ],
@@ -196,11 +164,6 @@ pub fn Tour() -> Html {
     let last = *step + 1 == STEPS.len();
 
     let current_step = &STEPS[*step];
-
-    if !current_step.is_enabled(&net) {
-        step.set(*step + 1);
-        return html! {};
-    }
 
     let (highlight, popup_pos, paragraphs) = match current_step {
         TourStep::Text {
@@ -386,35 +349,16 @@ impl Reducible for BoxSize {
 #[derive(Debug, Clone, PartialEq)]
 enum TourStep {
     Text {
-        chameleon_only: bool,
         actions: &'static [Action],
         paragraphs: &'static [&'static str],
     },
     Element {
-        chameleon_only: bool,
         element_id: &'static str,
         alternative: Option<&'static [&'static str]>,
         actions: &'static [Action],
         paragraphs: &'static [&'static str],
         align: Align,
     },
-}
-
-impl TourStep {
-    fn is_enabled(&self, net: &std::rc::Rc<Net>) -> bool {
-        let chameleon_only = match self {
-            Self::Text { chameleon_only, .. } => *chameleon_only,
-            Self::Element { chameleon_only, .. } => *chameleon_only,
-        };
-        #[cfg(feature = "atomic_bgp")]
-        {
-            return !(chameleon_only && net.migration().is_empty());
-        }
-        #[cfg(not(feature = "atomic_bgp"))]
-        {
-            return !chameleon_only;
-        }
-    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -433,8 +377,6 @@ enum Action {
     CreateFirstRouter,
     SelectFirstRouter,
     ShowQueue,
-    #[cfg(feature = "atomic_bgp")]
-    ShowMigration,
     ShowSpecification,
     SelectNothing,
 }
@@ -466,14 +408,6 @@ impl Action {
                         .reduce_mut(|state| state.set_selected(Selected::Queue));
                 }
             }
-            #[cfg(feature = "atomic_bgp")]
-            Action::ShowMigration => {
-                if net.migration().iter().map(|x| x.len()).sum::<usize>() > 0 {
-                    Dispatch::<State>::new()
-                        .reduce_mut(|state| state.set_selected(Selected::Migration));
-                }
-            }
-            #[cfg(feature = "atomic_bgp")]
             Action::ShowSpecification => {
                 if !net.spec().is_empty() {
                     Dispatch::<State>::new()

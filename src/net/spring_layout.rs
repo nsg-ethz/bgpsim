@@ -1,6 +1,6 @@
 use std::collections::{HashMap, HashSet};
 
-use bgpsim::types::{IgpNetwork, RouterId};
+use bgpsim::types::{PhysicalNetwork, RouterId};
 use fdg_sim::{
     force::{unit_vector, Force, LinkedHashMap, Value},
     glam::Vec3,
@@ -13,7 +13,11 @@ use crate::point::Point;
 const N_ITER: usize = 1000;
 const SCALE: f32 = 100.0;
 
-pub fn spring_layout(g: &IgpNetwork, pos: &mut HashMap<RouterId, Point>, fixed: HashSet<RouterId>) {
+pub fn spring_layout(
+    g: &PhysicalNetwork,
+    pos: &mut HashMap<RouterId, Point>,
+    fixed: HashSet<RouterId>,
+) {
     log::warn!("Fixed: {fixed:?}");
     let mut force_graph: ForceGraph<bool, ()> = ForceGraph::default();
     let node_lut = g

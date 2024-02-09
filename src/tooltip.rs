@@ -165,12 +165,19 @@ impl Component for Tooltip {
             Hover::Message(src, dst, i, true) => {
                 if let Some(event) = self.net.net().queue().get(i) {
                     let content = match event {
-                        Event::Bgp(_, _, _, BgpEvent::Update(route)) => {
+                        Event::Bgp {
+                            e: BgpEvent::Update(route),
+                            ..
+                        } => {
                             html! { <RouteTable route={route.clone()} /> }
                         }
-                        Event::Bgp(_, _, _, BgpEvent::Withdraw(prefix)) => {
+                        Event::Bgp {
+                            e: BgpEvent::Withdraw(prefix),
+                            ..
+                        } => {
                             html! { <PrefixTable prefix={*prefix} /> }
                         }
+                        Event::Ospf { .. } => todo!(),
                     };
                     html! {
                             <>

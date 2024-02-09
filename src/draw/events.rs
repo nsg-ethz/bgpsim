@@ -73,8 +73,14 @@ pub fn BgpSessionQueue(props: &BgpSessionQueueProps) -> Html {
             let p = get_event_pos(p, num, overlap);
             let i = *i;
             match event.clone() {
-                Event::Bgp(_, src, dst, event) => {
+                Event::Bgp {
+                    src, dst, e: event, ..
+                } => {
                     html! { <BgpEvent {p} {src} {dst} {event} {i} /> }
+                }
+                Event::Ospf { .. } => {
+                    // TODO implement this
+                    html!()
                 }
             }
         })
@@ -187,9 +193,10 @@ fn is_executable(queue: &Queue, pos: usize) -> bool {
     if pos >= queue.len() {
         return false;
     }
-    if let Some(Event::Bgp(_, src, dst, _)) = queue.get(pos) {
+    if let Some(Event::Bgp { src, dst, .. }) = queue.get(pos) {
         for k in 0..pos {
-            if matches!(queue.get(k), Some(Event::Bgp(_, s, d, _)) if (src, dst) == (s, d)) {
+            if matches!(queue.get(k), Some(Event::Bgp{ src: s, dst: d, .. }) if (src, dst) == (s, d))
+            {
                 return false;
             }
         }

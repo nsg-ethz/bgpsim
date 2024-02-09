@@ -176,18 +176,30 @@ pub fn generate_latex(net: &Net) -> String {
         })
         .join("\n");
 
-    let link_weights = g
-        .edge_indices()
-        .map(|e| (g.edge_endpoints(e).unwrap(), g.edge_weight(e).unwrap()))
-        .map(|((src, dst), weight)| {
+    let internal_link_weights = n
+        .ospf_network()
+        .internal_edges()
+        .map(|e| {
             format!(
                 r"    \draw ($(r{})!\linkweightdist!(r{})$) node[link weight] {{ {:.0} }};",
-                src.index(),
-                dst.index(),
-                weight
+                e.src.index(),
+                e.dst.index(),
+                e.weight
             )
         })
         .join("\n");
+    let external_link_weights = n
+        .ospf_network()
+        .external_edges()
+        .map(|e| {
+            format!(
+                r"    \draw ($(r{})!\linkweightdist!(r{})$);",
+                e.int.index(),
+                e.ext.index(),
+            )
+        })
+        .join("\n");
+    let link_weights = format!("{internal_link_weights}\n{external_link_weights}");
 
     let bgp_sessions = net
         .get_bgp_sessions()

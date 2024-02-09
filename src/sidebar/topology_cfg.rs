@@ -19,8 +19,8 @@ use std::{collections::HashSet, rc::Rc};
 
 use bgpsim::{
     formatter::NetworkFormatter,
-    ospf::OspfArea,
-    types::{LinkWeight, RouterId},
+    ospf::{LinkWeight, OspfArea},
+    types::RouterId,
 };
 use web_sys::Element as WebElement;
 use yew::prelude::*;
@@ -111,17 +111,8 @@ impl Component for TopologyCfg {
                 true
             }
             Msg::AddLink(neighbor) => {
-                let self_external = self.net.net().get_external_router(router).is_ok();
-                let neighbor_external = self.net.net().get_external_router(neighbor).is_ok();
                 self.net_dispatch.reduce_mut(move |n| {
-                    n.net_mut().add_link(router, neighbor);
-                    let w = if self_external || neighbor_external {
-                        1.0
-                    } else {
-                        100.0
-                    };
-                    n.net_mut().set_link_weight(router, neighbor, w).unwrap();
-                    n.net_mut().set_link_weight(neighbor, router, w).unwrap();
+                    n.net_mut().add_link(router, neighbor).unwrap();
                 });
                 false
             }
@@ -239,7 +230,7 @@ impl LinkWeightInfo {
             area: net
                 .get_ospf_area(src, dst)
                 .unwrap_or_else(|_| OspfArea::backbone()),
-            weight: net.get_link_weigth(src, dst).unwrap_or(100.0),
+            weight: net.get_link_weight(src, dst).unwrap_or(100.0),
         }
     }
 }

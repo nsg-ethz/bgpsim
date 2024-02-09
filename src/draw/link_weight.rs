@@ -49,10 +49,9 @@ pub fn LinkWeight(props: &Properties) -> Html {
     let weights = use_selector_with_deps(
         |net: &Net, (src, dst)| {
             let n = net.net();
-            let g = n.get_topology();
             (
-                *g.edge_weight(g.find_edge(*src, *dst).unwrap()).unwrap(),
-                *g.edge_weight(g.find_edge(*dst, *src).unwrap()).unwrap(),
+                n.ospf_network().get_weight(*src, *dst),
+                n.ospf_network().get_weight(*dst, *src),
             )
         },
         (src, dst),

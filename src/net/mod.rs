@@ -29,10 +29,11 @@ use bgpsim::{
     config::ConfigExpr,
     event::{Event, EventQueue},
     network::Network,
+    ospf::OspfProcess,
     policies::{FwPolicy, PolicyError},
     prelude::NetworkConfig,
     topology_zoo::TopologyZoo,
-    types::{IgpNetwork, NetworkDevice, NetworkDeviceRef, RouterId},
+    types::{NetworkDevice, NetworkDeviceRef, PhysicalNetwork, RouterId},
 };
 
 #[cfg(feature = "atomic_bgp")]
@@ -84,11 +85,11 @@ impl Queue {
 impl EventQueue<Pfx> for Queue {
     type Priority = ();
 
-    fn push(
+    fn push<Ospf: OspfProcess>(
         &mut self,
         event: Event<Pfx, Self::Priority>,
-        _: &HashMap<RouterId, NetworkDevice<Pfx>>,
-        _: &IgpNetwork,
+        _: &HashMap<RouterId, NetworkDevice<Pfx, Ospf>>,
+        _: &PhysicalNetwork,
     ) {
         self.0.push_back(event)
     }
@@ -113,7 +114,12 @@ impl EventQueue<Pfx> for Queue {
         self.0.clear()
     }
 
-    fn update_params(&mut self, _: &HashMap<RouterId, NetworkDevice<Pfx>>, _: &IgpNetwork) {}
+    fn update_params<Ospf: OspfProcess>(
+        &mut self,
+        _: &HashMap<RouterId, NetworkDevice<Pfx, Ospf>>,
+        _: &PhysicalNetwork,
+    ) {
+    }
 
     unsafe fn clone_events(&self, _: Self) -> Self {
         self.clone()

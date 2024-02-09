@@ -86,10 +86,19 @@ pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
     let pos = props.pos;
 
     let (src, dst, prefix, route) = match &props.event {
-        Event::Bgp(_, src, dst, BgpEvent::Update(route)) => {
-            (*src, *dst, route.prefix, Some(route.clone()))
-        }
-        Event::Bgp(_, src, dst, BgpEvent::Withdraw(p)) => (*src, *dst, *p, None),
+        Event::Bgp {
+            src,
+            dst,
+            e: BgpEvent::Update(route),
+            ..
+        } => (*src, *dst, route.prefix, Some(route.clone())),
+        Event::Bgp {
+            src,
+            dst,
+            e: BgpEvent::Withdraw(p),
+            ..
+        } => (*src, *dst, *p, None),
+        Event::Ospf { .. } => todo!(),
     };
     let state = Dispatch::<State>::new();
 
@@ -228,7 +237,7 @@ fn allow_swap(queue: &Queue, pos: usize) -> bool {
     }
     !matches! {
         (queue.get(pos), queue.get(pos + 1)),
-        (Some(Event::Bgp(_, s1, d1, _)), Some(Event::Bgp(_, s2, d2, _)))
+        (Some(Event::Bgp{ src: s1, dst: d1, ..} ), Some(Event::Bgp{ src: s2, dst: d2, .. }))
         if (s1, d1) == (s2, d2)
     }
 }
@@ -237,9 +246,10 @@ fn allow_execute(queue: &Queue, pos: usize) -> bool {
     if pos >= queue.len() {
         return false;
     }
-    if let Some(Event::Bgp(_, src, dst, _)) = queue.get(pos) {
+    if let Some(Event::Bgp { src, dst, .. }) = queue.get(pos) {
         for k in 0..pos {
-            if matches!(queue.get(k), Some(Event::Bgp(_, s, d, _)) if (src, dst) == (s, d)) {
+            if matches!(queue.get(k), Some(Event::Bgp{ src: s, dst: d, .. }) if (src, dst) == (s, d))
+            {
                 return false;
             }
         }
