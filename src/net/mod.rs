@@ -36,14 +36,9 @@ use bgpsim::{
     types::{NetworkDevice, NetworkDeviceRef, PhysicalNetwork, RouterId},
 };
 
-#[cfg(feature = "atomic_bgp")]
-use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 use yew::functional::hook;
 use yewdux::{mrc::Mrc, prelude::*};
-
-#[cfg(feature = "atomic_bgp")]
-use atomic_command::AtomicCommand;
 
 use crate::{
     dim::Dim,
@@ -140,10 +135,6 @@ pub struct Net {
     pub topology_zoo: Option<TopologyZoo>,
     recorder: Option<Network<Pfx, Queue>>,
     speed: Mrc<HashMap<RouterId, Point>>,
-    #[cfg(feature = "atomic_bgp")]
-    pub migration: Mrc<Vec<Vec<Vec<AtomicCommand<Pfx>>>>>,
-    #[cfg(feature = "atomic_bgp")]
-    pub migration_state: Mrc<Vec<Vec<Vec<MigrationState>>>>,
 }
 
 impl Default for Net {
@@ -154,10 +145,6 @@ impl Default for Net {
             spec: Default::default(),
             dim: Default::default(),
             topology_zoo: None,
-            #[cfg(feature = "atomic_bgp")]
-            migration: Default::default(),
-            #[cfg(feature = "atomic_bgp")]
-            migration_state: Default::default(),
             speed: Default::default(),
             recorder: None,
         }
@@ -207,51 +194,6 @@ impl Net {
     ) -> impl DerefMut<Target = HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>> + '_
     {
         self.spec.borrow_mut()
-    }
-
-    #[cfg(feature = "atomic_bgp")]
-    pub fn migration(&self) -> impl Deref<Target = Vec<Vec<Vec<AtomicCommand<Pfx>>>>> + '_ {
-        self.migration.borrow()
-    }
-
-    #[cfg(feature = "atomic_bgp")]
-    pub fn migration_state(&self) -> impl Deref<Target = Vec<Vec<Vec<MigrationState>>>> + '_ {
-        self.migration_state.borrow()
-    }
-
-    #[cfg(feature = "atomic_bgp")]
-    pub fn migration_state_mut(
-        &self,
-    ) -> impl DerefMut<Target = Vec<Vec<Vec<MigrationState>>>> + '_ {
-        self.migration_state.borrow_mut()
-    }
-
-    #[cfg(feature = "atomic_bgp")]
-    pub fn migration_stage(&self) -> Option<usize> {
-        self.migration_state()
-            .iter()
-            .find_position(|x| x.iter().flatten().any(|y| *y != MigrationState::Done))
-            .map(|(x, _)| x)
-    }
-
-    #[cfg(feature = "atomic_bgp")]
-    pub fn migration_stage_active(&self, stage: usize) -> bool {
-        self.migration_stage().map(|x| x == stage).unwrap_or(false)
-    }
-
-    #[cfg(feature = "atomic_bgp")]
-    pub fn migration_major(&self) -> Option<usize> {
-        let stage = self.migration_stage()?;
-        self.migration_state()[stage]
-            .iter()
-            .find_position(|x| x.iter().any(|y| *y != MigrationState::Done))
-            .map(|(x, _)| x)
-    }
-
-    #[cfg(feature = "atomic_bgp")]
-    pub fn migration_stage_major_active(&self, stage: usize, step: usize) -> bool {
-        self.migration_stage().map(|x| x == stage).unwrap_or(false)
-            && self.migration_major().map(|x| x == step).unwrap_or(false)
     }
 
     /// Return all BGP sessions of the network. The final bool describes whether the session
@@ -384,11 +326,6 @@ impl Net {
         self.spec = n.spec;
         self.topology_zoo = n.topology_zoo;
         self.normalize_pos();
-        #[cfg(feature = "atomic_bgp")]
-        {
-            self.migration = n.migration;
-            self.migration_state = n.migration_state;
-        }
     }
 }
 

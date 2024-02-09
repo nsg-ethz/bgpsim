@@ -163,8 +163,6 @@ impl VisualizationState {
             simple: state.features().simple,
             glow: match state.hover() {
                 Hover::Router(r) | Hover::Policy(r, _) if r == id => true,
-                #[cfg(feature = "atomic_bgp")]
-                Hover::AtomicCommand(routers) if routers.contains(&id) => true,
                 _ => false,
             },
             ..Self::default()

@@ -153,22 +153,6 @@ pub fn export_json_str(compact: bool) -> String {
         serde_json::to_value(settings).unwrap(),
     );
 
-    #[cfg(feature = "atomic_bgp")]
-    {
-        let migration_borrow = net.migration();
-        let migration = migration_borrow.deref();
-        obj.insert(
-            "migration".to_string(),
-            serde_json::to_value(migration).unwrap(),
-        );
-        let migration_state_borrow = net.migration_state();
-        let migration_state = migration_state_borrow.deref();
-        obj.insert(
-            "migration_state".to_string(),
-            serde_json::to_value(migration_state).unwrap(),
-        );
-    }
-
     serde_json::to_string(&network).unwrap()
 }
 
@@ -221,32 +205,6 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
     imported_net.pos = Mrc::new(pos);
     imported_net.spec = Mrc::new(spec);
     imported_net.topology_zoo = topology_zoo;
-    #[cfg(feature = "atomic_bgp")]
-    {
-        if let Some(migration) = content.get("migration") {
-            let mut migration: Vec<Vec<_>> = serde_json::from_value(migration.clone())
-                .unwrap_or_else(|e| {
-                    log::warn!("Error parsing the migration data: {e}");
-                    Default::default()
-                });
-            if migration.len() == 5 {
-                // merge steps 2, 3 and 4.
-                let p5 = migration.pop().unwrap();
-                let p4 = migration.pop().unwrap();
-                let p3 = migration.pop().unwrap();
-                let p2 = migration.pop().unwrap();
-                migration.push(p2.into_iter().chain(p3).chain(p4).collect());
-                migration.push(p5);
-            }
-            imported_net.migration = Mrc::new(migration);
-        }
-        imported_net.migration_state = Mrc::new(
-            content
-                .get("migration_state")
-                .and_then(|v| serde_json::from_value(v.clone()).ok())
-                .unwrap_or_default(),
-        );
-    }
     if rerun_layout {
         imported_net.spring_layout();
     } else {

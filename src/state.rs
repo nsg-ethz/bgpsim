@@ -55,7 +55,7 @@ pub struct State {
     flash_timeout: Mrc<Option<Timeout>>,
     blog_mode: bool,
     pub small_mode: bool,
-    pub sidebar_shown: bool
+    pub sidebar_shown: bool,
 }
 
 impl Default for State {
@@ -353,8 +353,6 @@ pub enum Selected {
     /// Router `.0`, that is external if `.1`.
     Router(RouterId, bool),
     Queue,
-    #[cfg(feature = "atomic_bgp")]
-    Migration,
     Verifier,
     /// Create a connection from src `.0` (that is external router with `.1`) of kind `.2`.
     CreateConnection(RouterId, bool, Connection),
@@ -383,8 +381,6 @@ pub enum Hover {
     ),
     Message(RouterId, RouterId, usize, bool),
     Policy(RouterId, usize),
-    #[cfg(feature = "atomic_bgp")]
-    AtomicCommand(Vec<RouterId>),
     Help(Html),
 }
 
@@ -427,11 +423,7 @@ impl std::fmt::Display for Layer {
 
 impl Default for Layer {
     fn default() -> Self {
-        if cfg!(feature = "atomic_bgp") {
-            Self::RouteProp
-        } else {
-            Self::Igp
-        }
+        Self::Igp
     }
 }
 

@@ -386,11 +386,6 @@ fn import_topology_zoo(topo: TopologyZoo) {
         *n.net.borrow_mut() = net;
         // reset the spec
         n.spec.borrow_mut().clear();
-        #[cfg(feature = "atomic_bgp")]
-        {
-            n.migration.borrow_mut().clear();
-            n.migration_state.borrow_mut().clear();
-        }
 
         // set the position
         if !geo.is_empty() {

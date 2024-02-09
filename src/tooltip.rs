@@ -197,8 +197,6 @@ impl Component for Tooltip {
                 }
             }
             Hover::Message(_, _, _, _) | Hover::Policy(_, _) => return html! {},
-            #[cfg(feature = "atomic_bgp")]
-            Hover::AtomicCommand(_) => return html! {},
             Hover::None => unreachable!(),
         };
 

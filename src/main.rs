@@ -33,11 +33,7 @@ use context_menu::Menu;
 use draw::{canvas::Canvas, mapping::Map};
 use gloo_utils::window;
 use header::Header;
-#[cfg(feature = "atomic_bgp")]
-use http_serde::import_json_str;
 use http_serde::import_url;
-#[cfg(feature = "atomic_bgp")]
-use net::Net;
 use sidebar::Sidebar;
 use state::State;
 use tooltip::Tooltip;
@@ -133,40 +129,11 @@ fn entry() -> Html {
                     import_url(d);
                 }
 
-                #[cfg(feature = "atomic_bgp")]
                 if let Some(scenario) = params.get("scenario").or_else(|| params.get("s")) {
-                    match scenario.as_str() {
-                        "abilene" => {
-                            import_json_str(include_str!("../scenarios/abilene_atomic.json"))
-                        }
-                        "abilene-baseline" => {
-                            import_json_str(include_str!("../scenarios/abilene_baseline.json"))
-                        }
-                        "example" => import_json_str(include_str!("../scenarios/example.json")),
-                        "example-baseline" => {
-                            import_json_str(include_str!("../scenarios/example_baseline.json"))
-                        }
-                        "eenet" => import_json_str(include_str!("../scenarios/eenet_atomic.json")),
-                        "jgn2plus" => {
-                            import_json_str(include_str!("../scenarios/jgn2plus_atomic.json"))
-                        }
-                        "sprint" => {
-                            import_json_str(include_str!("../scenarios/sprint_atomic.json"))
-                        }
-                        "hibernia" => import_json_str(include_str!(
-                            "../scenarios/hibernia_canada_atomic.json"
-                        )),
-                        "compuserve" => {
-                            import_json_str(include_str!("../scenarios/compuserve_atomic.json"))
-                        }
-                        "manrs" => {
-                            import_json_str(include_str!("../scenarios/manrs_chameleon.json"))
-                        }
-                        s => log::error!("Unknown scenario: {s}"),
-                    }
-                    // scale appropriately
-                    let net_dispatch = Dispatch::<Net>::new();
-                    net_dispatch.reduce_mut(|n| n.normalize_pos());
+                    let _ = window().location().replace(&format!(
+                        "bgpsim.github.io/legacy/v0_13?s={}",
+                        scenario.as_str()
+                    ));
                 }
             }
 

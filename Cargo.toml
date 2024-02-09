@@ -4,15 +4,12 @@ version = "0.13.0"
 edition = "2021"
 
 [features]
-atomic_bgp = ["dep:atomic-command"]
-
 anonymous = []
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
 [dependencies]
 bgpsim = { path = "../bgpsim", features = ["topology_zoo"] }
-atomic-command = { path = "../atomic-command", features = ["serde"], optional = true }
 yew = { version = "0.20", features = ["csr"] }
 yewdux = { version = "0.9"}
 yew-lucide = "0.263"

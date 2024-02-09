@@ -32,9 +32,6 @@ use crate::{
 const STEPS: &[TourStep] = &[
     TourStep::Text {
         paragraphs: &[
-            #[cfg(feature = "atomic_bgp")]
-            "Welcome to the online simulator for Chameleon.",
-            #[cfg(not(feature = "atomic_bgp"))]
             "Welcome to BgpSim, the online simulator for BGP networks.",
             "In a few steps, this tutorial will show you how to use this simulator."
         ],
@@ -44,9 +41,6 @@ const STEPS: &[TourStep] = &[
         element_id: "layer-selection",
         alternative: None,
         actions: &[
-            #[cfg(feature = "atomic_bgp")]
-            Action::ChooseLayer(Layer::RouteProp),
-            #[cfg(not(feature = "atomic_bgp"))]
             Action::ChooseLayer(Layer::FwState),
         ],
         paragraphs: &[

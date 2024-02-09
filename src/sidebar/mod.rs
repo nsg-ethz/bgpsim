@@ -20,8 +20,6 @@ pub mod divider;
 pub mod element;
 pub mod external_router_cfg;
 pub mod help;
-#[cfg(feature = "atomic_bgp")]
-pub mod migration_viewer;
 pub mod multi_select;
 pub mod queue_cfg;
 pub mod router_cfg;
@@ -43,8 +41,6 @@ pub use toggle::Toggle;
 use external_router_cfg::ExternalRouterCfg;
 use gloo_events::EventListener;
 use gloo_utils::window;
-#[cfg(feature = "atomic_bgp")]
-use migration_viewer::MigrationViewer;
 use queue_cfg::QueueCfg;
 use router_cfg::RouterCfg;
 use verifier_viewer::VerifierViewer;
@@ -72,8 +68,6 @@ pub fn Sidebar() -> Html {
         Selected::Router(r, false) => html! { <RouterCfg router={r} /> },
         Selected::Router(r, true) => html! { <ExternalRouterCfg router={r} /> },
         Selected::Queue => html! { <QueueCfg /> },
-        #[cfg(feature = "atomic_bgp")]
-        Selected::Migration => html! { <MigrationViewer /> },
         Selected::Verifier => html! { <VerifierViewer /> },
     };
 

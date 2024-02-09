@@ -17,8 +17,6 @@
 
 mod interactive;
 mod main_menu;
-#[cfg(feature = "atomic_bgp")]
-mod migration_planner;
 mod verifier;
 
 use std::{collections::HashSet, rc::Rc, str::FromStr};
@@ -37,19 +35,11 @@ use crate::{
 };
 use interactive::InteractivePlayer;
 use main_menu::MainMenu;
-#[cfg(feature = "atomic_bgp")]
-use migration_planner::MigrationButton;
 use verifier::Verifier;
 
 #[derive(Properties, PartialEq)]
 pub struct Properties {
     pub node_ref: NodeRef,
-}
-
-#[cfg(not(feature = "atomic_bgp"))]
-#[function_component(MigrationButton)]
-fn migration_button() -> Html {
-    html!()
 }
 
 #[function_component(Header)]
@@ -73,7 +63,6 @@ pub fn header(props: &Properties) -> Html {
                     }
                 </div>
                 <Verifier />
-                <MigrationButton />
                 <InteractivePlayer />
             </div>
         </>
