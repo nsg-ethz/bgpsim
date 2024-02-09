@@ -22,6 +22,7 @@ use bgpsim::{
     event::Event,
     formatter::NetworkFormatter,
     interactive::InteractiveNetwork,
+    ospf::local::{Lsa, LsaData, LsaHeader, OspfEvent},
     prefix,
     prelude::BgpSessionType,
 };
@@ -164,24 +165,45 @@ impl Component for Tooltip {
             }
             Hover::Message(src, dst, i, true) => {
                 if let Some(event) = self.net.net().queue().get(i) {
-                    let content = match event {
+                    let (content, title) = match event {
                         Event::Bgp {
                             e: BgpEvent::Update(route),
                             ..
-                        } => {
-                            html! { <RouteTable route={route.clone()} /> }
-                        }
+                        } => (html! { <RouteTable route={route.clone()} /> }, "BGP Update"),
                         Event::Bgp {
                             e: BgpEvent::Withdraw(prefix),
                             ..
-                        } => {
-                            html! { <PrefixTable prefix={*prefix} /> }
-                        }
-                        Event::Ospf { .. } => todo!(),
+                        } => (html! { <PrefixTable prefix={*prefix} /> }, "BGP Withdraw"),
+                        Event::Ospf {
+                            e: OspfEvent::DatabaseDescription { headers },
+                            ..
+                        } => (
+                            html! { <LsaHeaderTable headers={headers.clone()} /> },
+                            "OSPF Database Description",
+                        ),
+                        Event::Ospf {
+                            e: OspfEvent::LinkStateRequest { headers },
+                            ..
+                        } => (
+                            html! { <LsaHeaderTable headers={headers.clone()} /> },
+                            "OSPF LSA Request",
+                        ),
+
+                        Event::Ospf {
+                            e: OspfEvent::LinkStateUpdate { lsa_list, ack },
+                            ..
+                        } => (
+                            html! { <LsaListTable lsa_list={lsa_list.clone()} /> },
+                            if *ack {
+                                "OSPF LSA Acknowledgment"
+                            } else {
+                                "OSPF LSA Update"
+                            },
+                        ),
                     };
                     html! {
                             <>
-                                <p> {src.fmt(&self.net.net()).to_string()} {" → "} {dst.fmt(&self.net.net()).to_string()} </p>
+                            <p> {src.fmt(&self.net.net()).to_string()} {" → "} {dst.fmt(&self.net.net()).to_string()} {": "} {title} </p>
                                 { content }
                             </>
                     }
@@ -288,6 +310,136 @@ impl Tooltip {
                 TOOLTIP_OFFSET
             },
         )
+    }
+}
+
+#[derive(Properties, PartialEq, Eq)]
+pub struct LsaHeadersProps {
+    pub headers: Vec<LsaHeader>,
+    #[prop_or_default]
+    pub idx: usize,
+}
+
+#[function_component]
+pub fn LsaHeaderTable(props: &LsaHeadersProps) -> Html {
+    let (net, _) = use_store::<Net>();
+    let rows: Html = props
+        .headers
+        .iter()
+        .sorted_by_key(|x| x.key())
+        .map(|header| {
+            let router = header.router.fmt(&net.net()).to_string();
+            let target = if let Some(t) = header.target {
+                t.fmt(&net.net()).to_string()
+            } else {
+                "-".to_string()
+            };
+            html!(
+                <tr>
+                    <td class="bg-base-1 border-base-3 border-b px-3 py-1"> {header.lsa_type} </td>
+                    <td class="bg-base-1 border-base-3 border-b px-3 py-1"> {router} </td>
+                    <td class="bg-base-1 border-base-3 border-b px-3 py-1"> {header.seq} {if header.is_max_age() { " MaxAge" } else { "" }} </td>
+                    <td class="bg-base-1 border-base-3 border-b px-3 py-1"> {target} </td>
+                </tr>
+            )
+        })
+        .collect();
+
+    html! {
+        <table class="border-base-3 border rounded-md">
+            <thead>
+                <tr>
+                    <th class="bg-base-2 border-base-3 border-b text-left px-3 py-1"> {"LSA Type"} </th>
+                    <th class="bg-base-2 border-base-3 border-b text-left px-3 py-1"> {"Router"} </th>
+                    <th class="bg-base-2 border-base-3 border-b text-left px-3 py-1"> {"Seq"} </th>
+                    <th class="bg-base-2 border-base-3 border-b text-left px-3 py-1"> {"Target"} </th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows}
+            </tbody>
+        </table>
+    }
+}
+
+#[derive(Properties, PartialEq, Eq)]
+pub struct LsaListProps {
+    pub lsa_list: Vec<Lsa>,
+    #[prop_or_default]
+    pub idx: usize,
+}
+
+#[function_component]
+pub fn LsaListTable(props: &LsaListProps) -> Html {
+    let (net, _) = use_store::<Net>();
+    let rows: Html = props
+        .lsa_list
+        .iter()
+        .sorted_by_key(|x| x.key())
+        .map(|Lsa { header, data }| {
+            let router = header.router.fmt(&net.net()).to_string();
+            match data {
+                LsaData::Router(links) => {
+                    let n = links.len();
+                    links.iter().enumerate().map(|(i, l)| {
+                        let last = i + 1 == n;
+                        let ty = if i == 0 { header.lsa_type.to_string()} else { Default::default() };
+                        let router = if i == 0 { router.clone() } else { Default::default() };
+                        let (seq, age) = if i == 0 {
+                            (header.seq.to_string(), {if header.is_max_age() { " MaxAge" } else { "" }})
+                        } else {
+                            (Default::default(), "")
+                        };
+                        let class = if last {
+                            "bg-base-1 border-base-3 border-b px-3 py-1"
+                        } else {
+                            "bg-base-1 px-3 pt-1"
+                        };
+                        let target = l.target.fmt(&net.net()).to_string();
+                        let w = l.weight;
+                        html!(
+                            <tr>
+                                <td {class}> {ty} </td>
+                                <td {class}> {router} </td>
+                                <td {class}> {seq} {age} </td>
+                                <td {class}> {target} </td>
+                                <td {class}> {w} </td>
+                            </tr>
+                        )
+                    }).collect()
+                }
+                LsaData::Summary(w) | LsaData::External(w) => {
+                    let target = header.target().fmt(&net.net()).to_string();
+                    html!(
+                        <tr>
+                            <td class="bg-base-1 border-base-3 border-b px-3 py-1"> {header.lsa_type} </td>
+                            <td class="bg-base-1 border-base-3 border-b px-3 py-1"> {router} </td>
+                            <td class="bg-base-1 border-base-3 border-b px-3 py-1"> {header.seq} {if header.is_max_age() { " MaxAge" } else { "" }} </td>
+                            <td class="bg-base-1 border-base-3 border-b px-3 py-1"> {target} </td>
+                            <td class="bg-base-1 border-base-3 border-b px-3 py-1"> {w} </td>
+                        </tr>
+                    )
+                }
+            }
+        })
+        .collect();
+
+    html! {
+
+        <table class="border-base-3 border rounded-md">
+            <thead>
+                <tr>
+                    <th class="bg-base-2 border-base-3 border-b text-left px-3 py-1"> {"LSA Type"} </th>
+                    <th class="bg-base-2 border-base-3 border-b text-left px-3 py-1"> {"Router"} </th>
+                    <th class="bg-base-2 border-base-3 border-b text-left px-3 py-1"> {"Seq"} </th>
+                    <th class="bg-base-2 border-base-3 border-b text-left px-3 py-1"> {"Target"} </th>
+                    <th class="bg-base-2 border-base-3 border-b text-left px-3 py-1"> {"W"} </th>
+                </tr>
+            </thead>
+            <tbody>
+                {rows}
+            </tbody>
+        </table>
     }
 }
 

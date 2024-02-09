@@ -138,6 +138,13 @@ fn prepare_move(
 ) -> (Callback<MouseEvent>, Callback<MouseEvent>) {
     let onmousemove_c = onmousemove.clone();
     let onmousedown = Callback::from(move |e: MouseEvent| {
+        // get the current state
+        let state_dispatch = Dispatch::<State>::new();
+        // only do something if hover is inactive
+        if !state_dispatch.get().hover().is_none() {
+            return;
+        }
+        state_dispatch.reduce_mut(|state| state.disable_hover = true);
         log::debug!("pressed: {}", e.button());
         if e.button() != 0 {
             return;
@@ -162,6 +169,7 @@ fn prepare_move(
     });
     let onmouseup = Callback::from(move |_| {
         onmousemove.set(None);
+        Dispatch::<State>::new().reduce_mut(|state| state.disable_hover = false);
     });
 
     (onmousedown, onmouseup)

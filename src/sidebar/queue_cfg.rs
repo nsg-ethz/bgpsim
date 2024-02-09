@@ -20,6 +20,7 @@ use bgpsim::{
     event::{Event, EventQueue},
     formatter::NetworkFormatter,
     interactive::InteractiveNetwork,
+    ospf::local::OspfEvent,
 };
 use gloo_timers::callback::Timeout;
 use web_sys::HtmlElement;
@@ -29,7 +30,7 @@ use yewdux::prelude::*;
 use crate::{
     net::{Net, Pfx, Queue},
     state::{Hover, State},
-    tooltip::RouteTable,
+    tooltip::{LsaHeaderTable, LsaListTable, RouteTable},
 };
 
 use super::divider::Divider;
@@ -84,24 +85,9 @@ pub struct QueueEventCfgProps {
 #[function_component]
 pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
     let pos = props.pos;
-
-    let (src, dst, prefix, route) = match &props.event {
-        Event::Bgp {
-            src,
-            dst,
-            e: BgpEvent::Update(route),
-            ..
-        } => (*src, *dst, route.prefix, Some(route.clone())),
-        Event::Bgp {
-            src,
-            dst,
-            e: BgpEvent::Withdraw(p),
-            ..
-        } => (*src, *dst, *p, None),
-        Event::Ospf { .. } => todo!(),
-    };
     let state = Dispatch::<State>::new();
-
+    let src = props.event.source();
+    let dst = props.event.router();
     let header = use_selector_with_deps(
         |net: &Net, (src, dst, pos)| {
             format!("{pos}: {} → {}", src.fmt(&net.net()), dst.fmt(&net.net()))
@@ -111,11 +97,57 @@ pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
 
     log::debug!("render QueueEventCfg {header}");
 
-    let (kind, content) = match route {
-        Some(route) => ("BGP Update", html!(<RouteTable {route} />)),
-        None => ("BGP Withdraw", html!(<PrefixTable {prefix} />)),
+    let (title, content) = match &props.event {
+        Event::Bgp {
+            e: BgpEvent::Update(route),
+            ..
+        } => (
+            "BGP Update",
+            html! { <RouteTable route={route.clone()} idx={pos} /> },
+        ),
+        Event::Bgp {
+            e: BgpEvent::Withdraw(p),
+            ..
+        } => ("BGP Withdraw", html! { <PrefixTable prefix={*p} /> }),
+        Event::Ospf {
+            e: OspfEvent::DatabaseDescription { headers },
+            ..
+        } => (
+            "OSPF Database Description",
+            html! { <LsaHeaderTable headers={headers.clone()} idx={pos} /> },
+        ),
+        Event::Ospf {
+            e: OspfEvent::LinkStateRequest { headers },
+            ..
+        } => (
+            "OSPF LSA Request",
+            html! { <LsaHeaderTable headers={headers.clone()} idx={pos} /> },
+        ),
+        Event::Ospf {
+            e:
+                OspfEvent::LinkStateUpdate {
+                    lsa_list,
+                    ack: false,
+                },
+            ..
+        } => (
+            "OSPF LSA Update",
+            html! { <LsaListTable lsa_list={lsa_list.clone()} idx={pos} /> },
+        ),
+        Event::Ospf {
+            e:
+                OspfEvent::LinkStateUpdate {
+                    lsa_list,
+                    ack: true,
+                },
+            ..
+        } => (
+            "OSPF Acknowledgement",
+            html! { <LsaListTable lsa_list={lsa_list.clone()} idx={pos} /> },
+        ),
     };
-    let title = format!("{header}: {kind}");
+
+    let title = format!("{header}: {title}");
 
     let onclick: Callback<MouseEvent> = if props.executable {
         Callback::from(move |_| {
@@ -134,7 +166,7 @@ pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
     let onmouseleave = state.reduce_mut_callback(|s| s.set_hover(Hover::None));
 
     let main_class =
-        "p-4 rounded-md shadow-md border border-base-4 bg-base-2 w-full flex flex-col translate-y-0";
+        "p-4 rounded-md shadow-md border border-base-4 bg-base-2 w-full flex flex-col translate-y-0 overflow-hidden";
     let animation_class = "transition-all duration-150 ease-linear";
     let main_class = if props.executable {
         classes!(
