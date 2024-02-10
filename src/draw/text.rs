@@ -84,7 +84,13 @@ where
             .unwrap_or_else(|| classes!("fill-base-2", "stroke-0"));
         bg_class.push("cursor-pointer");
         let mut text_class = ctx.props().text_class.clone().unwrap_or_default();
-        text_class.push("stroke-main");
+        if !text_class
+            .clone()
+            .into_iter()
+            .any(|c| c.starts_with("stroke-"))
+        {
+            text_class.push("stroke-main");
+        }
         text_class.push("pointer-events-none");
         let onclick = ctx.props().onclick.clone();
         html! {

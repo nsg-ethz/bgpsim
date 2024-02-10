@@ -21,6 +21,7 @@ use std::{
 };
 
 use bgpsim::{
+    interactive::InteractiveNetwork,
     ospf::{
         global::GlobalOspfCoordinator,
         local::{Lsa, LsaData},
@@ -50,9 +51,10 @@ pub const LINK_COLORS: [&str; NUM_LINK_COLORS] = [
 ];
 
 fn expected_state(net: &Net) -> GlobalOspfCoordinator {
-    net.net()
-        .clone()
-        .into_global_ospf()
+    let mut net = net.net().clone();
+    net.auto_simulation();
+    net.simulate().unwrap();
+    net.into_global_ospf()
         .unwrap()
         .ospf_network()
         .coordinator()
@@ -295,9 +297,9 @@ fn ospf_link_weight(props: &LinkWeightProperties) -> Html {
 
     let text = weight.to_string();
     let text_class = if weight == expected {
-        classes!("text-fg")
+        classes!("stroke-main")
     } else {
-        classes!("text-red")
+        classes!("stroke-red")
     };
 
     html! { <Text<String> {p} {text} {onclick} {text_class} /> }
