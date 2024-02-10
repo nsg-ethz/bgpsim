@@ -32,8 +32,8 @@ use super::bgp_session::BgpSession;
 use super::events::BgpSessionQueue;
 use super::forwarding_path::PathKind;
 use super::link::Link;
-use super::link_weight::LinkWeight;
 use super::next_hop::NextHop;
+use super::ospf_state::DistributedOspfState;
 use super::router::Router;
 use crate::callback;
 use crate::draw::add_connection::AddConnection;
@@ -123,9 +123,9 @@ pub fn Canvas(props: &Properties) -> Html {
                 <CanvasRouters />
                 <CanvasFwState />
                 <CanvasBgpConfig />
-                <CanvasIgpConfig />
                 <CanvasRouteProp />
                 <CanvasHighlightPath />
+                <DistributedOspfState />
                 <CanvasEventQueue />
                 <AddConnection />
             </svg>
@@ -245,36 +245,6 @@ pub fn CanvasRouteProp() -> Html {
     match state.as_ref() {
         (Layer::RouteProp, Some(_)) => propagations.iter().map(|(src, dst, route)| html!{<Propagation src={*src} dst={*dst} route={route.clone()} />}).collect(),
         _ => html!()
-    }
-}
-
-#[function_component]
-pub fn CanvasIgpConfig() -> Html {
-    let links = use_selector(|net: &Net| {
-        let n = net.net();
-        let g = n.get_topology();
-        g.edge_indices()
-            .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
-            .map(|(a, b)| {
-                if a.index() > b.index() {
-                    (b, a)
-                } else {
-                    (a, b)
-                }
-            })
-            .unique()
-            .collect::<Vec<_>>()
-    });
-    let layer = use_selector(|state: &State| state.layer());
-
-    log::debug!("render CanvasIgpConfig");
-
-    match layer.as_ref() {
-        Layer::Igp => links
-            .iter()
-            .map(|(src, dst)| html! {<LinkWeight src={*src} dst={*dst} />})
-            .collect(),
-        _ => html!(),
     }
 }
 

@@ -406,7 +406,7 @@ pub enum Connection {
 pub enum Layer {
     FwState,
     RouteProp,
-    Igp,
+    Ospf,
     Bgp,
 }
 
@@ -415,7 +415,7 @@ impl std::fmt::Display for Layer {
         match self {
             Layer::FwState => f.write_str("Data Plane"),
             Layer::RouteProp => f.write_str("Control Plane"),
-            Layer::Igp => f.write_str("IGP Config"),
+            Layer::Ospf => f.write_str("OSPF State"),
             Layer::Bgp => f.write_str("BGP Config"),
         }
     }
@@ -423,7 +423,7 @@ impl std::fmt::Display for Layer {
 
 impl Default for Layer {
     fn default() -> Self {
-        Self::Igp
+        Self::Ospf
     }
 }
 
@@ -438,7 +438,9 @@ impl Layer {
             Layer::RouteProp => {
                 html! { "Show the routing information and how it is propagated for a given prefix." }
             }
-            Layer::Igp => html! { "Visualize the OSPF configuration (link weights)" },
+            Layer::Ospf => {
+                html! { "Visualize the OSPF configuration, and the distributed IGP routing state." }
+            }
             Layer::Bgp => {
                 html! { "Visualize the BGP configuration (BGP sessions and route maps)." }
             }

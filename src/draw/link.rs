@@ -15,12 +15,12 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::{ospf::OspfArea, types::RouterId};
+use bgpsim::types::RouterId;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::{use_pos_pair, Net},
+    net::use_pos_pair,
     point::Point,
     state::{ContextMenu, Layer, State},
 };
@@ -31,40 +31,18 @@ pub struct Properties {
     pub to: RouterId,
 }
 
-const NUM_LINK_COLORS: usize = 6;
-const LINK_COLORS: [&str; NUM_LINK_COLORS] = [
-    "text-red",
-    "text-green",
-    "text-blue",
-    "text-purple",
-    "text-yellow",
-    "text-orange",
-];
-
 #[function_component]
 pub fn Link(props: &Properties) -> Html {
     let (src, dst) = (props.from, props.to);
 
     let (p1, p2) = use_pos_pair(src, dst);
-    let l = use_selector_with_deps(
-        |net, (src, dst)| LinkState::new(*src, *dst, net),
-        (src, dst),
-    );
     let s = use_selector(VisState::new);
 
     let width = "stroke-1 peer-hover:stroke-6";
-    let thick_width = "stroke-4 peer-hover:stroke-6";
     let common = "stroke-current pointer-events-none transition-svg ease-in-out";
 
-    let class = if matches!(s.layer, Layer::Bgp | Layer::RouteProp) {
+    let class = if matches!(s.layer, Layer::Bgp | Layer::RouteProp | Layer::Ospf) {
         classes!(common, width, "text-main-ia")
-    } else if matches!(s.layer, Layer::Igp) && l.in_ospf {
-        if l.area.is_backbone() {
-            classes!(common, thick_width, "text-main")
-        } else {
-            let color_idx = (l.area.num() as usize - 1) % NUM_LINK_COLORS;
-            classes!(common, width, LINK_COLORS[color_idx])
-        }
     } else {
         classes!(common, width, "text-main")
     };
@@ -86,22 +64,6 @@ pub fn Link(props: &Properties) -> Html {
             <line class={shadow_class} x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} {oncontextmenu} />
             <line {class} x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} />
         </g>
-    }
-}
-
-#[derive(PartialEq)]
-struct LinkState {
-    area: OspfArea,
-    in_ospf: bool,
-}
-
-impl LinkState {
-    fn new(src: RouterId, dst: RouterId, net: &Net) -> Self {
-        Self {
-            area: net.net().get_ospf_area(src, dst).unwrap_or_default(),
-            in_ospf: net.net().get_internal_router(src).is_ok()
-                && net.net().get_internal_router(dst).is_ok(),
-        }
     }
 }
 
