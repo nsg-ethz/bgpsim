@@ -180,7 +180,7 @@ impl Net {
             .into_iter()
             .map(|(a, b)| {
                 quote! {
-                    _net.add_link(#a, #b);
+                    _net.add_link(#a, #b).unwrap();
                 }
             })
             .collect::<Vec<_>>();
