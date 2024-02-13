@@ -933,14 +933,48 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
             .collect();
 
         for (source, target, ty) in effective_sessions {
+            let target_name = self
+                .routers
+                .get(&target)
+                .map(|x| x.name())
+                .unwrap_or("?")
+                .to_string();
             let events = match self.routers.get_mut(&source) {
-                Some(NetworkDevice::InternalRouter(r)) => r.bgp.set_session(target, ty)?.1,
-                Some(NetworkDevice::ExternalRouter(r)) if ty.is_some() => {
-                    r.establish_ebgp_session(target)?
+                Some(NetworkDevice::InternalRouter(r)) => {
+                    let (old, events) = r.bgp.set_session(target, ty)?;
+                    if old != ty && source < target {
+                        let action = if ty.is_some() {
+                            "established"
+                        } else {
+                            "broke down"
+                        };
+                        log::debug!(
+                            "BGP session between {} and {target_name} {action}!",
+                            r.name(),
+                        );
+                    }
+                    events
                 }
                 Some(NetworkDevice::ExternalRouter(r)) => {
-                    r.close_ebgp_session(target)?;
-                    Vec::new()
+                    let was_connected = r.get_bgp_sessions().contains(&target);
+                    let is_connected = ty.is_some();
+                    if was_connected != is_connected && source < target {
+                        let action = if is_connected {
+                            "established"
+                        } else {
+                            "broke down"
+                        };
+                        log::debug!(
+                            "BGP session between {} and {target_name} {action}!",
+                            r.name(),
+                        );
+                    }
+                    if is_connected {
+                        r.establish_ebgp_session(target)?
+                    } else {
+                        r.close_ebgp_session(target)?;
+                        Vec::new()
+                    }
                 }
                 _ => Vec::new(),
             };

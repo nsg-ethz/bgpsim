@@ -396,7 +396,7 @@ where
         b: RouterId,
         routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
-        if self.is_internal(a, b)? {
+        let update = if self.is_internal(a, b)? {
             let (w_a_b, area) = self
                 .links
                 .get_mut(&a)
@@ -410,18 +410,12 @@ where
                 .remove(&a)
                 .or_link_not_found(b, a)?;
 
-            self.coordinator.update(
-                NeighborhoodChange::RemoveLink {
-                    a,
-                    b,
-
-                    area,
-                    weight: (w_a_b, w_b_a),
-                },
-                routers,
-                &self.links,
-                &self.external_links,
-            )
+            NeighborhoodChange::RemoveLink {
+                a,
+                b,
+                area,
+                weight: (w_a_b, w_b_a),
+            }
         } else {
             let (int, ext) = if self.externals.contains(&b) {
                 (a, b)
@@ -433,13 +427,10 @@ where
                 .or_router_not_found(int)?
                 .take(&ext)
                 .or_link_not_found(int, ext)?;
-            self.coordinator.update(
-                NeighborhoodChange::RemoveExternalNetwork { int, ext },
-                routers,
-                &self.links,
-                &self.external_links,
-            )
-        }
+            NeighborhoodChange::RemoveExternalNetwork { int, ext }
+        };
+        self.coordinator
+            .update(update, routers, &self.links, &self.external_links)
     }
 
     pub(crate) fn remove_router<P: Prefix, T: Default>(

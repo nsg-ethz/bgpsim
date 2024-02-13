@@ -603,6 +603,7 @@ impl GlobalOspfCoordinator {
         recompute_targets: &BTreeSet<RouterId>,
     ) -> bool {
         let rib = self.ribs.get_mut(&router).unwrap();
+        let original_rib_len = rib.len();
 
         // remove the old targets if `recompute_all is set to `false`
         if !recompute_all {
@@ -640,7 +641,7 @@ impl GlobalOspfCoordinator {
             }
         }
 
-        updated
+        updated || rib.len() != original_rib_len
     }
 
     /// Modify the link weight of the given internal link and return whether something has changed.
@@ -742,7 +743,7 @@ impl GlobalOspfCoordinator {
         ext: RouterId,
         weight: Option<LinkWeight>,
     ) -> Actions {
-        // if weight is Some, then ensure that the internal router
+        // if weight is Some, then ensure that the internal router exists.
         if weight.is_some() {
             self.create_router(int);
         }
