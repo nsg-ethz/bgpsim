@@ -570,6 +570,7 @@ impl GlobalOspfCoordinator {
     /// Update Step 6: Recompute the RIB for a single router
     fn recompute_rib(&mut self, router: RouterId) {
         let mut rib: HashMap<RouterId, OspfRibEntry> = HashMap::new();
+        rib.insert(router, OspfRibEntry::empty(router));
         for &area in self.membership.get(&router).into_iter().flatten() {
             let Some(spt) = self.spts.get(&router).and_then(|x| x.get(&area)) else {
                 continue;

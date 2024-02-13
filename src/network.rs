@@ -941,8 +941,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
                 .to_string();
             let events = match self.routers.get_mut(&source) {
                 Some(NetworkDevice::InternalRouter(r)) => {
-                    let (old, events) = r.bgp.set_session(target, ty)?;
-                    if old != ty && source < target {
+                    if r.bgp.get_session_type(target) != ty && source < target {
                         let action = if ty.is_some() {
                             "established"
                         } else {
@@ -953,7 +952,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
                             r.name(),
                         );
                     }
-                    events
+                    r.bgp.set_session(target, ty)?.1
                 }
                 Some(NetworkDevice::ExternalRouter(r)) => {
                     let was_connected = r.get_bgp_sessions().contains(&target);
