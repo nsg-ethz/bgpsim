@@ -18,6 +18,11 @@ harness = false
 required-features = ["topology_zoo", "rand_queue", "rand"]
 
 [[bench]]
+name = "common"
+harness = false
+required-features = ["topology_zoo", "rand_queue", "rand"]
+
+[[bench]]
 name = "roland"
 harness = false
 required-features = ["topology_zoo", "rand_queue", "rand"]

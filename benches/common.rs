@@ -28,7 +28,7 @@ pub fn timing_queue<P: Prefix>() -> SimpleTimingModel<P> {
 }
 
 pub fn simulate_event<P: Prefix, Q: EventQueue<P>>(mut net: Network<P, Q>) -> Network<P, Q> {
-    let e1 = net.get_external_routers()[0];
+    let e1 = net.external_indices().next().unwrap();
     net.withdraw_external_route(e1, P::from(0)).unwrap();
     net
 }
