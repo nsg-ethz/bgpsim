@@ -189,11 +189,11 @@ impl OspfRib {
     }
 
     /// Get the Router-LSA associated with the `router_id` in `area`.
-    pub fn get_router_lsa<'a, 'b>(
-        &'a self,
+    pub fn get_router_lsa(
+        &self,
         router_id: RouterId,
         area: OspfArea,
-    ) -> Option<(&'a LsaHeader, &'a Vec<RouterLsaLink>)> {
+    ) -> Option<(&LsaHeader, &Vec<RouterLsaLink>)> {
         self.areas
             .get(&area)
             .and_then(|ds| ds.get_router_lsa(router_id))
@@ -320,12 +320,12 @@ impl OspfRib {
     ///   a reference to the old (currently stored) LSA with `lsa.header.seq = MAX_SEQ` and
     ///   `lsa.header.age = MAX_AGE`. The `new_lsa` is the new LSA that should be set once the old
     ///   LSA was acknowledged by all neighbors.
-    pub(super) fn update_local_lsa<'a>(
-        &'a mut self,
+    pub(super) fn update_local_lsa(
+        &mut self,
         neighbor: RouterId,
         area: OspfArea,
         weight: Option<LinkWeight>,
-    ) -> Option<(&'a Lsa, Option<Lsa>)> {
+    ) -> Option<(&Lsa, Option<Lsa>)> {
         self.get_or_insert_area(area)
             .update_local_lsa(neighbor, weight)
     }
@@ -342,11 +342,11 @@ impl OspfRib {
     ///   prematurely. `lsa` is a reference to the old (currently stored) LSA with `lsa.header.seq =
     ///   MAX_SEQ` and `lsa.header.age = MAX_AGE`. The `new_lsa` is the new LSA that should be set
     ///   once the old LSA was acknowledged by all neighbors.
-    pub(super) fn update_external_lsa<'a>(
-        &'a mut self,
+    pub(super) fn update_external_lsa(
+        &mut self,
         neighbor: RouterId,
         weight: Option<LinkWeight>,
-    ) -> Option<(&'a Lsa, Option<Option<Lsa>>)> {
+    ) -> Option<(&Lsa, Option<Option<Lsa>>)> {
         let router = self.router_id;
         let target = Some(neighbor);
         let key = LsaKey {
@@ -389,7 +389,7 @@ impl OspfRib {
         let data = LsaData::External(NotNan::new(weight).unwrap());
 
         // check if the old LSA must be updated
-        if &old_lsa.data == &data {
+        if old_lsa.data == data {
             // nothing to do
             return None;
         }
@@ -426,6 +426,7 @@ impl OspfRib {
     /// Update all necessary Summary-LSAs and generate the set of new LSAs that must be
     /// propagated. To that end, first redistribute routes into the backbone area, and then
     /// redistribute them from the backbone area into the others.
+    #[allow(clippy::type_complexity)]
     pub(super) fn update_summary_lsas(
         &mut self,
     ) -> BTreeMap<OspfArea, (Vec<Lsa>, Vec<(LsaKey, Option<Lsa>)>)> {
@@ -845,6 +846,7 @@ impl AreaDataStructure {
 
     /// Turn the area datastructure into its raw parts, consisting of the `lsa_list`, the `spt`, and
     /// the `redistributed_paths`.
+    #[allow(clippy::type_complexity)]
     pub(super) fn into_raw(
         self,
     ) -> (
@@ -856,10 +858,7 @@ impl AreaDataStructure {
     }
 
     /// Get the Router-LSA associated with the `router_id` in `area`.
-    fn get_router_lsa<'a, 'b>(
-        &'a self,
-        router_id: RouterId,
-    ) -> Option<(&'a LsaHeader, &'a Vec<RouterLsaLink>)> {
+    fn get_router_lsa(&self, router_id: RouterId) -> Option<(&LsaHeader, &Vec<RouterLsaLink>)> {
         let key = LsaKey::router(router_id);
         self.lsa_list.get(&key).and_then(|x| match &x.data {
             LsaData::Router(r) => Some((&x.header, r)),
@@ -876,11 +875,11 @@ impl AreaDataStructure {
     ///   a reference to the old (currently stored) LSA with `lsa.header.seq = MAX_SEQ` and
     ///   `lsa.header.age = MAX_AGE`. The `new_lsa` is the new LSA that should be set once the old
     ///   LSA was acknowledged by all neighbors.
-    fn update_local_lsa<'a>(
-        &'a mut self,
+    fn update_local_lsa(
+        &mut self,
         neighbor: RouterId,
         weight: Option<LinkWeight>,
-    ) -> Option<(&'a Lsa, Option<Lsa>)> {
+    ) -> Option<(&Lsa, Option<Lsa>)> {
         let router_id = self.router_id;
         let (header, links) = self.get_router_lsa(router_id).unwrap();
         let key = header.key();
@@ -903,13 +902,11 @@ impl AreaDataStructure {
                     weight: NotNan::new(new_weight).unwrap(),
                 })
             }
+        } else if let Some(pos) = links.iter().position(|l| l.target == neighbor) {
+            links.remove(pos);
         } else {
-            if let Some(pos) = links.iter().position(|l| l.target == neighbor) {
-                links.remove(pos);
-            } else {
-                // the link was not there to begin with. Do nothing
-                return None;
-            }
+            // the link was not there to begin with. Do nothing
+            return None;
         }
 
         // construct the new LSA
@@ -1285,7 +1282,7 @@ pub(crate) fn compute_intra_area_routes(
 
     impl PartialOrd for HeapEntry {
         fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-            other.cost.partial_cmp(&self.cost)
+            Some(self.cmp(other))
         }
     }
 
@@ -1328,11 +1325,10 @@ pub(crate) fn compute_intra_area_routes(
             Entry::Occupied(mut e) => {
                 // check if the cost is the same. If so, extend fibs
                 let e = e.get_mut();
-                if cost == e.cost {
-                    // if the cost is the same, extend the fibs.
-                    e.fibs.extend(from_fibs);
-                } else if cost < e.cost {
-                    unreachable!("Negative link-weights are not allowed!")
+                match cost.cmp(&e.cost) {
+                    Ordering::Less => unreachable!("Negative link weights are not allowed!"),
+                    Ordering::Equal => e.fibs.extend(from_fibs),
+                    Ordering::Greater => {}
                 }
             }
             Entry::Vacant(e) => {

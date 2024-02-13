@@ -28,6 +28,7 @@ use crate::types::{NetworkError, RouterId};
 
 /// Iterator over internal edges.
 #[derive(Debug)]
+#[allow(clippy::type_complexity)]
 pub struct InternalEdges<'a> {
     pub(super) outer: Option<MapIter<'a, RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>>,
     pub(super) inner: Option<(RouterId, MapIter<'a, RouterId, (LinkWeight, OspfArea)>)>,
@@ -111,13 +112,10 @@ impl<'a> Iterator for Edges<'a> {
     type Item = Edge;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if let Some(e) = self.int.next() {
-            Some(Edge::Internal(e))
-        } else if let Some(e) = self.ext.next() {
-            Some(Edge::External(e))
-        } else {
-            None
-        }
+        self.int
+            .next()
+            .map(Edge::Internal)
+            .or_else(|| self.ext.next().map(Edge::External))
     }
 }
 
@@ -157,7 +155,7 @@ impl<'a> Iterator for InternalNeighborsOfExternalNetwork<'a> {
     type Item = ExternalEdge;
 
     fn next(&mut self) -> Option<Self::Item> {
-        while let Some((int, x)) = self.iter.next() {
+        for (int, x) in self.iter.by_ref() {
             if x.contains(&self.ext) {
                 return Some(ExternalEdge {
                     int: *int,

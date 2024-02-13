@@ -148,7 +148,7 @@ pub struct OspfNetwork<Ospf = GlobalOspfCoordinator> {
 
 impl<Ospf> PartialEq for OspfNetwork<Ospf> {
     fn eq(&self, other: &Self) -> bool {
-        &self.links == &other.links && &self.external_links == &other.external_links
+        self.links == other.links && self.external_links == other.external_links
     }
 }
 
@@ -351,7 +351,6 @@ where
     ) -> Result<(Vec<Event<P, T>>, OspfArea), NetworkError> {
         self.must_be_internal(a, b)?;
 
-        let area = area.into();
         let (w_a_b, aa) = self
             .links
             .get_mut(&a)

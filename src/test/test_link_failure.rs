@@ -83,9 +83,9 @@ mod t {
         net.build_ibgp_full_mesh().unwrap();
 
         let p = P::from(0);
-        net.advertise_external_route(*E1, p, &[1], None, None)
+        net.advertise_external_route(*E1, p, [1], None, None)
             .unwrap();
-        net.advertise_external_route(*E4, p, &[4], None, None)
+        net.advertise_external_route(*E4, p, [4], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -145,7 +145,7 @@ mod t {
         let _ = env_logger::try_init();
 
         // let mut net = get_test_topo::<P, Ospf>();
-        let mut net = get_test_topo::<P, LocalOspf>();
+        let mut net = get_test_topo::<P, Ospf>();
         let rr = net.add_router("rr");
         net.add_link(rr, *R3).unwrap();
         net.build_link_weights(link_weights, ()).unwrap();
@@ -153,9 +153,9 @@ mod t {
         net.build_ibgp_route_reflection(|_, rr| [rr], rr).unwrap();
 
         let p = P::from(0);
-        net.advertise_external_route(*E1, p, &[1], None, None)
+        net.advertise_external_route(*E1, p, [1], None, None)
             .unwrap();
-        net.advertise_external_route(*E4, p, &[4], None, None)
+        net.advertise_external_route(*E4, p, [4], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -187,9 +187,9 @@ mod t {
         net.build_ibgp_full_mesh().unwrap();
 
         let p = P::from(0);
-        net.advertise_external_route(*E1, p, &[1], None, None)
+        net.advertise_external_route(*E1, p, [1], None, None)
             .unwrap();
-        net.advertise_external_route(*E4, p, &[4], None, None)
+        net.advertise_external_route(*E4, p, [4], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -255,9 +255,9 @@ mod t {
         net.build_ibgp_route_reflection(|_, rr| [rr], rr).unwrap();
 
         let p = P::from(0);
-        net.advertise_external_route(*E1, p, &[1], None, None)
+        net.advertise_external_route(*E1, p, [1], None, None)
             .unwrap();
-        net.advertise_external_route(*E4, p, &[4], None, None)
+        net.advertise_external_route(*E4, p, [4], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);

@@ -112,20 +112,8 @@ impl LocalNeighborhoodChange {
                 a, b, new: area, ..
             } => {
                 vec![
-                    (
-                        a,
-                        LocalNeighborhoodChange::Area {
-                            neighbor: b,
-                            area: area,
-                        },
-                    ),
-                    (
-                        b,
-                        LocalNeighborhoodChange::Area {
-                            neighbor: a,
-                            area: area,
-                        },
-                    ),
+                    (a, LocalNeighborhoodChange::Area { neighbor: b, area }),
+                    (b, LocalNeighborhoodChange::Area { neighbor: a, area }),
                 ]
             }
             NeighborhoodChange::Weight { src, dst, new, .. } => {
@@ -245,7 +233,7 @@ impl LocalOspfProcess {
                 if self
                     .neighbors
                     .get(&neighbor)
-                    .ok_or_else(|| DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?
+                    .ok_or(DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?
                     .area
                     == area
                 {
@@ -289,7 +277,7 @@ impl LocalOspfProcess {
                 let area = self
                     .neighbors
                     .get(&neighbor)
-                    .ok_or_else(|| DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?
+                    .ok_or(DeviceError::NotAnOspfNeighbor(self.router_id, neighbor))?
                     .area;
                 actions += self.update_weight(neighbor, area, Some(weight));
             }

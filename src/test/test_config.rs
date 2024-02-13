@@ -67,7 +67,7 @@ mod t1 {
         c2.add(sess4b.clone()).unwrap();
 
         let patch = c1.get_diff(&c2);
-        let expected_patch = vec![
+        let expected_patch = [
             Insert(sess3),
             Remove(sess2),
             Update {

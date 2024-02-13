@@ -544,8 +544,8 @@ mod t {
 
 #[track_caller]
 fn check(
-    nets_g: &Vec<Network<Prefix, BasicEventQueue<Prefix>, GlobalOspf>>,
-    nets_l: &Vec<Network<Prefix, BasicEventQueue<Prefix>, LocalOspf>>,
+    nets_g: &[Network<Prefix, BasicEventQueue<Prefix>, GlobalOspf>],
+    nets_l: &[Network<Prefix, BasicEventQueue<Prefix>, LocalOspf>],
     disconnected: bool,
 ) {
     let empty_h = HashMap::new();
@@ -563,8 +563,8 @@ fn check(
             .collect::<BTreeMap<_, _>>()
     };
 
-    let exp_ext_lsas = lsa_data(&nets_g[0].ospf.coordinator.get_external_lsas());
-    let exp_area_lsas = lsas_data(&nets_g[0].ospf.coordinator.get_lsa_lists());
+    let exp_ext_lsas = lsa_data(nets_g[0].ospf.coordinator.get_external_lsas());
+    let exp_area_lsas = lsas_data(nets_g[0].ospf.coordinator.get_lsa_lists());
 
     let k = nets_g.len();
     for (i, n) in nets_g.iter().enumerate() {
@@ -577,14 +577,9 @@ fn check(
             "External-LSAs of global network {}/{k}",
             i + 1,
         );
-        for area in exp_area_lsas
-            .keys()
-            .chain(acq_area_lsas.keys())
-            .unique()
-            .copied()
-        {
-            let exp = exp_area_lsas.get(&area).unwrap_or(&empty_b);
-            let acq = acq_area_lsas.get(&area).unwrap_or(&empty_b);
+        for area in exp_area_lsas.keys().chain(acq_area_lsas.keys()).unique() {
+            let exp = exp_area_lsas.get(area).unwrap_or(&empty_b);
+            let acq = acq_area_lsas.get(area).unwrap_or(&empty_b);
             pretty_assertions::assert_eq!(
                 acq,
                 exp,
@@ -716,7 +711,7 @@ fn do_clone(
 type Net<Ospf> = Network<Prefix, BasicEventQueue<Prefix>, Ospf>;
 #[track_caller]
 fn modify<Ospf: OspfImpl, R, F: Fn(&mut Net<Ospf>) -> Result<R, NetworkError>>(
-    nets: &mut Vec<Net<Ospf>>,
+    nets: &mut [Net<Ospf>],
     f: F,
 ) {
     let k = nets.len();

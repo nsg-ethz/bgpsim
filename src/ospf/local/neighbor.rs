@@ -815,7 +815,7 @@ impl Neighbor {
         if self
             .retransmission_list
             .get(&key)
-            .map(|ret| lsa.compare(&ret).is_older())
+            .map(|ret| lsa.compare(ret).is_older())
             .unwrap_or(false)
         {
             return None;
@@ -911,23 +911,12 @@ impl<P: Prefix, T: Default> std::ops::AddAssign for NeighborActions<P, T> {
 }
 
 /// Structure that defines the actions upon receiving an Link-State Update event.
-#[derive(Debug)]
+#[derive(Default, Debug)]
 struct RecvLsaActions {
     acknowledge: Vec<Lsa>,
     flood: Vec<Lsa>,
     update: Vec<Lsa>,
     track_max_age: Vec<(LsaKey, Option<Lsa>)>,
-}
-
-impl Default for RecvLsaActions {
-    fn default() -> Self {
-        Self {
-            acknowledge: Vec::new(),
-            flood: Vec::new(),
-            update: Vec::new(),
-            track_max_age: Vec::new(),
-        }
-    }
 }
 
 impl RecvLsaActions {

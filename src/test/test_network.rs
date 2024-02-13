@@ -917,7 +917,7 @@ mod t {
 
     #[test]
     fn bgp_propagation_client_peers<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = Network::<_, _, GlobalOspf>::default();
+        let mut net = Network::<_, _, Ospf>::default();
         let r1 = net.add_router("r1");
         let r2 = net.add_router("r2");
         let r3 = net.add_router("r3");

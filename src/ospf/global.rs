@@ -325,7 +325,7 @@ impl GlobalOspfCoordinator {
         {
             let recompute_targets = recompute_inter_area_routes.get(&area).unwrap();
             let recompute_all = &modified_tables;
-            let updates = self.update_inter_area_routes(area, recompute_all, &recompute_targets);
+            let updates = self.update_inter_area_routes(area, recompute_all, recompute_targets);
             modified_tables.extend(updates);
         }
 
@@ -541,7 +541,7 @@ impl GlobalOspfCoordinator {
                 }
 
                 // compute the enw path
-                let Some(new_path) = compute_inter_area_route(router, &lsa, spt) else {
+                let Some(new_path) = compute_inter_area_route(router, lsa, spt) else {
                     continue;
                 };
 
@@ -794,23 +794,20 @@ impl GlobalOspfCoordinator {
         // create the membership
         self.membership.entry(r).or_default();
         // create the rib
-        if !self.ribs.contains_key(&r) {
-            self.ribs.insert(
+        self.ribs.entry(r).or_insert_with(|| {
+            [(
                 r,
-                [(
-                    r,
-                    OspfRibEntry {
-                        router_id: r,
-                        fibs: Default::default(),
-                        cost: NotNan::default(),
-                        inter_area: false,
-                        keys: Default::default(),
-                    },
-                )]
-                .into_iter()
-                .collect(),
-            );
-        }
+                OspfRibEntry {
+                    router_id: r,
+                    fibs: Default::default(),
+                    cost: NotNan::default(),
+                    inter_area: false,
+                    keys: Default::default(),
+                },
+            )]
+            .into_iter()
+            .collect()
+        });
     }
 
     /// Update all summary-lsas redistributed by `advertising_router` from area `from` into area
