@@ -170,7 +170,7 @@ impl Net {
             .links
             .keys()
             .map(|(a, b)| {
-                if a.to_string() < b.to_string() {
+                if *a < *b {
                     (a.clone(), b.clone())
                 } else {
                     (b.clone(), a.clone())
