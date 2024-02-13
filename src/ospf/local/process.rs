@@ -396,20 +396,21 @@ impl LocalOspfProcess {
         ext: RouterId,
         weight: Option<LinkWeight>,
     ) -> ProcessActions<P, T> {
-        let mut result = ProcessActions::new();
-        // update the LSA
-        let Some((flood, track)) = self.areas.update_external_lsa(ext, weight) else {
-            // nothing has changed, nothing to do!
-            return result;
-        };
-        result.flood(flood.clone(), FloodFrom::External);
-
         // update the local neighbors
         if let Some(new_weight) = weight {
             self.neighbor_links.insert(ext, new_weight);
         } else {
             self.neighbor_links.remove(&ext);
         }
+
+        let mut result = ProcessActions::new();
+
+        // update the LSA
+        let Some((flood, track)) = self.areas.update_external_lsa(ext, weight) else {
+            // nothing has changed, nothing to do!
+            return result;
+        };
+        result.flood(flood.clone(), FloodFrom::External);
 
         // update the track_max_age if necessary
         if let Some(new_lsa) = track {

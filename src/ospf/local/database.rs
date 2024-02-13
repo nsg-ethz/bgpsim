@@ -460,9 +460,15 @@ impl OspfRib {
             changed |= adv.update_spt();
         }
 
+        // if there are no areas, we also need to compute the RIB.
+        changed |= self.areas.is_empty();
+
         if changed {
             // construct the rib
-            let mut rib: HashMap<RouterId, OspfRibEntry> = HashMap::new();
+            let mut rib: HashMap<RouterId, OspfRibEntry> =
+                [(self.router_id, OspfRibEntry::empty(self.router_id))]
+                    .into_iter()
+                    .collect();
             for (area, area_ds) in self.areas.iter() {
                 for path in area_ds.spt.values() {
                     match rib.entry(path.router_id) {
@@ -642,6 +648,17 @@ impl PartialEq for OspfRibEntry {
 }
 
 impl OspfRibEntry {
+    /// Create an empty RIB with zero cost.
+    pub(crate) fn empty(router_id: RouterId) -> Self {
+        Self {
+            router_id,
+            fibs: Default::default(),
+            cost: NotNan::default(),
+            inter_area: false,
+            keys: Default::default(),
+        }
+    }
+
     /// Construct a new entry from an SptNode and OspfArea
     pub(crate) fn new(path: &SptNode, area: OspfArea) -> Self {
         Self {

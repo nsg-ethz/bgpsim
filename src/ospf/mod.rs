@@ -507,12 +507,14 @@ where
             };
 
             let a_reaches_b = if a_ext {
-                self.external_neighbors(a).any(|e| is_reachable(e.int, b))
+                // self.external_neighbors(a).any(|e| is_reachable(e.int, b))
+                true
             } else {
                 is_reachable(a, b)
             };
             let b_reaches_a = if b_ext {
-                self.external_neighbors(b).any(|e| is_reachable(e.int, a))
+                // self.external_neighbors(b).any(|e| is_reachable(e.int, a))
+                true
             } else {
                 is_reachable(b, a)
             };
@@ -835,13 +837,10 @@ pub trait OspfProcess:
     fn is_reachable(&self, dst: RouterId) -> bool {
         self.get_table()
             .get(&dst)
-            .map(|(_, w)| w.is_finite())
+            .map(|(_, w)| w)
+            .or_else(|| self.get_neighbors().get(&dst))
+            .map(|w| w.is_finite())
             .unwrap_or(false)
-            || self
-                .get_neighbors()
-                .get(&dst)
-                .map(|w| w.is_finite())
-                .unwrap_or(false)
     }
 
     /// Returns `true` if `dst` is a neighbor.

@@ -26,7 +26,7 @@ mod t {
         config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
         event::BasicEventQueue,
         network::Network,
-        ospf::{global::GlobalOspf, local::LocalOspf, OspfImpl},
+        ospf::{global::GlobalOspf, local::LocalOspf, OspfImpl, OspfProcess},
         prelude::BgpSessionType,
         route_map::{
             RouteMap, RouteMapDirection::*, RouteMapFlow::*, RouteMapSet as Set, RouteMapState::*,
@@ -138,6 +138,24 @@ mod t {
         net.set_bgp_session(*R4, *E4, Some(EBgp)).unwrap();
 
         net
+    }
+
+    #[test]
+    fn test_single_router<P: Prefix, Ospf: OspfImpl>() {
+        let mut net: Network<P, _, Ospf> = Network::default();
+        let p = P::from(0);
+        let r = net.add_router("r");
+        let e = net.add_external_router("e", 1);
+        net.add_link(r, e).unwrap();
+        assert!(&net
+            .get_device(r)
+            .unwrap()
+            .unwrap_internal()
+            .ospf
+            .is_reachable(e));
+        net.set_bgp_session(r, e, Some(EBgp)).unwrap();
+        net.advertise_external_route(e, p, [1], None, None).unwrap();
+        test_route!(net, r, p, [r, e]);
     }
 
     #[test]

@@ -39,6 +39,16 @@ pub enum LsaType {
     External,
 }
 
+impl std::fmt::Display for LsaType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            LsaType::Router => "Router",
+            LsaType::Summary => "Summary",
+            LsaType::External => "External",
+        })
+    }
+}
+
 ///  The maximum age that an LSA can attain. When an LSA's LS age field reaches MaxAge, it is
 /// reflooded in an attempt to flush the LSA from the routing domain (See Section 14). LSAs of age
 /// MaxAge are not used in the routing table calculation.
@@ -134,7 +144,7 @@ impl LsaHeader {
     }
 
     /// Whether the LSA has `age` set to `MAX_AGE`.
-    pub(crate) fn is_max_age(&self) -> bool {
+    pub fn is_max_age(&self) -> bool {
         self.age == MAX_AGE
     }
 
@@ -229,7 +239,7 @@ impl Lsa {
     }
 
     /// Whether the LSA has `age` set to `MAX_AGE`.
-    pub(crate) fn is_max_age(&self) -> bool {
+    pub fn is_max_age(&self) -> bool {
         self.header.is_max_age()
     }
 
