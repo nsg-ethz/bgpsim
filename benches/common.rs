@@ -59,3 +59,7 @@ fn try_setup_net<P: Prefix, Q: EventQueue<P>>(queue: Q) -> Result<Network<P, Q>,
     net.build_advertisements(P::from(0), unique_preferences, 5)?;
     Ok(net)
 }
+
+fn main() {
+    println!("hello world");
+}
