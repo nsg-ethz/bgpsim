@@ -134,7 +134,7 @@ impl<P: Prefix> ExternalRouter<P> {
             let events = self
                 .neighbors
                 .iter()
-                .map(|n| Event::bgp(T::default(), self.router_id, *n, bgp_event.clone()))
+                .map(|n| Event::bgp(T::default(), self.router_id, *n, vec![bgp_event.clone()]))
                 .collect();
 
             (route, events)
@@ -147,7 +147,7 @@ impl<P: Prefix> ExternalRouter<P> {
             // only send the withdraw if the route actually did exist
             self.neighbors
                 .iter()
-                .map(|n| Event::bgp(T::default(), self.router_id, *n, BgpEvent::Withdraw(prefix)))
+                .map(|n| Event::bgp(T::default(), self.router_id, *n, vec![BgpEvent::Withdraw(prefix)]))
                 .collect() // create the events to withdraw the route
         } else {
             // nothing to do, no route was advertised
@@ -171,7 +171,7 @@ impl<P: Prefix> ExternalRouter<P> {
                         T::default(),
                         self.router_id,
                         router,
-                        BgpEvent::Update(r.clone()),
+                        vec![BgpEvent::Update(r.clone())],
                     )
                 })
                 .collect()

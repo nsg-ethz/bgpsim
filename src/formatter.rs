@@ -251,7 +251,7 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl, T: FmtPriority> NetworkFormatter<'a, 
                 "BGP Event: {} -> {}: {} {}",
                 src.fmt(net),
                 dst.fmt(net),
-                e.fmt(net),
+                e.iter().map(|x| x.fmt(net)).join("; "),
                 p.fmt()
             ),
             Event::Ospf {

@@ -49,7 +49,7 @@ pub enum Event<P: Prefix, T> {
         /// The target of the message
         dst: RouterId,
         /// The specific BGP event.
-        e: BgpEvent<P>,
+        e: Vec<BgpEvent<P>>,
     },
     /// OSPF Event from directed towards `#1` from `#2.source()`.
     Ospf {
@@ -69,7 +69,7 @@ pub enum Event<P: Prefix, T> {
 
 impl<P: Prefix, T> Event<P, T> {
     /// Create a new BGP event
-    pub fn bgp(p: T, src: RouterId, dst: RouterId, e: BgpEvent<P>) -> Self {
+    pub fn bgp(p: T, src: RouterId, dst: RouterId, e: Vec<BgpEvent<P>>) -> Self {
         Self::Bgp { p, src, dst, e }
     }
 
@@ -81,21 +81,6 @@ impl<P: Prefix, T> Event<P, T> {
             dst,
             area,
             e,
-        }
-    }
-
-    /// Returns the prefix for which this event talks about.
-    pub fn prefix(&self) -> Option<P> {
-        match self {
-            Event::Bgp {
-                e: BgpEvent::Update(route),
-                ..
-            } => Some(route.prefix),
-            Event::Bgp {
-                e: BgpEvent::Withdraw(prefix),
-                ..
-            } => Some(*prefix),
-            Event::Ospf { .. } => None,
         }
     }
 

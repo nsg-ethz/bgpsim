@@ -19,13 +19,57 @@ mod state;
 pub use state::*;
 
 use crate::{
+    event::Event,
     ospf::LinkWeight,
     types::{AsId, Prefix, RouterId},
 };
 
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::BTreeSet, hash::Hash};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap},
+    hash::Hash,
+};
+
+/// MTU (TODO)
+pub const MAX_BGP_MSG_SIZE_BYTES: usize = 1500;
+
+/// Split a set of BGP events into a sequence of batched BGP events. The batches are determined by
+/// the size of all individual BGP Events.
+pub fn split_into_messages<P: Prefix>(events: Vec<BgpEvent<P>>) -> Vec<Vec<BgpEvent<P>>> {
+    todo!()
+}
+
+/// Split and join all BGP messages by batching them accordingly.
+pub fn split_join_bgp_messages<P: Prefix, T: Default>(
+    events: Vec<Event<P, T>>,
+) -> Vec<Event<P, T>> {
+    let mut output_events = Vec::new();
+    let mut bgp_events: HashMap<_, Vec<_>> = HashMap::new();
+    for event in events {
+        match event {
+            Event::Bgp { src, dst, e, .. } => bgp_events
+                .entry((src, dst))
+                .or_default()
+                .extend_from_slice(&e),
+            event @ Event::Ospf { .. } => output_events.push(event),
+        }
+    }
+
+    for ((src, dst), e) in bgp_events {
+        for e in split_into_messages(e) {
+            output_events.push(Event::Bgp {
+                p: Default::default(),
+                src,
+                dst,
+                e,
+            });
+        }
+    }
+
+    output_events
+}
 
 /// Bgp Route
 /// The following attributes are omitted

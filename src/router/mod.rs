@@ -137,11 +137,12 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
     ) -> Result<EventOutcome<P, T>, DeviceError> {
         match event {
             Event::Bgp { src, dst, e, .. } if dst == self.router_id => {
-                let prefix = e.prefix();
-                let old = self.get_next_hop(prefix);
-                let events = self.bgp.handle_event(src, e)?;
-                let new = self.get_next_hop(prefix);
-                Ok((StepUpdate::new(prefix, old, new), events))
+                todo!();
+                // let prefix = e.prefix();
+                // let old = self.get_next_hop(prefix);
+                // let events = self.bgp.handle_event(src, e)?;
+                // let new = self.get_next_hop(prefix);
+                // Ok((StepUpdate::new(prefix, old, new), events))
             }
             Event::Bgp { .. } => {
                 error!(
