@@ -35,7 +35,7 @@ use std::{cmp::Ordering, collections::BTreeSet, hash::Hash};
 #[derive(Debug, Clone, Eq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
 pub struct BgpRoute<P: Prefix> {
-    /// IP PREFIX (represented as a simple number)
+    /// IP PREFIX
     pub prefix: P,
     /// AS-PATH, where the origin of the route is last, and the ID of a new AS is prepended.
     pub as_path: Vec<AsId>,
@@ -100,6 +100,20 @@ impl<P: Prefix> BgpRoute<P> {
             community: self.community.clone(),
             originator_id: self.originator_id,
             cluster_list: self.cluster_list.clone(),
+        }
+    }
+
+    /// Change the prefix type of the route.
+    pub fn with_prefix<P2: Prefix>(self, prefix: P2) -> BgpRoute<P2> {
+        BgpRoute {
+            prefix,
+            as_path: self.as_path,
+            next_hop: self.next_hop,
+            local_pref: self.local_pref,
+            med: self.med,
+            community: self.community,
+            originator_id: self.originator_id,
+            cluster_list: self.cluster_list,
         }
     }
 }

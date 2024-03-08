@@ -25,7 +25,7 @@ use crate::{
     bgp::BgpRoute,
     network::{Network, INTERNAL_AS},
     ospf::OspfImpl,
-    types::{AsId, Prefix, PrefixMap, RouterId},
+    types::{AsId, Ipv4Prefix, Prefix, PrefixMap, RouterId},
 };
 
 use super::{Addressor, ExportError, ExternalCfgGen};
@@ -267,14 +267,15 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
             for (p, r) in routes {
                 for net in addressor.prefix(p)? {
                     if let Some(r) = r {
+                        let r = r.clone().with_prefix(Ipv4Prefix::from(net));
                         ads.push(format!(
-                            "sys.stdout.write(\"{} {}\\n\")",
-                            neighbors,
-                            route_text(r, net)?
+                            "sys.stdout.write(\"{neighbors} {}\\n\")",
+                            announce_route(&r)
                         ))
                     } else {
                         ads.push(format!(
-                            "sys.stdout.write(\"{neighbors} withdraw route {net}\\n\")",
+                            "sys.stdout.write(\"{neighbors} {}\\n\")",
+                            withdraw_route(net)
                         ))
                     }
                 }
@@ -347,10 +348,10 @@ neighbor {} {{
 }
 
 /// Get the text to announce a route.
-fn route_text<P: Prefix>(route: &BgpRoute<P>, address: Ipv4Net) -> Result<String, ExportError> {
-    Ok(format!(
-        "announce route {} next-hop self as-path [{}]{}{}",
-        address,
+pub fn announce_route<P: Prefix>(route: &BgpRoute<P>) -> String {
+    let prefix: Ipv4Net = route.prefix.into();
+    format!(
+        "announce route {prefix} next-hop self as-path [{}]{}{}",
         route.as_path.iter().map(|x| x.0).join(", "),
         if let Some(med) = route.med {
             format!(" metric {med}")
@@ -369,7 +370,12 @@ fn route_text<P: Prefix>(route: &BgpRoute<P>, address: Ipv4Net) -> Result<String
                     .join(", ")
             )
         },
-    ))
+    )
+}
+
+/// Get the text to withdraw a route.
+pub fn withdraw_route(prefix: Ipv4Net) -> String {
+    format!("withdraw route {prefix}")
 }
 
 impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> ExternalCfgGen<P, Q, Ospf, A>
