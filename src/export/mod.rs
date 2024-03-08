@@ -34,7 +34,7 @@ use crate::{
 mod cisco_frr;
 pub mod cisco_frr_generators;
 mod default;
-mod exabgp;
+pub mod exabgp;
 
 pub use cisco_frr::CiscoFrrCfgGen;
 pub use default::{DefaultAddressor, DefaultAddressorBuilder};
