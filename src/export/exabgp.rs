@@ -30,6 +30,17 @@ use crate::{
 
 use super::{Addressor, ExportError, ExternalCfgGen};
 
+use ipnet::Ipv4Net;
+use itertools::Itertools;
+use maplit::btreemap;
+
+/// The python preamble of the runner script (to import time and sleep for 5 seconds)
+pub const RUNNER_PREAMBLE: &'static str =
+    "#!/usr/bin/env python3\n\nimport sys\nimport time\n\n\ntime.sleep(5)\n\n";
+
+/// The python preamble of the runner script (to import time and sleep for 5 seconds)
+pub const RUNNER_POSTAMBLE: &'static str = "\nwhile True:\n    time.sleep(1)\n";
+
 /// Config generator for [ExaBGP](https://github.com/Exa-Networks/exabgp)
 ///
 /// This generator works differently. Instead of giving the configuration from one single time
@@ -189,10 +200,6 @@ pub struct ExaBgpCfgGen<P: Prefix> {
     current_time: Duration,
 }
 
-use ipnet::Ipv4Net;
-use itertools::Itertools;
-use maplit::btreemap;
-
 impl<P: Prefix> ExaBgpCfgGen<P> {
     /// Create a new instance of the ExaBGP config generator. This will initialize all
     /// routes. Further, it will
@@ -227,9 +234,7 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
         &self,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
-        let script = String::from(
-            "#!/usr/bin/env python3\n\nimport sys\nimport time\n\n\ntime.sleep(5)\n\n",
-        );
+        let script = String::from(RUNNER_PREAMBLE);
 
         Ok(script + &self.generate_script_no_loop(addressor)?)
     }
@@ -312,7 +317,7 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
             script.push_str("sys.stdout.flush()\n");
         }
 
-        script.push_str("\nwhile True:\n    time.sleep(1)\n");
+        script.push_str(RUNNER_POSTAMBLE);
 
         Ok(script)
     }
