@@ -34,7 +34,7 @@ use std::{
 
 /// MTU, used to determine how many routes fit into a single message, minus the size of the IPv4
 /// header (20 bytes) and TCP header (20 + 12 bytes)
-pub const MAX_BGP_MSG_SIZE_BYTES: i32 = 1500 - 20 - 20 - 12;
+pub const MAX_BGP_MSG_SIZE_BYTES: i32 = 590 - 20 - 20 - 12;
 /// The minimum BGP message contains the marker, length, type, withdraw routes length, attribute
 /// length, and NLRI length (in that order)
 pub const MIN_BGP_MSG_SIZE_BYTES: i32 = 16 + 2 + 1 + 2 + 2 + 1;
@@ -48,7 +48,7 @@ pub fn split_into_messages<P: Prefix>(events: Vec<BgpEvent<P>>) -> Vec<Vec<BgpEv
         let size = match &e {
             BgpEvent::Withdraw(_) if available_space >= 4 => 4,
             BgpEvent::Withdraw(_) => MIN_BGP_MSG_SIZE_BYTES + 4,
-            BgpEvent::Update(r) => MIN_BGP_MSG_SIZE_BYTES + r.path_attribute_size() as i32,
+            BgpEvent::Update(r) => MIN_BGP_MSG_SIZE_BYTES + 4 + r.path_attribute_size() as i32,
         };
         if available_space < size {
             // create a new message

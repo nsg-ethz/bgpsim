@@ -19,7 +19,6 @@ use std::time::Duration;
 use std::time::Instant;
 
 use bgpsim::interactive::PartialClone;
-use bgpsim::record::ConvergenceRecording;
 use bgpsim::{
     builder::*,
     event::EventQueue,

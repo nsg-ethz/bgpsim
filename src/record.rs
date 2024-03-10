@@ -196,6 +196,7 @@ impl<P: Prefix + NonOverlappingPrefix> ConvergenceRecording<P> {
     /// will return a slice containing all deltas that were applied during this function call, the
     /// network's convergence time when the change took effect (if applicable), and a mutable
     /// reference to the new `ForwardingState`.
+    #[allow(clippy::type_complexity)]
     pub fn step(&mut self) -> Option<(&[FwDelta<P>], Option<f64>, &mut ForwardingState<P>)> {
         if self.pointer >= self.trace.len() {
             // already out of bounds
@@ -220,6 +221,7 @@ impl<P: Prefix + NonOverlappingPrefix> ConvergenceRecording<P> {
     /// will return a slice containing all deltas that were applied *in reverse direction* during
     /// this function call, the network's convergence time when the change took effect (if
     /// applicable), and a mutable reference to the new `ForwardingState`.
+    #[allow(clippy::type_complexity)]
     pub fn back(&mut self) -> Option<(&[FwDelta<P>], Option<f64>, &mut ForwardingState<P>)> {
         if self.pointer == 0 {
             // already out of bounds

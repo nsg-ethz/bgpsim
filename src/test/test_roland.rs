@@ -15,24 +15,19 @@
 
 //! Testcase for forwarding state that appeared while Roland Schmid was using bgpsim.
 
-use std::{collections::HashSet, iter::repeat};
-
 use crate::{
     builder::{
         extend_to_k_external_routers, k_highest_degree_nodes, uniform_link_weight,
         unique_preferences, NetworkBuilder,
     },
-    event::{EventQueue, ModelParams, SimpleTimingModel},
-    interactive::InteractiveNetwork,
+    event::{ModelParams, SimpleTimingModel},
     network::Network,
     ospf::global::GlobalOspf,
     policies::{FwPolicy, Policy},
-    record::{ConvergenceRecording, ConvergenceTrace, RecordNetwork},
+    record::RecordNetwork,
     topology_zoo::TopologyZoo,
-    types::{FwDelta, SinglePrefix as P},
+    types::SinglePrefix as P,
 };
-
-use pretty_assertions::assert_eq;
 
 #[test]
 fn roland_pacificwave() {
