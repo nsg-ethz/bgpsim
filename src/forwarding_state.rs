@@ -423,31 +423,33 @@ impl<P: Prefix> ForwardingState<P> {
 }
 
 impl<P: Prefix + NonOverlappingPrefix> ForwardingState<P> {
-    /// Get the difference between self and other as a list of differences
+    /// Get the difference between self and other as a list of differences. The returned delta will
+    /// describe the delta to transition `self` to `new`.
     ///
     /// This function is only available for either `SinglePrefix` or `SimplePrefix`.
-    pub fn diff(&self, old: &Self) -> Vec<FwDelta<P>> {
+    pub fn diff(&self, new: &Self) -> Vec<FwDelta<P>> {
+        let old = self;
         let mut result = Vec::new();
-        let routers = self.state.keys().chain(old.state.keys()).unique();
+        let routers = old.state.keys().chain(new.state.keys()).unique();
         for router in routers {
-            let self_state = self.state.get(router).unwrap();
-            let other_state = old.state.get(router).unwrap();
-            let prefixes = self_state.keys().chain(other_state.keys()).unique();
+            let old_state = old.state.get(router).unwrap();
+            let new_state = new.state.get(router).unwrap();
+            let prefixes = old_state.keys().chain(new_state.keys()).unique();
             for prefix in prefixes {
-                let self_target = self_state
+                let old_target = old_state
                     .get(prefix)
                     .map(|x| x.as_slice())
                     .unwrap_or_default();
-                let other_target = other_state
+                let new_target = new_state
                     .get(prefix)
                     .map(|x| x.as_slice())
                     .unwrap_or_default();
-                if self_target != other_target {
+                if old_target != new_target {
                     result.push(FwDelta {
                         router: *router,
                         prefix: *prefix,
-                        new: self_target.to_owned(),
-                        old: other_target.to_owned(),
+                        old: old_target.to_owned(),
+                        new: new_target.to_owned(),
                     })
                 }
             }
