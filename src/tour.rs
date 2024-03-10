@@ -25,7 +25,6 @@ use yewdux::prelude::*;
 use crate::{
     callback, clone,
     net::Net,
-    point::Point,
     state::{Layer, Selected, State},
 };
 
@@ -383,10 +382,11 @@ impl Action {
                 Dispatch::<State>::new().reduce_mut(|state| state.set_layer(*l));
             }
             Action::CreateFirstRouter => {
+                let center = net.dim.center_point();
                 if net.net().internal_indices().next().is_none() {
                     Dispatch::<Net>::new().reduce_mut(|n| {
                         let id = n.net_mut().add_router("Zürich");
-                        n.pos_mut().insert(id, Point::new(0.5, 0.5));
+                        n.pos_mut().insert(id, center);
                     });
                 }
             }

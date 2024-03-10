@@ -86,6 +86,12 @@ impl Dim {
         self.t.inverse(p)
     }
 
+    /// Get the center point in data CS
+    pub fn center_point(&self) -> Point {
+        let screen_center = self.canvas_size() * 0.5;
+        self.screen_to_data(screen_center)
+    }
+
     /// Get the size of the canvas (including the border)
     pub fn true_size(&self) -> Point {
         self.size
