@@ -34,10 +34,13 @@ use crate::{
         OspfImpl, OspfProcess,
     },
     policies::{FwPolicy, PathCondition, PathConditionCNF, PolicyError, Waypoint},
-    record::{ConvergenceRecording, ConvergenceTrace, FwDelta},
+    record::{ConvergenceRecording, ConvergenceTrace},
     route_map::{RouteMap, RouteMapDirection, RouteMapMatch, RouteMapSet, RouteMapState},
     router::StaticRoute,
-    types::{ConfigError, DeviceError, NetworkError, Prefix, PrefixMap, PrefixSet, RouterId},
+    types::{
+        ConfigError, DeviceError, FwDelta, NetworkError, NonOverlappingPrefix, Prefix, PrefixMap,
+        PrefixSet, RouterId,
+    },
 };
 
 /// Trait to format a type that contains RouterIds
@@ -596,20 +599,29 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
 // Recording
 //
 
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for FwDelta {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for FwDelta<P> {
     type Formatter = String;
 
     fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
         format!(
-            "{}: {} => {}",
-            self.0.fmt(net),
-            self.1.iter().map(|r| r.fmt(net)).join("|"),
-            self.2.iter().map(|r| r.fmt(net)).join("|"),
+            "{} --> {}: {}",
+            self.router.fmt(net),
+            self.prefix,
+            if self.new.is_empty() {
+                "X".to_string()
+            } else {
+                self.new
+                    .iter()
+                    .map(|r| net.get_device(*r).map(|x| x.name()).unwrap_or("?"))
+                    .join("|")
+            },
         )
     }
 }
 
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for &[FwDelta] {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for &[FwDelta<P>]
+{
     type Formatter = String;
 
     fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
@@ -617,7 +629,9 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
     }
 }
 
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for Vec<FwDelta> {
+impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
+    for Vec<FwDelta<P>>
+{
     type Formatter = String;
 
     fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
@@ -626,7 +640,7 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
 }
 
 impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
-    for ConvergenceTrace
+    for ConvergenceTrace<P>
 {
     type Formatter = String;
 
@@ -647,8 +661,8 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
     }
 }
 
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf>
-    for ConvergenceRecording
+impl<'a, 'n, P: Prefix + NonOverlappingPrefix, Q, Ospf: OspfImpl>
+    NetworkFormatter<'a, 'n, P, Q, Ospf> for ConvergenceRecording<P>
 {
     type Formatter = String;
 

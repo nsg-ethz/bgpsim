@@ -20,8 +20,8 @@
 
 use crate::{
     bgp::{BgpEvent, BgpRoute},
-    event::{Event, EventOutcome},
-    types::{AsId, DeviceError, Prefix, PrefixMap, RouterId, StepUpdate},
+    event::Event,
+    types::{AsId, DeviceError, Prefix, PrefixMap, RouterId},
 };
 
 use serde::{Deserialize, Serialize};
@@ -86,8 +86,8 @@ impl<P: Prefix> ExternalRouter<P> {
     pub(crate) fn handle_event<T>(
         &mut self,
         _event: Event<P, T>,
-    ) -> Result<EventOutcome<P, T>, DeviceError> {
-        Ok((StepUpdate::Unchanged, vec![]))
+    ) -> Result<Vec<Event<P, T>>, DeviceError> {
+        Ok(vec![])
     }
 
     /// Return the ID of the network device
@@ -147,7 +147,14 @@ impl<P: Prefix> ExternalRouter<P> {
             // only send the withdraw if the route actually did exist
             self.neighbors
                 .iter()
-                .map(|n| Event::bgp(T::default(), self.router_id, *n, vec![BgpEvent::Withdraw(prefix)]))
+                .map(|n| {
+                    Event::bgp(
+                        T::default(),
+                        self.router_id,
+                        *n,
+                        vec![BgpEvent::Withdraw(prefix)],
+                    )
+                })
                 .collect() // create the events to withdraw the route
         } else {
             // nothing to do, no route was advertised

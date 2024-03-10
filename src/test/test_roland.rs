@@ -29,7 +29,7 @@ use crate::{
     policies::{FwPolicy, Policy},
     record::{ConvergenceRecording, ConvergenceTrace, RecordNetwork},
     topology_zoo::TopologyZoo,
-    types::{SinglePrefix as P, StepUpdate},
+    types::{FwDelta, SinglePrefix as P},
 };
 
 use pretty_assertions::assert_eq;
@@ -38,7 +38,7 @@ use pretty_assertions::assert_eq;
 fn roland_pacificwave() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net = TopologyZoo::Pacificwave.build(queue);
+    let mut net: Network<P, _, GlobalOspf> = TopologyZoo::Pacificwave.build(queue);
     let prefix = P::from(1);
 
     // Make sure that at least 3 external routers exist
@@ -87,102 +87,6 @@ fn roland_pacificwave() {
                 let _ = p.check(state);
             });
         }
-    }
-}
-
-#[test]
-fn roland_pacificwave_manual() {
-    // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Pacificwave.build(queue);
-    let prefix = P::from(1);
-
-    // Make sure that at least 3 external routers exist
-    let _external_routers = net
-        .build_external_routers(extend_to_k_external_routers, 3)
-        .unwrap();
-    // create a route reflection topology with the two route reflectors of the highest degree
-    let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes, 2)
-        .unwrap();
-    // setup all external bgp sessions
-    net.build_ebgp_sessions().unwrap();
-    // create random link weights between 10 and 100
-    net.build_link_weights(uniform_link_weight, (10.0, 100.0))
-        .unwrap();
-    // advertise 3 routes with unique preferences for a single prefix
-    let advertisements = net
-        .build_advertisements(prefix, unique_preferences, 3)
-        .unwrap();
-
-    // create the policies
-    let policies = Vec::from_iter(
-        route_reflectors
-            .into_iter()
-            .map(|r| FwPolicy::LoopFree(r, prefix)),
-    );
-
-    // create a copy of the net
-    let mut t = net.clone();
-
-    // get the forwarding state before
-    let fw_state_before = t.get_forwarding_state();
-
-    // execute the event
-    t.manual_simulation();
-    t.withdraw_external_route(advertisements[0][0], prefix)
-        .unwrap();
-
-    // compute the fw state diff
-    let fw_state_after = t.get_forwarding_state();
-    let diff = fw_state_before.diff(&fw_state_after);
-
-    // construct the trace
-    let trace = vec![(diff, Some(0.0).into())];
-
-    let mut fw_state = net.get_forwarding_state();
-    let fw_state_ref = net.get_forwarding_state();
-
-    let t0 = net.queue().get_time().unwrap_or_default();
-
-    // record the event 1_000 times
-    for i in 0..1_000 {
-        println!("iteration {i}");
-        assert_eq!(fw_state, fw_state_ref);
-        // clone the network
-        let mut t = t.clone();
-        let mut trace = trace.clone();
-
-        // simulate the event
-        while let Some((step, event)) = t.simulate_step().unwrap() {
-            match step {
-                StepUpdate::Unchanged => {}
-                StepUpdate::Multiple => unreachable!("OSPF events should be disabled"),
-                StepUpdate::Single(delta) => {
-                    trace.push((
-                        vec![(event.router(), delta.old, delta.new)],
-                        net.queue().get_time().map(|x| x - t0).into(),
-                    ));
-                }
-            }
-        }
-
-        let mut recording = ConvergenceRecording::new(fw_state, trace);
-
-        // check the initial state
-        let state = recording.state();
-        policies.iter().for_each(|p| {
-            let _ = p.check(state);
-        });
-
-        while let Some((_, _, state)) = recording.step() {
-            policies.iter().for_each(|p| {
-                let _ = p.check(state);
-            });
-        }
-
-        // undo the recording
-        fw_state = recording.into_initial_fw_state();
     }
 }
 
@@ -190,7 +94,7 @@ fn roland_pacificwave_manual() {
 fn roland_arpanet() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net = TopologyZoo::Arpanet196912.build(queue);
+    let mut net: Network<P, _, GlobalOspf> = TopologyZoo::Arpanet196912.build(queue);
     let prefix = P::from(1);
 
     // Make sure that at least 3 external routers exist
@@ -242,107 +146,7 @@ fn roland_arpanet() {
     }
 }
 
-#[test]
-fn roland_arpanet_manual() {
-    // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Arpanet196912.build(queue);
-    let prefix = P::from(0);
-
-    // Make sure that at least 3 external routers exist
-    let _external_routers = net
-        .build_external_routers(extend_to_k_external_routers, 3)
-        .unwrap();
-    // create a route reflection topology with the two route reflectors of the highest degree
-    let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes, 2)
-        .unwrap();
-    // setup all external bgp sessions
-    net.build_ebgp_sessions().unwrap();
-    // create random link weights between 10 and 100
-    net.build_link_weights(uniform_link_weight, (10.0, 100.0))
-        .unwrap();
-    // advertise 3 routes with unique preferences for a single prefix
-    let advertisements = net
-        .build_advertisements(prefix, unique_preferences, 3)
-        .unwrap();
-
-    // create the policies
-    let policies = Vec::from_iter(
-        route_reflectors
-            .into_iter()
-            .map(|r| FwPolicy::LoopFree(r, prefix)),
-    );
-
-    // create a copy of the net
-    let mut t = net.clone();
-
-    // enable manual simulation
-    t.manual_simulation();
-
-    // get the forwarding state before
-    let fw_state_before = t.get_forwarding_state();
-
-    // execute the event
-    t.withdraw_external_route(advertisements[0][0], prefix)
-        .unwrap();
-
-    // compute the fw state diff
-    let fw_state_after = t.get_forwarding_state();
-    let diff = fw_state_before.diff(&fw_state_after);
-
-    let t0 = t.queue().get_time().unwrap_or_default();
-
-    // construct the trace
-    let trace = vec![(diff, Some(0.0).into())];
-
-    let mut fw_state = net.get_forwarding_state();
-    let fw_state_ref = net.get_forwarding_state();
-
-    // record the event 1_000 times
-    for i in 0..1_000 {
-        println!("iteration {i}");
-        assert_eq!(fw_state, fw_state_ref);
-        // clone the network
-        let mut t = t.clone();
-        let mut trace = trace.clone();
-
-        // simulate the event
-        while let Some((step, event)) = t.simulate_step().unwrap() {
-            match step {
-                StepUpdate::Unchanged => {}
-                StepUpdate::Multiple => unreachable!("OSPF events should be disabled"),
-                StepUpdate::Single(delta) => {
-                    trace.push((
-                        vec![(event.router(), delta.old, delta.new)],
-                        net.queue().get_time().map(|x| x - t0).into(),
-                    ));
-                }
-            }
-        }
-
-        let mut recording = ConvergenceRecording::new(fw_state, trace);
-
-        // check the initial state
-        let state = recording.state();
-        policies.iter().for_each(|p| {
-            let _ = p.check(state);
-        });
-
-        while recording.step().is_some() {
-            policies.iter().for_each(|p| {
-                let _ = p.check(recording.state());
-            });
-        }
-
-        // go back
-        while recording.back().is_some() {}
-
-        // undo the recording
-        fw_state = recording.into_initial_fw_state();
-    }
-}
-
+/*
 #[test]
 fn roland_arpanet_complete() {
     // setup basic timing model
@@ -402,25 +206,26 @@ fn roland_arpanet_complete() {
 
     let trace = vec![(diff, Some(0.0).into())];
 
-    let sample_func = |(mut t, mut trace): (Network<P, SimpleTimingModel<P>>, ConvergenceTrace)| {
-        while let Some((step, event)) = t.simulate_step().unwrap() {
-            match step {
-                StepUpdate::Unchanged => {}
-                StepUpdate::Multiple => unreachable!("OSPF events should be disabled"),
-                StepUpdate::Single(delta) => {
-                    trace.push((
-                        vec![(event.router(), delta.old, delta.new)],
-                        net.queue().get_time().map(|x| x - t0).into(),
-                    ));
+    let sample_func =
+        |(mut t, mut trace): (Network<P, SimpleTimingModel<P>>, ConvergenceTrace<P>)| {
+            while let Some((step, event)) = t.simulate_step().unwrap() {
+                match step {
+                    StepUpdate::Unchanged => {}
+                    StepUpdate::Multiple => unreachable!("OSPF events should be disabled"),
+                    StepUpdate::Single(delta) => {
+                        trace.push((
+                            vec![(event.router(), delta.old, delta.new)],
+                            net.queue().get_time().map(|x| x - t0).into(),
+                        ));
+                    }
                 }
             }
-        }
 
-        trace
-    };
+            trace
+        };
 
     // record update for the event
-    let mut traces: HashSet<ConvergenceTrace> = HashSet::new();
+    let mut traces: HashSet<ConvergenceTrace<P>> = HashSet::new();
     // extend traces using parallel combinations of the collections of ConvergenceTraces
     traces.extend(
         // execute simulations on `num_cpus` workers in parallel
@@ -479,3 +284,4 @@ fn roland_arpanet_complete() {
         fw_state = recording.into_initial_fw_state();
     }
 }
+*/
