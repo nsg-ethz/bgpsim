@@ -52,6 +52,7 @@ pub struct Interface {
     mac_address: Option<[u8; 6]>,
     no_mac_address: bool,
     shutdown: Option<bool>,
+    switchport: Option<bool>,
 }
 
 impl Interface {
@@ -65,6 +66,7 @@ impl Interface {
             area: None,
             no_area: false,
             shutdown: None,
+            switchport: None,
             dead_interval: None,
             no_dead_interval: false,
             hello_interval: None,
@@ -423,6 +425,44 @@ impl Interface {
         self
     }
 
+    /// Set the interface to be a switchport. In this mode, the interface will not be assigned an IP
+    /// address, but rather, will only work as an L2 switch.
+    ///
+    /// ```
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1").switchport().build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   switchport
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn switchport(&mut self) -> &mut Self {
+        self.switchport = Some(true);
+        self
+    }
+
+    /// Set the interface to be a L3 port. In this mode, the interface can be assigned an IP
+    /// address, and can be used for routing.
+    ///
+    /// ```
+    /// # use bgpsim::export::cisco_frr_generators::{Interface, Target};
+    /// assert_eq!(
+    ///     Interface::new("Ethernet4/1").no_switchport().build(Target::CiscoNexus7000),
+    ///     "\
+    /// interface Ethernet4/1
+    ///   no switchport
+    /// exit
+    /// "
+    /// );
+    /// ```
+    pub fn no_switchport(&mut self) -> &mut Self {
+        self.switchport = Some(false);
+        self
+    }
+
     /// Generate the configuratoin lines as described by the builder. This will create a single
     /// new-line character at the end of the command.
     ///
@@ -434,12 +474,14 @@ impl Interface {
     /// assert_eq!(
     ///     Interface::new("Ethernet4/1")
     ///         .no_shutdown()
+    ///         .no_switchport()
     ///         .ip_address(ip_addr)
     ///         .cost(200f64)
     ///         .area(2)
     ///         .build(Target::CiscoNexus7000),
     ///     "\
     /// interface Ethernet4/1
+    ///   no switchport
     ///   ip address 10.0.0.1/8
     ///   ip ospf cost 200
     ///   ip router ospf 10 area 2
@@ -457,9 +499,14 @@ impl Interface {
         format!(
             "\
         interface {iface}\
-{addr}{cost}{area}{dead}{hello}{mac}{shutdown}
+{switchport}{addr}{cost}{area}{dead}{hello}{mac}{shutdown}
 exit
 ",
+            switchport = match (target, self.switchport) {
+                (Target::CiscoNexus7000, Some(true)) => "\n  switchport",
+                (Target::CiscoNexus7000, Some(false)) => "\n  no switchport",
+                _ => "",
+            },
             iface = self.iface_name,
             addr = self
                 .ip_address
