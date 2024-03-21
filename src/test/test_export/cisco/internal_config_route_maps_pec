@@ -12,6 +12,7 @@ ip prefix-list prefix-0-equivalence-class-pl seq 3 permit 200.0.4.0/23 eq 24
 ! Interfaces
 !
 interface Ethernet8/1
+  no switchport
   ip address 10.128.0.1/30
   ip ospf cost 100
   ip router ospf 10 area 0
@@ -21,6 +22,7 @@ interface Ethernet8/1
 exit
 !
 interface Ethernet8/2
+  no switchport
   ip address 10.128.0.5/30
   ip ospf cost 100
   ip router ospf 10 area 0
@@ -30,6 +32,7 @@ interface Ethernet8/2
 exit
 !
 interface Ethernet8/3
+  no switchport
   ip address 10.128.0.9/30
   ip ospf cost 100
   ip router ospf 10 area 0
@@ -39,6 +42,7 @@ interface Ethernet8/3
 exit
 !
 interface Ethernet8/4
+  no switchport
   ip address 10.192.0.1/30
   ip ospf cost 1
   ip router ospf 10 area 0

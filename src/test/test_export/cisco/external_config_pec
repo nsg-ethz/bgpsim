@@ -4,6 +4,7 @@ feature bgp
 ! Interfaces
 !
 interface Ethernet8/1
+  no switchport
   ip address 10.192.0.1/30
   no shutdown
 exit

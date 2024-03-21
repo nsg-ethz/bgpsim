@@ -230,6 +230,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
             let iface_name = self.iface(r, n, addressor)?;
 
             let mut iface = Interface::new(iface_name);
+            iface.no_switchport();
             iface.ip_address(addressor.iface_address_full(r, n)?);
             iface.no_shutdown();
 
