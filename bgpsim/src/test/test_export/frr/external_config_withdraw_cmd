@@ -1,0 +1,10 @@
+interface lo
+  no ip address 100.0.1.1/24
+exit
+router bgp 4
+  address-family ipv4 unicast
+    no network 100.0.1.0/24
+  exit-address-family
+exit
+no ip prefix-list prefix-list-1
+no route-map neighbor-out permit 2

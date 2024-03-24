@@ -1,0 +1,60 @@
+stages:
+  - build
+  - test
+
+variables:
+  RUSTFLAGS: -D warnings
+
+rust-latest-build:
+  stage: build
+  image: rust:latest
+  script:
+    - rustup component add clippy
+    - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
+    - cargo check --verbose
+    - cargo check --verbose --all-features
+    - cargo check --verbose --tests
+    - cargo check --verbose --all-features --tests
+    - cargo clippy --verbose
+    - cargo clippy --verbose --all-features
+    - cargo clippy --verbose --tests
+    - cargo clippy --verbose --all-features --tests
+
+rust-nightly-build:
+  stage: build
+  image: rustlang/rust:nightly
+  script:
+    - rustup component add clippy
+    - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
+    - cargo check --verbose
+    - cargo check --verbose --all-features
+    - cargo check --verbose --tests
+    - cargo check --verbose --all-features --tests
+    - cargo clippy --verbose
+    - cargo clippy --verbose --all-features
+    - cargo clippy --verbose --tests
+    - cargo clippy --verbose --all-features --tests
+  allow_failure: true
+
+rust-latest-test:
+  stage: test
+  image: rust:latest
+  script:
+    - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
+    - cargo test --verbose --tests --release
+    - cargo test --verbose --tests --all-features --release
+    - cargo test --verbose --doc --all-features
+
+rust-nightly-test:
+  stage: test
+  image: rustlang/rust:nightly
+  script:
+    - sed -i 's/\.\.\/bgpsim-macros/bgpsim-macros/g' Cargo.toml
+    - git clone https://gitlab-ci-token:${CI_JOB_TOKEN}@gitlab.ethz.ch/nsg/employees/sctibor/projects/bgpsim-macros bgpsim-macros
+    - cargo test --verbose --tests --release
+    - cargo test --verbose --tests --all-features --release
+    - cargo test --verbose --doc --all-features
+  allow_failure: true

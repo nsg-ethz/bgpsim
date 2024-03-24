@@ -1,0 +1,7 @@
+/target
+Cargo.lock
+flamegraph.svg
+perf.data
+perf.data.old
+.vscode/
+launch.json

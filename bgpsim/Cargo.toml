@@ -1,0 +1,65 @@
+[package]
+name = "bgpsim"
+version = "0.17.1"
+edition = "2021"
+
+[package.metadata.docs.rs]
+all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
+
+[[bin]]
+name = "generate-topology-zoo"
+path = "generate_topology_zoo.rs"
+required-features = ["topology_zoo"]
+
+[[bench]]
+name = "benchmark"
+harness = false
+required-features = ["topology_zoo", "rand_queue", "rand"]
+
+[[bench]]
+name = "common"
+harness = false
+required-features = ["topology_zoo", "rand_queue", "rand"]
+
+[[bench]]
+name = "roland"
+harness = false
+required-features = ["topology_zoo", "rand_queue", "rand"]
+
+# See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
+[features]
+rand = ["dep:rand"]
+rand_queue = ["rand", "dep:rand_distr", "dep:priority-queue", "dep:geoutils"]
+topology_zoo = ["dep:xmltree", "dep:geoutils", "dep:include-flate"]
+export = ["dep:bimap"]
+
+[dependencies]
+bgpsim-macros = {path = "../bgpsim-macros"}
+prefix-trie = { version = "0.2.4", features = [ "serde" ]}
+thiserror = "1"
+petgraph = { version = "0.6", features = [ "serde-1" ]}
+log = "0.4"
+itertools = "0.10"
+ordered-float = { version = "3.0.0", features = [ "serde" ]}
+lazy_static = "1.4.0"
+priority-queue = { version = "1.2.2", features = [ "serde" ], optional = true }
+rand = { version = "0.8.4", optional = true }
+rand_distr = { version = "0.4.3", optional = true }
+serde = { version = "1", features = [ "derive" ]}
+serde_json = { version = "1" }
+serde_with = { version = "2.0", features = []}
+xmltree = { version = "0.10", optional = true }
+geoutils = { version = "0.5.1", optional = true }
+maplit = "1.0.2"
+ipnet = { version = "2.5.0", features = [ "serde" ] }
+bimap = { version = "0.6.2", optional = true }
+include-flate = { version = "0.2", optional = true, features = ["stable"] }
+
+[dev-dependencies]
+rand = "0.8.4"
+env_logger = "0.9.0"
+pretty_assertions = "1.2.1"
+criterion = "0.4.0"
+approx = "0.5.1"
+generic-tests = "0.1.2"

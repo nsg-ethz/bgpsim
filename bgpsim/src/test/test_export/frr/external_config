@@ -1,0 +1,51 @@
+!
+!
+! Interfaces
+!
+interface eth1
+  ip address 10.192.0.1/30
+  no shutdown
+exit
+!
+interface lo
+  ip address 20.0.0.1/32
+  no shutdown
+exit
+!
+! BGP
+!
+route-map neighbor-in permit 65535
+exit
+route-map neighbor-out permit 65535
+exit
+!
+router bgp 4
+  bgp router-id 20.0.0.1
+  neighbor 10.192.0.2 remote-as 65535
+  neighbor 10.192.0.2 update-source eth1
+  address-family ipv4 unicast
+    network 20.0.0.0/24
+    neighbor 10.192.0.2 next-hop-self
+    neighbor 10.192.0.2 route-map neighbor-in in
+    neighbor 10.192.0.2 route-map neighbor-out out
+  exit-address-family
+exit
+!
+ip route 20.0.0.0/24 Null0
+!
+! Create external advertisements
+!
+interface lo
+  ip address 100.0.0.1/24
+exit
+router bgp 4
+  address-family ipv4 unicast
+    network 100.0.0.0/24
+  exit-address-family
+exit
+ip prefix-list prefix-list-0 seq 1 permit 100.0.0.0/24
+route-map neighbor-out permit 1
+  match ip address prefix-list prefix-list-0
+  set metric 0
+  set as-path prepend 4 4 2 1
+exit

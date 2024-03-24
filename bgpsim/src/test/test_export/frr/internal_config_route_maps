@@ -1,0 +1,151 @@
+!
+!
+! Interfaces
+!
+interface eth1
+  ip address 10.128.0.1/30
+  ip ospf cost 100
+  ip ospf area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
+  no shutdown
+exit
+!
+interface eth2
+  ip address 10.128.0.5/30
+  ip ospf cost 100
+  ip ospf area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
+  no shutdown
+exit
+!
+interface eth3
+  ip address 10.128.0.9/30
+  ip ospf cost 100
+  ip ospf area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
+  no shutdown
+exit
+!
+interface eth4
+  ip address 10.192.0.1/30
+  ip ospf cost 1
+  ip ospf area 0
+  ip ospf dead-interval 5
+  ip ospf hello-interval 1
+  no shutdown
+exit
+!
+interface lo
+  ip address 10.0.0.1/32
+  ip ospf cost 1
+  ip ospf area 0
+  no shutdown
+exit
+!
+! Static Routes
+!
+!
+! OSPF
+!
+router ospf
+  router-id 10.0.0.1
+  maximum-paths 1
+exit
+!
+! BGP
+!
+route-map neighbor-R1-in permit 65535
+exit
+route-map neighbor-R1-out permit 65535
+exit
+route-map neighbor-R2-in permit 65535
+exit
+route-map neighbor-R2-out permit 65535
+exit
+route-map neighbor-R3-in permit 65535
+exit
+route-map neighbor-R3-out permit 65535
+exit
+route-map neighbor-R0_ext_4-in permit 65535
+exit
+route-map neighbor-R0_ext_4-out permit 65535
+exit
+!
+router bgp 65535
+  bgp router-id 10.0.0.1
+  neighbor 10.0.1.1 remote-as 65535
+  neighbor 10.0.1.1 update-source lo
+  neighbor 10.0.2.1 remote-as 65535
+  neighbor 10.0.2.1 update-source lo
+  neighbor 10.0.3.1 remote-as 65535
+  neighbor 10.0.3.1 update-source lo
+  neighbor 10.192.0.2 remote-as 4
+  neighbor 10.192.0.2 update-source eth4
+  address-family ipv4 unicast
+    network 10.0.0.0/8
+    neighbor 10.0.1.1 weight 100
+    neighbor 10.0.1.1 next-hop-self
+    neighbor 10.0.1.1 route-map neighbor-R1-in in
+    neighbor 10.0.1.1 route-map neighbor-R1-out out
+    neighbor 10.0.1.1 send-community
+    neighbor 10.0.1.1 soft-reconfiguration inbound
+    neighbor 10.0.2.1 weight 100
+    neighbor 10.0.2.1 next-hop-self
+    neighbor 10.0.2.1 route-map neighbor-R2-in in
+    neighbor 10.0.2.1 route-map neighbor-R2-out out
+    neighbor 10.0.2.1 send-community
+    neighbor 10.0.2.1 soft-reconfiguration inbound
+    neighbor 10.0.3.1 weight 100
+    neighbor 10.0.3.1 next-hop-self
+    neighbor 10.0.3.1 route-map neighbor-R3-in in
+    neighbor 10.0.3.1 route-map neighbor-R3-out out
+    neighbor 10.0.3.1 send-community
+    neighbor 10.0.3.1 soft-reconfiguration inbound
+    neighbor 10.192.0.2 weight 100
+    neighbor 10.192.0.2 next-hop-self
+    neighbor 10.192.0.2 route-map neighbor-R0_ext_4-in in
+    neighbor 10.192.0.2 route-map neighbor-R0_ext_4-out out
+    neighbor 10.192.0.2 soft-reconfiguration inbound
+  exit-address-family
+exit
+!
+ip route 10.0.0.0/8 Null0
+!
+! Route-Maps
+!
+ip prefix-list neighbor-R0_ext_4-in-32778-pl seq 1 permit 100.0.0.0/24
+bgp community-list standard neighbor-R0_ext_4-in-32778-cl permit 65535:10
+route-map neighbor-R0_ext_4-in permit 32778
+  match ip address prefix-list neighbor-R0_ext_4-in-32778-pl
+  match community neighbor-R0_ext_4-in-32778-cl
+  set weight 10
+  continue 32798
+exit
+!
+bgp community-list standard neighbor-R0_ext_4-in-32788-cl permit 65535:20
+route-map neighbor-R0_ext_4-in permit 32788
+  match community neighbor-R0_ext_4-in-32788-cl
+  set weight 20
+exit
+!
+bgp community-list standard neighbor-R0_ext_4-in-32798-cl permit 65535:30
+route-map neighbor-R0_ext_4-in permit 32798
+  match community neighbor-R0_ext_4-in-32798-cl
+  set weight 30
+  continue 32808
+exit
+!
+bgp community-list standard neighbor-R0_ext_4-in-32808-cl permit 65535:40
+route-map neighbor-R0_ext_4-in permit 32808
+  match community neighbor-R0_ext_4-in-32808-cl
+  set weight 40
+  continue 65535
+exit
+!
+bgp community-list standard neighbor-R0_ext_4-out-32778-cl permit 65535:20
+route-map neighbor-R0_ext_4-out deny 32778
+  match community neighbor-R0_ext_4-out-32778-cl
+exit
