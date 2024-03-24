@@ -47,6 +47,7 @@ jobs:
         uses: actions-rs/grcov@v0.1
         with:
           coveralls-token: ${{ secrets.COVERALLS_TOKEN }}
+          config: .grcov-config.yml
 
       - name: Coveralls upload
         uses: coverallsapp/github-action@master
