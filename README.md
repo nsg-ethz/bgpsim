@@ -1,9 +1,13 @@
 # A Network Control-Plane Simulator
 
 This is a simulator for BGP and OSPF routing protocols.
-It is based on many layers of abstraction:
-- Routers and interfaces do not have IP addresses but simply identifiers (`RouterId`),
-- Messages are exchanged in a global event queue, without modeling Layer 1 to 4,
+It does not model OSI Layers 1 to 4.
+Thus, routers and interfaces do not have an IP address but use an identifier (`RouterId`).
+Further, the simulator exchanges control-plane messages using a global event queue *without* directly modeling time.
+The messages do not (necessarily) reflect how control-plane messages are serialized and deseialized.
+The implementation of both BGP and OSPF does *not* directly correspond to the specifications from IETF.
+Instead, the protocols are simplified (e.g., routers don't exchange OSPF hello and BGP keepalive packets).
+
 
 ## Features
 - Supported protocols:
