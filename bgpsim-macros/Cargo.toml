@@ -2,6 +2,13 @@
 name = "bgpsim-macros"
 version = "0.11.0"
 edition = "2021"
+license-file = "LICENSE"
+description = "BGPSim Macros for generating networks conveniently"
+homepage = "https://bgpsim.github.io"
+repository = "https://github.com/nsg-ethz/bgpsim"
+readme = "README.md"
+keywords = ["bgp", "ospf", "routing", "network"]
+categories = ["simulation"]
 
 [lib]
 name = "bgpsim_macros"
