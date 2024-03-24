@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#![doc(html_logo_url = "https://iospf.tibors.ch/images/bgpsim/dark_only.svg")]
+#![doc(html_logo_url = "https://bgpsim.github.io/dark_only.svg")]
 
 use proc_macro::TokenStream;
 
