@@ -1,3 +1,9 @@
+![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nsg-ethz/bgpsim/rust.yml)
+![Crates.io Version](https://img.shields.io/crates/v/bgpsim)
+![Crates.io Total Downloads](https://img.shields.io/crates/d/bgpsim)
+![docs.rs](https://img.shields.io/docsrs/bgpsim)
+![Coveralls](https://img.shields.io/coverallsCoverage/github/nsg-ethz/bgpsim)
+
 # A Network Control-Plane Simulator
 
 This is a simulator for BGP and OSPF routing protocols.
