@@ -132,3 +132,25 @@ fn main() -> Result<(), NetworkError> {
     Ok(())
 }
 ```
+
+If you are using this project, please cite us:
+
+```bibtex
+@INPROCEEDINGS{schneider2021snowcap,
+	isbn = {978-1-4503-8383-7},
+	copyright = {In Copyright - Non-Commercial Use Permitted},
+	doi = {10.3929/ethz-b-000491508},
+	year = {2021-08},
+	booktitle = {Proceedings of the 2021 ACM SIGCOMM Conference},
+	type = {Conference Paper},
+	institution = {EC},
+	author = {Schneider, Tibor and Birkner, Rüdiger and Vanbever, Laurent},
+	keywords = {Network analysis; Configuration; Migration},
+	language = {en},
+	address = {New York, NY},
+	publisher = {Association for Computing Machinery},
+	title = {Snowcap: Synthesizing Network-Wide Configuration Updates},
+	PAGES = {33 - 49},
+	Note = {ACM SIGCOMM 2021 Conference; Conference Location: Online; Conference Date: August 23-27, 2021}
+}
+```
