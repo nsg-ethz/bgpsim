@@ -68,15 +68,8 @@ impl<P: Prefix> SimpleTimingModel<P> {
     }
 }
 
-impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
-    type Priority = NotNan<f64>;
-
-    fn push<Ospf: OspfProcess>(
-        &mut self,
-        mut event: Event<P, Self::Priority>,
-        _routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
-        _net: &PhysicalNetwork,
-    ) {
+impl<P: Prefix> SimpleTimingModel<P> {
+    fn push_single(&mut self, mut event: Event<P, NotNan<f64>>) {
         let mut next_time = self.current_time;
         let mut rng = thread_rng();
 
@@ -105,6 +98,21 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
 
         // enqueue with the computed time
         self.q.push(event, Reverse(next_time));
+    }
+}
+
+impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
+    type Priority = NotNan<f64>;
+
+    fn push<Ospf: OspfProcess>(
+        &mut self,
+        events: Vec<Event<P, Self::Priority>>,
+        _routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        _net: &PhysicalNetwork,
+    ) {
+        for event in events {
+            self.push_single(event)
+        }
     }
 
     fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
@@ -409,25 +417,12 @@ impl<P: Prefix> GeoTimingModel<P> {
         })
         .unwrap()
     }
-}
 
-impl<P: Prefix> PartialEq for GeoTimingModel<P> {
-    fn eq(&self, other: &Self) -> bool {
-        self.q.iter().collect::<Vec<_>>() == other.q.iter().collect::<Vec<_>>()
-    }
-}
-
-impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
-    type Priority = NotNan<f64>;
-
-    fn push<Ospf: OspfProcess>(
-        &mut self,
-        mut event: Event<P, Self::Priority>,
-        _: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
-        _: &PhysicalNetwork,
-    ) {
-        let mut next_time = self.current_time;
+    /// Push a single event into the queue
+    fn push_single(&mut self, mut event: Event<P, NotNan<f64>>) {
         let mut rng = thread_rng();
+
+        let mut next_time = self.current_time;
         // match on the event
         match event {
             Event::Bgp {
@@ -478,6 +473,27 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         }
         // enqueue with the computed time
         self.q.push(event, Reverse(next_time));
+    }
+}
+
+impl<P: Prefix> PartialEq for GeoTimingModel<P> {
+    fn eq(&self, other: &Self) -> bool {
+        self.q.iter().collect::<Vec<_>>() == other.q.iter().collect::<Vec<_>>()
+    }
+}
+
+impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
+    type Priority = NotNan<f64>;
+
+    fn push<Ospf: OspfProcess>(
+        &mut self,
+        events: Vec<Event<P, Self::Priority>>,
+        _: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        _: &PhysicalNetwork,
+    ) {
+        for event in events {
+            self.push_single(event)
+        }
     }
 
     fn pop(&mut self) -> Option<Event<P, Self::Priority>> {

@@ -63,12 +63,12 @@ mod t2 {
         // external update //
         /////////////////////
 
-        let (_, events) = r
+        let events = r
             .handle_event(Event::bgp(
                 (),
                 100.into(),
                 0.into(),
-                BgpEvent::Update(BgpRoute {
+                vec![BgpEvent::Update(BgpRoute {
                     prefix: P::from(200),
                     as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
                     next_hop: 100.into(),
@@ -77,7 +77,7 @@ mod t2 {
                     community: Default::default(),
                     originator_id: None,
                     cluster_list: Vec::new(),
-                }),
+                })],
             ))
             .unwrap();
 
@@ -89,13 +89,14 @@ mod t2 {
         assert_eq!(events.len(), 6);
         for event in events {
             match event {
-                Event::Bgp {
-                    src,
-                    e: BgpEvent::Update(r),
-                    ..
-                } => {
-                    assert_eq!(src, 0.into());
-                    assert_eq!(r.next_hop, 0.into()); // change next-hop to self.
+                Event::Bgp { src, mut e, .. } if e.len() == 1 => {
+                    match e.pop().unwrap() {
+                        BgpEvent::Update(r) => {
+                            assert_eq!(src, 0.into());
+                            assert_eq!(r.next_hop, 0.into()); // change next-hop to self.
+                        }
+                        _ => panic!("Test failed"),
+                    }
                 }
                 _ => panic!("Test failed"),
             }
@@ -109,12 +110,12 @@ mod t2 {
 
         // update from route reflector
 
-        let (_, events) = r
+        let events = r
             .handle_event(Event::bgp(
                 (),
                 1.into(),
                 0.into(),
-                BgpEvent::Update(BgpRoute {
+                vec![BgpEvent::Update(BgpRoute {
                     prefix: P::from(201),
                     as_path: vec![AsId(1), AsId(2), AsId(3)],
                     next_hop: 11.into(),
@@ -123,7 +124,7 @@ mod t2 {
                     community: Default::default(),
                     originator_id: None,
                     cluster_list: Vec::new(),
-                }),
+                })],
             ))
             .unwrap();
 
@@ -136,19 +137,19 @@ mod t2 {
         for event in events {
             match event {
                 Event::Bgp {
-                    src,
-                    dst,
-                    e: BgpEvent::Update(r),
-                    ..
-                } => {
-                    assert_eq!(src, 0.into());
-                    assert!(hashset![4, 5, 6, 100].contains(&(dst.index())));
-                    if dst == 100.into() {
-                        assert_eq!(r.next_hop, 0.into());
-                    } else {
-                        assert_eq!(r.next_hop, 11.into());
+                    src, dst, mut e, ..
+                } if e.len() == 1 => match e.pop().unwrap() {
+                    BgpEvent::Update(r) => {
+                        assert_eq!(src, 0.into());
+                        assert!(hashset![4, 5, 6, 100].contains(&(dst.index())));
+                        if dst == 100.into() {
+                            assert_eq!(r.next_hop, 0.into());
+                        } else {
+                            assert_eq!(r.next_hop, 11.into());
+                        }
                     }
-                }
+                    _ => panic!("test failed!"),
+                },
                 _ => panic!("test failed!"),
             }
         }
@@ -159,12 +160,12 @@ mod t2 {
 
         // update from route reflector
 
-        let (_, events) = r
+        let events = r
             .handle_event(Event::bgp(
                 (),
                 2.into(),
                 0.into(),
-                BgpEvent::Update(BgpRoute {
+                vec![BgpEvent::Update(BgpRoute {
                     prefix: P::from(200),
                     as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
                     next_hop: 10.into(),
@@ -173,7 +174,7 @@ mod t2 {
                     community: Default::default(),
                     originator_id: None,
                     cluster_list: Vec::new(),
-                }),
+                })],
             ))
             .unwrap();
 
@@ -189,12 +190,12 @@ mod t2 {
 
         // update from route reflector
 
-        let (_, events) = r
+        let events = r
             .handle_event(Event::bgp(
                 (),
                 5.into(),
                 0.into(),
-                BgpEvent::Update(BgpRoute {
+                vec![BgpEvent::Update(BgpRoute {
                     prefix: P::from(200),
                     as_path: vec![
                         AsId(1),
@@ -214,7 +215,7 @@ mod t2 {
                     community: Default::default(),
                     originator_id: None,
                     cluster_list: Vec::new(),
-                }),
+                })],
             ))
             .unwrap();
 
@@ -227,32 +228,26 @@ mod t2 {
         for event in events {
             match event {
                 Event::Bgp {
-                    src,
-                    dst,
-                    e: BgpEvent::Update(r),
-                    ..
-                } => {
-                    assert_eq!(src, 0.into());
-                    assert!(hashset![1, 2, 3, 4, 6, 100].contains(&(dst.index())));
-                    if dst == 100.into() {
-                        assert_eq!(r.next_hop, 0.into());
-                        assert_eq!(r.local_pref, None);
-                    } else {
-                        assert_eq!(r.next_hop, 5.into());
-                        assert_eq!(r.local_pref, Some(150));
+                    src, dst, mut e, ..
+                } if e.len() == 1 => match e.pop().unwrap() {
+                    BgpEvent::Update(r) => {
+                        assert_eq!(src, 0.into());
+                        assert!(hashset![1, 2, 3, 4, 6, 100].contains(&(dst.index())));
+                        if dst == 100.into() {
+                            assert_eq!(r.next_hop, 0.into());
+                            assert_eq!(r.local_pref, None);
+                        } else {
+                            assert_eq!(r.next_hop, 5.into());
+                            assert_eq!(r.local_pref, Some(150));
+                        }
                     }
-                }
-                Event::Bgp {
-                    src,
-                    dst,
-                    e: BgpEvent::Withdraw(prefix),
-                    ..
-                } => {
-                    assert_eq!(src, 0.into());
-                    assert_eq!(dst, 5.into());
-                    assert_eq!(prefix, P::from(200));
-                }
-                Event::Ospf { .. } => unreachable!(),
+                    BgpEvent::Withdraw(prefix) => {
+                        assert_eq!(src, 0.into());
+                        assert_eq!(dst, 5.into());
+                        assert_eq!(prefix, P::from(200));
+                    }
+                },
+                _ => unreachable!(),
             }
         }
 
@@ -260,12 +255,12 @@ mod t2 {
         // retract bad route //
         ///////////////////////
 
-        let (_, events) = r
+        let events = r
             .handle_event(Event::bgp(
                 (),
                 2.into(),
                 0.into(),
-                BgpEvent::Withdraw(P::from(200)),
+                vec![BgpEvent::Withdraw(P::from(200))],
             ))
             .unwrap();
 
@@ -278,12 +273,12 @@ mod t2 {
         // retract good route //
         ////////////////////////
 
-        let (_, events) = r
+        let events = r
             .handle_event(Event::bgp(
                 (),
                 5.into(),
                 0.into(),
-                BgpEvent::Withdraw(P::from(200)),
+                vec![BgpEvent::Withdraw(P::from(200))],
             ))
             .unwrap();
 
@@ -295,27 +290,21 @@ mod t2 {
         for event in events {
             match event {
                 Event::Bgp {
-                    src,
-                    dst,
-                    e: BgpEvent::Update(r),
-                    ..
-                } => {
-                    assert_eq!(src, 0.into());
-                    assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(dst.index())));
-                    assert_eq!(r.next_hop, 0.into()); // next-hop must be changed to self.
-                    assert_eq!(r.local_pref, Some(100));
-                }
-                Event::Bgp {
-                    src,
-                    dst,
-                    e: BgpEvent::Withdraw(prefix),
-                    ..
-                } => {
-                    assert_eq!(src, 0.into());
-                    assert_eq!(dst, 100.into());
-                    assert_eq!(prefix, P::from(200));
-                }
-                Event::Ospf { .. } => unreachable!(),
+                    src, dst, mut e, ..
+                } if e.len() == 1 => match e.pop().unwrap() {
+                    BgpEvent::Update(r) => {
+                        assert_eq!(src, 0.into());
+                        assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(dst.index())));
+                        assert_eq!(r.next_hop, 0.into()); // next-hop must be changed to self.
+                        assert_eq!(r.local_pref, Some(100));
+                    }
+                    BgpEvent::Withdraw(prefix) => {
+                        assert_eq!(src, 0.into());
+                        assert_eq!(dst, 100.into());
+                        assert_eq!(prefix, P::from(200));
+                    }
+                },
+                _ => unreachable!(),
             }
         }
 
@@ -323,12 +312,12 @@ mod t2 {
         // retract last route //
         ////////////////////////
 
-        let (_, events) = r
+        let events = r
             .handle_event(Event::bgp(
                 (),
                 100.into(),
                 0.into(),
-                BgpEvent::Withdraw(P::from(200)),
+                vec![BgpEvent::Withdraw(P::from(200))],
             ))
             .unwrap();
 
@@ -339,14 +328,15 @@ mod t2 {
             let p200 = P::from(200);
             match event {
                 Event::Bgp {
-                    src,
-                    dst,
-                    e: BgpEvent::Withdraw(p),
-                    ..
-                } if p == p200 => {
-                    assert_eq!(src, 0.into());
-                    assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(dst.index())));
-                }
+                    src, dst, mut e, ..
+                } if e.len() == 1 => match e.pop().unwrap() {
+                    BgpEvent::Withdraw(p) => {
+                        assert_eq!(p, p200);
+                        assert_eq!(src, 0.into());
+                        assert!(hashset![1, 2, 3, 4, 5, 6].contains(&(dst.index())));
+                    }
+                    _ => panic!(),
+                },
                 _ => panic!(),
             }
         }
@@ -383,7 +373,7 @@ mod t1 {
                 (),
                 0.into(),
                 1.into(),
-                BgpEvent::Update(BgpRoute {
+                vec![BgpEvent::Update(BgpRoute {
                     prefix: P::from(0),
                     as_path: vec![AsId(0)],
                     next_hop: 0.into(),
@@ -392,7 +382,7 @@ mod t1 {
                     community: Default::default(),
                     originator_id: None,
                     cluster_list: Vec::new(),
-                }),
+                })],
             )
         );
 
@@ -403,7 +393,7 @@ mod t1 {
         assert_eq!(events.len(), 1);
         assert_eq!(
             events[0],
-            Event::bgp((), 0.into(), 1.into(), BgpEvent::Withdraw(P::from(0)))
+            Event::bgp((), 0.into(), 1.into(), vec![BgpEvent::Withdraw(P::from(0))])
         )
     }
 
@@ -430,7 +420,7 @@ mod t1 {
                 (),
                 0.into(),
                 1.into(),
-                BgpEvent::Update(BgpRoute {
+                vec![BgpEvent::Update(BgpRoute {
                     prefix: P::from(0),
                     as_path: vec![AsId(0)],
                     next_hop: 0.into(),
@@ -439,7 +429,7 @@ mod t1 {
                     community: Default::default(),
                     originator_id: None,
                     cluster_list: Vec::new(),
-                }),
+                })],
             )
         );
 
@@ -489,49 +479,59 @@ mod ipv4 {
         let p1: Ipv4Prefix = "10.0.0.0/24".parse::<Ipv4Net>().unwrap().into();
 
         // external update
-        let (_, events) = r
+        let events = r
             .handle_event(Event::bgp(
                 (),
                 100.into(),
                 0.into(),
-                BgpEvent::Update(BgpRoute::new(100.into(), p0, 1..=5, None, None)),
+                vec![BgpEvent::Update(BgpRoute::new(
+                    100.into(),
+                    p0,
+                    1..=5,
+                    None,
+                    None,
+                ))],
             ))
             .unwrap();
         assert_eq!(events.len(), 3);
         for event in events {
             match event {
-                Event::Bgp {
-                    src,
-                    e: BgpEvent::Update(r),
-                    ..
-                } => {
-                    assert_eq!(r, BgpRoute::new(0.into(), p0, 1..=5, None, None));
-                    assert_eq!(src, 0.into());
-                }
+                Event::Bgp { src, mut e, .. } if e.len() == 1 => match e.pop().unwrap() {
+                    BgpEvent::Update(r) => {
+                        assert_eq!(r, BgpRoute::new(0.into(), p0, 1..=5, None, None));
+                        assert_eq!(src, 0.into());
+                    }
+                    _ => panic!("Test failed"),
+                },
                 _ => panic!("Test failed"),
             }
         }
 
         // Internal update
-        let (_, events) = r
+        let events = r
             .handle_event(Event::bgp(
                 (),
                 100.into(),
                 0.into(),
-                BgpEvent::Update(BgpRoute::new(100.into(), p1, 1..=7, None, None)),
+                vec![BgpEvent::Update(BgpRoute::new(
+                    100.into(),
+                    p1,
+                    1..=7,
+                    None,
+                    None,
+                ))],
             ))
             .unwrap();
         assert_eq!(events.len(), 3);
         for event in events {
             match event {
-                Event::Bgp {
-                    src,
-                    e: BgpEvent::Update(r),
-                    ..
-                } => {
-                    assert_eq!(r, BgpRoute::new(0.into(), p1, 1..=7, None, None));
-                    assert_eq!(src, 0.into());
-                }
+                Event::Bgp { src, mut e, .. } if e.len() == 1 => match e.pop().unwrap() {
+                    BgpEvent::Update(r) => {
+                        assert_eq!(r, BgpRoute::new(0.into(), p1, 1..=7, None, None));
+                        assert_eq!(src, 0.into());
+                    }
+                    _ => panic!("Test failed"),
+                },
                 _ => panic!("Test failed"),
             }
         }
@@ -583,7 +583,13 @@ mod ipv4 {
             (),
             100.into(),
             0.into(),
-            BgpEvent::Update(BgpRoute::new(100.into(), p0, 1..=5, None, None)),
+            vec![BgpEvent::Update(BgpRoute::new(
+                100.into(),
+                p0,
+                1..=5,
+                None,
+                None,
+            ))],
         ))
         .unwrap();
 

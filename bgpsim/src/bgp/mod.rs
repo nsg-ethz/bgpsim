@@ -19,13 +19,80 @@ mod state;
 pub use state::*;
 
 use crate::{
+    event::Event,
     ospf::LinkWeight,
     types::{AsId, Prefix, RouterId},
 };
 
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::BTreeSet, hash::Hash};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap},
+    hash::Hash,
+};
+
+/// MTU, used to determine how many routes fit into a single message, minus the size of the IPv4
+/// header (20 bytes) and TCP header (20 + 12 bytes)
+pub const MAX_BGP_MSG_SIZE_BYTES: i32 = 590 - 20 - 20 - 12;
+/// The minimum BGP message contains the marker, length, type, withdraw routes length, attribute
+/// length, and NLRI length (in that order)
+pub const MIN_BGP_MSG_SIZE_BYTES: i32 = 16 + 2 + 1 + 2 + 2 + 1;
+
+/// Split a set of BGP events into a sequence of batched BGP events. The batches are determined by
+/// the size of all individual BGP Events.
+pub fn split_into_messages<P: Prefix>(events: Vec<BgpEvent<P>>) -> Vec<Vec<BgpEvent<P>>> {
+    let mut available_space = 0i32;
+    let mut result = Vec::new();
+    for e in events {
+        let size = match &e {
+            BgpEvent::Withdraw(_) if available_space >= 4 => 4,
+            BgpEvent::Withdraw(_) => MIN_BGP_MSG_SIZE_BYTES + 4,
+            BgpEvent::Update(r) => MIN_BGP_MSG_SIZE_BYTES + 4 + r.path_attribute_size() as i32,
+        };
+        if available_space < size {
+            // create a new message
+            result.push(Vec::new());
+            // subtract the marker, length, type, withdraw routes length, attribute length, and NLRI
+            // length (in that order)
+            available_space = MAX_BGP_MSG_SIZE_BYTES;
+        }
+        // push the event
+        result.last_mut().unwrap().push(e);
+        available_space -= size;
+    }
+    result
+}
+
+/// Split and join all BGP messages by batching them accordingly.
+pub fn split_join_bgp_messages<P: Prefix, T: Default>(
+    events: Vec<Event<P, T>>,
+) -> Vec<Event<P, T>> {
+    let mut output_events = Vec::new();
+    let mut bgp_events: HashMap<_, Vec<_>> = HashMap::new();
+    for event in events {
+        match event {
+            Event::Bgp { src, dst, e, .. } => bgp_events
+                .entry((src, dst))
+                .or_default()
+                .extend_from_slice(&e),
+            event @ Event::Ospf { .. } => output_events.push(event),
+        }
+    }
+
+    for ((src, dst), e) in bgp_events {
+        for e in split_into_messages(e) {
+            output_events.push(Event::Bgp {
+                p: Default::default(),
+                src,
+                dst,
+                e,
+            });
+        }
+    }
+
+    output_events
+}
 
 /// Bgp Route
 /// The following attributes are omitted
@@ -86,9 +153,7 @@ impl<P: Prefix> BgpRoute<P> {
         self.local_pref = Some(self.local_pref.unwrap_or(100));
         self.med = Some(self.med.unwrap_or(0));
     }
-}
 
-impl<P: Prefix> BgpRoute<P> {
     /// returns a clone of self, with the default values applied for any non-mandatory field.
     pub fn clone_default(&self) -> Self {
         Self {
@@ -115,6 +180,34 @@ impl<P: Prefix> BgpRoute<P> {
             originator_id: self.originator_id,
             cluster_list: self.cluster_list,
         }
+    }
+
+    /// Get the number of bytes required for representing the path attributes in bytes.
+    pub fn path_attribute_size(&self) -> usize {
+        let origin_size = 2 + 2;
+        let as_path_size = 2 + 1 + 2 * self.as_path.len();
+        let next_hop_size = 2 + 4;
+        let med_size = if self.med.is_some() { 2 + 4 } else { 0 };
+        let lp_size = if self.local_pref.is_some() { 2 + 4 } else { 0 };
+        let community_size = if self.community.is_empty() {
+            0
+        } else {
+            2 + 1 + 4 + self.community.len()
+        };
+        let originator_id_size = if self.originator_id.is_some() { 6 } else { 0 };
+        let cluster_list_size = if self.cluster_list.is_empty() {
+            0
+        } else {
+            2 + 1 + 4 * self.cluster_list.len()
+        };
+        origin_size
+            + as_path_size
+            + next_hop_size
+            + med_size
+            + lp_size
+            + community_size
+            + originator_id_size
+            + cluster_list_size
     }
 }
 

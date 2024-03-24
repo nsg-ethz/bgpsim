@@ -28,7 +28,7 @@
 //! BGP process of an internal router.
 
 use crate::{
-    bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
+    bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType, split_join_bgp_messages},
     config::RouteMapEdit,
     event::Event,
     formatter::NetworkFormatter,
@@ -245,7 +245,8 @@ impl<P: Prefix> BgpProcess<P> {
         };
 
         // udpate the tables
-        self.update_tables(true).map(|events| (old_type, events))
+        self.update_tables(true)
+            .map(|events| (old_type, split_join_bgp_messages(events)))
     }
 
     /// Update or remove a route-map from the router. If a route-map with the same order (for the
@@ -292,7 +293,8 @@ impl<P: Prefix> BgpProcess<P> {
             }
         };
 
-        self.update_tables(true).map(|events| (old_map, events))
+        self.update_tables(true)
+            .map(|events| (old_map, split_join_bgp_messages(events)))
     }
 
     /// Update or remove multiple route-map items. Any existing route-map entry for the same
@@ -337,7 +339,8 @@ impl<P: Prefix> BgpProcess<P> {
             }
         }
 
-        self.update_tables(true)
+        let events = self.update_tables(true)?;
+        Ok(split_join_bgp_messages(events))
     }
 
     /// Remove any route map that has the specified order and direction. If the route-map does not
@@ -383,7 +386,7 @@ impl<P: Prefix> BgpProcess<P> {
         };
 
         self.update_tables(true)
-            .map(|events| (Some(old_map), events))
+            .map(|events| (Some(old_map), split_join_bgp_messages(events)))
     }
 
     /*
@@ -395,8 +398,11 @@ impl<P: Prefix> BgpProcess<P> {
     pub(crate) fn handle_event<T: Default>(
         &mut self,
         from: RouterId,
-        event: BgpEvent<P>,
+        events: Vec<BgpEvent<P>>,
     ) -> Result<Vec<Event<P, T>>, DeviceError> {
+        let mut output_events = Vec::new();
+
+        for event in events {
         // first, check if the event was received from a bgp peer
         if !self.sessions.contains_key(&from) {
             log::warn!("Received a bgp event form a non-neighbor! Ignore event!");
@@ -424,10 +430,11 @@ impl<P: Prefix> BgpProcess<P> {
         }?;
         if changed {
             // phase 3
-            self.run_dissemination_for_prefix(prefix)
-        } else {
-            Ok(Vec::new())
+            output_events.extend(self.run_dissemination_for_prefix(prefix)?);
         }
+
+        }
+        Ok(split_join_bgp_messages(output_events))
     }
 
     /// Update the stored IGP weights to all internal routers.
@@ -629,7 +636,7 @@ impl<P: Prefix> BgpProcess<P> {
             };
             // add the event to the queue
             if let Some(event) = event {
-                events.push(Event::bgp(T::default(), self.router_id, *peer, event));
+                events.push(Event::bgp(T::default(), self.router_id, *peer, vec![event]));
             }
         }
 

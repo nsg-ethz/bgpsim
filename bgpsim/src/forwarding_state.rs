@@ -20,8 +20,7 @@
 use crate::{
     network::Network,
     ospf::OspfImpl,
-    record::FwDelta,
-    types::{NetworkError, Prefix, PrefixMap, RouterId, SimplePrefix, SinglePrefix},
+    types::{FwDelta, NetworkError, NonOverlappingPrefix, Prefix, PrefixMap, RouterId},
 };
 use itertools::Itertools;
 use lazy_static::lazy_static;
@@ -423,62 +422,35 @@ impl<P: Prefix> ForwardingState<P> {
     }
 }
 
-impl ForwardingState<SinglePrefix> {
-    /// Get the difference between self and other. Each difference is stored per prefix in a
-    /// list. Each entry of these lists has the shape: `(src, self_target, other_target)`, where
-    /// `self_target` is the target used in `self`, and `other_target` is the one used by `other`.
+impl<P: Prefix + NonOverlappingPrefix> ForwardingState<P> {
+    /// Get the difference between self and other as a list of differences. The returned delta will
+    /// describe the delta to transition `self` to `new`.
     ///
     /// This function is only available for either `SinglePrefix` or `SimplePrefix`.
-    pub fn diff(&self, other: &Self) -> Vec<FwDelta> {
-        let mut result: Vec<FwDelta> = Vec::new();
-        let routers = self.state.keys().chain(other.state.keys()).unique();
+    pub fn diff(&self, new: &Self) -> Vec<FwDelta<P>> {
+        let old = self;
+        let mut result = Vec::new();
+        let routers = old.state.keys().chain(new.state.keys()).unique();
         for router in routers {
-            let self_state = self
-                .state
-                .get(router)
-                .and_then(|x| x.0.as_deref())
-                .unwrap_or_default();
-            let other_state = other
-                .state
-                .get(router)
-                .and_then(|x| x.0.as_deref())
-                .unwrap_or_default();
-            if self_state != other_state {
-                result.push((*router, self_state.to_owned(), other_state.to_owned()))
-            }
-        }
-        result
-    }
-}
-
-impl ForwardingState<SimplePrefix> {
-    /// Get the difference between self and other. Each difference is stored per prefix in a
-    /// list. Each entry of these lists has the shape: `(src, self_target, other_target)`, where
-    /// `self_target` is the target used in `self`, and `other_target` is the one used by `other`.
-    ///
-    /// This function is only available for either `SinglePrefix` or `SimplePrefix`.
-    pub fn diff(&self, other: &Self) -> HashMap<SimplePrefix, Vec<FwDelta>> {
-        let mut result: HashMap<SimplePrefix, Vec<FwDelta>> = HashMap::new();
-        let routers = self.state.keys().chain(other.state.keys()).unique();
-        for router in routers {
-            let self_state = self.state.get(router).unwrap();
-            let other_state = other.state.get(router).unwrap();
-            let prefixes = self_state.keys().chain(other_state.keys()).unique();
+            let old_state = old.state.get(router).unwrap();
+            let new_state = new.state.get(router).unwrap();
+            let prefixes = old_state.keys().chain(new_state.keys()).unique();
             for prefix in prefixes {
-                let self_target = self_state
+                let old_target = old_state
                     .get(prefix)
                     .map(|x| x.as_slice())
                     .unwrap_or_default();
-                let other_target = other_state
+                let new_target = new_state
                     .get(prefix)
                     .map(|x| x.as_slice())
                     .unwrap_or_default();
-                if self_target != other_target {
-                    result.entry(*prefix).or_default().push((
-                        *router,
-                        self_target.to_owned(),
-                        other_target.to_owned(),
-                    ))
+                if old_target != new_target {
+                    result.push(FwDelta {
+                        router: *router,
+                        prefix: *prefix,
+                        old: old_target.to_owned(),
+                        new: new_target.to_owned(),
+                    })
                 }
             }
         }

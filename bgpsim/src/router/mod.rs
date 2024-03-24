@@ -28,9 +28,9 @@
 //! Module defining an internal router with BGP functionality.
 
 use crate::{
-    event::{Event, EventOutcome},
+    event::Event,
     ospf::{global::GlobalOspfProcess, IgpTarget, OspfProcess},
-    types::{AsId, DeviceError, Prefix, PrefixMap, RouterId, StepUpdate},
+    types::{AsId, DeviceError, Prefix, PrefixMap, RouterId},
 };
 use itertools::Itertools;
 use log::*;
@@ -134,20 +134,16 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
     pub(crate) fn handle_event<T: Default>(
         &mut self,
         event: Event<P, T>,
-    ) -> Result<EventOutcome<P, T>, DeviceError> {
+    ) -> Result<Vec<Event<P, T>>, DeviceError> {
         match event {
             Event::Bgp { src, dst, e, .. } if dst == self.router_id => {
-                let prefix = e.prefix();
-                let old = self.get_next_hop(prefix);
-                let events = self.bgp.handle_event(src, e)?;
-                let new = self.get_next_hop(prefix);
-                Ok((StepUpdate::new(prefix, old, new), events))
+                self.bgp.handle_event(src, e)
             }
             Event::Bgp { .. } => {
                 error!(
                     "Recenved a BGP event that is not targeted at this router! Ignore the event!"
                 );
-                Ok((StepUpdate::Unchanged, vec![]))
+                Ok(vec![])
             }
             Event::Ospf {
                 src, dst, area, e, ..
@@ -159,16 +155,14 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
                     self.bgp.update_igp(&self.ospf);
                     let mut bgp_events = self.bgp.update_tables(false)?;
                     ospf_events.append(&mut bgp_events);
-                    Ok((StepUpdate::Multiple, ospf_events))
-                } else {
-                    Ok((StepUpdate::Unchanged, ospf_events))
                 }
+                Ok(ospf_events)
             }
             Event::Ospf { .. } => {
                 error!(
                     "Recenved an OSPF event that is not targeted at this router! Ignore the event!"
                 );
-                Ok((StepUpdate::Unchanged, vec![]))
+                Ok(vec![])
             }
         }
     }

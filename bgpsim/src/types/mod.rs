@@ -15,13 +15,8 @@
 
 //! Module containing all type definitions
 
-use crate::formatter::NetworkFormatter;
 use crate::ospf::local::LsaKey;
-use crate::ospf::OspfImpl;
-use crate::{
-    bgp::BgpSessionType, external_router::ExternalRouter, network::Network, router::Router,
-};
-use itertools::Itertools;
+use crate::{bgp::BgpSessionType, external_router::ExternalRouter, router::Router};
 use petgraph::prelude::*;
 use serde::{Deserialize, Serialize};
 use thiserror::Error;
@@ -95,53 +90,11 @@ where
 /// IGP Network graph
 pub type PhysicalNetwork = StableGraph<(), (), Undirected, IndexType>;
 
-/// A series of FwDeltas
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub enum StepUpdate<P> {
-    /// Nothing has changed
-    Unchanged,
-    /// There was a single forwarding state change due to a BGP update
-    Single(FwDelta<P>),
-    /// There are multiple changes due to an OSPF update.
-    Multiple,
-}
-
-impl<P> Default for StepUpdate<P> {
-    fn default() -> Self {
-        Self::Unchanged
-    }
-}
-
-impl<P> From<FwDelta<P>> for StepUpdate<P> {
-    fn from(value: FwDelta<P>) -> Self {
-        Self::Single(value)
-    }
-}
-
-impl<P> From<Option<FwDelta<P>>> for StepUpdate<P> {
-    fn from(value: Option<FwDelta<P>>) -> Self {
-        match value {
-            Some(v) => Self::from(v),
-            None => Self::Unchanged,
-        }
-    }
-}
-
-impl<P> StepUpdate<P> {
-    /// Create a new StepUpdate that changes a single prefix
-    pub fn new(prefix: P, old: Vec<RouterId>, new: Vec<RouterId>) -> Self {
-        FwDelta::new(prefix, old, new).into()
-    }
-
-    /// Check if there was some change
-    pub fn changed(&self) -> bool {
-        !matches!(self, Self::Unchanged)
-    }
-}
-
 /// A single next-hop that has changed.
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 pub struct FwDelta<P> {
+    /// where was the change
+    pub router: RouterId,
     /// Which prefix was affected
     pub prefix: P,
     /// Old next-hop
@@ -152,51 +105,21 @@ pub struct FwDelta<P> {
 
 impl<P> FwDelta<P> {
     /// Create a new StepUpdate
-    pub fn new(prefix: P, old: Vec<RouterId>, new: Vec<RouterId>) -> Option<Self> {
+    pub fn new(
+        router: RouterId,
+        prefix: P,
+        old: Vec<RouterId>,
+        new: Vec<RouterId>,
+    ) -> Option<Self> {
         if old == new {
             None
         } else {
-            Some(Self { prefix, old, new })
-        }
-    }
-}
-
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for FwDelta<P> {
-    type Formatter = String;
-
-    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
-        format!(
-            "{}: {} --> {}",
-            self.prefix,
-            if self.old.is_empty() {
-                "X".to_string()
-            } else {
-                self.old
-                    .iter()
-                    .map(|r| net.get_device(*r).map(|x| x.name()).unwrap_or("?"))
-                    .join("|")
-            },
-            if self.new.is_empty() {
-                "X".to_string()
-            } else {
-                self.new
-                    .iter()
-                    .map(|r| net.get_device(*r).map(|x| x.name()).unwrap_or("?"))
-                    .join("|")
-            },
-        )
-    }
-}
-
-impl<P: Prefix> StepUpdate<P> {
-    /// Get a struct to display the StepUpdate
-    pub fn fmt<Q, Ospf: OspfImpl>(&self, net: &Network<P, Q, Ospf>, router: RouterId) -> String {
-        match self {
-            StepUpdate::Unchanged => String::from("Unchanged"),
-            StepUpdate::Single(delta) => format!("{} => {}", router.fmt(net), delta.fmt(net)),
-            StepUpdate::Multiple => {
-                format!("{}: multiple FW changes (due to OSPF)", router.fmt(net),)
-            }
+            Some(Self {
+                router,
+                prefix,
+                old,
+                new,
+            })
         }
     }
 }

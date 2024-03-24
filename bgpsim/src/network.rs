@@ -997,16 +997,10 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
         self.simulate()
     }
 
-    /// Enqueue the event
-    #[inline(always)]
-    fn enqueue_event(&mut self, event: Event<P, Q::Priority>) {
-        self.queue.push(event, &self.routers, &self.net)
-    }
-
     /// Enqueue all events
     #[inline(always)]
     pub(crate) fn enqueue_events(&mut self, events: Vec<Event<P, Q::Priority>>) {
-        events.into_iter().for_each(|e| self.enqueue_event(e))
+        self.queue.push(events, &self.routers, &self.net)
     }
 }
 

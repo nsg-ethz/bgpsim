@@ -24,7 +24,7 @@ use crate::{
     network::Network,
     ospf::{global::GlobalOspf, OspfImpl, OspfProcess},
     types::NetworkError,
-    types::{NetworkDevice, NetworkErrorOption, Prefix, RouterId, StepUpdate},
+    types::{NetworkDevice, NetworkErrorOption, Prefix, RouterId},
 };
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
@@ -86,13 +86,10 @@ where
     fn trigger_timeout_at(&mut self, router: RouterId) -> Result<bool, NetworkError>;
 
     /// Simulate the next event on the queue. In comparison to [`Network::simulate`], this function
-    /// will not execute any subsequent event. This function returns the change in forwarding
-    /// behavior caused by this step, as well as the event that was processed. If this function
-    /// returns `Ok(None)`, then no event was enqueued.
+    /// will not execute any subsequent event. This function returns the event that was
+    /// processed. If this function returns `Ok(None)`, then no event was enqueued.
     #[allow(clippy::type_complexity)]
-    fn simulate_step(
-        &mut self,
-    ) -> Result<Option<(StepUpdate<P>, Event<P, Q::Priority>)>, NetworkError>;
+    fn simulate_step(&mut self) -> Result<Option<Event<P, Q::Priority>>, NetworkError>;
 
     /// Get a reference to the queue
     fn queue(&self) -> &Q;
@@ -126,14 +123,12 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
         self
     }
 
-    fn simulate_step(
-        &mut self,
-    ) -> Result<Option<(StepUpdate<P>, Event<P, Q::Priority>)>, NetworkError> {
+    fn simulate_step(&mut self) -> Result<Option<Event<P, Q::Priority>>, NetworkError> {
         if let Some(event) = self.queue.pop() {
             // log the job
             log::trace!("{}", event.fmt(self));
             // execute the event
-            let (step_update, events) = match self
+            let events = match self
                 .routers
                 .get_mut(&event.router())
                 .ok_or(NetworkError::DeviceNotFound(event.router()))?
@@ -144,7 +139,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
 
             self.enqueue_events(events);
 
-            Ok(Some((step_update, event)))
+            Ok(Some(event))
         } else {
             Ok(None)
         }
@@ -169,8 +164,8 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
                     }
                     remaining_iter = Some(rem - 1);
                 }
-                let step_update = self.simulate_step()?;
-                if matches!(step_update, Some((_, Event::Ospf { .. }))) {
+                let event = self.simulate_step()?;
+                if matches!(event, Some(Event::Ospf { .. })) {
                     // OSPF event received! Check the BGP session state
                     self.refresh_bgp_sessions()?;
                 }

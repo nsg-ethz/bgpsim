@@ -19,14 +19,12 @@ use std::time::Duration;
 use std::time::Instant;
 
 use bgpsim::interactive::PartialClone;
-use bgpsim::record::ConvergenceRecording;
-use bgpsim::types::StepUpdate;
 use bgpsim::{
     builder::*,
     forwarding_state::ForwardingState,
     policies::{FwPolicy, Policy},
     prelude::*,
-    record::ConvergenceTrace,
+    record::{ConvergenceTrace, RecordNetwork},
     topology_zoo::TopologyZoo,
     types::SinglePrefix as P,
 };
@@ -66,7 +64,7 @@ pub fn try_setup_net<Q: EventQueue<P>>(
 pub fn setup_experiment<Q: EventQueue<P>>(
     net: &mut Network<P, Q>,
     withdraw_at: RouterId,
-) -> Result<(ForwardingState<P>, ConvergenceTrace), NetworkError> {
+) -> Result<(ForwardingState<P>, ConvergenceTrace<P>), NetworkError> {
     // get the forwarding state before
     let fw_state_before = net.get_forwarding_state();
 
@@ -87,22 +85,12 @@ pub fn setup_experiment<Q: EventQueue<P>>(
 pub fn compute_sample<Q: EventQueue<P>>(
     t: &mut Network<P, Q>,
     fw_state: ForwardingState<P>,
-    trace: &ConvergenceTrace,
+    trace: &ConvergenceTrace<P>,
     policies: &[FwPolicy<P>],
 ) -> ForwardingState<P> {
-    let mut trace = trace.clone();
-
-    // simulate the event
-    while let Some((step, event)) = t.simulate_step().unwrap() {
-        if let StepUpdate::Single(step) = step {
-            trace.push((
-                vec![(event.router(), step.old, step.new)],
-                t.queue().get_time().into(),
-            ));
-        }
-    }
-
-    let mut recording = ConvergenceRecording::new(fw_state, trace);
+    let mut recording = t
+        .record_prepared(fw_state, trace.clone(), Some(0.0))
+        .unwrap();
 
     // check the initial state
     let state = recording.state();
@@ -140,7 +128,7 @@ pub fn setup_measure_roland<Q: EventQueue<P> + std::fmt::Debug + Clone + Partial
     iters: u64,
     net: &Network<P, Q>,
     fw_state: &ForwardingState<P>,
-    trace: &ConvergenceTrace,
+    trace: &ConvergenceTrace<P>,
     policies: &[FwPolicy<P>],
 ) -> Duration {
     let mut dur = Duration::default();
