@@ -2,6 +2,13 @@
 name = "bgpsim"
 version = "0.17.1"
 edition = "2021"
+license-file = "LICENSE"
+description = "A network control-plane simulator"
+homepage = "https://bgpsim.github.io"
+repository = "https://github.com/nsg-ethz/bgpsim"
+readme = "../README.md"
+keywords = ["bgp", "ospf", "routing", "network"]
+categories = ["simulation"]
 
 [package.metadata.docs.rs]
 all-features = true
@@ -35,7 +42,7 @@ topology_zoo = ["dep:xmltree", "dep:geoutils", "dep:include-flate"]
 export = ["dep:bimap"]
 
 [dependencies]
-bgpsim-macros = {path = "../bgpsim-macros"}
+bgpsim-macros = {path = "../bgpsim-macros", version = "0.11.0"}
 prefix-trie = { version = "0.3.0", features = ["serde", "ipnet"] }
 thiserror = "1"
 petgraph = { version = "0.6", features = [ "serde-1" ]}
