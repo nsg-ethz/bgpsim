@@ -264,7 +264,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
 /// use bgpsim::interactive::PartialClone;
 ///
 /// // let mut net = ...
-/// let original_net.clone_from(&net);
+/// let original_net = net.clone();
 /// net.withdraw_external_route(ext, prefix)?;
 /// assert_ne!(net, original_net);
 /// let net = unsafe {
