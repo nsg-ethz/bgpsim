@@ -1,8 +1,8 @@
-![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nsg-ethz/bgpsim/rust.yml)
-![Crates.io Version](https://img.shields.io/crates/v/bgpsim)
-![Crates.io Total Downloads](https://img.shields.io/crates/d/bgpsim)
-![docs.rs](https://img.shields.io/docsrs/bgpsim)
-![Coveralls](https://img.shields.io/coverallsCoverage/github/nsg-ethz/bgpsim)
+[![GitHub Actions Workflow Status](https://img.shields.io/github/actions/workflow/status/nsg-ethz/bgpsim/rust.yml)](https://github.com/nsg-ethz/bgpsim/actions)
+[![Crates.io Version](https://img.shields.io/crates/v/bgpsim)](https://crates.io/crates/bgpsim)
+[![Crates.io Total Downloads](https://img.shields.io/crates/d/bgpsim)](https://crates.io/crates/bgpsim)
+[![docs.rs](https://img.shields.io/docsrs/bgpsim)](https://docs.rs/bgpsim/0.17.3/bgpsim/)
+[![Coveralls](https://img.shields.io/coverallsCoverage/github/nsg-ethz/bgpsim)](https://coveralls.io/github/nsg-ethz/bgpsim)
 
 # A Network Control-Plane Simulator
 
