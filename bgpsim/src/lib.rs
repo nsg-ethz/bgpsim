@@ -19,22 +19,34 @@
 
 //! # BgpSim
 //!
-//! This is a library for simulating specific network topologies and configuration.
+//! This is a simulator for BGP and OSPF routing protocols. It does not model OSI Layers 1 to
+//! 4. Thus, routers and interfaces do not have an IP address but use an identifier
+//! ([`types::RouterId`]). Further, the simulator exchanges control-plane messages using a global
+//! event queue without directly modeling time. The messages do not (necessarily) reflect how
+//! control-plane messages are serialized and deseialized. The implementation of both BGP and OSPF
+//! does not directly correspond to the specifications from IETF. Instead, the protocols are
+//! simplified (e.g., routers don't exchange OSPF hello and BGP keepalive packets).
 //!
-//! This library was created during the Master Thesis: "Synthesizing Network-Wide Configuration
-//! Updates" by Tibor Schneider, supervised by Laurent Vanbever and Rüdiger Birkner.
+//! This library is a research project. It was originally written for the SGICOMM'21 paper:
+//! "Snowcap: Synthesizing Network-Wide Configuration Updates". If you are using this project,
+//! please cite us:
+//!
+//! ```bibtex
+//! @INPROCEEDINGS{schneider2021snowcap,
+//!   title = {Snowcap: Synthesizing Network-Wide Configuration Updates},
+//!   author = {Schneider, Tibor and Birkner, Rüdiger and Vanbever, Laurent},
+//!   booktitle = {Proceedings of the 2021 ACM SIGCOMM Conference},
+//!   address = {New York, NY},
+//!   year = {2021-08},
+//!   doi = {10.3929/ethz-b-000491508},
+//! }
+//! ```
 //!
 //! ## Main Concepts
 //!
 //! The [`network::Network`] is the main datastructure to operate on. It allows you to generate,
 //! modify, and simulate network behavior. A network consists of many routers (either
-//! [`router::Router`] or [`external_router::ExternalRouter`]) connected with links. The `Network`
-//! stores all routers, as well as how they are connected, on a graph (see
-//! [Petgraph](https://docs.rs/petgraph/latest/petgraph/index.html)).
-//!
-//! The network simulates IGP as an instantaneous computation using shortest path algorithms from
-//! Petgraph. BGP however is simulated using a message passing technique. The reason is that one can
-//! assume IGP converges much faster than BGP does.
+//! [`router::Router`] or [`external_router::ExternalRouter`]) connected with links.
 //!
 //! The network can be configured using functions directly on the instance itself. However, it can
 //! also be configured using a configuration language. For that, make sure to `use` the trait
