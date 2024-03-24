@@ -9,6 +9,10 @@ repository = "https://github.com/nsg-ethz/bgpsim"
 readme = "../README.md"
 keywords = ["bgp", "ospf", "routing", "network"]
 categories = ["simulation"]
+exclude = [
+    "generate_topology_zoo.rs",
+    "topology_zoo/*"
+]
 
 [package.metadata.docs.rs]
 all-features = true
