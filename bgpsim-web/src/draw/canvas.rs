@@ -1,0 +1,333 @@
+// BgpSim: BGP Network Simulator written in Rust
+// Copyright (C) 2022-2023 Tibor Schneider <sctibor@ethz.ch>
+//
+// This program is free software; you can redistribute it and/or modify
+// it under the terms of the GNU General Public License as published by
+// the Free Software Foundation; either version 2 of the License, or
+// (at your option) any later version.
+//
+// This program is distributed in the hope that it will be useful,
+// but WITHOUT ANY WARRANTY; without even the implied warranty of
+// MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+// GNU General Public License for more details.
+//
+// You should have received a copy of the GNU General Public License along
+// with this program; if not, write to the Free Software Foundation, Inc.,
+// 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
+
+use std::ops::Deref;
+use std::sync::{Arc, Mutex};
+
+use bgpsim::types::RouterId;
+use gloo_events::EventListener;
+use gloo_utils::window;
+use itertools::Itertools;
+use wasm_bindgen::JsCast;
+use web_sys::{HtmlDivElement, HtmlElement};
+use yew::prelude::*;
+use yewdux::prelude::*;
+
+use super::arrows::ArrowMarkers;
+use super::bgp_session::BgpSession;
+use super::events::BgpSessionQueue;
+use super::forwarding_path::PathKind;
+use super::link::Link;
+use super::next_hop::NextHop;
+use super::ospf_state::DistributedOspfState;
+use super::router::Router;
+use crate::callback;
+use crate::draw::add_connection::AddConnection;
+use crate::draw::arrows::CurvedArrow;
+use crate::draw::forwarding_path::ForwardingPath;
+use crate::draw::propagation::Propagation;
+use crate::draw::SvgColor;
+use crate::net::{use_pos_pair, Net};
+use crate::point::Point;
+use crate::state::{Hover, Layer, State};
+
+#[derive(Properties, PartialEq)]
+pub struct Properties {
+    pub header_ref: NodeRef,
+}
+
+#[function_component]
+pub fn Canvas(props: &Properties) -> Html {
+    let div_ref = use_node_ref();
+    let div_ref_1 = div_ref.clone();
+    let div_ref_2 = div_ref.clone();
+    let header_ref_1 = props.header_ref.clone();
+    let header_ref_2 = props.header_ref.clone();
+
+    let modes = use_selector(|state: &State| (state.small_mode, state.blog_mode()));
+    let small_mode = modes.0;
+    let blog_mode = modes.1;
+
+    // re-compute the size once
+    use_effect_with_deps(
+        move |_| {
+            let mt = header_ref_1
+                .cast::<HtmlElement>()
+                .map(|div| (div.client_height() + div.offset_top()) as f64);
+            let size = div_ref_1
+                .cast::<HtmlDivElement>()
+                .map(|div| (div.client_width() as f64, div.client_height() as f64));
+            if let (Some(mt), Some((w, h))) = (mt, size) {
+                Dispatch::<Net>::new().reduce_mut(move |net| {
+                    net.set_dimension(w, h, mt);
+                });
+            }
+        },
+        small_mode,
+    );
+
+    let _onresize = use_memo(
+        move |()| {
+            EventListener::new(&window(), "resize", move |_| {
+                let mt = header_ref_2
+                    .cast::<HtmlElement>()
+                    .map(|div| (div.client_height() + div.offset_top()) as f64)
+                    .unwrap();
+                let (w, h) = div_ref_2
+                    .cast::<HtmlDivElement>()
+                    .map(|div| (div.client_width() as f64, div.client_height() as f64))
+                    .unwrap();
+                Dispatch::<Net>::new().reduce_mut(move |net| {
+                    net.set_dimension(w, h, mt);
+                });
+            })
+        },
+        (),
+    );
+
+    let onmousemove = use_state(|| None);
+    let (onmousedown, onmouseup) = if !blog_mode {
+        prepare_move(onmousemove)
+    } else {
+        (callback!(|_| ()), callback!(|_| ()))
+    };
+    let onwheel = callback!(|e: WheelEvent| {
+        let e_mouse = e.dyn_ref::<web_sys::MouseEvent>().unwrap();
+        // check if mouse is down
+        if e_mouse.buttons() == 0 {
+            let delta = e.delta_y() / 40.0;
+            let point = Point::new(e_mouse.client_x(), e_mouse.client_y());
+            Dispatch::<Net>::new().reduce_mut(move |net| net.dim.zoom(delta, point))
+        }
+    });
+
+    html! {
+        <div class="flex-1 h-full overflow-hidden" ref={div_ref}>
+            <svg width="100%" height="100%" {onmousedown} {onmouseup} {onwheel}>
+                <ArrowMarkers />
+                <CanvasLinks />
+                <CanvasRouters />
+                <CanvasFwState />
+                <CanvasBgpConfig />
+                <CanvasRouteProp />
+                <CanvasHighlightPath />
+                <DistributedOspfState />
+                <CanvasEventQueue />
+                <AddConnection />
+            </svg>
+        </div>
+    }
+}
+
+fn prepare_move(
+    onmousemove: UseStateHandle<Option<EventListener>>,
+) -> (Callback<MouseEvent>, Callback<MouseEvent>) {
+    let onmousemove_c = onmousemove.clone();
+    let onmousedown = Callback::from(move |e: MouseEvent| {
+        // get the current state
+        let state_dispatch = Dispatch::<State>::new();
+        // only do something if hover is inactive
+        if !state_dispatch.get().hover().is_none() {
+            return;
+        }
+        state_dispatch.reduce_mut(|state| state.disable_hover = true);
+        log::debug!("pressed: {}", e.button());
+        if e.button() != 0 {
+            return;
+        }
+        Dispatch::<State>::new().reduce_mut(|state| state.disable_hover = true);
+        let move_p = Arc::new(Mutex::new(Point::new(e.client_x(), e.client_y())));
+        // create the onmousemove event
+        onmousemove_c.set(Some(EventListener::new(
+            &window(),
+            "mousemove",
+            move |e: &Event| {
+                let e = e.dyn_ref::<web_sys::MouseEvent>().unwrap();
+                let client_p = Point::new(e.client_x(), e.client_y());
+                let mut move_p = move_p.lock().unwrap();
+                let delta = *move_p - client_p;
+                *move_p = client_p;
+                Dispatch::<Net>::new().reduce_mut(move |n| {
+                    n.dim.add_offset(delta);
+                });
+            },
+        )))
+    });
+    let onmouseup = Callback::from(move |_| {
+        onmousemove.set(None);
+        Dispatch::<State>::new().reduce_mut(|state| state.disable_hover = false);
+    });
+
+    (onmousedown, onmouseup)
+}
+
+#[function_component]
+pub fn CanvasLinks() -> Html {
+    let links = use_selector(|net: &Net| {
+        let n = net.net();
+        let g = n.get_topology();
+        g.edge_indices()
+            .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
+            .map(|(a, b)| {
+                if a.index() > b.index() {
+                    (b, a)
+                } else {
+                    (a, b)
+                }
+            })
+            .unique()
+            .collect::<Vec<_>>()
+    });
+
+    log::debug!("render CanvasLinks");
+
+    links
+        .iter()
+        .map(|(src, dst)| html! {<Link from={*src} to={*dst} />})
+        .collect()
+}
+
+#[function_component]
+pub fn CanvasRouters() -> Html {
+    let nodes =
+        use_selector(|net: &Net| net.net().get_topology().node_indices().collect::<Vec<_>>());
+
+    log::debug!("render CanvasRouters");
+
+    nodes
+        .iter()
+        .copied()
+        .map(|router_id| html! {<Router {router_id} />})
+        .collect()
+}
+
+#[function_component]
+pub fn CanvasFwState() -> Html {
+    let nodes = use_selector(|net: &Net| net.net().internal_indices().collect::<Vec<_>>());
+    let state = use_selector(|state: &State| (state.layer(), state.prefix()));
+
+    log::debug!("render CanvasFwState");
+
+    match state.as_ref() {
+        (Layer::FwState, Some(p)) => nodes
+            .iter()
+            .copied()
+            .map(|router_id| html!(<NextHop {router_id} prefix={*p} />))
+            .collect(),
+        _ => html!(),
+    }
+}
+
+#[function_component]
+pub fn CanvasRouteProp() -> Html {
+    let state = use_selector(|state: &State| (state.layer(), state.prefix()));
+    let prefix = state.1.unwrap_or(0.into());
+    let propagations = use_selector_with_deps(
+        |net: &Net, prefix| net.get_route_propagation(*prefix),
+        prefix,
+    );
+    log::debug!("render CanvasRouteProp");
+
+    match state.as_ref() {
+        (Layer::RouteProp, Some(_)) => propagations.iter().map(|(src, dst, route)| html!{<Propagation src={*src} dst={*dst} route={route.clone()} />}).collect(),
+        _ => html!()
+    }
+}
+
+#[function_component]
+pub fn CanvasBgpConfig() -> Html {
+    let sessions = use_selector(|net: &Net| net.get_bgp_sessions());
+    let state = use_selector(|state: &State| state.layer());
+
+    log::debug!("render CanvasBgpConfig");
+
+    match state.as_ref() {
+        Layer::Bgp => sessions
+            .iter()
+            .map(|(a, b, k, active)| html!(<BgpSession src={*a} dst={*b} session_type={*k} active={*active} />))
+            .collect(),
+        _ => html!(),
+    }
+}
+
+#[function_component]
+pub fn CanvasEventQueue() -> Html {
+    let nodes = use_selector(|net: &Net| net.net().internal_indices().collect::<Vec<_>>());
+    let state = use_selector(|state: &State| match (state.hover(), state.disable_hover) {
+        (Hover::Message(src, dst, _, _), false) => Some((src, dst)),
+        _ => None,
+    });
+
+    log::debug!("render CanvasEventQueue");
+
+    let messages = nodes
+        .iter()
+        .copied()
+        .map(|dst| html!(<BgpSessionQueue {dst} />))
+        .collect::<Html>();
+    let hover = if let Some((src, dst)) = *state {
+        html!(<CanvasEventHover {src} {dst} />)
+    } else {
+        html!()
+    };
+    html! {<> {hover} {messages} </>}
+}
+
+#[derive(PartialEq, Properties)]
+pub struct EventHoverProps {
+    src: RouterId,
+    dst: RouterId,
+}
+
+#[function_component]
+pub fn CanvasEventHover(&EventHoverProps { src, dst }: &EventHoverProps) -> Html {
+    let (p1, p2) = use_pos_pair(src, dst);
+    html! { <CurvedArrow {p1} {p2} angle={15.0} color={SvgColor::YellowLight} sub_radius={true} /> }
+}
+
+#[function_component]
+pub fn CanvasHighlightPath() -> Html {
+    let state = use_selector(|state: &State| (state.hover(), state.layer(), state.prefix()));
+    let spec_idx = match state.deref().clone() {
+        (Hover::Policy(router_id, idx), _, Some(_)) => Some((router_id, idx)),
+        _ => None,
+    };
+    let spec = use_selector_with_deps(
+        |net: &Net, spec_idx| {
+            spec_idx.and_then(|(r, idx)| {
+                net.spec()
+                    .get(&r)
+                    .and_then(|x| x.get(idx))
+                    .map(|(_, r)| r.is_ok())
+            })
+        },
+        spec_idx,
+    );
+
+    match (state.deref().clone(), *spec) {
+        ((Hover::Router(router_id), Layer::FwState, Some(prefix)), _) => {
+            html! {<ForwardingPath {router_id} {prefix} />}
+        }
+        ((Hover::Policy(router_id, _), _, Some(prefix)), Some(true)) => {
+            html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Valid}/>}
+        }
+        ((Hover::Policy(router_id, _), _, Some(prefix)), Some(false)) => {
+            html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Invalid}/>}
+        }
+        _ => html!(),
+    }
+}
