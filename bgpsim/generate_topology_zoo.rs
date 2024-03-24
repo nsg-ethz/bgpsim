@@ -193,6 +193,7 @@ fn main() {
     if let Ok(mut fp) = OpenOptions::new()
         .write(true)
         .create(true)
+        .truncate(true)
         .open("src/topology_zoo/topos.rs")
     {
         write!(fp, "{topos_file}").unwrap();

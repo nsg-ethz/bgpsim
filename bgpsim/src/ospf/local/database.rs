@@ -697,7 +697,7 @@ impl OspfRibEntry {
             }
             // The new path is better. Replace it.
             Ordering::Greater => {
-                self.fibs = path.fibs.clone();
+                self.fibs.clone_from(&path.fibs);
                 self.cost = path.cost;
                 self.inter_area = path.inter_area;
                 self.keys = btreemap! {Some(area) => path.key};

@@ -35,11 +35,11 @@ use itertools::Itertools;
 use maplit::btreemap;
 
 /// The python preamble of the runner script (to import time and sleep for 5 seconds)
-pub const RUNNER_PREAMBLE: &'static str =
+pub const RUNNER_PREAMBLE: &str =
     "#!/usr/bin/env python3\n\nimport sys\nimport time\n\n\ntime.sleep(5)\n\n";
 
 /// The python preamble of the runner script (to import time and sleep for 5 seconds)
-pub const RUNNER_POSTAMBLE: &'static str = "\nwhile True:\n    time.sleep(1)\n";
+pub const RUNNER_POSTAMBLE: &str = "\nwhile True:\n    time.sleep(1)\n";
 
 /// Config generator for [ExaBGP](https://github.com/Exa-Networks/exabgp)
 ///

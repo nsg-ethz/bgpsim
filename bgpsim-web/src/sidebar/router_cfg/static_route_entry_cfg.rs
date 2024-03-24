@@ -137,7 +137,7 @@ impl Component for StaticRouteEntryCfg {
                 let options =
                     get_available_options(self.net.clone(), ctx.props().router, ctx.props().target);
                 let target = if val && !options.is_empty() {
-                    StaticRoute::Direct(*options.get(0).unwrap())
+                    StaticRoute::Direct(*options.first().unwrap())
                 } else {
                     StaticRoute::Drop
                 };

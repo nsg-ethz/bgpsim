@@ -137,7 +137,7 @@ fn local_ospf_state(props: &LocalOspfStateProps) -> Html {
 
     let areas = router_state
         .areas()
-        .map(|a| Some(a))
+        .map(Some)
         .chain(std::iter::once(None))
         .collect::<Vec<_>>();
 

@@ -17,8 +17,6 @@
 
 use ordered_float::NotNan;
 
-use crate::event::Event;
-use crate::ospf::OspfProcess;
 use crate::types::SinglePrefix;
 
 use super::*;

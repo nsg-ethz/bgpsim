@@ -16,6 +16,8 @@
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
 #![allow(clippy::let_unit_value)]
+#![allow(clippy::approx_constant)]
+#![allow(clippy::type_complexity)]
 
 mod context_menu;
 mod dim;

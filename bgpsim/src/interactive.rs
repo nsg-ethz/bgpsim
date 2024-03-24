@@ -264,7 +264,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
 /// use bgpsim::interactive::PartialClone;
 ///
 /// // let mut net = ...
-/// let original_net = net.clone();
+/// let original_net.clone_from(&net);
 /// net.withdraw_external_route(ext, prefix)?;
 /// assert_ne!(net, original_net);
 /// let net = unsafe {
@@ -388,17 +388,17 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
 
         // clone new.net if the configuration is different
         if !self.reuse_config {
-            new.ospf = source.ospf.clone();
+            new.ospf.clone_from(&source.ospf);
         }
 
         if !self.reuse_advertisements {
-            new.known_prefixes = source.known_prefixes.clone();
+            new.known_prefixes.clone_from(&source.known_prefixes);
         }
 
         if self.reuse_queue_params {
             new.queue = source.queue.clone_events(new.queue);
         } else {
-            new.queue = source.queue.clone();
+            new.queue.clone_from(&source.queue);
         }
 
         // handle all external routers
@@ -406,10 +406,10 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
             let id = r.router_id();
             let r_source = source.get_device(id).unwrap().external_or_err().unwrap();
             if !self.reuse_config {
-                r.neighbors = r_source.neighbors.clone();
+                r.neighbors.clone_from(&r_source.neighbors);
             }
             if !self.reuse_advertisements {
-                r.active_routes = r_source.active_routes.clone();
+                r.active_routes.clone_from(&r_source.active_routes);
             }
         }
 
@@ -420,23 +420,27 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
 
             if !self.reuse_config {
                 r.do_load_balancing = r_source.do_load_balancing;
-                r.ospf.neighbors = r_source.ospf.neighbors.clone();
-                r.sr = r_source.sr.clone();
-                r.bgp.sessions = r_source.bgp.sessions.clone();
-                r.bgp.sessions = r_source.bgp.sessions.clone();
-                r.bgp.route_maps_in = r_source.bgp.route_maps_in.clone();
-                r.bgp.route_maps_out = r_source.bgp.route_maps_out.clone();
+                r.ospf.neighbors.clone_from(&r_source.ospf.neighbors);
+                r.sr.clone_from(&r_source.sr);
+                r.bgp.sessions.clone_from(&r_source.bgp.sessions);
+                r.bgp.sessions.clone_from(&r_source.bgp.sessions);
+                r.bgp.route_maps_in.clone_from(&r_source.bgp.route_maps_in);
+                r.bgp
+                    .route_maps_out
+                    .clone_from(&r_source.bgp.route_maps_out);
             }
 
             if !self.reuse_igp_state {
-                r.ospf.ospf_table = r_source.ospf.ospf_table.clone();
+                r.ospf.ospf_table.clone_from(&r_source.ospf.ospf_table);
             }
 
             if !self.reuse_bgp_state {
-                r.bgp.rib_in = r_source.bgp.rib_in.clone();
-                r.bgp.rib = r_source.bgp.rib.clone();
-                r.bgp.rib_out = r_source.bgp.rib_out.clone();
-                r.bgp.known_prefixes = r_source.bgp.known_prefixes.clone();
+                r.bgp.rib_in.clone_from(&r_source.bgp.rib_in);
+                r.bgp.rib.clone_from(&r_source.bgp.rib);
+                r.bgp.rib_out.clone_from(&r_source.bgp.rib_out);
+                r.bgp
+                    .known_prefixes
+                    .clone_from(&r_source.bgp.known_prefixes);
             }
         }
 

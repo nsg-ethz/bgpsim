@@ -18,10 +18,11 @@
 use std::time::Duration;
 use std::time::Instant;
 
+use bgpsim::interactive::PartialClone;
 use bgpsim::record::ConvergenceRecording;
+use bgpsim::types::StepUpdate;
 use bgpsim::{
     builder::*,
-    event::EventQueue,
     forwarding_state::ForwardingState,
     policies::{FwPolicy, Policy},
     prelude::*,
@@ -93,7 +94,7 @@ pub fn compute_sample<Q: EventQueue<P>>(
 
     // simulate the event
     while let Some((step, event)) = t.simulate_step().unwrap() {
-        if step.changed() {
+        if let StepUpdate::Single(step) = step {
             trace.push((
                 vec![(event.router(), step.old, step.new)],
                 t.queue().get_time().into(),
@@ -149,8 +150,7 @@ pub fn setup_measure_roland<Q: EventQueue<P> + std::fmt::Debug + Clone + Partial
         let start = Instant::now();
         fw_state = compute_sample(&mut worker, fw_state, trace, policies);
         unsafe {
-            worker = net
-                .partial_clone()
+            worker = PartialClone::new(net)
                 .reuse_advertisements(true)
                 .reuse_config(true)
                 .reuse_igp_state(true)

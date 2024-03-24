@@ -463,7 +463,6 @@ mod t1 {
 
 mod ipv4 {
     use super::*;
-    use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
     use ipnet::Ipv4Net;
 
     #[test]

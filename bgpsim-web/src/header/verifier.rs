@@ -33,6 +33,7 @@ pub struct Verifier {
     skip_update: bool,
 }
 
+#[allow(dead_code)]
 pub enum Msg {
     State(Rc<State>),
     StateNet(Rc<Net>),

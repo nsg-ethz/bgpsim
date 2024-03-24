@@ -25,7 +25,7 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use priority_queue::PriorityQueue;
 use rand::prelude::*;
-use rand_distr::{Beta, Distribution};
+use rand_distr::Beta;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Reverse,

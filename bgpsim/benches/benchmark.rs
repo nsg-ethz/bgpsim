@@ -16,7 +16,6 @@
 use std::time::Duration;
 use std::time::Instant;
 
-use bgpsim::event::EventQueue;
 use criterion::black_box;
 use criterion::{criterion_group, criterion_main, Criterion};
 

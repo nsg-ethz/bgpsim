@@ -142,8 +142,8 @@ impl Component for TextField {
 
     fn changed(&mut self, ctx: &Context<Self>, _old_props: &Self::Properties) -> bool {
         if self.original_text != ctx.props().text {
-            self.current_text = ctx.props().text.clone();
-            self.original_text = ctx.props().text.clone();
+            self.current_text.clone_from(&ctx.props().text);
+            self.original_text.clone_from(&ctx.props().text);
         }
         if self.ignore_changed {
             self.ignore_changed = false;

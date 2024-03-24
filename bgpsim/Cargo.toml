@@ -1,6 +1,6 @@
 [package]
 name = "bgpsim"
-version = "0.17.2"
+version = "0.17.3"
 edition = "2021"
 license-file = "LICENSE"
 description = "A network control-plane simulator"
@@ -9,10 +9,6 @@ repository = "https://github.com/nsg-ethz/bgpsim"
 readme = "../README.md"
 keywords = ["bgp", "ospf", "routing", "network"]
 categories = ["simulation"]
-exclude = [
-    "generate_topology_zoo.rs",
-    "topology_zoo/*"
-]
 
 [package.metadata.docs.rs]
 all-features = true

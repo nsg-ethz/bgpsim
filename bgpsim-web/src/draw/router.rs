@@ -161,10 +161,7 @@ impl VisualizationState {
     fn new(id: RouterId, state: &State) -> Self {
         let mut s = Self {
             simple: state.features().simple,
-            glow: match state.hover() {
-                Hover::Router(r) | Hover::Policy(r, _) if r == id => true,
-                _ => false,
-            },
+            glow: matches!(state.hover(), Hover::Router(r) | Hover::Policy(r, _) if r == id),
             ..Self::default()
         };
         match state.selected() {

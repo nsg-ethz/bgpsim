@@ -17,7 +17,7 @@
 
 use bgpsim::prelude::*;
 
-use bgpsim::event::{EventQueue, ModelParams, SimpleTimingModel};
+use bgpsim::event::{ModelParams, SimpleTimingModel};
 
 pub fn basic_queue<P: Prefix>() -> BasicEventQueue<P> {
     BasicEventQueue::new()
@@ -59,3 +59,5 @@ fn try_setup_net<P: Prefix, Q: EventQueue<P>>(queue: Q) -> Result<Network<P, Q>,
     net.build_advertisements(P::from(0), unique_preferences, 5)?;
     Ok(net)
 }
+
+fn main() {}

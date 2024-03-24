@@ -18,6 +18,7 @@
 //! Mapping when displaying TopologyZoo stuff.
 
 use gloo_net::http::Request;
+use std::fmt::Write;
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -70,7 +71,7 @@ fn current_lod(bbox: Bbox) -> usize {
 
 #[function_component]
 pub fn Lines(props: &Properties) -> Html {
-    let lines = use_state::<[Option<Vec<(Vec<Point>, Bbox)>>; NUM_LOD], _>(|| Default::default());
+    let lines = use_state::<[Option<Vec<(Vec<Point>, Bbox)>>; NUM_LOD], _>(Default::default);
     let dim = use_selector(|net: &Net| net.dim);
     let screen_bbox = dim.visible_net_bbox();
     let shown = props.show && screen_bbox.overlaps(&props.bbox);
@@ -101,12 +102,20 @@ pub fn Lines(props: &Properties) -> Html {
                 .map(|(lod_line, _)| {
                     // compute the line
                     let transformed = lod_line.iter().map(|p| dim.get(*p));
-                    let mut d: String = transformed
-                        .enumerate()
-                        .map(|(i, p)| {
-                            format!("{} {} {} ", if i == 0 { "M" } else { "L" }, p.x(), p.y())
-                        })
-                        .collect();
+                    let mut d: String =
+                        transformed
+                            .enumerate()
+                            .fold(String::new(), |mut s, (i, p)| {
+                                write!(
+                                    &mut s,
+                                    "{} {} {} ",
+                                    if i == 0 { "M" } else { "L" },
+                                    p.x(),
+                                    p.y()
+                                )
+                                .unwrap();
+                                s
+                            });
                     // close path in the end
                     d.push('Z');
                     html! { <path class="stroke-base-4 stroke-2 fill-base-1" {d} /> }

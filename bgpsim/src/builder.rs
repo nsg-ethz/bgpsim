@@ -23,10 +23,7 @@ use std::{
 
 use itertools::Itertools;
 #[cfg(feature = "rand")]
-use rand::{
-    distributions::{Distribution, Uniform},
-    prelude::*,
-};
+use rand::{distributions::Uniform, prelude::*};
 
 use crate::{
     event::EventQueue,

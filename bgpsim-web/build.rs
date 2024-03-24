@@ -101,14 +101,14 @@ fn main() {
             .open(&path)
             .unwrap(),
     );
-    write!(&mut f, "const LOD: [f64; {}] = {:?};\n", LOD.len(), LOD).unwrap();
-    write!(&mut f, "const INDEX: [Bbox; {}] = [\n", chunks.len()).unwrap();
+    writeln!(&mut f, "const LOD: [f64; {}] = {:?};", LOD.len(), LOD).unwrap();
+    writeln!(&mut f, "const INDEX: [Bbox; {}] = [", chunks.len()).unwrap();
     for chunk in chunks {
         let min = chunk.bbox.min;
         let max = chunk.bbox.max;
-        write!(
+        writeln!(
             &mut f,
-            "    Bbox {{ min: Point {{ x: {}f64, y: {}f64 }}, max: Point {{ x: {}f64, y: {}f64 }} }},\n",
+            "    Bbox {{ min: Point {{ x: {}f64, y: {}f64 }}, max: Point {{ x: {}f64, y: {}f64 }} }},",
             min.x, min.y, max.x, max.y
         )
         .unwrap()

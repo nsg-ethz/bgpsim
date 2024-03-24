@@ -100,8 +100,8 @@ pub fn fruchterman_reingold_fixed<E, Ty: EdgeType>(
                 // force that will be applied to the node
                 let mut force = Vec3::ZERO;
 
-                force += fr_get_repulsion(idx, repulsion_factor, &graph);
-                force += fr_get_attraction(idx, scale, &graph);
+                force += fr_get_repulsion(idx, repulsion_factor, graph);
+                force += fr_get_attraction(idx, scale, graph);
 
                 // apply new location
                 let node = &mut graph[idx];

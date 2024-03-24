@@ -199,7 +199,10 @@ impl OspfImpl for LocalOspf {
             }
 
             // add the external-lsas
-            local_p.areas.external_lsas = global_coordinator.external_lsas.clone();
+            local_p
+                .areas
+                .external_lsas
+                .clone_from(&global_coordinator.external_lsas);
 
             // set the RIB.
             local_p.areas.rib = global_coordinator.ribs.remove(&router).unwrap_or_default();

@@ -14,10 +14,9 @@
 // limitations under the License.
 
 use bgpsim::prelude::*;
-use bgpsim_macros::*;
 
 fn main() {
-    let (net, ((b0, b1), (e0, e1))) = net! {
+    let (_net, ((_b0, _b1), (_e0, _e1))) = net! {
         Prefix = SimplePrefix;
         links = {
             b0 -> r0: 1;
