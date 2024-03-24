@@ -20,8 +20,8 @@ It is based on many layers of abstraction:
   - [x] Static Routes,
   - [ ] MPLS / Source Routing
 - Swappable event queue:
-  - We provide a FIFO queue, as well as a basic timing model out of the box.
-  - You can implement your own queue by implementing the `EventQueue` trait.
+  - We provide a FIFO queue and a basic timing model out of the box.
+  - You can implement your queue by implementing the `EventQueue` trait.
 - Choice of the prefix type:
   - You can run BGP in the `Ipv4Prefix` mode (with hierarchical prefixes). But you can also opt out of hierarchy and assume no prefixes overlap or only have a single prefix in BGP.
   - This choice is encoded in the type system.
@@ -32,7 +32,7 @@ It is based on many layers of abstraction:
 - Export the network configuration to Cisco and FRR configuration.
 
 ## Example
-The following example generates a network with two border routers `B0` and `B1`, two route reflectors `R0` and `R1`, and two external routers `E0` and `E1`. 
+The following example generates a network with two border routers (`B0` and `B1`), two route reflectors (`R0` and `R1`) and two external routers (`E0` and `E1`).
 Both routers advertise the prefix `Prefix::from(0)`, and all links have the same weight `1.0`.
 
 
@@ -93,7 +93,7 @@ fn main() -> Result<(), NetworkError> {
 }
 ```
 
-The same network can be created using the `net!` macro
+You can create the same network using the `net!` macro:
 ```rust
 use bgpsim::prelude::*;
 
