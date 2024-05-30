@@ -359,11 +359,12 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     /// use bgpsim::builder::*;
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     ///
-    /// let mut net: Network<SimplePrefix, _, GlobalOspf> = TopologyZoo::Abilene.build(Queue::new());
-    /// net.build_external_routers(extend_to_k_external_routers, 5)?;
-    /// net.build_link_weights(constant_link_weight, 10.0)?;
-    /// net.build_ibgp_full_mesh()?;
-    /// net.build_ebgp_sessions()?;
+    /// # let mut net: Network<SimplePrefix, _, GlobalOspf> = TopologyZoo::Abilene.build(Queue::new());
+    /// # net.build_external_routers(extend_to_k_external_routers, 5)?;
+    /// # net.build_link_weights(constant_link_weight, 10.0)?;
+    /// # net.build_ibgp_full_mesh()?;
+    /// # net.build_ebgp_sessions()?;
+    /// // let mut net = ...
     ///
     /// // Use the `random` function to generate random peer types, with 20% change of assigning a
     /// // customer, 30% chance of assigning a peer, and 50% chace of assigning a provider.

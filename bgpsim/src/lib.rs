@@ -175,6 +175,43 @@
 //!     Ok(())
 //! }
 //! ```
+//!
+//! This library contains networks from [TopologyZoo](http://www.topology-zoo.org) and convenient
+//! builder functions to quickly generate random configurations. Notice, that this requires the
+//! features `topology_zoo` and `rand`.
+//!
+//! ```
+//! use bgpsim::prelude::*;
+//! use bgpsim::builder::*;
+//!
+//! type Prefix = SimplePrefix;           // Use non-overlapping prefixes.
+//! type Queue = BasicEventQueue<Prefix>; // Use a basic FIFO event queue
+//! type Ospf = GlobalOspf;               // Use global OSPF without message passing
+//! type Net = Network<Prefix, Queue, Ospf>;
+//!
+//! # #[cfg(feature = "topology_zoo, rand")]
+//! fn main() -> Result<(), NetworkError> {
+//!
+//!     // create the Abilene network
+//!     let mut net: Net = TopologyZoo::Abilene.build(Queue::new());
+//!     // Create 5 random external routers
+//!     net.build_external_routers(extend_to_k_external_routers, 5)?;
+//!     // Assign random link weights between 10 and 100.
+//!     net.build_link_weights(random_link_weight, (10.0, 100.0))?;
+//!     // Generate an iBGP full-mesh topology.
+//!     net.build_ibgp_full_mesh()?;
+//!     // Generate all eBGP sessions
+//!     net.build_ebgp_sessions()?;
+//!     // Generate route-maps to implement Gao-Rexford routing policies, with probability 20% that
+//!     // an external network will be treated as a customer, 30% that it will be treated as peer,
+//!     // and 50% that it will be a provider.
+//!     let _peer_types = net.build_gao_rexford_policies(GaoRexfordPeerType::random, (0.2, 0.3))?;
+//!
+//!     Ok(())
+//! }
+//! # #[cfg(not(feature = "topology_zoo, rand"))]
+//! # fn main() {}
+//! ```
 
 pub mod bgp;
 pub mod builder;
