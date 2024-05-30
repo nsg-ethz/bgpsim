@@ -155,7 +155,6 @@ type Queue = BasicEventQueue<Prefix>; // Use a basic FIFO event queue
 type Ospf = GlobalOspf;               // Use global OSPF without message passing
 type Net = Network<Prefix, Queue, Ospf>;
 
-# #[cfg(feature = "topology_zoo, rand")]
 fn main() -> Result<(), NetworkError> {
 
     // create the Abilene network
@@ -175,8 +174,6 @@ fn main() -> Result<(), NetworkError> {
 
     Ok(())
 }
-# #[cfg(not(feature = "topology_zoo, rand"))]
-# fn main() {}
 ```
 
 ## Disclaimer
