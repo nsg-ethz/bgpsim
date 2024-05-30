@@ -17,7 +17,7 @@
 
 use std::{
     cmp::Reverse,
-    collections::{BTreeSet, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     iter::{once, repeat},
 };
 
@@ -30,8 +30,8 @@ use crate::{
     network::Network,
     ospf::{LinkWeight, OspfImpl},
     prelude::{BgpSessionType, GlobalOspf},
-    types::IndexType,
-    types::{AsId, NetworkError, Prefix, RouterId},
+    route_map::{RouteMapBuilder, RouteMapDirection},
+    types::{AsId, IndexType, NetworkError, Prefix, RouterId},
 };
 
 /// Trait for generating random configurations quickly. The following example shows how you can
@@ -332,6 +332,80 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     /// between a node of the current component and a node of any of the previous components. If the
     /// feature `rand` is enabled, the nodes will be picked at random.
     fn build_connected_graph(&mut self);
+
+    /// Build Gao-Rexford routing policies by assigning a peer type to each external network and
+    /// configuring route-maps accordingly. The roles are described in [`GaoRexfordPeerType`].
+    /// The following table describes the export rules:
+    ///
+    /// |               | to customer | to peer | to provider |
+    /// |---------------|-------------|---------|-------------|
+    /// | from customer | yes         | yes     | yes         |
+    /// | from peer     | yes         | no      | no          |
+    /// | from provider | yes         | no      | no          |
+    ///
+    /// The peer types are chosen according to the function `peer_type`. This is called for each
+    /// external network. Its arguments are `(external_network, net, a)`. We provide two functions
+    /// to use: [`GaoRexfordPeerType::random`] or [`GaoRexfordPeerType::lookup`].
+    ///
+    /// The following example shows how to create a network using gao-rexford policies
+    ///
+    /// ```
+    /// # #[cfg(feature = "topology_zoo, rand")]
+    /// # {
+    /// use bgpsim::prelude::*;
+    /// # use bgpsim::prelude::SimplePrefix as P;
+    /// # use bgpsim::event::BasicEventQueue as Queue;
+    /// use bgpsim::topology_zoo::TopologyZoo;
+    /// use bgpsim::builder::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    ///
+    /// let mut net: Network<SimplePrefix, _, GlobalOspf> = TopologyZoo::Abilene.build(Queue::new());
+    /// net.build_external_routers(extend_to_k_external_routers, 5)?;
+    /// net.build_link_weights(constant_link_weight, 10.0)?;
+    /// net.build_ibgp_full_mesh()?;
+    /// net.build_ebgp_sessions()?;
+    ///
+    /// // Use the `random` function to generate random peer types, with 20% change of assigning a
+    /// // customer, 30% chance of assigning a peer, and 50% chace of assigning a provider.
+    /// let lut = net.build_gao_rexford_policies(GaoRexfordPeerType::random, (0.2, 0.3))?;
+    /// # Ok(())
+    /// # }
+    /// # }
+    /// ```
+    fn build_gao_rexford_policies<F, A>(
+        &mut self,
+        peer_type: F,
+        a: A,
+    ) -> Result<HashMap<RouterId, GaoRexfordPeerType>, NetworkError>
+    where
+        A: Clone,
+        F: FnMut(RouterId, &Self, A) -> GaoRexfordPeerType;
+
+    /// Build Gao-Rexford routing policies by assigning a peer type to each external network and
+    /// configuring route-maps accordingly. The roles are described in [`GaoRexfordPeerType`].
+    /// The following table describes the export rules:
+    ///
+    /// |               | to customer | to peer | to provider |
+    /// |---------------|-------------|---------|-------------|
+    /// | from customer | yes         | yes     | yes         |
+    /// | from peer     | yes         | no      | no          |
+    /// | from provider | yes         | no      | no          |
+    ///
+    /// The peer types are chosen according to the function `peer_type`. This is called for each
+    /// external network. Its arguments are `(external_network, net, a)`. We provide two functions
+    /// to use: [`GaoRexfordPeerType::random_seeded`]
+    #[cfg(feature = "rand")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    fn build_gao_rexford_policies_seeded<F, A, Rng>(
+        &mut self,
+        rng: Rng,
+        peer_type: F,
+        a: A,
+    ) -> Result<HashMap<RouterId, GaoRexfordPeerType>, NetworkError>
+    where
+        Rng: RngCore,
+        A: Clone,
+        F: FnMut(RouterId, &Self, &mut Rng, A) -> GaoRexfordPeerType;
 }
 
 impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
@@ -710,6 +784,96 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
 
         self.add_links_from(links).unwrap();
     }
+
+    fn build_gao_rexford_policies<F, A>(
+        &mut self,
+        mut peer_type: F,
+        a: A,
+    ) -> Result<HashMap<RouterId, GaoRexfordPeerType>, NetworkError>
+    where
+        A: Clone,
+        F: FnMut(RouterId, &Self, A) -> GaoRexfordPeerType,
+    {
+        // build a local LUT
+        let lut: HashMap<RouterId, GaoRexfordPeerType> = self
+            .external_indices()
+            .map(|ext| (ext, peer_type(ext, &self, a.clone())))
+            .collect();
+
+        _build_gao_rexford(self, lut)
+    }
+
+    #[cfg(feature = "rand")]
+    fn build_gao_rexford_policies_seeded<F, A, Rng>(
+        &mut self,
+        mut rng: Rng,
+        mut peer_type: F,
+        a: A,
+    ) -> Result<HashMap<RouterId, GaoRexfordPeerType>, NetworkError>
+    where
+        Rng: RngCore,
+        A: Clone,
+        F: FnMut(RouterId, &Self, &mut Rng, A) -> GaoRexfordPeerType,
+    {
+        // build a local LUT
+        let lut: HashMap<RouterId, GaoRexfordPeerType> = self
+            .external_indices()
+            .map(|ext| (ext, peer_type(ext, &self, &mut rng, a.clone())))
+            .collect();
+
+        _build_gao_rexford(self, lut)
+    }
+}
+
+fn _build_gao_rexford<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
+    net: &mut Network<P, Q, Ospf>,
+    lut: HashMap<RouterId, GaoRexfordPeerType>,
+) -> Result<HashMap<RouterId, GaoRexfordPeerType>, NetworkError> {
+    let links = net
+        .ospf_network()
+        .external_edges()
+        .map(|e| (e.ext, e.int))
+        .collect::<Vec<_>>();
+
+    // iterate over all external links
+    for (ext, int) in links {
+        // get the type
+        let kind = lut.get(&ext).copied().unwrap_or(GaoRexfordPeerType::Ignore);
+
+        let in_rm = RouteMapBuilder::new()
+            .order(10)
+            .allow()
+            .set_community(kind.community())
+            .set_local_pref(kind.local_pref())
+            .build();
+
+        let out_rms = match kind {
+            GaoRexfordPeerType::Customer => vec![],
+            GaoRexfordPeerType::Peer | GaoRexfordPeerType::Provider => vec![
+                RouteMapBuilder::new()
+                    .order(10)
+                    .deny()
+                    .match_community(GaoRexfordPeerType::Peer.community())
+                    .build(),
+                RouteMapBuilder::new()
+                    .order(10)
+                    .deny()
+                    .match_community(GaoRexfordPeerType::Provider.community())
+                    .build(),
+            ],
+            GaoRexfordPeerType::Ignore => continue,
+        };
+
+        // first, add the BGP session (if it not already exists)
+        net.set_bgp_session(ext, int, Some(BgpSessionType::EBgp))?;
+
+        net.set_bgp_route_map(int, ext, RouteMapDirection::Incoming, in_rm)?;
+        for out_rm in out_rms {
+            net.set_bgp_route_map(int, ext, RouteMapDirection::Outgoing, out_rm)?;
+        }
+    }
+
+    Ok(lut)
 }
 
 /// Select completely random internal nodes from the network. This can be used for the function
@@ -1071,4 +1235,86 @@ pub fn extend_to_k_external_routers_seeded<P: Prefix, Q, Ospf: OspfImpl, Rng: Rn
 
     let num = internal_nodes.len();
     Vec::from_iter(repeat(0..num).flatten().take(x).map(|i| internal_nodes[i]))
+}
+
+/// The different types of external networks, as described by [Gao-Rexoford
+/// policies](https://doi.org/10.1109/90.974523).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum GaoRexfordPeerType {
+    /// Routes from a customer are always preferred, and all routes are exported to a customer.
+    Customer,
+    /// Routes from a peer are preferred over routes from a provider, and only routes received from
+    /// customers are exported to peers.
+    Peer,
+    /// Routes from a provider are least preferred, and only routes received from customers are
+    /// exported to providers.
+    Provider,
+    /// No routes are ever imported or exported from an external netowrk that is `Ignore`.
+    Ignore,
+}
+
+impl GaoRexfordPeerType {
+    /// Return the community associated with that kind.
+    pub fn community(&self) -> u32 {
+        match self {
+            GaoRexfordPeerType::Customer => 501,
+            GaoRexfordPeerType::Peer => 502,
+            GaoRexfordPeerType::Provider => 503,
+            GaoRexfordPeerType::Ignore => 500,
+        }
+    }
+
+    /// Return the local-pref associated with that kind
+    pub fn local_pref(&self) -> u32 {
+        match self {
+            GaoRexfordPeerType::Customer => 200,
+            GaoRexfordPeerType::Peer => 100,
+            GaoRexfordPeerType::Provider => 50,
+            GaoRexfordPeerType::Ignore => 0,
+        }
+    }
+
+    /// Sample a random peer type. The argument `probability` describes the probability of returning
+    /// a `Customer`, and the probability of a `Peer`. The probability of a `Provider` is then
+    /// `1 - probability.0 - probability.1`.
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    #[cfg(feature = "rand")]
+    pub fn random<P: Prefix, Q, Ospf: OspfImpl>(
+        _ext: RouterId,
+        _net: &Network<P, Q, Ospf>,
+        probability: (f64, f64),
+    ) -> Self {
+        Self::random_seeded(_ext, _net, &mut thread_rng(), probability)
+    }
+
+    /// Sample a random peer type. The argument `probability` describes the probability of returning
+    /// a `Customer`, and the probability of a `Peer`. The probability of a `Provider` is then
+    /// `1 - probability.0 - probability.1`.
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    #[cfg(feature = "rand")]
+    pub fn random_seeded<P: Prefix, Q, Ospf: OspfImpl, Rng: RngCore>(
+        _ext: RouterId,
+        _net: &Network<P, Q, Ospf>,
+        rng: &mut Rng,
+        probability: (f64, f64),
+    ) -> Self {
+        let x = rng.gen_range(0.0..1.0);
+        if x < probability.0 {
+            Self::Customer
+        } else if x < (probability.0 + probability.1) {
+            Self::Peer
+        } else {
+            Self::Provider
+        }
+    }
+
+    /// Lookup the peer type in the lookup hash map. If the external network was not found in the
+    /// `lut`, then return `Self::Ignore`.
+    pub fn lookup<P: Prefix, Q, Ospf: OspfImpl>(
+        ext: RouterId,
+        _net: &Network<P, Q, Ospf>,
+        lut: &HashMap<RouterId, Self>,
+    ) -> Self {
+        lut.get(&ext).copied().unwrap_or(Self::Ignore)
+    }
 }
