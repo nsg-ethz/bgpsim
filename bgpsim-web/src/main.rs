@@ -35,7 +35,7 @@ use context_menu::Menu;
 use draw::{canvas::Canvas, mapping::Map};
 use gloo_utils::window;
 use header::Header;
-use http_serde::import_url;
+use http_serde::{import_download_json, import_url};
 use sidebar::Sidebar;
 use state::State;
 use tooltip::Tooltip;
@@ -127,7 +127,11 @@ fn entry() -> Html {
                     });
                 }
 
-                if let Some(d) = params.get("data") {
+                if let Some(file) = params.get("nsg") {
+                    import_download_json(format!(
+                        "https://nsg.ee.ethz.ch/files/public/bgpsim/{file}.json"
+                    ))
+                } else if let Some(d) = params.get("data") {
                     import_url(d);
                 }
             }

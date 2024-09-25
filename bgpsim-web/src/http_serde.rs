@@ -24,10 +24,13 @@ use bgpsim::{
     types::RouterId,
 };
 use getrandom::getrandom;
+use gloo_net::http::RequestBuilder;
+use gloo_utils::window;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wasm_bindgen::JsCast;
-use web_sys::{window, HtmlElement};
+use wasm_bindgen_futures::spawn_local;
+use web_sys::HtmlElement;
 use yewdux::{mrc::Mrc, prelude::Dispatch};
 
 use crate::{
@@ -35,6 +38,34 @@ use crate::{
     point::Point,
     state::{Features, Layer, State},
 };
+
+/// Import a network by downloading a JSON from an URL
+pub fn import_download_json(url: impl AsRef<str>) {
+    let url = url.as_ref().to_string();
+    log::debug!("Downloading the network from {url}");
+    spawn_local(async move {
+        let json_data = match fetch_json(&url).await {
+            Ok(x) => x,
+            Err(e) => {
+                log::error!("Error fetching the JSON from {url}: {e}");
+                return;
+            }
+        };
+        log::info!("{json_data}");
+        import_json_str(json_data);
+    })
+}
+
+pub async fn fetch_json(url: &str) -> Result<String, String> {
+    RequestBuilder::new(url)
+        .header("Accept", "application/json")
+        .send()
+        .await
+        .map_err(|e| format!("{e}"))?
+        .text()
+        .await
+        .map_err(|e| format!("Cannot get the body as text: {e}"))
+}
 
 /// Import a url data and update the network and settings
 pub fn import_url(s: impl AsRef<str>) {
@@ -102,8 +133,9 @@ pub fn export_url() -> String {
     let compressed_data = miniz_oxide::deflate::compress_to_vec(json_data.as_bytes(), 8);
     let encoded_data = base64::encode_config(compressed_data, base64_config());
     let url = window()
-        .and_then(|w| w.location().href().ok())
-        .unwrap_or_else(|| String::from("bgpsim.org/"));
+        .location()
+        .href()
+        .unwrap_or_else(|_| String::from("bgpsim.org/"));
     format!("{url}?data={encoded_data}")
 }
 
