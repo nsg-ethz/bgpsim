@@ -19,6 +19,7 @@ use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
+use bgpsim::policies::Policy;
 use bgpsim::types::RouterId;
 use gloo_events::EventListener;
 use gloo_utils::window;
@@ -356,21 +357,29 @@ pub fn CanvasHighlightPath() -> Html {
                 net.spec()
                     .get(&r)
                     .and_then(|x| x.get(idx))
-                    .map(|(_, r)| r.is_ok())
+                    .map(|(p, r)| (p.clone(), r.is_ok()))
             })
         },
         spec_idx,
     );
 
-    match (state.deref().clone(), *spec) {
+    match (state.deref().clone(), spec.as_ref()) {
         ((Hover::Router(router_id), Layer::FwState, Some(prefix)), _) => {
             html! {<ForwardingPath {router_id} {prefix} />}
         }
-        ((Hover::Policy(router_id, _), _, Some(prefix)), Some(true)) => {
-            html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Valid}/>}
+        ((Hover::Policy(router_id, _), _, _), Some((p, true))) => {
+            if let Some(prefix) = p.prefix() {
+                html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Valid}/>}
+            } else {
+                html!()
+            }
         }
-        ((Hover::Policy(router_id, _), _, Some(prefix)), Some(false)) => {
-            html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Invalid}/>}
+        ((Hover::Policy(router_id, _), _, _), Some((p, false))) => {
+            if let Some(prefix) = p.prefix() {
+                html! {<ForwardingPath {router_id} {prefix} kind={PathKind::Invalid}/>}
+            } else {
+                html!()
+            }
         }
         _ => html!(),
     }
