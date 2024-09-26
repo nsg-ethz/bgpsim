@@ -1122,7 +1122,6 @@ where
 {
     /// Checks for weak equivalence, by only comparing the IGP and BGP tables, as well as the event
     /// queue. The function also checks that the same routers are present.
-    #[cfg(not(tarpaulin_include))]
     pub fn weak_eq(&self, other: &Self) -> bool {
         // check if the queue is the same. Notice that the length of the queue will be checked
         // before every element is compared!
@@ -1175,7 +1174,6 @@ where
     Q: EventQueue<P> + PartialEq,
     Ospf: OspfImpl,
 {
-    #[cfg(not(tarpaulin_include))]
     fn eq(&self, other: &Self) -> bool {
         if self.routers != other.routers {
             return false;

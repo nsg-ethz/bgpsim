@@ -221,7 +221,6 @@ pub mod event;
 #[cfg_attr(docsrs, doc(cfg(feature = "export")))]
 pub mod export;
 pub mod external_router;
-#[cfg(not(tarpaulin_include))]
 pub mod formatter;
 pub mod forwarding_state;
 pub mod interactive;
@@ -239,7 +238,6 @@ pub mod topology_zoo;
 pub mod types;
 
 #[cfg(test)]
-#[cfg(not(tarpaulin_include))]
 mod test;
 
 pub use bgpsim_macros::*;

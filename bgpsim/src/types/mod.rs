@@ -305,7 +305,6 @@ pub enum NetworkDeviceRef<'a, P: Prefix, Ospf> {
     ExternalRouter(&'a ExternalRouter<P>),
 }
 
-#[cfg(not(tarpaulin_include))]
 impl<'a, P: Prefix, Ospf> NetworkDeviceRef<'a, P, Ospf> {
     /// Returns the Router or **panics**, if the enum is not a `NetworkDeviceRef::InternalRouter`
     #[track_caller]
