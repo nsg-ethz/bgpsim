@@ -100,10 +100,10 @@ pub fn Canvas(props: &Properties) -> Html {
     );
 
     let onmousemove = use_state(|| None);
-    let (onmousedown, onmouseup) = if !blog_mode {
-        prepare_move(onmousemove)
-    } else {
+    let (onmousedown, onmouseup) = if blog_mode {
         (callback!(|_| ()), callback!(|_| ()))
+    } else {
+        prepare_move(onmousemove)
     };
     let onwheel = callback!(|e: WheelEvent| {
         let e_mouse = e.dyn_ref::<web_sys::MouseEvent>().unwrap();
@@ -144,6 +144,10 @@ fn prepare_move(
         if !state_dispatch.get().hover().is_none() {
             return;
         }
+        if state_dispatch.get().small_mode && state_dispatch.get().sidebar_shown {
+            state_dispatch.reduce_mut(|state| state.sidebar_shown = false);
+        }
+        // hide the sidebar if it is expanded
         state_dispatch.reduce_mut(|state| state.disable_hover = true);
         log::debug!("pressed: {}", e.button());
         if e.button() != 0 {
