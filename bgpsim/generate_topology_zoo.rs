@@ -53,7 +53,7 @@ fn main() {
         }
         let topo_name = file_name.trim_end_matches(".graphml");
         // check if all chars are ascii
-        if !topo_name.chars().all(|c| c.is_ascii()) {
+        if !topo_name.is_ascii() {
             continue;
         }
         // make sure the name only contains spaces, lowercase and uppercase letters, and starts

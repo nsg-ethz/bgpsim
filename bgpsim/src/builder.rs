@@ -798,7 +798,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         // build a local LUT
         let lut: HashMap<RouterId, GaoRexfordPeerType> = self
             .external_indices()
-            .map(|ext| (ext, peer_type(ext, &self, a.clone())))
+            .map(|ext| (ext, peer_type(ext, self, a.clone())))
             .collect();
 
         _build_gao_rexford(self, lut)

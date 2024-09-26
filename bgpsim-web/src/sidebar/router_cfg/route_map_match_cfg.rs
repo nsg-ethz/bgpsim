@@ -178,14 +178,14 @@ impl MatchValue {
             return Some(Self::Integer(x));
         }
         if let Some(vs) = s
-            .split(|c| c == ',' || c == ';')
+            .split([',', ';'])
             .map(|x| Pfx::from_str(x.trim()).ok())
             .collect::<Option<BTreeSet<Pfx>>>()
         {
             return Some(Self::PrefixList(vs));
         }
         if let Some(vs) = s
-            .split(|c| c == ',' || c == ';')
+            .split([',', ';'])
             .map(|x| x.trim().parse::<u32>().ok())
             .collect::<Option<BTreeSet<u32>>>()
         {

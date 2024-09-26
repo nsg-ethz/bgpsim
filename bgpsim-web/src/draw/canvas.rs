@@ -208,7 +208,7 @@ fn prepare_touch() -> (Callback<TouchEvent>, Callback<TouchEvent>) {
                     n.dim.add_offset(delta);
                 });
             };
-        } else if new_touches.len() > 1 {
+        } else {
             log::debug!("multi-touch not yet supported");
         }
         *old_touches = new_touches;
