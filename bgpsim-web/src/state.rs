@@ -143,7 +143,7 @@ impl State {
     }
 
     pub fn set_selected(&mut self, selected: Selected) {
-        self.sidebar_shown = true;
+        // self.sidebar_shown = true;
         self.selected = selected
     }
 
