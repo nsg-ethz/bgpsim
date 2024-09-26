@@ -80,18 +80,20 @@ fn app() -> Html {
     let header_ref = use_node_ref();
 
     html! {
-        <div class="relative w-screen h-screen max-h-screen max-w-screen bg-base-2 overflow-hidden text-main">
-          <div class="absolute w-full h-full flex">
-            <Tooltip />
-            <Menu />
-            <div class="relative flex-1 h-full p-0">
-              <Header node_ref={header_ref.clone()} />
-              <Canvas header_ref={header_ref.clone()} />
+        <div class="absolute w-full h-full">
+          <div class="relative w-full h-full max-h-screen max-w-screen bg-base-2 overflow-hidden text-main">
+            <div class="absolute w-full h-full flex">
+              <Tooltip />
+              <Menu />
+              <div class="relative flex-1 h-full p-0">
+                <Header node_ref={header_ref.clone()} />
+                <Canvas header_ref={header_ref.clone()} />
+              </div>
+              <Sidebar />
             </div>
-            <Sidebar />
+            <Map />
+            <Tour />
           </div>
-          <Map />
-          <Tour />
         </div>
     }
 }

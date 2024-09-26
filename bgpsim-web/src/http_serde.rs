@@ -51,7 +51,6 @@ pub fn import_download_json(url: impl AsRef<str>) {
                 return;
             }
         };
-        log::info!("{json_data}");
         import_json_str(json_data);
     })
 }

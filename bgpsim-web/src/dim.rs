@@ -19,7 +19,7 @@ use crate::point::Point;
 
 pub const ROUTER_RADIUS: f64 = 12.0;
 pub const FW_ARROW_LENGTH: f64 = 60.0;
-pub const BORDER: f64 = 25.0;
+pub const BORDER: f64 = 80.0;
 pub const TOOLTIP_OFFSET: f64 = 8.0;
 
 #[derive(Clone, Copy, PartialEq)]

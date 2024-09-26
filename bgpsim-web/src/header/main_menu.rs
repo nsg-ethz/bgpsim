@@ -141,7 +141,7 @@ pub fn MainMenu(props: &Properties) -> Html {
                     if cfg!(feature = "anonymous") {
                         <p class="text"> {"SIGCOMM anonymous review process"} </p>
                     } else {
-                        <p class="text"> {"By "} <a class={link_class} href="https://tibors.ch" {target}>{"Tibor Schneider"}</a> {" @ "} <a class={link_class} href="https://nsg.ee.ethz.ch" {target}>{"NSG"}</a> </p>
+                        <p class="text"> {"By "} <a class={link_class} href="https://nsg.ee.ethz.ch/people/tibor-schneider/" {target}>{"Tibor Schneider"}</a> {" @ "} <a class={link_class} href="https://nsg.ee.ethz.ch" {target}>{"NSG"}</a> </p>
                     }
                 </div>
                 <div class="p-2 flex flex-col space-y-2">

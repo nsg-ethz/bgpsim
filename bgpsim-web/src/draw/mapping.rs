@@ -62,8 +62,9 @@ pub struct Properties {
 
 fn current_lod(bbox: Bbox) -> usize {
     let size = f64::max(bbox.max.x - bbox.min.x, bbox.max.y - bbox.min.y);
+    let size = f64::max(size, 0.0);
     let mut lod = 0;
-    while LOD[lod] > size {
+    while lod < LOD.len() && LOD[lod] >= size {
         lod += 1;
     }
     lod
