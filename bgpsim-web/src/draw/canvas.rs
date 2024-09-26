@@ -15,6 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use std::collections::HashMap;
 use std::ops::Deref;
 use std::sync::{Arc, Mutex};
 
@@ -100,10 +101,13 @@ pub fn Canvas(props: &Properties) -> Html {
     );
 
     let onmousemove = use_state(|| None);
-    let (onmousedown, onmouseup) = if blog_mode {
-        (callback!(|_| ()), callback!(|_| ()))
+    let ((onmousedown, onmouseup), (ontouchmove, ontouchend)) = if blog_mode {
+        (
+            (callback!(|_| ()), callback!(|_| ())),
+            (callback!(|_| ()), callback!(|_| ())),
+        )
     } else {
-        prepare_move(onmousemove)
+        (prepare_move(onmousemove), prepare_touch())
     };
     let onwheel = callback!(|e: WheelEvent| {
         let e_mouse = e.dyn_ref::<web_sys::MouseEvent>().unwrap();
@@ -117,7 +121,7 @@ pub fn Canvas(props: &Properties) -> Html {
 
     html! {
         <div class="flex-1 h-full overflow-hidden" ref={div_ref}>
-            <svg width="100%" height="100%" {onmousedown} {onmouseup} {onwheel}>
+            <svg width="100%" height="100%" {onmousedown} {onmouseup} {onwheel} {ontouchmove} {ontouchend}>
                 <ArrowMarkers />
                 <CanvasLinks />
                 <CanvasRouters />
@@ -177,6 +181,42 @@ fn prepare_move(
     });
 
     (onmousedown, onmouseup)
+}
+
+fn prepare_touch() -> (Callback<TouchEvent>, Callback<TouchEvent>) {
+    let state: Arc<Mutex<HashMap<i32, Point>>> = Arc::new(Mutex::new(HashMap::new()));
+    let state_c = state.clone();
+
+    let touchset = |e: TouchEvent| {
+        (0..e.touches().length())
+            .filter_map(|i| e.touches().get(i))
+            .map(|t| (t.identifier(), Point::new(t.client_x(), t.client_y())))
+            .collect::<HashMap<i32, Point>>()
+    };
+
+    let ontouchmove = Callback::from(move |e: TouchEvent| {
+        let new_touches = touchset(e);
+        let mut old_touches = state_c.lock().unwrap();
+        // handle move
+        if new_touches.len() == 1 {
+            // check if the same was already pressed before
+            let (id, new_p) = new_touches.iter().next().unwrap();
+            if let Some(old_p) = old_touches.get(id) {
+                let delta = *old_p - *new_p;
+                Dispatch::<Net>::new().reduce_mut(move |n| {
+                    n.dim.add_offset(delta);
+                });
+            };
+        } else if new_touches.len() > 1 {
+            log::debug!("multi-touch not yet supported");
+        }
+        *old_touches = new_touches;
+    });
+    // ontouchexit simply updates the touchset
+    let ontouchend = Callback::from(move |e: TouchEvent| {
+        *state.lock().unwrap() = touchset(e);
+    });
+    (ontouchmove, ontouchend)
 }
 
 #[function_component]
