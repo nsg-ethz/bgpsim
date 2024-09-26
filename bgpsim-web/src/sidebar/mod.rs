@@ -98,10 +98,20 @@ pub fn Sidebar() -> Html {
 
     if state.1 {
         let base_class = "absolute z-10 h-full w-[28rem] top-0 right-0 pt-4 pb-4 pr-4 transition duration-300 ease-in-out pointer-events-auto";
-        let class = if state.2 {
-            classes!(base_class)
+        let (class, onclick_2) = if state.2 {
+            // sidebar is shown. Display the thing normally (without moving it out of the way),
+            // and remove the onclick callback.
+            (classes!(base_class), None)
         } else {
-            classes!(base_class, "translate-x-[20rem]")
+            // Sidebar is hidden. Move the sidebar out of the view, and set the onclick callback to
+            // open the sidebar
+            (
+                classes!(base_class, "translate-x-[24rem]"),
+                Some(
+                    Dispatch::<State>::new()
+                        .reduce_mut_callback(|state| state.sidebar_shown = !state.sidebar_shown),
+                ),
+            )
         };
 
         let onclick = Dispatch::<State>::new()
@@ -109,11 +119,11 @@ pub fn Sidebar() -> Html {
 
         html! {
             <>
-                <div class="w-[8.5rem] h-full max-h-full pl-3 pr-6 align-middle overflow-auto"></div>
+                <div class="w-[4.5rem] h-full max-h-full pl-3 pr-6 align-middle overflow-auto"></div>
                 <div class="absolute w-full h-full overflow-hidden pointer-events-none">
                     <div {class}>
-                        <div class="w-full max-h-full h-full bg-base-0 shadow-lg rounded-lg " id="sidebar">
-                            <div class="h-full w-full max-h-full flex flex-col overflow-scroll px-4">
+                        <div class="w-full max-h-full h-full bg-base-0 shadow-lg rounded-lg" id="sidebar">
+                            <div class="h-full w-full max-h-full flex flex-col overflow-scroll px-4" onclick={onclick_2}>
                                 { content }
                             </div>
                             <div class="absolute bottom-8 -left-5 rounded-full p-2 bg-blue drop-shadow-lg text-base-1 cursor-pointer" {onclick}>
