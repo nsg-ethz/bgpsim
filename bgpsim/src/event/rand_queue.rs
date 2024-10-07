@@ -309,7 +309,7 @@ impl<P: Prefix> GeoTimingModel<P> {
     }
 
     /// Get the distance between two routers
-    pub fn get_distance(&mut self, src: RouterId, dst: RouterId) -> Option<f64> {
+    pub fn get_distance(&self, src: RouterId, dst: RouterId) -> Option<f64> {
         self.distances.get(&(src, dst)).map(|x| x.into_inner())
     }
 
