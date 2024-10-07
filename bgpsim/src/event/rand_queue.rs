@@ -308,6 +308,11 @@ impl<P: Prefix> GeoTimingModel<P> {
         self.processing_params.insert(router, params);
     }
 
+    /// Get the distance between two routers
+    pub fn get_distance(&mut self, src: RouterId, dst: RouterId) -> Option<f64> {
+        self.distances.get(&(src, dst)).map(|x| x.into_inner())
+    }
+
     /// Set the distance between two nodes in light seconds
     pub fn set_distance(&mut self, src: RouterId, dst: RouterId, dist: f64) {
         let dist = NotNan::new(dist).unwrap();
