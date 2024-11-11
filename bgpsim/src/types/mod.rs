@@ -571,18 +571,18 @@ pub trait NetworkErrorOption<T> {
 
 impl<T> NetworkErrorOption<T> for Option<T> {
     fn or_router_not_found(self, router: RouterId) -> Result<T, NetworkError> {
-        self.ok_or_else(|| NetworkError::DeviceNotFound(router))
+        self.ok_or(NetworkError::DeviceNotFound(router))
     }
 
     fn or_link_not_found(self, a: RouterId, b: RouterId) -> Result<T, NetworkError> {
-        self.ok_or_else(|| NetworkError::LinkNotFound(a, b))
+        self.ok_or(NetworkError::LinkNotFound(a, b))
     }
 
     fn or_is_internal(self, router: RouterId) -> Result<T, NetworkError> {
-        self.ok_or_else(|| NetworkError::DeviceIsInternalRouter(router))
+        self.ok_or(NetworkError::DeviceIsInternalRouter(router))
     }
 
     fn or_is_external(self, router: RouterId) -> Result<T, NetworkError> {
-        self.ok_or_else(|| NetworkError::DeviceIsExternalRouter(router))
+        self.ok_or(NetworkError::DeviceIsExternalRouter(router))
     }
 }

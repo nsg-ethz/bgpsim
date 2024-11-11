@@ -1190,11 +1190,7 @@ pub fn extend_to_k_external_routers<P: Prefix, Q, Ospf: OspfImpl>(
     k: usize,
 ) -> Vec<RouterId> {
     let num_externals = net.external_indices().count();
-    let x = if num_externals >= k {
-        0
-    } else {
-        k - num_externals
-    };
+    let x = k.saturating_sub(num_externals);
 
     #[cfg(feature = "rand")]
     let mut internal_nodes = net.internal_indices().collect::<Vec<RouterId>>();

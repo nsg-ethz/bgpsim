@@ -292,7 +292,7 @@ pub struct PartialClone<'a, P: Prefix, Q> {
 
 impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
     /// Create a new partial clone of a network
-    pub fn new(net: &'a Network<P, Q, GlobalOspf>) -> PartialClone<'_, P, Q> {
+    pub fn new(net: &'a Network<P, Q, GlobalOspf>) -> PartialClone<'a, P, Q> {
         PartialClone {
             source: net,
             reuse_igp_state: false,

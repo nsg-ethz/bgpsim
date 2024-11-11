@@ -274,7 +274,7 @@ impl<P: Prefix> BgpState<P> {
     }
 }
 
-impl<'n, P: Prefix> BgpStateRef<'n, P> {
+impl<P: Prefix> BgpStateRef<'_, P> {
     /// Create a [`BgpStateRef`] instance.
     pub fn as_owned(&self) -> BgpState<P> {
         BgpState {

@@ -419,7 +419,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
 
         self.ospf
             .get_area(source, target)
-            .ok_or_else(|| NetworkError::LinkNotFound(source, target))
+            .ok_or(NetworkError::LinkNotFound(source, target))
     }
 }
 
@@ -1203,7 +1203,7 @@ pub struct DeviceIndices<'a, P: Prefix, Ospf> {
     i: std::collections::hash_map::Keys<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix, Ospf> Iterator for DeviceIndices<'a, P, Ospf> {
+impl<P: Prefix, Ospf> Iterator for DeviceIndices<'_, P, Ospf> {
     type Item = RouterId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1211,7 +1211,7 @@ impl<'a, P: Prefix, Ospf> Iterator for DeviceIndices<'a, P, Ospf> {
     }
 }
 
-impl<'a, P: Prefix, Ospf> DeviceIndices<'a, P, Ospf> {
+impl<P: Prefix, Ospf> DeviceIndices<'_, P, Ospf> {
     /// Detach the iterator from the network itself
     pub fn detach(self) -> std::vec::IntoIter<RouterId> {
         self.collect::<Vec<RouterId>>().into_iter()
@@ -1224,7 +1224,7 @@ pub struct InternalIndices<'a, P: Prefix, Ospf> {
     i: std::collections::hash_map::Iter<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix, Ospf> Iterator for InternalIndices<'a, P, Ospf> {
+impl<P: Prefix, Ospf> Iterator for InternalIndices<'_, P, Ospf> {
     type Item = RouterId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1237,7 +1237,7 @@ impl<'a, P: Prefix, Ospf> Iterator for InternalIndices<'a, P, Ospf> {
     }
 }
 
-impl<'a, P: Prefix, Ospf> InternalIndices<'a, P, Ospf> {
+impl<P: Prefix, Ospf> InternalIndices<'_, P, Ospf> {
     /// Detach the iterator from the network itself
     pub fn detach(self) -> std::vec::IntoIter<RouterId> {
         self.collect::<Vec<RouterId>>().into_iter()
@@ -1250,7 +1250,7 @@ pub struct ExternalIndices<'a, P: Prefix, Ospf> {
     i: std::collections::hash_map::Iter<'a, RouterId, NetworkDevice<P, Ospf>>,
 }
 
-impl<'a, P: Prefix, Ospf> Iterator for ExternalIndices<'a, P, Ospf> {
+impl<P: Prefix, Ospf> Iterator for ExternalIndices<'_, P, Ospf> {
     type Item = RouterId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1263,7 +1263,7 @@ impl<'a, P: Prefix, Ospf> Iterator for ExternalIndices<'a, P, Ospf> {
     }
 }
 
-impl<'a, P: Prefix, Ospf> ExternalIndices<'a, P, Ospf> {
+impl<P: Prefix, Ospf> ExternalIndices<'_, P, Ospf> {
     /// Detach the iterator from the network itself
     pub fn detach(self) -> std::vec::IntoIter<RouterId> {
         self.collect::<Vec<RouterId>>().into_iter()
