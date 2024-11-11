@@ -3,64 +3,58 @@ on: [push, pull_request]
 name: Continuous integration
 
 jobs:
-  check:
-    name: Check
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: check
-          args: --all-features
-
-  test:
-    name: Test Suite
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - uses: actions-rs/cargo@v1
-        with:
-          command: test
-          args: --all-features
-
-  fmt:
-    name: Rustfmt
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add rustfmt
-      - uses: actions-rs/cargo@v1
-        with:
-          command: fmt
-          args: --all -- --check
-
-  clippy:
-    name: Clippy
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v2
-      - uses: actions-rs/toolchain@v1
-        with:
-          profile: minimal
-          toolchain: stable
-          override: true
-      - run: rustup component add clippy
-      - uses: actions-rs/cargo@v1
-        with:
-          command: clippy
-          args: --all-features -- -D warnings
+    build_and_test:
+        runs-on: ubuntu-latest
+        name: check and test
+        steps:
+            - name: Checkout repository
+              uses: actions/checkout@v3
+            - name: Set up toolchain
+              uses: actions-rs/toolchain@v1
+              with:
+                  profile: minimal
+                  toolchain: nightly
+                  override: true
+                  components: rustfmt, llvm-tools-preview, clippy
+            - name: Check
+              uses: actions-rs/cargo@v1
+              with:
+                  command: check
+                  args: --all-features
+            - name: Clippy
+              uses: actions-rs/cargo@v1
+              with:
+                  command: clippy
+                  args: --all-features
+            - name: Rustfmt
+              uses: actions-rs/cargo@v1
+              with:
+                  command: fmt
+                  args: --all -- --check
+            - name: Build
+              uses: actions-rs/cargo@v1
+              with:
+                  command: build
+                  args: --release
+              env:
+                  CARGO_INCREMENTAL: "0"
+                  RUSTFLAGS: "-Cinstrument-coverage"
+                  RUSTDOCFLAGS: "-Cinstrument-coverage"
+            - name: Test
+              uses: actions-rs/cargo@v1
+              with:
+                  command: test
+                  args: --all-features --no-fail-fast
+              env:
+                  CARGO_INCREMENTAL: "0"
+                  RUSTFLAGS: "-Cinstrument-coverage"
+                  RUSTDOCFLAGS: "-Cinstrument-coverage"
+            - name: Install grcov
+              run: if [[ ! -e ~/.cargo/bin/grcov ]]; then cargo install grcov; fi
+            - name: Run grcov
+              run: grcov . --binary-path target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov
+            - name: Coveralls upload
+              uses: coverallsapp/github-action@master
+              with:
+                  github-token: ${{ secrets.GITHUB_TOKEN }}
+                  path-to-lcov: ${{ steps.coverage.outputs.report }}
