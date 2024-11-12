@@ -15,7 +15,7 @@
 
 #![allow(non_upper_case_globals)]
 
-//! Module containing the [TopologyZoo](http://www.topology-zoo.org/dataset.html) dataset. This file
+//! Module containing the [TopologyZoo](http://topology-zoo.org/dataset.html) dataset. This file
 //! is automatically generated.
 //!
 //! If you use the TopologyZoo dataset, please add the following citation:
@@ -44,8 +44,8 @@ use crate::{
 };
 
 use geoutils::Location;
-use include_flate::flate;
 use std::collections::HashMap;
+use include_flate::flate;
 
 use serde::{Deserialize, Serialize};
 
@@ -311,7 +311,7 @@ flate!(static GRAPHML_Xspedius: str from "topology_zoo/Xspedius.graphml");
 flate!(static GRAPHML_York: str from "topology_zoo/York.graphml");
 flate!(static GRAPHML_Zamren: str from "topology_zoo/Zamren.graphml");
 
-/// Topologies from [TopologyZoo](http://www.topology-zoo.org/dataset.html). The following example
+/// Topologies from [TopologyZoo](http://topology-zoo.org/dataset.html). The following example
 /// code creates an Abilene network and configures it with random configuration:
 ///
 /// ```
@@ -363,7 +363,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 24 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Aarnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Aarnet.jpg" alt="--- No image available ---" width="400"/>
     Aarnet,
 
     /// - 11 routers
@@ -372,7 +372,7 @@ pub enum TopologyZoo {
     /// - 14 edges
     /// - 14 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Abilene.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Abilene.jpg" alt="--- No image available ---" width="400"/>
     Abilene,
 
     /// - 23 routers
@@ -381,7 +381,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 31 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Abvt.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Abvt.jpg" alt="--- No image available ---" width="400"/>
     Abvt,
 
     /// - 23 routers
@@ -390,7 +390,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 26 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Aconet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Aconet.jpg" alt="--- No image available ---" width="400"/>
     Aconet,
 
     /// - 25 routers
@@ -399,7 +399,7 @@ pub enum TopologyZoo {
     /// - 30 edges
     /// - 30 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Agis.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Agis.jpg" alt="--- No image available ---" width="400"/>
     Agis,
 
     /// - 10 routers
@@ -408,7 +408,7 @@ pub enum TopologyZoo {
     /// - 9 edges
     /// - 9 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Ai3.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Ai3.jpg" alt="--- No image available ---" width="400"/>
     Ai3,
 
     /// - 16 routers
@@ -417,7 +417,7 @@ pub enum TopologyZoo {
     /// - 26 edges
     /// - 19 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Airtel.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Airtel.jpg" alt="--- No image available ---" width="400"/>
     Airtel,
 
     /// - 25 routers
@@ -426,7 +426,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 21 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Amres.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Amres.jpg" alt="--- No image available ---" width="400"/>
     Amres,
 
     /// - 18 routers
@@ -435,7 +435,7 @@ pub enum TopologyZoo {
     /// - 25 edges
     /// - 25 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Ans.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Ans.jpg" alt="--- No image available ---" width="400"/>
     Ans,
 
     /// - 30 routers
@@ -444,7 +444,7 @@ pub enum TopologyZoo {
     /// - 29 edges
     /// - 27 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Arn.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Arn.jpg" alt="--- No image available ---" width="400"/>
     Arn,
 
     /// - 34 routers
@@ -453,7 +453,7 @@ pub enum TopologyZoo {
     /// - 46 edges
     /// - 46 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Arnes.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Arnes.jpg" alt="--- No image available ---" width="400"/>
     Arnes,
 
     /// - 4 routers
@@ -462,7 +462,7 @@ pub enum TopologyZoo {
     /// - 4 edges
     /// - 4 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Arpanet196912.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Arpanet196912.jpg" alt="--- No image available ---" width="400"/>
     Arpanet196912,
 
     /// - 9 routers
@@ -471,7 +471,7 @@ pub enum TopologyZoo {
     /// - 10 edges
     /// - 10 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Arpanet19706.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Arpanet19706.jpg" alt="--- No image available ---" width="400"/>
     Arpanet19706,
 
     /// - 18 routers
@@ -480,7 +480,7 @@ pub enum TopologyZoo {
     /// - 22 edges
     /// - 22 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Arpanet19719.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Arpanet19719.jpg" alt="--- No image available ---" width="400"/>
     Arpanet19719,
 
     /// - 25 routers
@@ -489,7 +489,7 @@ pub enum TopologyZoo {
     /// - 28 edges
     /// - 28 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Arpanet19723.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Arpanet19723.jpg" alt="--- No image available ---" width="400"/>
     Arpanet19723,
 
     /// - 29 routers
@@ -498,7 +498,7 @@ pub enum TopologyZoo {
     /// - 32 edges
     /// - 32 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Arpanet19728.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Arpanet19728.jpg" alt="--- No image available ---" width="400"/>
     Arpanet19728,
 
     /// - 65 routers
@@ -507,7 +507,7 @@ pub enum TopologyZoo {
     /// - 77 edges
     /// - 76 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/AsnetAm.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/AsnetAm.jpg" alt="--- No image available ---" width="400"/>
     AsnetAm,
 
     /// - 21 routers
@@ -516,7 +516,7 @@ pub enum TopologyZoo {
     /// - 22 edges
     /// - 22 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Atmnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Atmnet.jpg" alt="--- No image available ---" width="400"/>
     Atmnet,
 
     /// - 25 routers
@@ -525,7 +525,7 @@ pub enum TopologyZoo {
     /// - 56 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/AttMpls.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/AttMpls.jpg" alt="--- No image available ---" width="400"/>
     AttMpls,
 
     /// - 22 routers
@@ -534,7 +534,7 @@ pub enum TopologyZoo {
     /// - 21 edges
     /// - 18 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Azrena.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Azrena.jpg" alt="--- No image available ---" width="400"/>
     Azrena,
 
     /// - 22 routers
@@ -543,7 +543,7 @@ pub enum TopologyZoo {
     /// - 28 edges
     /// - 28 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Bandcon.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Bandcon.jpg" alt="--- No image available ---" width="400"/>
     Bandcon,
 
     /// - 7 routers
@@ -552,7 +552,7 @@ pub enum TopologyZoo {
     /// - 6 edges
     /// - 5 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Basnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Basnet.jpg" alt="--- No image available ---" width="400"/>
     Basnet,
 
     /// - 27 routers
@@ -561,7 +561,7 @@ pub enum TopologyZoo {
     /// - 28 edges
     /// - 28 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Bbnplanet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Bbnplanet.jpg" alt="--- No image available ---" width="400"/>
     Bbnplanet,
 
     /// - 48 routers
@@ -570,7 +570,7 @@ pub enum TopologyZoo {
     /// - 64 edges
     /// - 64 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Bellcanada.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Bellcanada.jpg" alt="--- No image available ---" width="400"/>
     Bellcanada,
 
     /// - 51 routers
@@ -579,7 +579,7 @@ pub enum TopologyZoo {
     /// - 66 edges
     /// - 66 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Bellsouth.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Bellsouth.jpg" alt="--- No image available ---" width="400"/>
     Bellsouth,
 
     /// - 23 routers
@@ -588,7 +588,7 @@ pub enum TopologyZoo {
     /// - 39 edges
     /// - 32 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Belnet2003.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Belnet2003.jpg" alt="--- No image available ---" width="400"/>
     Belnet2003,
 
     /// - 23 routers
@@ -597,7 +597,7 @@ pub enum TopologyZoo {
     /// - 39 edges
     /// - 32 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Belnet2004.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Belnet2004.jpg" alt="--- No image available ---" width="400"/>
     Belnet2004,
 
     /// - 23 routers
@@ -606,7 +606,7 @@ pub enum TopologyZoo {
     /// - 41 edges
     /// - 32 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Belnet2005.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Belnet2005.jpg" alt="--- No image available ---" width="400"/>
     Belnet2005,
 
     /// - 23 routers
@@ -615,7 +615,7 @@ pub enum TopologyZoo {
     /// - 41 edges
     /// - 32 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Belnet2006.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Belnet2006.jpg" alt="--- No image available ---" width="400"/>
     Belnet2006,
 
     /// - 21 routers
@@ -624,7 +624,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 24 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Belnet2007.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Belnet2007.jpg" alt="--- No image available ---" width="400"/>
     Belnet2007,
 
     /// - 21 routers
@@ -633,7 +633,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 24 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Belnet2008.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Belnet2008.jpg" alt="--- No image available ---" width="400"/>
     Belnet2008,
 
     /// - 21 routers
@@ -642,7 +642,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 24 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Belnet2009.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Belnet2009.jpg" alt="--- No image available ---" width="400"/>
     Belnet2009,
 
     /// - 22 routers
@@ -651,7 +651,7 @@ pub enum TopologyZoo {
     /// - 25 edges
     /// - 25 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Belnet2010.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Belnet2010.jpg" alt="--- No image available ---" width="400"/>
     Belnet2010,
 
     /// - 53 routers
@@ -660,7 +660,7 @@ pub enum TopologyZoo {
     /// - 65 edges
     /// - 41 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/BeyondTheNetwork.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/BeyondTheNetwork.jpg" alt="--- No image available ---" width="400"/>
     BeyondTheNetwork,
 
     /// - 33 routers
@@ -669,7 +669,7 @@ pub enum TopologyZoo {
     /// - 48 edges
     /// - 48 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Bics.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Bics.jpg" alt="--- No image available ---" width="400"/>
     Bics,
 
     /// - 29 routers
@@ -678,7 +678,7 @@ pub enum TopologyZoo {
     /// - 33 edges
     /// - 33 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Biznet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Biznet.jpg" alt="--- No image available ---" width="400"/>
     Biznet,
 
     /// - 37 routers
@@ -687,7 +687,7 @@ pub enum TopologyZoo {
     /// - 38 edges
     /// - 35 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Bren.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Bren.jpg" alt="--- No image available ---" width="400"/>
     Bren,
 
     /// - 18 routers
@@ -696,7 +696,7 @@ pub enum TopologyZoo {
     /// - 23 edges
     /// - 19 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/BsonetEurope.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/BsonetEurope.jpg" alt="--- No image available ---" width="400"/>
     BsonetEurope,
 
     /// - 20 routers
@@ -705,7 +705,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 20 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/BtAsiaPac.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/BtAsiaPac.jpg" alt="--- No image available ---" width="400"/>
     BtAsiaPac,
 
     /// - 24 routers
@@ -714,7 +714,7 @@ pub enum TopologyZoo {
     /// - 37 edges
     /// - 35 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/BtEurope.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/BtEurope.jpg" alt="--- No image available ---" width="400"/>
     BtEurope,
 
     /// - 51 routers
@@ -723,7 +723,7 @@ pub enum TopologyZoo {
     /// - 50 edges
     /// - 40 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/BtLatinAmerica.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/BtLatinAmerica.jpg" alt="--- No image available ---" width="400"/>
     BtLatinAmerica,
 
     /// - 36 routers
@@ -732,7 +732,7 @@ pub enum TopologyZoo {
     /// - 76 edges
     /// - 74 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/BtNorthAmerica.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/BtNorthAmerica.jpg" alt="--- No image available ---" width="400"/>
     BtNorthAmerica,
 
     /// - 32 routers
@@ -741,7 +741,7 @@ pub enum TopologyZoo {
     /// - 41 edges
     /// - 33 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Canerie.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Canerie.jpg" alt="--- No image available ---" width="400"/>
     Canerie,
 
     /// - 44 routers
@@ -750,7 +750,7 @@ pub enum TopologyZoo {
     /// - 43 edges
     /// - 40 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Carnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Carnet.jpg" alt="--- No image available ---" width="400"/>
     Carnet,
 
     /// - 41 routers
@@ -759,7 +759,7 @@ pub enum TopologyZoo {
     /// - 58 edges
     /// - 54 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cernet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cernet.jpg" alt="--- No image available ---" width="400"/>
     Cernet,
 
     /// - 10 routers
@@ -768,7 +768,7 @@ pub enum TopologyZoo {
     /// - 9 edges
     /// - 8 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cesnet1993.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cesnet1993.jpg" alt="--- No image available ---" width="400"/>
     Cesnet1993,
 
     /// - 13 routers
@@ -777,7 +777,7 @@ pub enum TopologyZoo {
     /// - 12 edges
     /// - 11 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cesnet1997.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cesnet1997.jpg" alt="--- No image available ---" width="400"/>
     Cesnet1997,
 
     /// - 13 routers
@@ -786,7 +786,7 @@ pub enum TopologyZoo {
     /// - 12 edges
     /// - 10 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cesnet1999.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cesnet1999.jpg" alt="--- No image available ---" width="400"/>
     Cesnet1999,
 
     /// - 23 routers
@@ -795,7 +795,7 @@ pub enum TopologyZoo {
     /// - 23 edges
     /// - 20 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cesnet2001.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cesnet2001.jpg" alt="--- No image available ---" width="400"/>
     Cesnet2001,
 
     /// - 29 routers
@@ -804,7 +804,7 @@ pub enum TopologyZoo {
     /// - 33 edges
     /// - 30 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cesnet200304.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cesnet200304.jpg" alt="--- No image available ---" width="400"/>
     Cesnet200304,
 
     /// - 39 routers
@@ -813,7 +813,7 @@ pub enum TopologyZoo {
     /// - 44 edges
     /// - 39 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cesnet200511.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cesnet200511.jpg" alt="--- No image available ---" width="400"/>
     Cesnet200511,
 
     /// - 39 routers
@@ -822,7 +822,7 @@ pub enum TopologyZoo {
     /// - 44 edges
     /// - 39 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cesnet200603.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cesnet200603.jpg" alt="--- No image available ---" width="400"/>
     Cesnet200603,
 
     /// - 44 routers
@@ -831,7 +831,7 @@ pub enum TopologyZoo {
     /// - 51 edges
     /// - 45 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cesnet200706.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cesnet200706.jpg" alt="--- No image available ---" width="400"/>
     Cesnet200706,
 
     /// - 52 routers
@@ -840,7 +840,7 @@ pub enum TopologyZoo {
     /// - 63 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cesnet201006.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cesnet201006.jpg" alt="--- No image available ---" width="400"/>
     Cesnet201006,
 
     /// - 42 routers
@@ -849,7 +849,7 @@ pub enum TopologyZoo {
     /// - 66 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Chinanet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Chinanet.jpg" alt="--- No image available ---" width="400"/>
     Chinanet,
 
     /// - 15 routers
@@ -858,7 +858,7 @@ pub enum TopologyZoo {
     /// - 18 edges
     /// - 18 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Claranet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Claranet.jpg" alt="--- No image available ---" width="400"/>
     Claranet,
 
     /// - 197 routers
@@ -867,7 +867,7 @@ pub enum TopologyZoo {
     /// - 243 edges
     /// - 243 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cogentco.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cogentco.jpg" alt="--- No image available ---" width="400"/>
     Cogentco,
 
     /// - 153 routers
@@ -876,7 +876,7 @@ pub enum TopologyZoo {
     /// - 177 edges
     /// - 177 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Colt.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Colt.jpg" alt="--- No image available ---" width="400"/>
     Colt,
 
     /// - 70 routers
@@ -885,7 +885,7 @@ pub enum TopologyZoo {
     /// - 85 edges
     /// - 84 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Columbus.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Columbus.jpg" alt="--- No image available ---" width="400"/>
     Columbus,
 
     /// - 14 routers
@@ -894,7 +894,7 @@ pub enum TopologyZoo {
     /// - 17 edges
     /// - 14 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Compuserve.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Compuserve.jpg" alt="--- No image available ---" width="400"/>
     Compuserve,
 
     /// - 33 routers
@@ -903,7 +903,7 @@ pub enum TopologyZoo {
     /// - 38 edges
     /// - 38 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/CrlNetworkServices.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/CrlNetworkServices.jpg" alt="--- No image available ---" width="400"/>
     CrlNetworkServices,
 
     /// - 51 routers
@@ -912,7 +912,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 8 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cudi.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cudi.jpg" alt="--- No image available ---" width="400"/>
     Cudi,
 
     /// - 36 routers
@@ -921,7 +921,7 @@ pub enum TopologyZoo {
     /// - 41 edges
     /// - 29 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cwix.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cwix.jpg" alt="--- No image available ---" width="400"/>
     Cwix,
 
     /// - 30 routers
@@ -930,7 +930,7 @@ pub enum TopologyZoo {
     /// - 29 edges
     /// - 23 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Cynet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Cynet.jpg" alt="--- No image available ---" width="400"/>
     Cynet,
 
     /// - 28 routers
@@ -939,7 +939,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 31 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Darkstrand.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Darkstrand.jpg" alt="--- No image available ---" width="400"/>
     Darkstrand,
 
     /// - 6 routers
@@ -948,7 +948,7 @@ pub enum TopologyZoo {
     /// - 11 edges
     /// - 11 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Dataxchange.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Dataxchange.jpg" alt="--- No image available ---" width="400"/>
     Dataxchange,
 
     /// - 113 routers
@@ -957,7 +957,7 @@ pub enum TopologyZoo {
     /// - 161 edges
     /// - 161 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Deltacom.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Deltacom.jpg" alt="--- No image available ---" width="400"/>
     Deltacom,
 
     /// - 39 routers
@@ -966,7 +966,7 @@ pub enum TopologyZoo {
     /// - 62 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/DeutscheTelekom.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/DeutscheTelekom.jpg" alt="--- No image available ---" width="400"/>
     DeutscheTelekom,
 
     /// - 58 routers
@@ -975,7 +975,7 @@ pub enum TopologyZoo {
     /// - 87 edges
     /// - 80 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Dfn.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Dfn.jpg" alt="--- No image available ---" width="400"/>
     Dfn,
 
     /// - 193 routers
@@ -984,7 +984,7 @@ pub enum TopologyZoo {
     /// - 151 edges
     /// - 151 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/DialtelecomCz.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/DialtelecomCz.jpg" alt="--- No image available ---" width="400"/>
     DialtelecomCz,
 
     /// - 31 routers
@@ -993,7 +993,7 @@ pub enum TopologyZoo {
     /// - 35 edges
     /// - 35 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Digex.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Digex.jpg" alt="--- No image available ---" width="400"/>
     Digex,
 
     /// - 19 routers
@@ -1002,7 +1002,7 @@ pub enum TopologyZoo {
     /// - 26 edges
     /// - 26 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Easynet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Easynet.jpg" alt="--- No image available ---" width="400"/>
     Easynet,
 
     /// - 13 routers
@@ -1011,7 +1011,7 @@ pub enum TopologyZoo {
     /// - 13 edges
     /// - 12 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Eenet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Eenet.jpg" alt="--- No image available ---" width="400"/>
     Eenet,
 
     /// - 20 routers
@@ -1020,7 +1020,7 @@ pub enum TopologyZoo {
     /// - 30 edges
     /// - 30 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/EliBackbone.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/EliBackbone.jpg" alt="--- No image available ---" width="400"/>
     EliBackbone,
 
     /// - 6 routers
@@ -1029,7 +1029,7 @@ pub enum TopologyZoo {
     /// - 7 edges
     /// - 7 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Epoch.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Epoch.jpg" alt="--- No image available ---" width="400"/>
     Epoch,
 
     /// - 30 routers
@@ -1038,7 +1038,7 @@ pub enum TopologyZoo {
     /// - 32 edges
     /// - 18 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Ernet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Ernet.jpg" alt="--- No image available ---" width="400"/>
     Ernet,
 
     /// - 68 routers
@@ -1047,7 +1047,7 @@ pub enum TopologyZoo {
     /// - 79 edges
     /// - 64 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Esnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Esnet.jpg" alt="--- No image available ---" width="400"/>
     Esnet,
 
     /// - 15 routers
@@ -1056,7 +1056,7 @@ pub enum TopologyZoo {
     /// - 16 edges
     /// - 16 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Eunetworks.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Eunetworks.jpg" alt="--- No image available ---" width="400"/>
     Eunetworks,
 
     /// - 37 routers
@@ -1065,7 +1065,7 @@ pub enum TopologyZoo {
     /// - 45 edges
     /// - 44 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Evolink.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Evolink.jpg" alt="--- No image available ---" width="400"/>
     Evolink,
 
     /// - 17 routers
@@ -1074,7 +1074,7 @@ pub enum TopologyZoo {
     /// - 21 edges
     /// - 19 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Fatman.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Fatman.jpg" alt="--- No image available ---" width="400"/>
     Fatman,
 
     /// - 23 routers
@@ -1083,7 +1083,7 @@ pub enum TopologyZoo {
     /// - 25 edges
     /// - 25 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Fccn.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Fccn.jpg" alt="--- No image available ---" width="400"/>
     Fccn,
 
     /// - 62 routers
@@ -1092,7 +1092,7 @@ pub enum TopologyZoo {
     /// - 62 edges
     /// - 59 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Forthnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Forthnet.jpg" alt="--- No image available ---" width="400"/>
     Forthnet,
 
     /// - 26 routers
@@ -1101,7 +1101,7 @@ pub enum TopologyZoo {
     /// - 30 edges
     /// - 27 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Funet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Funet.jpg" alt="--- No image available ---" width="400"/>
     Funet,
 
     /// - 28 routers
@@ -1110,7 +1110,7 @@ pub enum TopologyZoo {
     /// - 26 edges
     /// - 25 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Gambia.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Gambia.jpg" alt="--- No image available ---" width="400"/>
     Gambia,
 
     /// - 16 routers
@@ -1119,7 +1119,7 @@ pub enum TopologyZoo {
     /// - 18 edges
     /// - 18 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr199901.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr199901.jpg" alt="--- No image available ---" width="400"/>
     Garr199901,
 
     /// - 23 routers
@@ -1128,7 +1128,7 @@ pub enum TopologyZoo {
     /// - 25 edges
     /// - 22 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr199904.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr199904.jpg" alt="--- No image available ---" width="400"/>
     Garr199904,
 
     /// - 23 routers
@@ -1137,7 +1137,7 @@ pub enum TopologyZoo {
     /// - 25 edges
     /// - 22 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr199905.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr199905.jpg" alt="--- No image available ---" width="400"/>
     Garr199905,
 
     /// - 22 routers
@@ -1146,7 +1146,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 22 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr200109.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr200109.jpg" alt="--- No image available ---" width="400"/>
     Garr200109,
 
     /// - 24 routers
@@ -1155,7 +1155,7 @@ pub enum TopologyZoo {
     /// - 26 edges
     /// - 24 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr200112.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr200112.jpg" alt="--- No image available ---" width="400"/>
     Garr200112,
 
     /// - 27 routers
@@ -1164,7 +1164,7 @@ pub enum TopologyZoo {
     /// - 28 edges
     /// - 23 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr200212.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr200212.jpg" alt="--- No image available ---" width="400"/>
     Garr200212,
 
     /// - 22 routers
@@ -1173,7 +1173,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 22 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr200404.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr200404.jpg" alt="--- No image available ---" width="400"/>
     Garr200404,
 
     /// - 54 routers
@@ -1182,7 +1182,7 @@ pub enum TopologyZoo {
     /// - 68 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr200902.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr200902.jpg" alt="--- No image available ---" width="400"/>
     Garr200902,
 
     /// - 54 routers
@@ -1191,7 +1191,7 @@ pub enum TopologyZoo {
     /// - 68 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr200908.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr200908.jpg" alt="--- No image available ---" width="400"/>
     Garr200908,
 
     /// - 55 routers
@@ -1200,7 +1200,7 @@ pub enum TopologyZoo {
     /// - 69 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr200909.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr200909.jpg" alt="--- No image available ---" width="400"/>
     Garr200909,
 
     /// - 54 routers
@@ -1209,7 +1209,7 @@ pub enum TopologyZoo {
     /// - 68 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr200912.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr200912.jpg" alt="--- No image available ---" width="400"/>
     Garr200912,
 
     /// - 54 routers
@@ -1218,7 +1218,7 @@ pub enum TopologyZoo {
     /// - 68 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201001.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201001.jpg" alt="--- No image available ---" width="400"/>
     Garr201001,
 
     /// - 54 routers
@@ -1227,7 +1227,7 @@ pub enum TopologyZoo {
     /// - 68 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201003.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201003.jpg" alt="--- No image available ---" width="400"/>
     Garr201003,
 
     /// - 54 routers
@@ -1236,7 +1236,7 @@ pub enum TopologyZoo {
     /// - 68 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201004.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201004.jpg" alt="--- No image available ---" width="400"/>
     Garr201004,
 
     /// - 55 routers
@@ -1245,7 +1245,7 @@ pub enum TopologyZoo {
     /// - 69 edges
     /// - 57 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201005.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201005.jpg" alt="--- No image available ---" width="400"/>
     Garr201005,
 
     /// - 55 routers
@@ -1254,7 +1254,7 @@ pub enum TopologyZoo {
     /// - 69 edges
     /// - 57 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201007.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201007.jpg" alt="--- No image available ---" width="400"/>
     Garr201007,
 
     /// - 55 routers
@@ -1263,7 +1263,7 @@ pub enum TopologyZoo {
     /// - 69 edges
     /// - 57 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201008.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201008.jpg" alt="--- No image available ---" width="400"/>
     Garr201008,
 
     /// - 56 routers
@@ -1272,7 +1272,7 @@ pub enum TopologyZoo {
     /// - 70 edges
     /// - 58 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201010.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201010.jpg" alt="--- No image available ---" width="400"/>
     Garr201010,
 
     /// - 56 routers
@@ -1281,7 +1281,7 @@ pub enum TopologyZoo {
     /// - 70 edges
     /// - 58 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201012.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201012.jpg" alt="--- No image available ---" width="400"/>
     Garr201012,
 
     /// - 56 routers
@@ -1290,7 +1290,7 @@ pub enum TopologyZoo {
     /// - 70 edges
     /// - 58 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201101.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201101.jpg" alt="--- No image available ---" width="400"/>
     Garr201101,
 
     /// - 57 routers
@@ -1299,7 +1299,7 @@ pub enum TopologyZoo {
     /// - 71 edges
     /// - 59 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201102.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201102.jpg" alt="--- No image available ---" width="400"/>
     Garr201102,
 
     /// - 58 routers
@@ -1308,7 +1308,7 @@ pub enum TopologyZoo {
     /// - 72 edges
     /// - 60 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201103.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201103.jpg" alt="--- No image available ---" width="400"/>
     Garr201103,
 
     /// - 59 routers
@@ -1317,7 +1317,7 @@ pub enum TopologyZoo {
     /// - 74 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201104.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201104.jpg" alt="--- No image available ---" width="400"/>
     Garr201104,
 
     /// - 59 routers
@@ -1326,7 +1326,7 @@ pub enum TopologyZoo {
     /// - 74 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201105.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201105.jpg" alt="--- No image available ---" width="400"/>
     Garr201105,
 
     /// - 59 routers
@@ -1335,7 +1335,7 @@ pub enum TopologyZoo {
     /// - 74 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201107.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201107.jpg" alt="--- No image available ---" width="400"/>
     Garr201107,
 
     /// - 59 routers
@@ -1344,7 +1344,7 @@ pub enum TopologyZoo {
     /// - 74 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201108.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201108.jpg" alt="--- No image available ---" width="400"/>
     Garr201108,
 
     /// - 59 routers
@@ -1353,7 +1353,7 @@ pub enum TopologyZoo {
     /// - 74 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201109.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201109.jpg" alt="--- No image available ---" width="400"/>
     Garr201109,
 
     /// - 59 routers
@@ -1362,7 +1362,7 @@ pub enum TopologyZoo {
     /// - 74 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201110.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201110.jpg" alt="--- No image available ---" width="400"/>
     Garr201110,
 
     /// - 60 routers
@@ -1371,7 +1371,7 @@ pub enum TopologyZoo {
     /// - 74 edges
     /// - 61 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201111.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201111.jpg" alt="--- No image available ---" width="400"/>
     Garr201111,
 
     /// - 61 routers
@@ -1380,7 +1380,7 @@ pub enum TopologyZoo {
     /// - 75 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201112.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201112.jpg" alt="--- No image available ---" width="400"/>
     Garr201112,
 
     /// - 61 routers
@@ -1389,7 +1389,7 @@ pub enum TopologyZoo {
     /// - 75 edges
     /// - 62 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Garr201201.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Garr201201.jpg" alt="--- No image available ---" width="400"/>
     Garr201201,
 
     /// - 8 routers
@@ -1398,7 +1398,7 @@ pub enum TopologyZoo {
     /// - 7 edges
     /// - 7 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Gblnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Gblnet.jpg" alt="--- No image available ---" width="400"/>
     Gblnet,
 
     /// - 27 routers
@@ -1407,7 +1407,7 @@ pub enum TopologyZoo {
     /// - 38 edges
     /// - 38 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Geant2001.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Geant2001.jpg" alt="--- No image available ---" width="400"/>
     Geant2001,
 
     /// - 34 routers
@@ -1416,7 +1416,7 @@ pub enum TopologyZoo {
     /// - 52 edges
     /// - 52 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Geant2009.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Geant2009.jpg" alt="--- No image available ---" width="400"/>
     Geant2009,
 
     /// - 37 routers
@@ -1425,7 +1425,7 @@ pub enum TopologyZoo {
     /// - 56 edges
     /// - 56 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Geant2010.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Geant2010.jpg" alt="--- No image available ---" width="400"/>
     Geant2010,
 
     /// - 40 routers
@@ -1434,7 +1434,7 @@ pub enum TopologyZoo {
     /// - 61 edges
     /// - 61 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Geant2012.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Geant2012.jpg" alt="--- No image available ---" width="400"/>
     Geant2012,
 
     /// - 7 routers
@@ -1443,7 +1443,7 @@ pub enum TopologyZoo {
     /// - 8 edges
     /// - 8 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Getnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Getnet.jpg" alt="--- No image available ---" width="400"/>
     Getnet,
 
     /// - 9 routers
@@ -1452,7 +1452,7 @@ pub enum TopologyZoo {
     /// - 36 edges
     /// - 36 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Globalcenter.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Globalcenter.jpg" alt="--- No image available ---" width="400"/>
     Globalcenter,
 
     /// - 67 routers
@@ -1461,7 +1461,7 @@ pub enum TopologyZoo {
     /// - 95 edges
     /// - 95 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Globenet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Globenet.jpg" alt="--- No image available ---" width="400"/>
     Globenet,
 
     /// - 17 routers
@@ -1470,7 +1470,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 31 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Goodnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Goodnet.jpg" alt="--- No image available ---" width="400"/>
     Goodnet,
 
     /// - 16 routers
@@ -1479,7 +1479,7 @@ pub enum TopologyZoo {
     /// - 15 edges
     /// - 15 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Grena.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Grena.jpg" alt="--- No image available ---" width="400"/>
     Grena,
 
     /// - 9 routers
@@ -1488,7 +1488,7 @@ pub enum TopologyZoo {
     /// - 20 edges
     /// - 20 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Gridnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Gridnet.jpg" alt="--- No image available ---" width="400"/>
     Gridnet,
 
     /// - 37 routers
@@ -1497,7 +1497,7 @@ pub enum TopologyZoo {
     /// - 42 edges
     /// - 39 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Grnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Grnet.jpg" alt="--- No image available ---" width="400"/>
     Grnet,
 
     /// - 149 routers
@@ -1506,7 +1506,7 @@ pub enum TopologyZoo {
     /// - 193 edges
     /// - 188 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/GtsCe.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/GtsCe.jpg" alt="--- No image available ---" width="400"/>
     GtsCe,
 
     /// - 32 routers
@@ -1515,7 +1515,7 @@ pub enum TopologyZoo {
     /// - 33 edges
     /// - 30 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/GtsCzechRepublic.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/GtsCzechRepublic.jpg" alt="--- No image available ---" width="400"/>
     GtsCzechRepublic,
 
     /// - 30 routers
@@ -1524,7 +1524,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 27 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/GtsHungary.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/GtsHungary.jpg" alt="--- No image available ---" width="400"/>
     GtsHungary,
 
     /// - 33 routers
@@ -1533,7 +1533,7 @@ pub enum TopologyZoo {
     /// - 37 edges
     /// - 33 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/GtsPoland.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/GtsPoland.jpg" alt="--- No image available ---" width="400"/>
     GtsPoland,
 
     /// - 21 routers
@@ -1542,7 +1542,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 22 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/GtsRomania.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/GtsRomania.jpg" alt="--- No image available ---" width="400"/>
     GtsRomania,
 
     /// - 35 routers
@@ -1551,7 +1551,7 @@ pub enum TopologyZoo {
     /// - 37 edges
     /// - 33 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/GtsSlovakia.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/GtsSlovakia.jpg" alt="--- No image available ---" width="400"/>
     GtsSlovakia,
 
     /// - 21 routers
@@ -1560,7 +1560,7 @@ pub enum TopologyZoo {
     /// - 23 edges
     /// - 11 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Harnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Harnet.jpg" alt="--- No image available ---" width="400"/>
     Harnet,
 
     /// - 7 routers
@@ -1569,7 +1569,7 @@ pub enum TopologyZoo {
     /// - 11 edges
     /// - 11 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Heanet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Heanet.jpg" alt="--- No image available ---" width="400"/>
     Heanet,
 
     /// - 13 routers
@@ -1578,7 +1578,7 @@ pub enum TopologyZoo {
     /// - 14 edges
     /// - 12 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/HiberniaCanada.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/HiberniaCanada.jpg" alt="--- No image available ---" width="400"/>
     HiberniaCanada,
 
     /// - 55 routers
@@ -1587,7 +1587,7 @@ pub enum TopologyZoo {
     /// - 81 edges
     /// - 81 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/HiberniaGlobal.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/HiberniaGlobal.jpg" alt="--- No image available ---" width="400"/>
     HiberniaGlobal,
 
     /// - 8 routers
@@ -1596,7 +1596,7 @@ pub enum TopologyZoo {
     /// - 8 edges
     /// - 6 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/HiberniaIreland.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/HiberniaIreland.jpg" alt="--- No image available ---" width="400"/>
     HiberniaIreland,
 
     /// - 18 routers
@@ -1605,7 +1605,7 @@ pub enum TopologyZoo {
     /// - 21 edges
     /// - 18 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/HiberniaNireland.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/HiberniaNireland.jpg" alt="--- No image available ---" width="400"/>
     HiberniaNireland,
 
     /// - 15 routers
@@ -1614,7 +1614,7 @@ pub enum TopologyZoo {
     /// - 15 edges
     /// - 13 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/HiberniaUk.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/HiberniaUk.jpg" alt="--- No image available ---" width="400"/>
     HiberniaUk,
 
     /// - 22 routers
@@ -1623,7 +1623,7 @@ pub enum TopologyZoo {
     /// - 29 edges
     /// - 27 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/HiberniaUs.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/HiberniaUs.jpg" alt="--- No image available ---" width="400"/>
     HiberniaUs,
 
     /// - 18 routers
@@ -1632,7 +1632,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 31 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Highwinds.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Highwinds.jpg" alt="--- No image available ---" width="400"/>
     Highwinds,
 
     /// - 16 routers
@@ -1641,7 +1641,7 @@ pub enum TopologyZoo {
     /// - 21 edges
     /// - 21 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/HostwayInternational.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/HostwayInternational.jpg" alt="--- No image available ---" width="400"/>
     HostwayInternational,
 
     /// - 24 routers
@@ -1650,7 +1650,7 @@ pub enum TopologyZoo {
     /// - 37 edges
     /// - 37 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/HurricaneElectric.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/HurricaneElectric.jpg" alt="--- No image available ---" width="400"/>
     HurricaneElectric,
 
     /// - 18 routers
@@ -1659,7 +1659,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 24 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Ibm.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Ibm.jpg" alt="--- No image available ---" width="400"/>
     Ibm,
 
     /// - 37 routers
@@ -1668,7 +1668,7 @@ pub enum TopologyZoo {
     /// - 65 edges
     /// - 54 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Iij.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Iij.jpg" alt="--- No image available ---" width="400"/>
     Iij,
 
     /// - 31 routers
@@ -1677,7 +1677,7 @@ pub enum TopologyZoo {
     /// - 35 edges
     /// - 12 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Iinet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Iinet.jpg" alt="--- No image available ---" width="400"/>
     Iinet,
 
     /// - 14 routers
@@ -1686,7 +1686,7 @@ pub enum TopologyZoo {
     /// - 15 edges
     /// - 11 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Ilan.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Ilan.jpg" alt="--- No image available ---" width="400"/>
     Ilan,
 
     /// - 27 routers
@@ -1695,7 +1695,7 @@ pub enum TopologyZoo {
     /// - 36 edges
     /// - 36 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Integra.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Integra.jpg" alt="--- No image available ---" width="400"/>
     Integra,
 
     /// - 73 routers
@@ -1704,7 +1704,7 @@ pub enum TopologyZoo {
     /// - 95 edges
     /// - 95 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Intellifiber.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Intellifiber.jpg" alt="--- No image available ---" width="400"/>
     Intellifiber,
 
     /// - 19 routers
@@ -1713,7 +1713,7 @@ pub enum TopologyZoo {
     /// - 33 edges
     /// - 33 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Internetmci.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Internetmci.jpg" alt="--- No image available ---" width="400"/>
     Internetmci,
 
     /// - 66 routers
@@ -1722,7 +1722,7 @@ pub enum TopologyZoo {
     /// - 77 edges
     /// - 31 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Internode.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Internode.jpg" alt="--- No image available ---" width="400"/>
     Internode,
 
     /// - 110 routers
@@ -1731,7 +1731,7 @@ pub enum TopologyZoo {
     /// - 148 edges
     /// - 142 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Interoute.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Interoute.jpg" alt="--- No image available ---" width="400"/>
     Interoute,
 
     /// - 39 routers
@@ -1740,7 +1740,7 @@ pub enum TopologyZoo {
     /// - 51 edges
     /// - 51 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Intranetwork.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Intranetwork.jpg" alt="--- No image available ---" width="400"/>
     Intranetwork,
 
     /// - 125 routers
@@ -1749,7 +1749,7 @@ pub enum TopologyZoo {
     /// - 146 edges
     /// - 146 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Ion.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Ion.jpg" alt="--- No image available ---" width="400"/>
     Ion,
 
     /// - 33 routers
@@ -1758,7 +1758,7 @@ pub enum TopologyZoo {
     /// - 41 edges
     /// - 38 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/IowaStatewideFiberMap.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/IowaStatewideFiberMap.jpg" alt="--- No image available ---" width="400"/>
     IowaStatewideFiberMap,
 
     /// - 51 routers
@@ -1767,7 +1767,7 @@ pub enum TopologyZoo {
     /// - 64 edges
     /// - 64 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Iris.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Iris.jpg" alt="--- No image available ---" width="400"/>
     Iris,
 
     /// - 23 routers
@@ -1776,7 +1776,7 @@ pub enum TopologyZoo {
     /// - 23 edges
     /// - 19 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Istar.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Istar.jpg" alt="--- No image available ---" width="400"/>
     Istar,
 
     /// - 11 routers
@@ -1785,7 +1785,7 @@ pub enum TopologyZoo {
     /// - 10 edges
     /// - 10 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Itnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Itnet.jpg" alt="--- No image available ---" width="400"/>
     Itnet,
 
     /// - 12 routers
@@ -1794,7 +1794,7 @@ pub enum TopologyZoo {
     /// - 5 edges
     /// - 0 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/JanetExternal.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/JanetExternal.jpg" alt="--- No image available ---" width="400"/>
     JanetExternal,
 
     /// - 29 routers
@@ -1803,7 +1803,7 @@ pub enum TopologyZoo {
     /// - 45 edges
     /// - 45 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Janetbackbone.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Janetbackbone.jpg" alt="--- No image available ---" width="400"/>
     Janetbackbone,
 
     /// - 20 routers
@@ -1812,7 +1812,7 @@ pub enum TopologyZoo {
     /// - 34 edges
     /// - 32 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Janetlense.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Janetlense.jpg" alt="--- No image available ---" width="400"/>
     Janetlense,
 
     /// - 18 routers
@@ -1821,7 +1821,7 @@ pub enum TopologyZoo {
     /// - 17 edges
     /// - 11 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Jgn2Plus.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Jgn2Plus.jpg" alt="--- No image available ---" width="400"/>
     Jgn2Plus,
 
     /// - 25 routers
@@ -1830,7 +1830,7 @@ pub enum TopologyZoo {
     /// - 28 edges
     /// - 26 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Karen.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Karen.jpg" alt="--- No image available ---" width="400"/>
     Karen,
 
     /// - 754 routers
@@ -1839,7 +1839,7 @@ pub enum TopologyZoo {
     /// - 895 edges
     /// - 895 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Kdl.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Kdl.jpg" alt="--- No image available ---" width="400"/>
     Kdl,
 
     /// - 23 routers
@@ -1848,7 +1848,7 @@ pub enum TopologyZoo {
     /// - 23 edges
     /// - 21 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/KentmanApr2007.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/KentmanApr2007.jpg" alt="--- No image available ---" width="400"/>
     KentmanApr2007,
 
     /// - 28 routers
@@ -1857,7 +1857,7 @@ pub enum TopologyZoo {
     /// - 29 edges
     /// - 29 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/KentmanAug2005.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/KentmanAug2005.jpg" alt="--- No image available ---" width="400"/>
     KentmanAug2005,
 
     /// - 26 routers
@@ -1866,7 +1866,7 @@ pub enum TopologyZoo {
     /// - 27 edges
     /// - 25 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/KentmanFeb2008.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/KentmanFeb2008.jpg" alt="--- No image available ---" width="400"/>
     KentmanFeb2008,
 
     /// - 38 routers
@@ -1875,7 +1875,7 @@ pub enum TopologyZoo {
     /// - 38 edges
     /// - 31 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/KentmanJan2011.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/KentmanJan2011.jpg" alt="--- No image available ---" width="400"/>
     KentmanJan2011,
 
     /// - 16 routers
@@ -1884,7 +1884,7 @@ pub enum TopologyZoo {
     /// - 17 edges
     /// - 17 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/KentmanJul2005.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/KentmanJul2005.jpg" alt="--- No image available ---" width="400"/>
     KentmanJul2005,
 
     /// - 13 routers
@@ -1893,7 +1893,7 @@ pub enum TopologyZoo {
     /// - 12 edges
     /// - 12 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Kreonet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Kreonet.jpg" alt="--- No image available ---" width="400"/>
     Kreonet,
 
     /// - 42 routers
@@ -1902,7 +1902,7 @@ pub enum TopologyZoo {
     /// - 46 edges
     /// - 46 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/LambdaNet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/LambdaNet.jpg" alt="--- No image available ---" width="400"/>
     LambdaNet,
 
     /// - 69 routers
@@ -1911,7 +1911,7 @@ pub enum TopologyZoo {
     /// - 74 edges
     /// - 73 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Latnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Latnet.jpg" alt="--- No image available ---" width="400"/>
     Latnet,
 
     /// - 6 routers
@@ -1920,7 +1920,7 @@ pub enum TopologyZoo {
     /// - 7 edges
     /// - 7 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Layer42.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Layer42.jpg" alt="--- No image available ---" width="400"/>
     Layer42,
 
     /// - 43 routers
@@ -1929,7 +1929,7 @@ pub enum TopologyZoo {
     /// - 43 edges
     /// - 42 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Litnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Litnet.jpg" alt="--- No image available ---" width="400"/>
     Litnet,
 
     /// - 20 routers
@@ -1938,7 +1938,7 @@ pub enum TopologyZoo {
     /// - 27 edges
     /// - 24 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Marnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Marnet.jpg" alt="--- No image available ---" width="400"/>
     Marnet,
 
     /// - 16 routers
@@ -1947,7 +1947,7 @@ pub enum TopologyZoo {
     /// - 17 edges
     /// - 15 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Marwan.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Marwan.jpg" alt="--- No image available ---" width="400"/>
     Marwan,
 
     /// - 67 routers
@@ -1956,7 +1956,7 @@ pub enum TopologyZoo {
     /// - 83 edges
     /// - 80 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Missouri.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Missouri.jpg" alt="--- No image available ---" width="400"/>
     Missouri,
 
     /// - 6 routers
@@ -1965,7 +1965,7 @@ pub enum TopologyZoo {
     /// - 5 edges
     /// - 5 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Mren.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Mren.jpg" alt="--- No image available ---" width="400"/>
     Mren,
 
     /// - 37 routers
@@ -1974,7 +1974,7 @@ pub enum TopologyZoo {
     /// - 39 edges
     /// - 37 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Myren.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Myren.jpg" alt="--- No image available ---" width="400"/>
     Myren,
 
     /// - 6 routers
@@ -1983,7 +1983,7 @@ pub enum TopologyZoo {
     /// - 7 edges
     /// - 7 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Napnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Napnet.jpg" alt="--- No image available ---" width="400"/>
     Napnet,
 
     /// - 13 routers
@@ -1992,7 +1992,7 @@ pub enum TopologyZoo {
     /// - 17 edges
     /// - 17 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Navigata.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Navigata.jpg" alt="--- No image available ---" width="400"/>
     Navigata,
 
     /// - 7 routers
@@ -2001,7 +2001,7 @@ pub enum TopologyZoo {
     /// - 10 edges
     /// - 10 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Netrail.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Netrail.jpg" alt="--- No image available ---" width="400"/>
     Netrail,
 
     /// - 35 routers
@@ -2010,7 +2010,7 @@ pub enum TopologyZoo {
     /// - 39 edges
     /// - 39 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/NetworkUsa.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/NetworkUsa.jpg" alt="--- No image available ---" width="400"/>
     NetworkUsa,
 
     /// - 17 routers
@@ -2019,7 +2019,7 @@ pub enum TopologyZoo {
     /// - 19 edges
     /// - 19 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Nextgen.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Nextgen.jpg" alt="--- No image available ---" width="400"/>
     Nextgen,
 
     /// - 36 routers
@@ -2028,7 +2028,7 @@ pub enum TopologyZoo {
     /// - 41 edges
     /// - 40 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Niif.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Niif.jpg" alt="--- No image available ---" width="400"/>
     Niif,
 
     /// - 19 routers
@@ -2037,7 +2037,7 @@ pub enum TopologyZoo {
     /// - 25 edges
     /// - 25 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Noel.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Noel.jpg" alt="--- No image available ---" width="400"/>
     Noel,
 
     /// - 7 routers
@@ -2046,7 +2046,7 @@ pub enum TopologyZoo {
     /// - 6 edges
     /// - 4 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Nordu1989.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Nordu1989.jpg" alt="--- No image available ---" width="400"/>
     Nordu1989,
 
     /// - 14 routers
@@ -2055,7 +2055,7 @@ pub enum TopologyZoo {
     /// - 13 edges
     /// - 11 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Nordu1997.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Nordu1997.jpg" alt="--- No image available ---" width="400"/>
     Nordu1997,
 
     /// - 9 routers
@@ -2064,7 +2064,7 @@ pub enum TopologyZoo {
     /// - 9 edges
     /// - 6 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Nordu2005.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Nordu2005.jpg" alt="--- No image available ---" width="400"/>
     Nordu2005,
 
     /// - 18 routers
@@ -2073,7 +2073,7 @@ pub enum TopologyZoo {
     /// - 16 edges
     /// - 6 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Nordu2010.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Nordu2010.jpg" alt="--- No image available ---" width="400"/>
     Nordu2010,
 
     /// - 10 routers
@@ -2082,7 +2082,7 @@ pub enum TopologyZoo {
     /// - 10 edges
     /// - 7 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Nsfcnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Nsfcnet.jpg" alt="--- No image available ---" width="400"/>
     Nsfcnet,
 
     /// - 13 routers
@@ -2091,7 +2091,7 @@ pub enum TopologyZoo {
     /// - 15 edges
     /// - 15 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Nsfnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Nsfnet.jpg" alt="--- No image available ---" width="400"/>
     Nsfnet,
 
     /// - 48 routers
@@ -2100,7 +2100,7 @@ pub enum TopologyZoo {
     /// - 58 edges
     /// - 58 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Ntelos.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Ntelos.jpg" alt="--- No image available ---" width="400"/>
     Ntelos,
 
     /// - 47 routers
@@ -2109,7 +2109,7 @@ pub enum TopologyZoo {
     /// - 63 edges
     /// - 63 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Ntt.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Ntt.jpg" alt="--- No image available ---" width="400"/>
     Ntt,
 
     /// - 93 routers
@@ -2118,7 +2118,7 @@ pub enum TopologyZoo {
     /// - 103 edges
     /// - 101 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Oteglobe.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Oteglobe.jpg" alt="--- No image available ---" width="400"/>
     Oteglobe,
 
     /// - 20 routers
@@ -2127,7 +2127,7 @@ pub enum TopologyZoo {
     /// - 26 edges
     /// - 26 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Oxford.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Oxford.jpg" alt="--- No image available ---" width="400"/>
     Oxford,
 
     /// - 18 routers
@@ -2136,7 +2136,7 @@ pub enum TopologyZoo {
     /// - 18 edges
     /// - 3 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Pacificwave.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Pacificwave.jpg" alt="--- No image available ---" width="400"/>
     Pacificwave,
 
     /// - 21 routers
@@ -2145,7 +2145,7 @@ pub enum TopologyZoo {
     /// - 27 edges
     /// - 27 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Packetexchange.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Packetexchange.jpg" alt="--- No image available ---" width="400"/>
     Packetexchange,
 
     /// - 15 routers
@@ -2154,7 +2154,7 @@ pub enum TopologyZoo {
     /// - 6 edges
     /// - 5 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Padi.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Padi.jpg" alt="--- No image available ---" width="400"/>
     Padi,
 
     /// - 45 routers
@@ -2163,7 +2163,7 @@ pub enum TopologyZoo {
     /// - 64 edges
     /// - 64 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Palmetto.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Palmetto.jpg" alt="--- No image available ---" width="400"/>
     Palmetto,
 
     /// - 16 routers
@@ -2172,7 +2172,7 @@ pub enum TopologyZoo {
     /// - 20 edges
     /// - 20 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Peer1.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Peer1.jpg" alt="--- No image available ---" width="400"/>
     Peer1,
 
     /// - 127 routers
@@ -2181,7 +2181,7 @@ pub enum TopologyZoo {
     /// - 129 edges
     /// - 129 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Pern.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Pern.jpg" alt="--- No image available ---" width="400"/>
     Pern,
 
     /// - 36 routers
@@ -2190,7 +2190,7 @@ pub enum TopologyZoo {
     /// - 41 edges
     /// - 32 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/PionierL1.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/PionierL1.jpg" alt="--- No image available ---" width="400"/>
     PionierL1,
 
     /// - 38 routers
@@ -2199,7 +2199,7 @@ pub enum TopologyZoo {
     /// - 45 edges
     /// - 32 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/PionierL3.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/PionierL3.jpg" alt="--- No image available ---" width="400"/>
     PionierL3,
 
     /// - 24 routers
@@ -2208,7 +2208,7 @@ pub enum TopologyZoo {
     /// - 25 edges
     /// - 25 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Psinet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Psinet.jpg" alt="--- No image available ---" width="400"/>
     Psinet,
 
     /// - 20 routers
@@ -2217,7 +2217,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 31 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Quest.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Quest.jpg" alt="--- No image available ---" width="400"/>
     Quest,
 
     /// - 84 routers
@@ -2226,7 +2226,7 @@ pub enum TopologyZoo {
     /// - 93 edges
     /// - 93 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/RedBestel.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/RedBestel.jpg" alt="--- No image available ---" width="400"/>
     RedBestel,
 
     /// - 19 routers
@@ -2235,7 +2235,7 @@ pub enum TopologyZoo {
     /// - 31 edges
     /// - 31 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Rediris.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Rediris.jpg" alt="--- No image available ---" width="400"/>
     Rediris,
 
     /// - 5 routers
@@ -2244,7 +2244,7 @@ pub enum TopologyZoo {
     /// - 4 edges
     /// - 2 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Renam.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Renam.jpg" alt="--- No image available ---" width="400"/>
     Renam,
 
     /// - 24 routers
@@ -2253,7 +2253,7 @@ pub enum TopologyZoo {
     /// - 23 edges
     /// - 23 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Renater1999.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Renater1999.jpg" alt="--- No image available ---" width="400"/>
     Renater1999,
 
     /// - 24 routers
@@ -2262,7 +2262,7 @@ pub enum TopologyZoo {
     /// - 27 edges
     /// - 27 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Renater2001.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Renater2001.jpg" alt="--- No image available ---" width="400"/>
     Renater2001,
 
     /// - 30 routers
@@ -2271,7 +2271,7 @@ pub enum TopologyZoo {
     /// - 36 edges
     /// - 29 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Renater2004.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Renater2004.jpg" alt="--- No image available ---" width="400"/>
     Renater2004,
 
     /// - 33 routers
@@ -2280,7 +2280,7 @@ pub enum TopologyZoo {
     /// - 43 edges
     /// - 36 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Renater2006.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Renater2006.jpg" alt="--- No image available ---" width="400"/>
     Renater2006,
 
     /// - 33 routers
@@ -2289,7 +2289,7 @@ pub enum TopologyZoo {
     /// - 43 edges
     /// - 36 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Renater2008.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Renater2008.jpg" alt="--- No image available ---" width="400"/>
     Renater2008,
 
     /// - 43 routers
@@ -2298,7 +2298,7 @@ pub enum TopologyZoo {
     /// - 56 edges
     /// - 49 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Renater2010.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Renater2010.jpg" alt="--- No image available ---" width="400"/>
     Renater2010,
 
     /// - 19 routers
@@ -2307,7 +2307,7 @@ pub enum TopologyZoo {
     /// - 21 edges
     /// - 17 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Restena.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Restena.jpg" alt="--- No image available ---" width="400"/>
     Restena,
 
     /// - 37 routers
@@ -2316,7 +2316,7 @@ pub enum TopologyZoo {
     /// - 36 edges
     /// - 34 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Reuna.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Reuna.jpg" alt="--- No image available ---" width="400"/>
     Reuna,
 
     /// - 16 routers
@@ -2325,7 +2325,7 @@ pub enum TopologyZoo {
     /// - 18 edges
     /// - 15 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Rhnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Rhnet.jpg" alt="--- No image available ---" width="400"/>
     Rhnet,
 
     /// - 31 routers
@@ -2334,7 +2334,7 @@ pub enum TopologyZoo {
     /// - 34 edges
     /// - 31 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Rnp.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Rnp.jpg" alt="--- No image available ---" width="400"/>
     Rnp,
 
     /// - 42 routers
@@ -2343,7 +2343,7 @@ pub enum TopologyZoo {
     /// - 46 edges
     /// - 44 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Roedunet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Roedunet.jpg" alt="--- No image available ---" width="400"/>
     Roedunet,
 
     /// - 48 routers
@@ -2352,7 +2352,7 @@ pub enum TopologyZoo {
     /// - 52 edges
     /// - 50 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/RoedunetFibre.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/RoedunetFibre.jpg" alt="--- No image available ---" width="400"/>
     RoedunetFibre,
 
     /// - 18 routers
@@ -2361,7 +2361,7 @@ pub enum TopologyZoo {
     /// - 17 edges
     /// - 17 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Sago.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Sago.jpg" alt="--- No image available ---" width="400"/>
     Sago,
 
     /// - 43 routers
@@ -2370,7 +2370,7 @@ pub enum TopologyZoo {
     /// - 45 edges
     /// - 37 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Sanet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Sanet.jpg" alt="--- No image available ---" width="400"/>
     Sanet,
 
     /// - 7 routers
@@ -2379,7 +2379,7 @@ pub enum TopologyZoo {
     /// - 7 edges
     /// - 7 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Sanren.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Sanren.jpg" alt="--- No image available ---" width="400"/>
     Sanren,
 
     /// - 19 routers
@@ -2388,7 +2388,7 @@ pub enum TopologyZoo {
     /// - 20 edges
     /// - 20 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Savvis.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Savvis.jpg" alt="--- No image available ---" width="400"/>
     Savvis,
 
     /// - 28 routers
@@ -2397,7 +2397,7 @@ pub enum TopologyZoo {
     /// - 35 edges
     /// - 35 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Shentel.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Shentel.jpg" alt="--- No image available ---" width="400"/>
     Shentel,
 
     /// - 74 routers
@@ -2406,7 +2406,7 @@ pub enum TopologyZoo {
     /// - 76 edges
     /// - 76 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Sinet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Sinet.jpg" alt="--- No image available ---" width="400"/>
     Sinet,
 
     /// - 11 routers
@@ -2415,7 +2415,7 @@ pub enum TopologyZoo {
     /// - 10 edges
     /// - 6 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Singaren.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Singaren.jpg" alt="--- No image available ---" width="400"/>
     Singaren,
 
     /// - 15 routers
@@ -2424,7 +2424,7 @@ pub enum TopologyZoo {
     /// - 16 edges
     /// - 16 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Spiralight.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Spiralight.jpg" alt="--- No image available ---" width="400"/>
     Spiralight,
 
     /// - 11 routers
@@ -2433,7 +2433,7 @@ pub enum TopologyZoo {
     /// - 18 edges
     /// - 18 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Sprint.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Sprint.jpg" alt="--- No image available ---" width="400"/>
     Sprint,
 
     /// - 26 routers
@@ -2442,7 +2442,7 @@ pub enum TopologyZoo {
     /// - 32 edges
     /// - 32 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Sunet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Sunet.jpg" alt="--- No image available ---" width="400"/>
     Sunet,
 
     /// - 50 routers
@@ -2451,7 +2451,7 @@ pub enum TopologyZoo {
     /// - 68 edges
     /// - 68 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Surfnet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Surfnet.jpg" alt="--- No image available ---" width="400"/>
     Surfnet,
 
     /// - 74 routers
@@ -2460,7 +2460,7 @@ pub enum TopologyZoo {
     /// - 92 edges
     /// - 78 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Switch.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Switch.jpg" alt="--- No image available ---" width="400"/>
     Switch,
 
     /// - 42 routers
@@ -2469,7 +2469,7 @@ pub enum TopologyZoo {
     /// - 63 edges
     /// - 51 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/SwitchL3.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/SwitchL3.jpg" alt="--- No image available ---" width="400"/>
     SwitchL3,
 
     /// - 74 routers
@@ -2478,7 +2478,7 @@ pub enum TopologyZoo {
     /// - 74 edges
     /// - 68 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Syringa.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Syringa.jpg" alt="--- No image available ---" width="400"/>
     Syringa,
 
     /// - 12 routers
@@ -2487,7 +2487,7 @@ pub enum TopologyZoo {
     /// - 13 edges
     /// - 5 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/TLex.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/TLex.jpg" alt="--- No image available ---" width="400"/>
     TLex,
 
     /// - 145 routers
@@ -2496,7 +2496,7 @@ pub enum TopologyZoo {
     /// - 186 edges
     /// - 186 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/TataNld.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/TataNld.jpg" alt="--- No image available ---" width="400"/>
     TataNld,
 
     /// - 73 routers
@@ -2505,7 +2505,7 @@ pub enum TopologyZoo {
     /// - 70 edges
     /// - 70 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Telcove.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Telcove.jpg" alt="--- No image available ---" width="400"/>
     Telcove,
 
     /// - 6 routers
@@ -2514,7 +2514,7 @@ pub enum TopologyZoo {
     /// - 6 edges
     /// - 6 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Telecomserbia.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Telecomserbia.jpg" alt="--- No image available ---" width="400"/>
     Telecomserbia,
 
     /// - 53 routers
@@ -2523,7 +2523,7 @@ pub enum TopologyZoo {
     /// - 89 edges
     /// - 89 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Tinet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Tinet.jpg" alt="--- No image available ---" width="400"/>
     Tinet,
 
     /// - 76 routers
@@ -2532,7 +2532,7 @@ pub enum TopologyZoo {
     /// - 115 edges
     /// - 115 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Tw.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Tw.jpg" alt="--- No image available ---" width="400"/>
     Tw,
 
     /// - 20 routers
@@ -2541,7 +2541,7 @@ pub enum TopologyZoo {
     /// - 20 edges
     /// - 20 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Twaren.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Twaren.jpg" alt="--- No image available ---" width="400"/>
     Twaren,
 
     /// - 82 routers
@@ -2550,7 +2550,7 @@ pub enum TopologyZoo {
     /// - 82 edges
     /// - 79 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Ulaknet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Ulaknet.jpg" alt="--- No image available ---" width="400"/>
     Ulaknet,
 
     /// - 25 routers
@@ -2559,7 +2559,7 @@ pub enum TopologyZoo {
     /// - 27 edges
     /// - 24 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/UniC.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/UniC.jpg" alt="--- No image available ---" width="400"/>
     UniC,
 
     /// - 13 routers
@@ -2568,7 +2568,7 @@ pub enum TopologyZoo {
     /// - 18 edges
     /// - 18 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Uninet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Uninet.jpg" alt="--- No image available ---" width="400"/>
     Uninet,
 
     /// - 74 routers
@@ -2577,7 +2577,7 @@ pub enum TopologyZoo {
     /// - 101 edges
     /// - 101 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Uninett2010.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Uninett2010.jpg" alt="--- No image available ---" width="400"/>
     Uninett2010,
 
     /// - 69 routers
@@ -2586,7 +2586,7 @@ pub enum TopologyZoo {
     /// - 96 edges
     /// - 93 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Uninett2011.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Uninett2011.jpg" alt="--- No image available ---" width="400"/>
     Uninett2011,
 
     /// - 24 routers
@@ -2595,7 +2595,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 19 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Uran.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Uran.jpg" alt="--- No image available ---" width="400"/>
     Uran,
 
     /// - 158 routers
@@ -2604,7 +2604,7 @@ pub enum TopologyZoo {
     /// - 189 edges
     /// - 189 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/UsCarrier.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/UsCarrier.jpg" alt="--- No image available ---" width="400"/>
     UsCarrier,
 
     /// - 63 routers
@@ -2613,7 +2613,7 @@ pub enum TopologyZoo {
     /// - 78 edges
     /// - 78 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/UsSignal.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/UsSignal.jpg" alt="--- No image available ---" width="400"/>
     UsSignal,
 
     /// - 49 routers
@@ -2622,7 +2622,7 @@ pub enum TopologyZoo {
     /// - 84 edges
     /// - 77 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Uunet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Uunet.jpg" alt="--- No image available ---" width="400"/>
     Uunet,
 
     /// - 25 routers
@@ -2631,7 +2631,7 @@ pub enum TopologyZoo {
     /// - 26 edges
     /// - 22 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Vinaren.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Vinaren.jpg" alt="--- No image available ---" width="400"/>
     Vinaren,
 
     /// - 24 routers
@@ -2640,7 +2640,7 @@ pub enum TopologyZoo {
     /// - 23 edges
     /// - 21 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/VisionNet.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/VisionNet.jpg" alt="--- No image available ---" width="400"/>
     VisionNet,
 
     /// - 88 routers
@@ -2649,7 +2649,7 @@ pub enum TopologyZoo {
     /// - 92 edges
     /// - 92 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/VtlWavenet2008.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/VtlWavenet2008.jpg" alt="--- No image available ---" width="400"/>
     VtlWavenet2008,
 
     /// - 92 routers
@@ -2658,7 +2658,7 @@ pub enum TopologyZoo {
     /// - 96 edges
     /// - 96 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/VtlWavenet2011.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/VtlWavenet2011.jpg" alt="--- No image available ---" width="400"/>
     VtlWavenet2011,
 
     /// - 30 routers
@@ -2667,7 +2667,7 @@ pub enum TopologyZoo {
     /// - 33 edges
     /// - 22 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/WideJpn.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/WideJpn.jpg" alt="--- No image available ---" width="400"/>
     WideJpn,
 
     /// - 24 routers
@@ -2676,7 +2676,7 @@ pub enum TopologyZoo {
     /// - 34 edges
     /// - 34 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Xeex.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Xeex.jpg" alt="--- No image available ---" width="400"/>
     Xeex,
 
     /// - 34 routers
@@ -2685,7 +2685,7 @@ pub enum TopologyZoo {
     /// - 49 edges
     /// - 49 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Xspedius.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Xspedius.jpg" alt="--- No image available ---" width="400"/>
     Xspedius,
 
     /// - 23 routers
@@ -2694,7 +2694,7 @@ pub enum TopologyZoo {
     /// - 24 edges
     /// - 24 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/York.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/York.jpg" alt="--- No image available ---" width="400"/>
     York,
 
     /// - 36 routers
@@ -2703,16 +2703,15 @@ pub enum TopologyZoo {
     /// - 34 edges
     /// - 34 edges connecting two internal routers.
     ///
-    /// <img src="http://www.topology-zoo.org/maps/Zamren.jpg" alt="--- No image available ---" width="400"/>
+    /// <img src="http://topology-zoo.org/maps/Zamren.jpg" alt="--- No image available ---" width="400"/>
     Zamren,
+
 }
 
 impl TopologyZoo {
+
     /// Generate the network.
-    pub fn build<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
-        &self,
-        queue: Q,
-    ) -> Network<P, Q, Ospf> {
+    pub fn build<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(&self, queue: Q) -> Network<P, Q, Ospf> {
         TopologyZooParser::new(self.graphml())
             .unwrap()
             .get_network(queue)
@@ -4061,9 +4060,7 @@ impl TopologyZoo {
 
     /// Get the geo location of the Topology Zoo
     pub fn geo_location(&self) -> HashMap<RouterId, Location> {
-        TopologyZooParser::new(self.graphml())
-            .unwrap()
-            .get_geo_location()
+        TopologyZooParser::new(self.graphml()).unwrap().get_geo_location()
     }
 
     /// Get all topologies with increasing number of internal nodes. If two topologies have the same number
@@ -5137,7 +5134,7 @@ impl std::str::FromStr for TopologyZoo {
             "uscarrier" => Ok(Self::UsCarrier),
             "cogentco" => Ok(Self::Cogentco),
             "kdl" => Ok(Self::Kdl),
-            _ => Err(s.to_string()),
+            _ => Err(s.to_string())
         }
     }
 }

@@ -15,7 +15,7 @@
 
 #![allow(non_upper_case_globals)]
 
-//! Module containing the [TopologyZoo](http://www.topology-zoo.org/dataset.html) dataset. This file
+//! Module containing the [TopologyZoo](http://topology-zoo.org/dataset.html) dataset. This file
 //! is automatically generated.
 //!
 //! If you use the TopologyZoo dataset, please add the following citation:
@@ -39,7 +39,7 @@ use super::TopologyZooParser;
 use crate::{
     event::EventQueue,
     network::Network,
-    ospf::Ospf,
+    ospf::OspfImpl,
     types::{Prefix, RouterId},
 };
 
@@ -51,7 +51,7 @@ use serde::{Deserialize, Serialize};
 
 {{FLATE_INCLUDE}}
 
-/// Topologies from [TopologyZoo](http://www.topology-zoo.org/dataset.html). The following example
+/// Topologies from [TopologyZoo](http://topology-zoo.org/dataset.html). The following example
 /// code creates an Abilene network and configures it with random configuration:
 ///
 /// ```
