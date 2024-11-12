@@ -110,15 +110,6 @@ jobs:
           components: rustfmt, llvm-tools-preview, clippy
       - name: Install grcov
         run: if [[ ! -e ~/.cargo/bin/grcov ]]; then cargo install grcov; fi
-      - name: Build
-        uses: actions-rs/cargo@v1
-        with:
-          command: build
-          args: --release --all-features
-        env:
-          CARGO_INCREMENTAL: "0"
-          RUSTFLAGS: "-Cinstrument-coverage"
-          RUSTDOCFLAGS: "-Cinstrument-coverage"
       - name: Test
         uses: actions-rs/cargo@v1
         with:
@@ -133,6 +124,6 @@ jobs:
       - name: Coveralls upload
         uses: coverallsapp/github-action@master
         with:
-          paths: ./coverage.lcov
+          files: ./coverage.lcov
           github-token: ${{ secrets.GITHUB_TOKEN }}
           path-to-lcov: ${{ steps.coverage.outputs.report }}
