@@ -1220,11 +1220,7 @@ pub fn extend_to_k_external_routers_seeded<P: Prefix, Q, Ospf: OspfImpl, Rng: Rn
 ) -> Vec<RouterId> {
     let (rng, k) = args;
     let num_externals = net.external_indices().count();
-    let x = if num_externals >= k {
-        0
-    } else {
-        k - num_externals
-    };
+    let x = k.saturating_sub(num_externals);
 
     let mut internal_nodes = net.internal_indices().collect::<Vec<RouterId>>();
     internal_nodes.sort();

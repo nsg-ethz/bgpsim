@@ -206,7 +206,7 @@ impl<'a, P: Prefix, Q, Ospf: OspfImpl> DefaultAddressor<'a, P, Q, Ospf> {
     }
 }
 
-impl<'a, P: Prefix, Q, Ospf: OspfImpl> DefaultAddressor<'a, P, Q, Ospf> {
+impl<P: Prefix, Q, Ospf: OspfImpl> DefaultAddressor<'_, P, Q, Ospf> {
     /// Get the subnet reserved for internal routers.
     pub fn subnet_for_internal_routers(&self) -> Ipv4Net {
         // unwrapping here is allowed, we have already done this operation successfully.
@@ -242,7 +242,7 @@ impl<'a, P: Prefix, Q, Ospf: OspfImpl> DefaultAddressor<'a, P, Q, Ospf> {
     }
 }
 
-impl<'a, P: Prefix, Q, Ospf: OspfImpl> Addressor<P> for DefaultAddressor<'a, P, Q, Ospf> {
+impl<P: Prefix, Q, Ospf: OspfImpl> Addressor<P> for DefaultAddressor<'_, P, Q, Ospf> {
     fn internal_network(&mut self) -> Ipv4Net {
         self.internal_ip_range
     }
