@@ -122,7 +122,7 @@ jobs:
       - name: Run grcov
         run: grcov . --binary-path target/debug/deps/ -s . -t lcov --branch --ignore-not-existing --ignore '../**' --ignore '/*' -o coverage.lcov
       - name: Coveralls upload
-        uses: coverallsapp/github-action@master
+        uses: coverallsapp/github-action@v2
         with:
           files: ./coverage.lcov
           github-token: ${{ secrets.GITHUB_TOKEN }}
