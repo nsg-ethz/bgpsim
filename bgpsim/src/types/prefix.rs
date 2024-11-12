@@ -478,24 +478,29 @@ where
 {
     type P = SinglePrefix;
 
-    type Iter<'a> = Zip<Repeat<&'a SinglePrefix>, std::option::IntoIter<&'a T>>
+    type Iter<'a>
+        = Zip<Repeat<&'a SinglePrefix>, std::option::IntoIter<&'a T>>
     where
         Self: 'a,
         T: 'a;
 
-    type Keys<'a> = Take<Repeat<&'a SinglePrefix>>
+    type Keys<'a>
+        = Take<Repeat<&'a SinglePrefix>>
     where
         T: 'a;
 
-    type Values<'a> = std::option::Iter<'a, T>
+    type Values<'a>
+        = std::option::Iter<'a, T>
     where
         T: 'a;
 
-    type ValuesMut<'a> = std::option::IterMut<'a, T>
+    type ValuesMut<'a>
+        = std::option::IterMut<'a, T>
     where
         T: 'a;
 
-    type Children<'a> = Self::Iter<'a>
+    type Children<'a>
+        = Self::Iter<'a>
     where
         Self: 'a,
         T: 'a;
@@ -711,23 +716,28 @@ where
 {
     type P = SimplePrefix;
 
-    type Iter<'a> = std::collections::hash_map::Iter<'a, SimplePrefix, T>
+    type Iter<'a>
+        = std::collections::hash_map::Iter<'a, SimplePrefix, T>
     where
         T: 'a;
 
-    type Keys<'a> = std::collections::hash_map::Keys<'a, SimplePrefix, T>
+    type Keys<'a>
+        = std::collections::hash_map::Keys<'a, SimplePrefix, T>
     where
         T: 'a;
 
-    type Values<'a> = std::collections::hash_map::Values<'a, SimplePrefix, T>
+    type Values<'a>
+        = std::collections::hash_map::Values<'a, SimplePrefix, T>
     where
         T: 'a;
 
-    type ValuesMut<'a> = std::collections::hash_map::ValuesMut<'a, SimplePrefix, T>
+    type ValuesMut<'a>
+        = std::collections::hash_map::ValuesMut<'a, SimplePrefix, T>
     where
         T: 'a;
 
-    type Children<'a> = std::option::IntoIter<(&'a Self::P, &'a T)>
+    type Children<'a>
+        = std::option::IntoIter<(&'a Self::P, &'a T)>
     where
         T: 'a;
 
@@ -921,12 +931,14 @@ impl Prefix for Ipv4Prefix {
 impl PrefixSet for PSet<Ipv4Prefix> {
     type P = Ipv4Prefix;
 
-    type Iter<'a> = prefix_trie::set::Iter<'a, Ipv4Prefix>
+    type Iter<'a>
+        = prefix_trie::set::Iter<'a, Ipv4Prefix>
     where
         Self: 'a,
         Self::P: 'a;
 
-    type Union<'a> = prefix_trie::set::Union<'a, Ipv4Prefix>
+    type Union<'a>
+        = prefix_trie::set::Union<'a, Ipv4Prefix>
     where
         Self: 'a,
         Self::P: 'a;
@@ -973,26 +985,31 @@ where
 {
     type P = Ipv4Prefix;
 
-    type Iter<'a> = prefix_trie::map::Iter<'a, Ipv4Prefix, T>
+    type Iter<'a>
+        = prefix_trie::map::Iter<'a, Ipv4Prefix, T>
     where
         Self::P: 'a,
         T: 'a;
 
-    type Keys<'a> = prefix_trie::map::Keys<'a, Ipv4Prefix, T>
+    type Keys<'a>
+        = prefix_trie::map::Keys<'a, Ipv4Prefix, T>
     where
         Self::P: 'a,
         T: 'a;
 
-    type Values<'a> = prefix_trie::map::Values<'a, Ipv4Prefix, T>
+    type Values<'a>
+        = prefix_trie::map::Values<'a, Ipv4Prefix, T>
     where
         Self::P: 'a,
         T: 'a;
 
-    type ValuesMut<'a> = prefix_trie::map::ValuesMut<'a, Ipv4Prefix, T>
+    type ValuesMut<'a>
+        = prefix_trie::map::ValuesMut<'a, Ipv4Prefix, T>
     where
         T: 'a;
 
-    type Children<'a> = prefix_trie::map::Iter<'a, Ipv4Prefix, T>
+    type Children<'a>
+        = prefix_trie::map::Iter<'a, Ipv4Prefix, T>
     where
         T: 'a;
 
