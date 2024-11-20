@@ -99,6 +99,24 @@ where
 
     /// Get a reference to the queue
     fn queue_mut(&mut self) -> &mut Q;
+
+    /// Manually trigger the given event, returning the result of that event. No new events will be
+    /// enqueued.
+    ///
+    /// # Safety
+    /// The network will be in an inconsistent state. Make sure to deal with that properly.
+    #[allow(clippy::type_complexity)]
+    unsafe fn trigger_event(
+        &mut self,
+        event: Event<P, Q::Priority>,
+    ) -> Result<(StepUpdate<P>, Vec<Event<P, Q::Priority>>), NetworkError>;
+
+    /// Manually enqueue a specific event. The event will be executed automatically if the network
+    /// is the automatic simulation state.
+    ///
+    /// # Safety
+    /// The network will be in an inconsistent state. Make sure to deal with that properly.
+    unsafe fn enqueue_event(&mut self, event: Event<P, Q::Priority>);
 }
 
 impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
@@ -232,6 +250,29 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
         } else {
             Ok(false)
         }
+    }
+
+    unsafe fn trigger_event(
+        &mut self,
+        event: Event<P, Q::Priority>,
+    ) -> Result<(StepUpdate<P>, Vec<Event<P, Q::Priority>>), NetworkError> {
+        // log the job
+        log::trace!("{}", event.fmt(self));
+        // execute the event
+        let (step_update, events) = match self
+            .routers
+            .get_mut(&event.router())
+            .ok_or(NetworkError::DeviceNotFound(event.router()))?
+        {
+            NetworkDevice::InternalRouter(r) => r.handle_event(event.clone()),
+            NetworkDevice::ExternalRouter(r) => r.handle_event(event.clone()),
+        }?;
+
+        Ok((step_update, events))
+    }
+
+    unsafe fn enqueue_event(&mut self, event: Event<P, Q::Priority>) {
+        self.enqueue_events(vec![event]);
     }
 }
 
