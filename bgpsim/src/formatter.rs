@@ -803,7 +803,14 @@ impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> 
                 src.fmt(net),
                 dst.fmt(net)
             ),
-            NetworkError::ForwardingLoop(p) => format!("Forwarding loop found! {}", p.fmt(net)),
+            NetworkError::ForwardingLoop {
+                to_loop,
+                first_loop,
+            } => format!(
+                "Forwarding loop found! {}, {}",
+                to_loop.fmt(net),
+                first_loop.fmt(net)
+            ),
             NetworkError::ForwardingBlackHole(p) => format!("Black hole found! {}", p.fmt(net)),
             NetworkError::InvalidBgpSessionType(src, dst, ty) => format!(
                 "BGP session of type {} cannot be established from {} to {}!",

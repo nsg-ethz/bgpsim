@@ -675,8 +675,8 @@ mod t {
         .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
-        test_bad_route!(fw_loop, &net, *R2, p, [*R2, *R3, *R2]);
-        test_bad_route!(fw_loop, &net, *R3, p, [*R3, *R2, *R3]);
+        test_bad_route!(fw_loop, &net, *R2, p, [], [*R2, *R3]);
+        test_bad_route!(fw_loop, &net, *R3, p, [], [*R3, *R2]);
         test_route!(net, *R4, p, [*R4, *E4]);
 
         net.set_link_weight(*R3, *R4, 1.0).unwrap();

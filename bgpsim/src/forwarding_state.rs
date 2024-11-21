@@ -238,18 +238,11 @@ impl<P: Prefix> ForwardingState<P> {
                     .iter()
                     .position(|x| *x == nh)
                     .expect("visited contains the same nodes as path, and visited contains `nh`");
-                let mut loop_path = p.split_off(first_idx);
-                loop_path.push(nh);
+                let mut cycle = p.split_off(first_idx);
+                // rotate cycle once, to get cur at first position
+                cycle.rotate_right(1);
 
-                // now, also do the same thing for cur_node.
-                let first_idx = loop_path
-                    .iter()
-                    .position(|x| *x == cur_node)
-                    .unwrap_or(loop_path.len() - 1);
-                loop_path.truncate(first_idx + 1);
-                loop_path.insert(0, cur_node);
-
-                return (CacheResult::Loop(loop_path), false);
+                return (CacheResult::Loop(vec![], cycle), false);
             }
 
             visited.insert(nh);
@@ -260,12 +253,22 @@ impl<P: Prefix> ForwardingState<P> {
                     p.insert(0, cur_node);
                     return (CacheResult::Hole(p), false);
                 }
-                Err(NetworkError::ForwardingLoop(mut p)) => {
-                    debug_assert!(!p.is_empty());
-                    let first_idx = p.iter().position(|x| *x == cur_node).unwrap_or(p.len() - 1);
-                    p.truncate(first_idx + 1);
-                    p.insert(0, cur_node);
-                    return (CacheResult::Loop(p), false);
+                Err(NetworkError::ForwardingLoop {
+                    mut to_loop,
+                    mut first_loop,
+                }) => {
+                    // path was not modified in the recursive call.
+                    if first_loop.contains(&cur_node) {
+                        // to-loop must be empty in that case, as we are still on the loop.
+                        debug_assert!(to_loop.is_empty());
+                        // still on the loop. Cycle the loop once and return
+                        first_loop.rotate_right(1);
+                    } else {
+                        // otherwise, cur is not on the loop. Put it on the to_loop path, but don't
+                        // modify the first_loop.
+                        to_loop.insert(0, cur_node);
+                    }
+                    return (CacheResult::Loop(to_loop, first_loop), false);
                 }
                 _ => {
                     unreachable!("Only forwarding blackholes and forwardingloops can be triggered.")
@@ -490,7 +493,9 @@ impl ForwardingState<SimplePrefix> {
 enum CacheResult {
     Path(Vec<Vec<RouterId>>),
     Hole(Vec<RouterId>),
-    Loop(Vec<RouterId>),
+    /// First element is the path to the loop (excluding the first element of the loop), and second
+    /// contains the loop exactly once, excluding any repetition.
+    Loop(Vec<RouterId>, Vec<RouterId>),
 }
 
 impl CacheResult {
@@ -498,7 +503,10 @@ impl CacheResult {
         match self {
             Self::Path(p) => Ok(p),
             Self::Hole(p) => Err(NetworkError::ForwardingBlackHole(p)),
-            Self::Loop(p) => Err(NetworkError::ForwardingLoop(p)),
+            Self::Loop(to_loop, first_loop) => Err(NetworkError::ForwardingLoop {
+                to_loop,
+                first_loop,
+            }),
         }
     }
 }
@@ -539,10 +547,10 @@ mod test {
         ($acq:expr, $src:literal, $pfx:expr => ($($path:tt),*)) => {
             check_route!($acq.get_paths($src.into(), $pfx), Ok(vec!($(_path!($path)),*)))
         };
-        ($acq:expr, $src:literal, $pfx:expr => fwloop $path:tt) => {
+        ($acq:expr, $src:literal, $pfx:expr => fwloop ($path:tt, $cycle:tt)) => {
             check_route!(
                 $acq.get_paths($src.into(), $pfx),
-                Err(NetworkError::ForwardingLoop(_path!($path)))
+                Err(NetworkError::ForwardingLoop{to_loop: _path!($path), first_loop: _path!($cycle)})
             )
         };
         ($acq:expr, $src:literal, $pfx:expr => blackhole $path:tt) => {
@@ -763,10 +771,10 @@ mod test {
 
             check_route!(fw, 100, p => ((100)));
             check_route!(fw, 1, p => ((1, 100)));
-            check_route!(fw, 2, p => fwloop (2, 3, 4, 2));
-            check_route!(fw, 3, p => fwloop (3, 4, 2, 3));
-            check_route!(fw, 4, p => fwloop (4, 2, 3, 4));
-            check_route!(fw, 5, p => fwloop (5, 4, 2, 3, 4));
+            check_route!(fw, 2, p => fwloop ((), (2, 3, 4)));
+            check_route!(fw, 3, p => fwloop ((), (3, 4, 2)));
+            check_route!(fw, 4, p => fwloop ((), (4, 2, 3)));
+            check_route!(fw, 5, p => fwloop ((5), (4, 2, 3)));
         }
 
         #[test]
@@ -782,10 +790,10 @@ mod test {
 
             check_route!(fw, 100, p => ((100)));
             check_route!(fw, 1, p => ((1, 100)));
-            check_route!(fw, 2, p => fwloop (2, 3, 4, 2));
-            check_route!(fw, 3, p => fwloop (3, 4, 2, 3));
-            check_route!(fw, 4, p => fwloop (4, 2, 3, 4));
-            check_route!(fw, 5, p => fwloop (5, 4, 2, 3, 4));
+            check_route!(fw, 2, p => fwloop ((), (2, 3, 4)));
+            check_route!(fw, 3, p => fwloop ((), (3, 4, 2)));
+            check_route!(fw, 4, p => fwloop ((), (4, 2, 3)));
+            check_route!(fw, 5, p => fwloop ((5), (4, 2, 3)));
         }
 
         #[test]
@@ -801,10 +809,10 @@ mod test {
 
             check_route!(fw, 100, p => ((100)));
             check_route!(fw, 1, p => ((1, 100)));
-            check_route!(fw, 2, p => fwloop (2, 3, 4, 2));
-            check_route!(fw, 3, p => fwloop (3, 4, 2, 3));
-            check_route!(fw, 4, p => fwloop (4, 2, 3, 4));
-            check_route!(fw, 5, p => fwloop (5, 4, 2, 3, 4));
+            check_route!(fw, 2, p => fwloop ((), (2, 3, 4)));
+            check_route!(fw, 3, p => fwloop ((), (3, 4, 2)));
+            check_route!(fw, 4, p => fwloop ((), (4, 2, 3)));
+            check_route!(fw, 5, p => fwloop ((5), (4, 2, 3)));
         }
 
         #[instantiate_tests(<SinglePrefix>)]

@@ -55,7 +55,7 @@ use crate::{
 
 use itertools::iproduct;
 use serde::{Deserialize, Serialize};
-use std::{collections::VecDeque, error::Error};
+use std::error::Error;
 use thiserror::Error;
 
 /// Extendable trait for policies. Each type that implements `Policy` is something that can *at
@@ -107,10 +107,12 @@ impl<P: Prefix> Policy<P> for FwPolicy<P> {
         match self {
             Self::Reachable(r, p) => match fw_state.get_paths(*r, *p) {
                 Ok(_) => Ok(()),
-                Err(NetworkError::ForwardingLoop(path)) => Err(PolicyError::ForwardingLoop {
-                    path: prepare_loop_path(path),
-                    prefix: *p,
-                }),
+                Err(NetworkError::ForwardingLoop { first_loop, .. }) => {
+                    Err(PolicyError::ForwardingLoop {
+                        path: first_loop,
+                        prefix: *p,
+                    })
+                }
                 Err(NetworkError::ForwardingBlackHole(path)) => Err(PolicyError::BlackHole {
                     router: *path.last().unwrap(),
                     prefix: *p,
@@ -119,7 +121,7 @@ impl<P: Prefix> Policy<P> for FwPolicy<P> {
             },
             Self::NotReachable(r, p) => match fw_state.get_paths(*r, *p) {
                 Err(NetworkError::ForwardingBlackHole(_)) => Ok(()),
-                Err(NetworkError::ForwardingLoop(_)) => Ok(()),
+                Err(NetworkError::ForwardingLoop { .. }) => Ok(()),
                 Err(e) => panic!("Unrecoverable error detected: {e}"),
                 Ok(paths) => Err(PolicyError::UnallowedPathExists {
                     router: *r,
@@ -132,10 +134,12 @@ impl<P: Prefix> Policy<P> for FwPolicy<P> {
                 _ => Ok(()),
             },
             Self::LoopFree(r, p) => match fw_state.get_paths(*r, *p) {
-                Err(NetworkError::ForwardingLoop(path)) => Err(PolicyError::ForwardingLoop {
-                    path: prepare_loop_path(path),
-                    prefix: *p,
-                }),
+                Err(NetworkError::ForwardingLoop { first_loop, .. }) => {
+                    Err(PolicyError::ForwardingLoop {
+                        path: first_loop,
+                        prefix: *p,
+                    })
+                }
                 _ => Ok(()),
             },
             Self::LoadBalancing(r, p, k) => match fw_state.get_paths(*r, *p) {
@@ -501,40 +505,6 @@ pub enum PolicyError<P: Prefix> {
     /// No Convergence
     #[error("Network did not converge")]
     NoConvergence,
-}
-
-/// Extracts only the loop from the path.
-/// The last node in the path must already exist previously in the path. If no loop exists in the
-/// path, then an unrecoverable error occurs.
-///
-/// TODO: this is inefficient. We should not collect into a VecDeque, rotate and collect back, but
-/// we should push only the elements that are needed in the correct order, without allocating a
-/// VecDeque.
-fn prepare_loop_path(path: Vec<RouterId>) -> Vec<RouterId> {
-    let len = path.len();
-    let loop_router = path[len - 1];
-    let mut first_loop_router: Option<usize> = None;
-    for (i, r) in path.iter().enumerate().take(len - 1) {
-        if *r == loop_router {
-            first_loop_router = Some(i);
-            break;
-        }
-    }
-    let first_loop_router =
-        first_loop_router.unwrap_or_else(|| panic!("Loop-Free path given: {path:?}"));
-    let mut loop_unordered: VecDeque<RouterId> =
-        path.into_iter().skip(first_loop_router + 1).collect();
-
-    // order the loop, such that the smallest router ID starts the loop
-    let lowest_pos = loop_unordered
-        .iter()
-        .enumerate()
-        .min_by(|a, b| a.1.cmp(b.1))
-        .map(|(i, _)| i)
-        .expect("Loop is empty");
-
-    loop_unordered.rotate_left(lowest_pos);
-    loop_unordered.into_iter().collect()
 }
 
 #[cfg(test)]

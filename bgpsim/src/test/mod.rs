@@ -35,11 +35,16 @@ fn path_result_str<P: Prefix, Q, Ospf: OspfImpl>(
         ),
         Err(NetworkError::ForwardingBlackHole(path)) => format!(
             "Black Hole: ({})",
-            path_names(&path, net).unwrap().join(" => ")
+            path_names(path.iter(), net).unwrap().join(" => ")
         ),
-        Err(NetworkError::ForwardingLoop(path)) => format!(
+        Err(NetworkError::ForwardingLoop {
+            to_loop,
+            first_loop,
+        }) => format!(
             "FW Loop: ({})",
-            path_names(&path, net).unwrap().join(" => ")
+            path_names(to_loop.iter().chain(&first_loop), net)
+                .unwrap()
+                .join(" => ")
         ),
         _ => unreachable!(),
     }
@@ -49,16 +54,14 @@ fn paths_names<'n, P: Prefix, Q, Ospf: OspfImpl>(
     paths: &[Vec<RouterId>],
     net: &'n Network<P, Q, Ospf>,
 ) -> Result<Vec<Vec<&'n str>>, NetworkError> {
-    paths.iter().map(|p| path_names(p, net)).collect()
+    paths.iter().map(|p| path_names(p.iter(), net)).collect()
 }
 
-fn path_names<'n, P: Prefix, Q, Ospf: OspfImpl>(
-    path: &[RouterId],
+fn path_names<'a, 'n, P: Prefix, Q, Ospf: OspfImpl>(
+    path: impl Iterator<Item = &'a RouterId>,
     net: &'n Network<P, Q, Ospf>,
 ) -> Result<Vec<&'n str>, NetworkError> {
-    path.iter()
-        .map(|r| net.get_device(*r).map(|r| r.name()))
-        .collect()
+    path.map(|r| net.get_device(*r).map(|r| r.name())).collect()
 }
 
 macro_rules! test_route {
@@ -71,9 +74,12 @@ macro_rules! test_route {
 }
 
 macro_rules! test_bad_route {
-    (fw_loop, $n: expr, $source: expr, $prefix: expr, $exp: expr) => {
+    (fw_loop, $n: expr, $source: expr, $prefix: expr, $to_loop: expr, $first_loop: expr) => {
         let exp = crate::test::path_result_str(
-            Err(crate::types::NetworkError::ForwardingLoop($exp.to_vec())),
+            Err(crate::types::NetworkError::ForwardingLoop {
+                to_loop: $to_loop.to_vec(),
+                first_loop: $first_loop.to_vec(),
+            }),
             &$n,
         );
         let acq = crate::test::path_result_str(

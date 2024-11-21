@@ -899,8 +899,8 @@ mod t {
         test_route!(net, s, prefix, [s, ps]);
         test_route!(net, rr1, prefix, [rr1, e0, p0]);
         test_route!(net, rr2, prefix, [rr2, e1, p1]);
-        test_bad_route!(fw_loop, net, r1, prefix, [r1, r2, r1]);
-        test_bad_route!(fw_loop, net, r2, prefix, [r2, r1, r2]);
+        test_bad_route!(fw_loop, net, r1, prefix, [], [r1, r2]);
+        test_bad_route!(fw_loop, net, r2, prefix, [], [r2, r1]);
 
         // add session r1 ---> e1
         net.apply_modifier(&Insert(bgp_session!(r1, e1, IBgpClient)))
@@ -1188,9 +1188,9 @@ fn carousel_gadget() {
 
     test_route!(net, rr, prefix1, [rr, pr]);
     test_route!(net, rr, prefix2, [rr, pr]);
-    test_bad_route!(fw_loop, net, r1, prefix1, [r1, r2, r1]);
+    test_bad_route!(fw_loop, net, r1, prefix1, [], [r1, r2]);
     test_route!(net, r1, prefix2, [r1, rr, pr]);
-    test_bad_route!(fw_loop, net, r2, prefix1, [r2, r1, r2]);
+    test_bad_route!(fw_loop, net, r2, prefix1, [], [r2, r1]);
     test_route!(net, r2, prefix2, [r2, r1, rr, pr]);
     test_route!(net, r3, prefix1, [r3, r4, e2, p2]);
     test_route!(net, r3, prefix2, [r3, r4, e2, p2]);

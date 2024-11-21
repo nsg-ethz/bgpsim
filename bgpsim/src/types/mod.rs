@@ -495,9 +495,17 @@ pub enum NetworkError {
     /// Device name is not present in the topology
     #[error("Link does not exist: {0:?} -- {1:?}")]
     LinkNotFound(RouterId, RouterId),
-    /// Forwarding loop detected
-    #[error("Forwarding Loop occurred! path: {0:?}")]
-    ForwardingLoop(Vec<RouterId>),
+    /// Forwarding loop detected.
+    ///
+    /// The forwarding path can be constructed by calling
+    /// `to_loop.iter().chain(repeat(first_loop.iter()))`.
+    #[error("Forwarding Loop occurred! path: {to_loop:?}, {first_loop:?}")]
+    ForwardingLoop {
+        /// The path to the forward loop, excluding the first node on the loop.
+        to_loop: Vec<RouterId>,
+        /// The first loop without repetition.
+        first_loop: Vec<RouterId>,
+    },
     /// Black hole detected
     #[error("Black hole occurred! path: {0:?}")]
     ForwardingBlackHole(Vec<RouterId>),
@@ -539,7 +547,16 @@ impl PartialEq for NetworkError {
             (Self::DeviceIsExternalRouter(l0), Self::DeviceIsExternalRouter(r0)) => l0 == r0,
             (Self::DeviceIsInternalRouter(l0), Self::DeviceIsInternalRouter(r0)) => l0 == r0,
             (Self::LinkNotFound(l0, l1), Self::LinkNotFound(r0, r1)) => l0 == r0 && l1 == r1,
-            (Self::ForwardingLoop(l0), Self::ForwardingLoop(r0)) => l0 == r0,
+            (
+                Self::ForwardingLoop {
+                    to_loop: l0,
+                    first_loop: l1,
+                },
+                Self::ForwardingLoop {
+                    to_loop: r0,
+                    first_loop: r1,
+                },
+            ) => l0 == r0 && l1 == r1,
             (Self::ForwardingBlackHole(l0), Self::ForwardingBlackHole(r0)) => l0 == r0,
             (Self::InvalidBgpSessionType(l0, l1, l2), Self::InvalidBgpSessionType(r0, r1, r2)) => {
                 l0 == r0 && l1 == r1 && l2 == r2
