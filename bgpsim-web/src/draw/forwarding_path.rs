@@ -125,8 +125,17 @@ fn get_paths(net: &Net, router: RouterId, prefix: Pfx) -> Vec<Vec<Point>> {
     if net.net().get_internal_router(router).is_ok() {
         match net.net().get_forwarding_state().get_paths(router, prefix) {
             Ok(paths) => paths,
-            Err(NetworkError::ForwardingBlackHole(p)) | Err(NetworkError::ForwardingLoop(p)) => {
+            Err(NetworkError::ForwardingBlackHole(p)) => {
                 vec![p]
+            }
+            Err(NetworkError::ForwardingLoop {
+                to_loop,
+                mut first_loop,
+            }) => {
+                if let Some(x) = first_loop.first().copied() {
+                    first_loop.push(x);
+                }
+                vec![to_loop.into_iter().chain(first_loop).collect()]
             }
             _ => unreachable!(),
         }
