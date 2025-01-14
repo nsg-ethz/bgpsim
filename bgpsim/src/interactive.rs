@@ -83,7 +83,7 @@ where
             &Network<P, Q, Ospf>,
             &Event<P, Q::Priority>,
             Option<&(StepUpdate<P>, Vec<Event<P, Q::Priority>>)>,
-        ) -> (),
+        ),
     ) -> Result<(), NetworkError>;
 
     /// Trigger the timeout event on any router. The router is picked randomly if the feature `rand`
@@ -237,7 +237,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
             &Network<P, Q, Ospf>,
             &Event<P, Q::Priority>,
             Option<&(StepUpdate<P>, Vec<Event<P, Q::Priority>>)>,
-        ) -> (),
+        ),
     ) -> Result<(), NetworkError> {
         'timeout: loop {
             // While there are events in the queue
