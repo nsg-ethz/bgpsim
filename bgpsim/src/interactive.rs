@@ -246,7 +246,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
 
                 // Straddle the trigger_event function with the pre- and post-event hooks
                 f(net, &event_clone, None);
-                // Safety: This is safe because we are allowing the network to eventually 
+                // Safety: This is safe because we are allowing the network to eventually
                 // converge by exhausing all events in the queue. The extracted events are
                 // all immutable and won't be modified.
                 let result = unsafe { net.trigger_event(event)? };
