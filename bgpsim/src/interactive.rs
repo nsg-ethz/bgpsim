@@ -80,7 +80,7 @@ where
     fn simulate_hooked(
         &mut self,
         f: impl FnMut(
-            &Network<P, Q, Ospf>,
+            &Self,
             &Event<P, Q::Priority>,
             Option<&(StepUpdate<P>, Vec<Event<P, Q::Priority>>)>,
         ),
@@ -234,7 +234,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
     fn simulate_hooked(
         &mut self,
         mut f: impl FnMut(
-            &Network<P, Q, Ospf>,
+            &Self,
             &Event<P, Q::Priority>,
             Option<&(StepUpdate<P>, Vec<Event<P, Q::Priority>>)>,
         ),
