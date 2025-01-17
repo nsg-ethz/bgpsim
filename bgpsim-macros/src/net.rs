@@ -37,6 +37,7 @@ pub(crate) struct Net {
     queue_ty: Option<Type>,
     queue: Option<Expr>,
     nodes: HashMap<Ident, Option<(u32, Span)>>,
+    node_order: Vec<Ident>,
     links: HashMap<(Ident, Ident), (f64, Span)>,
     sessions: HashMap<(Ident, Ident), Option<Ident>>,
     routes: Vec<Route<Ident>>,
@@ -52,6 +53,7 @@ impl Parse for Net {
             queue_ty: Default::default(),
             queue: Default::default(),
             nodes: Default::default(),
+            node_order: Default::default(),
             links: Default::default(),
             sessions: Default::default(),
             routes: Default::default(),
@@ -154,8 +156,9 @@ impl Parse for Net {
 impl Net {
     pub fn quote(self) -> TokenStream {
         let nodes = self
-            .nodes
+            .node_order
             .iter()
+            .filter_map(|ident| self.nodes.get_key_value(ident))
             .map(|(ident, ext)| {
                 let router_name = ident.to_string();
                 if let Some((as_id, _)) = ext.as_ref() {
@@ -393,6 +396,11 @@ impl Net {
 
     fn register_node(&mut self, node: Node) -> Result<Ident> {
         let entry = self.nodes.entry(node.ident.clone());
+        // if the node was never mentioned before, push the router to the router order. This ensures
+        // a predictable order or router IDs.
+        if matches!(entry, Entry::Vacant(_)) {
+            self.node_order.push(node.ident.clone());
+        }
         if let Some((as_id, span)) = node.ext {
             match entry {
                 Entry::Occupied(mut e) => match e.get() {

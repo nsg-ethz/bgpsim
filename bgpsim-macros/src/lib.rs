@@ -80,12 +80,11 @@ use syn::parse_macro_input;
 /// that uses the given AS number. You only need to annotate an external router once!
 ///
 /// # Example
-/// ```rust, ignore
+/// ```rust
 /// use bgpsim::prelude::*;
-/// use bgpsim_macros::*;
 ///
 /// let (net, ((b0, b1), (e0, e1))) = net! {
-///     Prefix = SimplePrefix;
+///     Prefix = Ipv4Prefix;
 ///     links = {
 ///         b0 -> r0: 1;
 ///         r0 -> r1: 1;
@@ -109,15 +108,14 @@ use syn::parse_macro_input;
 /// This example will be expanded into the following code. This code was cleaned-up, so the
 /// different parts can be seen better.
 ///
-/// ```rust, ignore
+/// ```rust
 /// use bgpsim::prelude::*;
-/// use bgpsim_macros::*;
 /// // these imports are added for compactness
 /// use ipnet::Ipv4Net;
 /// use std::net::Ipv4Addr;
 ///
 /// let (_net, ((b0, b1), (e0, e1))) = {
-///     let mut _net: Network<SimplePrefix, _> = Network::new(BasicEventQueue::default());
+///     let mut _net: Network<Ipv4Prefix, _> = Network::new(BasicEventQueue::default());
 ///     let b0 = _net.add_router("b0");
 ///     let b1 = _net.add_router("b1");
 ///     let r0 = _net.add_router("r0");
@@ -137,10 +135,6 @@ use syn::parse_macro_input;
 ///     _net.set_link_weight(b1, r1, 1f64).unwrap();
 ///     _net.set_link_weight(r0, r1, 1f64).unwrap();
 ///     _net.set_link_weight(r1, r0, 1f64).unwrap();
-///     _net.set_link_weight(b1, e1, 1f64).unwrap();
-///     _net.set_link_weight(e1, b1, 1f64).unwrap();
-///     _net.set_link_weight(b0, e0, 1f64).unwrap();
-///     _net.set_link_weight(e0, b0, 1f64).unwrap();
 ///
 ///     _net.set_bgp_session(b0, e0, Some(BgpSessionType::EBgp)).unwrap();
 ///     _net.set_bgp_session(r1, b1, Some(BgpSessionType::IBgpClient)).unwrap();
@@ -164,6 +158,45 @@ use syn::parse_macro_input;
 ///         ).unwrap();
 ///     (_net, ((b0, b1), (e0, e1)))
 /// };
+/// ```
+///
+/// ## Order or assigned Router-IDs
+///
+/// The router-IDs are assigned in order of their first occurrence. The first named router will be
+/// assigned id 0, the second 1, and so on. The first occurrence must not necessarily be in the
+/// `routers` block, but it also includes the mentioning of a router in a link or BGP session. Here
+/// is an example:
+///
+/// ```rust
+/// use bgpsim::prelude::*;
+///
+/// let (net, ((b0, b1), (r0, r1), (e0, e1))) = net! {
+///     Prefix = Ipv4Prefix;
+///     links = {
+///         b0 -> r0: 1;
+///         r0 -> r1: 1;
+///         r1 -> b1: 1;
+///     };
+///     sessions = {
+///         b1 -> e1!(1);
+///         b0 -> e0!(2);
+///         r0 -> r1: peer;
+///         r0 -> b0: client;
+///         r1 -> b1: client;
+///     };
+///     routes = {
+///         e0 -> "10.0.0.0/8" as {path: [1, 3, 4], med: 100, community: 20};
+///         e1 -> "10.0.0.0/8" as {path: [2, 4]};
+///     };
+///     return ((b0, b1), (r0, r1), (e0, e1))
+/// };
+///
+/// assert_eq!(b0.index(), 0);
+/// assert_eq!(r0.index(), 1);
+/// assert_eq!(r1.index(), 2);
+/// assert_eq!(b1.index(), 3);
+/// assert_eq!(e1.index(), 4);
+/// assert_eq!(e0.index(), 5);
 /// ```
 #[proc_macro]
 pub fn net(input: TokenStream) -> TokenStream {
