@@ -696,10 +696,7 @@ impl<P: Prefix> BgpProcess<P> {
     fn process_rib_in_route(&self, mut entry: BgpRibEntry<P>) -> Option<BgpRibEntry<P>> {
         // apply bgp_route_map_in
         let neighbor = entry.from_id;
-        entry = match self.get_route_maps(neighbor, Incoming).apply(entry) {
-            Some(e) => e,
-            None => return None,
-        };
+        entry = self.get_route_maps(neighbor, Incoming).apply(entry)?;
 
         let igp_cost = self
             .igp_cost

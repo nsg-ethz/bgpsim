@@ -442,7 +442,7 @@ where
     }
 }
 
-/// Formatting a mapping
+/// Formatting a sequence of sequences.
 pub trait NetworkFormatterNestedSequence<'n, P, Q, Ospf>
 where
     P: Prefix,
