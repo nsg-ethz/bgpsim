@@ -108,6 +108,7 @@ fmt_with_display! {i8, i16, i32, i64, i128, isize}
 fmt_with_display! {f32, f64, &str, String}
 fmt_with_display! {std::net::Ipv4Addr, ipnet::Ipv4Net}
 fmt_with_display! {crate::types::SinglePrefix, crate::types::SimplePrefix, crate::types::Ipv4Prefix}
+fmt_with_display! {std::io::Error}
 
 macro_rules! fmt_iterable {
     ($t:ty, $k:ident, $k_multiline:ident) => {
@@ -228,6 +229,49 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
         match net.get_device(*self) {
             Ok(r) => r.name().to_string(),
             Err(_) => "?".to_string(),
+        }
+    }
+}
+
+impl<'n, P, Q, Ospf, T> NetworkFormatter<'n, P, Q, Ospf> for Option<T>
+where
+    P: Prefix,
+    Ospf: OspfImpl,
+    T: NetworkFormatter<'n, P, Q, Ospf>,
+{
+    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+        match self {
+            Some(x) => format!("Some({})", x.fmt(net)),
+            None => "None".to_string(),
+        }
+    }
+
+    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+        match self {
+            Some(x) => format!("Some({})", x.fmt_multiline_indent(net, indent)),
+            None => "None".to_string(),
+        }
+    }
+}
+
+impl<'n, P, Q, Ospf, T, E> NetworkFormatter<'n, P, Q, Ospf> for Result<T, E>
+where
+    P: Prefix,
+    Ospf: OspfImpl,
+    T: NetworkFormatter<'n, P, Q, Ospf>,
+    E: NetworkFormatter<'n, P, Q, Ospf>,
+{
+    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+        match self {
+            Ok(x) => format!("Ok({})", x.fmt(net)),
+            Err(x) => format!("Err({})", x.fmt(net)),
+        }
+    }
+
+    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+        match self {
+            Ok(x) => format!("Ok({})", x.fmt_multiline_indent(net, indent)),
+            Err(x) => format!("Err({})", x.fmt_multiline_indent(net, indent)),
         }
     }
 }
@@ -994,21 +1038,6 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conf
                 "Adding this config expression would overwrite an old expression!".to_string()
             }
             ConfigError::ConfigModifier => "Could not apply modifier!".to_string(),
-        }
-    }
-}
-
-impl<'n, P, Q, Ospf, T, E> NetworkFormatter<'n, P, Q, Ospf> for Result<T, E>
-where
-    P: Prefix,
-    Ospf: OspfImpl,
-    T: NetworkFormatter<'n, P, Q, Ospf>,
-    E: NetworkFormatter<'n, P, Q, Ospf>,
-{
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
-        match self {
-            Ok(t) => t.fmt(net).to_string(),
-            Err(e) => format!("Error: {}", e.fmt(net)),
         }
     }
 }
