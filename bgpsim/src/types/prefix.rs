@@ -28,7 +28,7 @@ use std::{
 use ipnet::{AddrParseError, Ipv4Net};
 use serde::{de::Error, Deserialize, Serialize};
 
-use prefix_trie::{Prefix as PPrefix, PrefixMap as PMap, PrefixSet as PSet};
+use prefix_trie::{AsView, Prefix as PPrefix, PrefixMap as PMap, PrefixSet as PSet};
 
 /// Trait for prefix.
 pub trait Prefix
@@ -938,7 +938,7 @@ impl PrefixSet for PSet<Ipv4Prefix> {
         Self::P: 'a;
 
     type Union<'a>
-        = prefix_trie::set::Union<'a, Ipv4Prefix>
+        = PrefixTrieUnion<'a, Ipv4Prefix, (), ()>
     where
         Self: 'a,
         Self::P: 'a;
@@ -948,7 +948,7 @@ impl PrefixSet for PSet<Ipv4Prefix> {
     }
 
     fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a> {
-        self.union(other)
+        PrefixTrieUnion(self.view().union(other))
     }
 
     fn clear(&mut self) {
@@ -1030,7 +1030,7 @@ where
     }
 
     fn children(&self, prefix: &Self::P) -> Self::Children<'_> {
-        self.children(prefix)
+        self.children(*prefix)
     }
 
     fn clear(&mut self) {
@@ -1066,6 +1066,24 @@ where
 
     fn remove(&mut self, k: &Self::P) -> Option<T> {
         self.remove(k)
+    }
+}
+
+/// An iterator wrapping `prefix_trie::trieview::Union` and returns only the prefixes that are
+/// present in both tries.
+pub struct PrefixTrieUnion<'a, P, L, R>(prefix_trie::trieview::Union<'a, P, L, R>);
+
+impl<P: Debug, L: Debug, R: Debug> Debug for PrefixTrieUnion<'_, P, L, R> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("PrefixTrieUnion").finish()
+    }
+}
+
+impl<'a, P: prefix_trie::Prefix, L, R> Iterator for PrefixTrieUnion<'a, P, L, R> {
+    type Item = &'a P;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().map(|e| e.prefix())
     }
 }
 
