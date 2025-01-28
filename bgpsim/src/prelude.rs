@@ -19,7 +19,7 @@ pub use crate::bgp::{BgpRoute, BgpSessionType};
 pub use crate::builder::NetworkBuilder;
 pub use crate::config::NetworkConfig;
 pub use crate::event::{BasicEventQueue, EventQueue};
-pub use crate::formatter::NetworkFormatter;
+pub use crate::formatter::*;
 pub use crate::interactive::InteractiveNetwork;
 pub use crate::network::Network;
 pub use crate::ospf::global::GlobalOspf;

@@ -17,6 +17,7 @@
 
 use proc_macro::TokenStream;
 
+mod formatter;
 mod ip;
 mod net;
 use ip::PrefixInput;
@@ -223,4 +224,11 @@ pub fn net(input: TokenStream) -> TokenStream {
 #[proc_macro]
 pub fn prefix(input: TokenStream) -> TokenStream {
     parse_macro_input!(input as PrefixInput).quote()
+}
+
+/// Automatically implement the NetworkFormatter for the given type. The strings are generated
+/// similar to the derived `std::fmt::Debug` implementation.
+#[proc_macro_derive(NetworkFormatter)]
+pub fn network_formatter_derive(input: TokenStream) -> TokenStream {
+    formatter::derive(input)
 }

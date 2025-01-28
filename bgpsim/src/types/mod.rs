@@ -161,10 +161,8 @@ impl<P> FwDelta<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for FwDelta<P> {
-    type Formatter = String;
-
-    fn fmt(&'a self, net: &'n Network<P, Q, Ospf>) -> Self::Formatter {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for FwDelta<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
         format!(
             "{}: {} --> {}",
             self.prefix,

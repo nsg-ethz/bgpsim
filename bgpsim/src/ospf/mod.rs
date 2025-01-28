@@ -900,10 +900,8 @@ impl From<RouterId> for IgpTarget {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for IgpTarget {
-    type Formatter = String;
-
-    fn fmt(&'a self, net: &'n crate::network::Network<P, Q, Ospf>) -> Self::Formatter {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for IgpTarget {
+    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf>) -> String {
         match self {
             IgpTarget::Neighbor(r) => format!("{} (neighbor)", r.fmt(net)),
             IgpTarget::Ospf(r) => r.fmt(net).to_string(),

@@ -269,10 +269,8 @@ pub enum OspfEvent {
     },
 }
 
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for OspfEvent {
-    type Formatter = String;
-
-    fn fmt(&'a self, net: &'n crate::network::Network<P, Q, Ospf>) -> Self::Formatter {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for OspfEvent {
+    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf>) -> String {
         match self {
             OspfEvent::DatabaseDescription { headers, .. } => format!(
                 "DatabaseDescription {{{}}}",

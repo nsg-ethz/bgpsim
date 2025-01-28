@@ -77,10 +77,8 @@ impl<P: Prefix> SrProcess<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for SrProcess<P> {
-    type Formatter = String;
-
-    fn fmt(&'a self, net: &'n crate::network::Network<P, Q, Ospf>) -> Self::Formatter {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for SrProcess<P> {
+    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf>) -> String {
         self.static_routes
             .iter()
             .map(|(p, sr)| format!("{p} -> {}", sr.fmt(net)))

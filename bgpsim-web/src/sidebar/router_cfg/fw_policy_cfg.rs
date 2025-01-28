@@ -296,8 +296,8 @@ fn path_condition_to_text(cond: &PathCondition, net: &Network<Pfx, Queue, LocalO
                 "(p {})",
                 xs.iter()
                     .map(|x| match x {
-                        Waypoint::Star => "*",
-                        Waypoint::Any => "?",
+                        Waypoint::Star => "*".to_string(),
+                        Waypoint::Any => "?".to_string(),
                         Waypoint::Fix(r) => r.fmt(net),
                     })
                     .join(" ")

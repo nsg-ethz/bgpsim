@@ -808,10 +808,8 @@ impl<P: Prefix> BgpProcess<P> {
     }
 }
 
-impl<'a, 'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'a, 'n, P, Q, Ospf> for BgpProcess<P> {
-    type Formatter = String;
-
-    fn fmt(&'a self, net: &'n crate::network::Network<P, Q, Ospf>) -> Self::Formatter {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpProcess<P> {
+    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf>) -> String {
         self.get_processed_rib_in()
             .iter()
             .map(|(p, table)| {
