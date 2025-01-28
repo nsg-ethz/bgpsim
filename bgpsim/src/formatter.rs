@@ -43,11 +43,18 @@ pub trait NetworkFormatter<'n, P: Prefix, Q, Ospf: OspfImpl> {
     fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String;
 
     /// Return a multiline struct that can be formatted and displayed.
+    ///
+    /// You should typically not have to re-implement that function. Instead, re-implement the
+    /// `fmt_multiline_indent` function if you want your type to have a multiline formatting output.
     fn fmt_multiline(&self, net: &'n Network<P, Q, Ospf>) -> String {
         self.fmt_multiline_indent(net, 0)
     }
 
     /// Return a multiline struct that can be formatted and displayed.
+    ///
+    /// Overwrite this function for your type to give the type a special multiline formatting
+    /// output. If you don't overwrite this function, then your type will not have a special
+    /// multiline output.
     fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, _indent: usize) -> String {
         self.fmt(net)
     }
@@ -190,7 +197,33 @@ macro_rules! fmt_tuple {
             }
         }
     };
-    ($t1:ident, $($t:ident),*) => {
+    ($t1:ident, ) => {
+        impl<'n, P, Q, Ospf, $t1> NetworkFormatter<'n, P, Q, Ospf> for ($t1,)
+        where
+            P: Prefix,
+            Ospf: OspfImpl,
+            $t1: NetworkFormatter<'n, P, Q, Ospf>,
+        {
+            fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+                #[allow(non_snake_case)]
+                let ($t1,) = self;
+                let mut s = "(".to_string();
+                s.push_str(&$t1.fmt(net));
+                s.push(')');
+                s
+            }
+
+            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+                #[allow(non_snake_case)]
+                let ($t1,) = self;
+                let mut s = "(".to_string();
+                s.push_str(&$t1.fmt_multiline_indent(net, indent));
+                s.push(')');
+                s
+            }
+        }
+    };
+    ($t1:ident, $($t:ident),+) => {
         impl<'n, P, Q, Ospf, $t1, $($t),*> NetworkFormatter<'n, P, Q, Ospf> for ($t1, $($t),*)
         where
             P: Prefix,
@@ -207,6 +240,24 @@ macro_rules! fmt_tuple {
                     s.push_str(", ");
                     s.push_str(&$t.fmt(net));
                 })*
+                s.push(')');
+                s
+            }
+
+            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+                let spc = " ".repeat(indent);
+                #[allow(non_snake_case)]
+                let ($t1, $($t),*) = self;
+                let mut s = "(\n  ".to_string();
+                s.push_str(&spc);
+                s.push_str(&$t1.fmt_multiline_indent(net, indent + 2));
+                $({
+                    s.push_str(",\n  ");
+                    s.push_str(&spc);
+                    s.push_str(&$t.fmt_multiline_indent(net, indent + 2));
+                })*
+                s.push('\n');
+                s.push_str(&spc);
                 s.push(')');
                 s
             }

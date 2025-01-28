@@ -65,6 +65,7 @@ pub(crate) fn derive(input: TokenStream) -> TokenStream {
     let fmt_multiline_impl = generate_fmt_multiline_impl(&ident, &data);
 
     quote!{
+        #[automatically_derived]
         impl #impl_generics ::bgpsim::formatter::NetworkFormatter<'__n, __P, __Q, __OSPF> for #ident<#(#type_params),*>
         where
             #(#given_bounds),*
