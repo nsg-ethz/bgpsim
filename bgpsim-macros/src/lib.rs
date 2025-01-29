@@ -277,10 +277,10 @@ pub fn prefix(input: TokenStream) -> TokenStream {
 /// #[derive(NetworkFormatter)]
 /// struct Foo {
 ///     /// Will be printed regularly
-///     counter: usize
-///     /// Will be hidden
+///     counter: usize,
+///     // Will be hidden
 ///     #[formatter(skip)]
-///     internal_counter: usize
+///     internal_counter: usize,
 ///     /// This will print a path instead of a list
 ///     #[formatter(fmt = "fmt_path")]
 ///     path: Vec<RouterId>,
