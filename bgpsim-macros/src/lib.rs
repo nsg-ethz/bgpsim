@@ -251,7 +251,7 @@ pub fn prefix(input: TokenStream) -> TokenStream {
 ///   - `"fmt_path_set`: Format a nested iterator as a path option set, in the form of `{a -> b,
 ///     a -> b -> c}`. See `NetworkFormatterNestedSequence::fmt_path_set`.
 ///   - `"fmt_ext`: Format any iterable using the extension formatter, see
-///   `NetworkFormatterExt::fmt_ext`.
+///     `NetworkFormatterExt::fmt_ext`.
 /// - `multiline = ...` controls which function to use for the multiline formatting. By default, it
 ///   will pick the multi-line variant of the `fmt` option (for instance, setting `fmt = "fmt_set"`
 ///   will automatically configure `multiline = "fmt_set_multiline"`). In addition to those, you
@@ -260,15 +260,15 @@ pub fn prefix(input: TokenStream) -> TokenStream {
 ///     and an usize counting the current indentation level. It must have the same function
 ///     signature as `NetworkFormatter::fmt_multiline_indent`.
 ///   - `"fmt_multiline"`: The default multi-line formatter (used by default). See
-///   `NetworkFormatter::fmt_multiline_indent`.
+///     `NetworkFormatter::fmt_multiline_indent`.
 ///   - `"fmt_set_multiline`: Format any iterable as a set. See
-///   `NetworkFormatterSequence::fmt_set_multiline`.
+///     `NetworkFormatterSequence::fmt_set_multiline`.
 ///   - `"fmt_list_multiline`: Format any iterable as a list. See
-///   `NetworkFormatterSequence::fmt_list_multiline`.
+///     `NetworkFormatterSequence::fmt_list_multiline`.
 ///   - `"fmt_map_multiline`: Format the content as a mapping. See
-///   `NetworkFormatterMap::fmt_map_multiline`.
+///     `NetworkFormatterMap::fmt_map_multiline`.
 ///   - `"fmt_path_multiline`: Format the content as a set of paths. See
-///   `NetworkFormatterNestedSequence::fmt_path_multiline`.
+///     `NetworkFormatterNestedSequence::fmt_path_multiline`.
 ///
 /// ```
 /// use bgpsim::prelude::*;
