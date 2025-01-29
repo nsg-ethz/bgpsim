@@ -228,7 +228,68 @@ pub fn prefix(input: TokenStream) -> TokenStream {
 
 /// Automatically implement the NetworkFormatter for the given type. The strings are generated
 /// similar to the derived `std::fmt::Debug` implementation.
-#[proc_macro_derive(NetworkFormatter)]
+///
+/// You can control the way in which individual fields are formatted. To do so, you can use the
+/// `#[formatter(...)]` attribute. You can use the following values:
+///
+/// - `skip` will skip that field entirely.
+/// - `fmt = ...` controls which function to use for the (single-line) formatting. You have the
+///   following options:
+///   - `path::to::fn`: A path to a function that takes a reference to the value and to the network
+///     the same function signature as `NetworkFormatter::fmt`. If you pick a
+///     custom function without specifying a `multiline` attribute, then the same function will be
+///     used when formatting the field for multiple lines.
+///   - `"fmt"`: The default (single-line) formatter (used by default). See `NetworkFormatter::fmt`.
+///   - `"fmt_set`: Format any iterable as a set. See `NetworkFormatterSequence::fmt_set`.
+///   - `"fmt_list`: Format any iterable as a list. See `NetworkFormatterSequence::fmt_list`.
+///   - `"fmt_path`: Format any iterable as a path, in the form of `a -> b -> c`. See
+///     `NetworkFormatterSequence::fmt_path`.
+///   - `"fmt_map`: Format the content as a mapping. See `NetworkFormatterMap::fmt_map`.
+///   - `"fmt_map`: Format the content as a mapping. See `NetworkFormatterMap::fmt_map`.
+///   - `"fmt_path_options`: Format a nested iterator as a path option set, in the form of `a -> b |
+///     a -> b -> c`. See `NetworkFormatterNestedSequence::fmt_path_options`.
+///   - `"fmt_path_set`: Format a nested iterator as a path option set, in the form of `{a -> b,
+///     a -> b -> c}`. See `NetworkFormatterNestedSequence::fmt_path_set`.
+///   - `"fmt_ext`: Format any iterable using the extension formatter, see
+///   `NetworkFormatterExt::fmt_ext`.
+/// - `multiline = ...` controls which function to use for the multiline formatting. By default, it
+///   will pick the multi-line variant of the `fmt` option (for instance, setting `fmt = "fmt_set"`
+///   will automatically configure `multiline = "fmt_set_multiline"`). In addition to those, you
+///   have the following options:
+///   - `path::to::fn`: A path to a function that takes a reference to the value, to the network,
+///     and an usize counting the current indentation level. It must have the same function
+///     signature as `NetworkFormatter::fmt_multiline_indent`.
+///   - `"fmt_multiline"`: The default multi-line formatter (used by default). See
+///   `NetworkFormatter::fmt_multiline_indent`.
+///   - `"fmt_set_multiline`: Format any iterable as a set. See
+///   `NetworkFormatterSequence::fmt_set_multiline`.
+///   - `"fmt_list_multiline`: Format any iterable as a list. See
+///   `NetworkFormatterSequence::fmt_list_multiline`.
+///   - `"fmt_map_multiline`: Format the content as a mapping. See
+///   `NetworkFormatterMap::fmt_map_multiline`.
+///   - `"fmt_path_multiline`: Format the content as a set of paths. See
+///   `NetworkFormatterNestedSequence::fmt_path_multiline`.
+///
+/// ```
+/// use bgpsim::prelude::*;
+/// # use std::collections::HashSet;
+///
+/// #[derive(NetworkFormatter)]
+/// struct Foo {
+///     /// Will be printed regularly
+///     counter: usize
+///     /// Will be hidden
+///     #[formatter(skip)]
+///     internal_counter: usize
+///     /// This will print a path instead of a list
+///     #[formatter(fmt = "fmt_path")]
+///     path: Vec<RouterId>,
+///     /// Do not print this field with multiple lines
+///     #[formatter(multiline = "fmt")]
+///     visited: HashSet<RouterId>,
+/// }
+/// ```
+#[proc_macro_derive(NetworkFormatter, attributes(formatter))]
 pub fn network_formatter_derive(input: TokenStream) -> TokenStream {
     formatter::derive(input)
 }

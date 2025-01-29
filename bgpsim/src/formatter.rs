@@ -455,7 +455,7 @@ where
     fn fmt_path_set(self, net: &'n Network<P, Q, Ospf>) -> String;
 
     /// Format path options as a seton multiple lines.
-    fn fmt_path_multiline(self, net: &'n Network<P, Q, Ospf>) -> String;
+    fn fmt_path_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String;
 }
 
 impl<'n, P, Q, Ospf, I, T> NetworkFormatterNestedSequence<'n, P, Q, Ospf> for I
@@ -476,10 +476,13 @@ where
         )
     }
 
-    fn fmt_path_multiline(self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt_path_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+        let spc = " ".repeat(indent);
         format!(
-            "{{\n    {}\n}}",
-            self.into_iter().map(|p| p.fmt_path(net)).join(",\n    ")
+            "{{\n{spc}  {}\n}}",
+            self.into_iter()
+                .map(|p| p.fmt_path(net))
+                .join(&format!(",\n  {spc}"))
         )
     }
 }
