@@ -39,6 +39,16 @@ pub trait EventQueue<P: Prefix> {
         net: &PhysicalNetwork,
     );
 
+    /// Enqueue multiple events at once.
+    fn push_many<Ospf: OspfProcess>(
+        &mut self,
+        events: Vec<Event<P, Self::Priority>>,
+        routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        net: &PhysicalNetwork,
+    ) {
+        events.into_iter().for_each(|e| self.push(e, routers, net))
+    }
+
     /// pop the next event
     fn pop(&mut self) -> Option<Event<P, Self::Priority>>;
 
