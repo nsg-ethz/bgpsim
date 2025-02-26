@@ -301,7 +301,7 @@ impl Net {
         // must start with a paren.
         let links;
         braced!(links in input);
-        let links: Punctuated<Link, Token![;]> = links.parse_terminated(Link::parse)?;
+        let links: Punctuated<Link, Token![;]> = links.parse_terminated(Link::parse, Token![;])?;
 
         for Link {
             src,
@@ -335,7 +335,8 @@ impl Net {
         // must start with a paren.
         let sessions;
         braced!(sessions in input);
-        let sessions: Punctuated<_, Token![;]> = sessions.parse_terminated(BgpSession::parse)?;
+        let sessions: Punctuated<_, Token![;]> =
+            sessions.parse_terminated(BgpSession::parse, Token![;])?;
 
         for BgpSession { src, dst, ty } in sessions.into_iter() {
             let src = self.register_node(src)?;
@@ -371,7 +372,7 @@ impl Net {
         // must start with a paren.
         let routes;
         braced!(routes in input);
-        let routes: Punctuated<_, Token![;]> = routes.parse_terminated(Route::parse)?;
+        let routes: Punctuated<_, Token![;]> = routes.parse_terminated(Route::parse, Token![;])?;
 
         for Route {
             src,
@@ -594,7 +595,8 @@ impl Parse for Route<Node> {
         let content;
         braced!(content in input);
         let route_span = content.span();
-        let route: Punctuated<_, Token![,]> = content.parse_terminated(FieldValue::parse)?;
+        let route: Punctuated<_, Token![,]> =
+            content.parse_terminated(FieldValue::parse, Token![,])?;
 
         let missing_as_path = Error::new(route_span, "Missing an AS path!");
 
