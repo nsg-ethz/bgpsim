@@ -20,7 +20,7 @@ use std::{
     collections::{hash_map::RandomState, HashMap, HashSet},
     fmt::{Debug, Display},
     hash::Hash,
-    iter::{repeat, Repeat, Take, Zip},
+    iter::{repeat, repeat_n, Repeat, RepeatN, Zip},
     net::Ipv4Addr,
     str::FromStr,
 };
@@ -334,20 +334,20 @@ pub struct SinglePrefixSet(pub bool);
 impl IntoIterator for SinglePrefixSet {
     type Item = SinglePrefix;
 
-    type IntoIter = Take<Repeat<SinglePrefix>>;
+    type IntoIter = RepeatN<SinglePrefix>;
 
     fn into_iter(self) -> Self::IntoIter {
-        repeat(SinglePrefix).take(self.len())
+        repeat_n(SinglePrefix, self.len())
     }
 }
 
 impl<'a> IntoIterator for &'a SinglePrefixSet {
     type Item = &'a SinglePrefix;
 
-    type IntoIter = Take<Repeat<&'a SinglePrefix>>;
+    type IntoIter = RepeatN<&'a SinglePrefix>;
 
     fn into_iter(self) -> Self::IntoIter {
-        repeat(&SINGLE_PREFIX).take(self.len())
+        repeat_n(&SINGLE_PREFIX, self.len())
     }
 }
 
@@ -373,9 +373,9 @@ impl SinglePrefixSet {
 impl PrefixSet for SinglePrefixSet {
     type P = SinglePrefix;
 
-    type Iter<'a> = Take<Repeat<&'a SinglePrefix>>;
+    type Iter<'a> = RepeatN<&'a SinglePrefix>;
 
-    type Union<'a> = Take<Repeat<&'a SinglePrefix>>;
+    type Union<'a> = RepeatN<&'a SinglePrefix>;
 
     fn iter(&self) -> Self::Iter<'_> {
         #[allow(clippy::into_iter_on_ref)]
@@ -383,7 +383,7 @@ impl PrefixSet for SinglePrefixSet {
     }
 
     fn union<'a>(&'a self, other: &'a Self) -> Self::Union<'a> {
-        repeat(&SINGLE_PREFIX).take(usize::from(self.0 || other.0))
+        repeat_n(&SINGLE_PREFIX, usize::from(self.0 || other.0))
     }
 
     fn clear(&mut self) {
@@ -485,7 +485,7 @@ where
         T: 'a;
 
     type Keys<'a>
-        = Take<Repeat<&'a SinglePrefix>>
+        = RepeatN<&'a SinglePrefix>
     where
         T: 'a;
 
@@ -511,7 +511,7 @@ where
     }
 
     fn keys(&self) -> Self::Keys<'_> {
-        repeat(&SINGLE_PREFIX).take(self.len())
+        repeat_n(&SINGLE_PREFIX, self.len())
     }
 
     fn values(&self) -> Self::Values<'_> {

@@ -540,7 +540,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             let own_as_num = i + 1;
             for router in routers {
                 let router_as = self.get_device(*router)?.external_or_err()?.as_id();
-                let as_path = repeat(router_as).take(own_as_num).chain(once(last_as));
+                let as_path = std::iter::repeat_n(router_as, own_as_num).chain(once(last_as));
                 self.advertise_external_route(*router, prefix, as_path, None, None)?;
             }
         }
@@ -720,7 +720,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         let mut preference_list: Vec<RouterId> = net
             .net
             .node_indices()
-            .flat_map(|r| repeat(r).take(net.ospf.neighbors(r).count()))
+            .flat_map(|r| std::iter::repeat_n(r, net.ospf.neighbors(r).count()))
             .collect();
 
         let mut links = Vec::new();

@@ -100,8 +100,8 @@ impl std::fmt::Display for NeighborState {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             NeighborState::Init => f.write_str("Init"),
-            NeighborState::Exchange { .. } => f.write_str("Exchange"),
-            NeighborState::Loading { .. } => f.write_str("Loading"),
+            NeighborState::Exchange => f.write_str("Exchange"),
+            NeighborState::Loading => f.write_str("Loading"),
             NeighborState::Full => f.write_str("Full"),
         }
     }
@@ -262,8 +262,8 @@ impl Neighbor {
     pub(super) fn is_waiting_for_timeout(&self) -> bool {
         match self.state {
             NeighborState::Init => false,
-            NeighborState::Exchange { .. } => matches!(self.relation, Relation::Leader),
-            NeighborState::Loading { .. } => true,
+            NeighborState::Exchange => matches!(self.relation, Relation::Leader),
+            NeighborState::Loading => true,
             NeighborState::Full => !self.retransmission_list.is_empty(),
         }
     }
@@ -304,7 +304,7 @@ impl Neighbor {
                 // a leader receiving this message indicates that the follower successfully
                 // received my headers, and already transitioned from Init to either Loading or
                 // Full. Thus, we don't expect a second DatabaseDescription packet to receive.
-                (Relation::Leader, NeighborState::Exchange { .. }) => {
+                (Relation::Leader, NeighborState::Exchange) => {
                     Some(self.transition_exchange(&headers))
                 }
                 // A follower receiving this message indicates that the leader is still in the
@@ -865,7 +865,7 @@ impl Neighbor {
     pub(super) fn is_partial_sync(&self) -> bool {
         matches!(
             &self.state,
-            NeighborState::Exchange { .. } | NeighborState::Loading { .. }
+            NeighborState::Exchange | NeighborState::Loading
         )
     }
 }

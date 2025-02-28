@@ -15,7 +15,8 @@
 
 //! Testcase for forwarding state that appeared while Roland Schmid was using bgpsim.
 
-use std::{collections::HashSet, iter::repeat};
+use std::collections::HashSet;
+use std::iter::repeat_n;
 
 use crate::{
     builder::{
@@ -424,13 +425,11 @@ fn roland_arpanet_complete() {
     // extend traces using parallel combinations of the collections of ConvergenceTraces
     traces.extend(
         // execute simulations on `num_cpus` workers in parallel
-        repeat(&(t.clone(), trace.clone()))
-            .take(workers)
+        repeat_n(&(t.clone(), trace.clone()), workers)
             .cloned()
             .map(|(t, trace)| {
                 // execute local chunk sequentially, each cloning the network and the initial trace
-                repeat(&(t, trace))
-                    .take(iters / workers)
+                repeat_n(&(t, trace), iters / workers)
                     .cloned()
                     .map(sample_func)
                     .collect::<HashSet<_>>()
@@ -441,8 +440,7 @@ fn roland_arpanet_complete() {
     );
     // gather the last fraction of traces to reach `iters` iterations
     traces.extend(
-        repeat(&(t.clone(), trace))
-            .take(iters - iters / workers * workers)
+        repeat_n(&(t.clone(), trace), iters - iters / workers * workers)
             .cloned()
             .map(sample_func),
     );
