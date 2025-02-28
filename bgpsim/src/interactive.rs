@@ -243,9 +243,19 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
             Option<&(StepUpdate<P>, Vec<Event<P, Q::Priority>>)>,
         ),
     ) -> Result<(), NetworkError> {
+        let mut remaining_iter = self.stop_after;
         'timeout: loop {
             // While there are events in the queue
             while let Some(event) = self.queue().peek() {
+                // Ensure the convergence limit is not overstepped
+                if let Some(rem) = remaining_iter {
+                    if rem == 0 {
+                        debug!("Network could not converge!");
+                        return Err(NetworkError::NoConvergence);
+                    }
+                    remaining_iter = Some(rem - 1);
+                }
+
                 // Straddle the trigger_event function with the pre- and post-event hooks
                 f(self, event, None);
                 // Safety: This is safe because we trigger the next event in the queue and
