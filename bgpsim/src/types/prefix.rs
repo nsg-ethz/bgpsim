@@ -30,6 +30,11 @@ use serde::{de::Error, Deserialize, Serialize};
 
 use prefix_trie::{AsView, Prefix as PPrefix, PrefixMap as PMap, PrefixSet as PSet};
 
+pub(crate) trait IntoIpv4Prefix {
+    type T;
+    fn into_ipv4_prefix(self) -> Self::T;
+}
+
 /// Trait for prefix.
 pub trait Prefix
 where
@@ -68,6 +73,12 @@ where
 
     /// Check if `self` contains `other`, or `self` is equal to `other`.
     fn contains(&self, other: &Self) -> bool;
+
+    /// Turns `self` into an Ipv4 Prefix.
+    fn into_ipv4_prefix(self) -> Ipv4Prefix {
+        let p: Ipv4Net = self.into();
+        p.into()
+    }
 }
 
 /// Trait of a set of prefixes

@@ -30,7 +30,9 @@
 use crate::{
     event::{Event, EventOutcome},
     ospf::{global::GlobalOspfProcess, IgpTarget, OspfProcess},
-    types::{AsId, DeviceError, Prefix, PrefixMap, RouterId, StepUpdate},
+    types::{
+        AsId, DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate,
+    },
 };
 use itertools::Itertools;
 use log::*;
@@ -64,6 +66,22 @@ pub struct Router<P: Prefix, Ospf = GlobalOspfProcess> {
     /// cost. load balancing will only work within OSPF. BGP Additional Paths is not yet
     /// implemented.
     pub(crate) do_load_balancing: bool,
+}
+
+impl<P: Prefix, Ospf> IntoIpv4Prefix for Router<P, Ospf> {
+    type T = Router<Ipv4Prefix, Ospf>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        Router {
+            name: self.name,
+            router_id: self.router_id,
+            as_id: self.as_id,
+            ospf: self.ospf,
+            sr: self.sr.into_ipv4_prefix(),
+            bgp: self.bgp.into_ipv4_prefix(),
+            do_load_balancing: self.do_load_balancing,
+        }
+    }
 }
 
 impl<P: Prefix, Ospf: Clone> Clone for Router<P, Ospf> {

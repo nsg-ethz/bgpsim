@@ -28,6 +28,7 @@ use thiserror::Error;
 
 // pub(crate) mod collections;
 mod prefix;
+pub(crate) use prefix::IntoIpv4Prefix;
 pub use prefix::{
     Ipv4Prefix, NonOverlappingPrefix, Prefix, PrefixMap, PrefixSet, SimplePrefix, SinglePrefix,
     SinglePrefixMap, SinglePrefixSet,
@@ -274,6 +275,17 @@ impl<P: Prefix, Ospf> NetworkDevice<P, Ospf> {
         match self {
             NetworkDevice::InternalRouter(r) => r.name(),
             NetworkDevice::ExternalRouter(r) => r.name(),
+        }
+    }
+}
+
+impl<P: Prefix, Ospf> IntoIpv4Prefix for NetworkDevice<P, Ospf> {
+    type T = NetworkDevice<Ipv4Prefix, Ospf>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        match self {
+            NetworkDevice::InternalRouter(r) => NetworkDevice::InternalRouter(r.into_ipv4_prefix()),
+            NetworkDevice::ExternalRouter(r) => NetworkDevice::ExternalRouter(r.into_ipv4_prefix()),
         }
     }
 }

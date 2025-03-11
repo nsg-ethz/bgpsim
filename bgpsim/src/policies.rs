@@ -50,7 +50,7 @@
 
 use crate::{
     forwarding_state::ForwardingState,
-    types::{NetworkError, Prefix, RouterId},
+    types::{IntoIpv4Prefix, Ipv4Prefix, NetworkError, Prefix, RouterId},
 };
 
 use itertools::iproduct;
@@ -98,6 +98,25 @@ pub enum FwPolicy<P: Prefix> {
     /// Condition that there exist `k` edge-disjoint paths from the router to the prefix.
     /// CAUTION: Currently not implemented!
     LoadBalancingEdgeDisjoint(RouterId, P, usize),
+}
+
+impl<P: Prefix> IntoIpv4Prefix for FwPolicy<P> {
+    type T = FwPolicy<Ipv4Prefix>;
+    fn into_ipv4_prefix(self) -> Self::T {
+        match self {
+            FwPolicy::Reachable(r, p) => FwPolicy::Reachable(r, p.into_ipv4_prefix()),
+            FwPolicy::NotReachable(r, p) => FwPolicy::NotReachable(r, p.into_ipv4_prefix()),
+            FwPolicy::PathCondition(r, p, c) => FwPolicy::PathCondition(r, p.into_ipv4_prefix(), c),
+            FwPolicy::LoopFree(r, p) => FwPolicy::LoopFree(r, p.into_ipv4_prefix()),
+            FwPolicy::LoadBalancing(r, p, k) => FwPolicy::LoadBalancing(r, p.into_ipv4_prefix(), k),
+            FwPolicy::LoadBalancingVertexDisjoint(r, p, k) => {
+                FwPolicy::LoadBalancingVertexDisjoint(r, p.into_ipv4_prefix(), k)
+            }
+            FwPolicy::LoadBalancingEdgeDisjoint(r, p, k) => {
+                FwPolicy::LoadBalancingEdgeDisjoint(r, p.into_ipv4_prefix(), k)
+            }
+        }
+    }
 }
 
 impl<P: Prefix> Policy<P> for FwPolicy<P> {

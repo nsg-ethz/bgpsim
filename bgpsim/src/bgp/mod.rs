@@ -20,7 +20,7 @@ pub use state::*;
 
 use crate::{
     ospf::LinkWeight,
-    types::{AsId, Prefix, RouterId},
+    types::{AsId, IntoIpv4Prefix, Ipv4Prefix, Prefix, RouterId},
 };
 
 use ordered_float::NotNan;
@@ -51,6 +51,23 @@ pub struct BgpRoute<P: Prefix> {
     pub originator_id: Option<RouterId>,
     /// Optional field CLUSTER_LIST
     pub cluster_list: Vec<RouterId>,
+}
+
+impl<P: Prefix> IntoIpv4Prefix for BgpRoute<P> {
+    type T = BgpRoute<Ipv4Prefix>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        BgpRoute {
+            prefix: self.prefix.into_ipv4_prefix(),
+            as_path: self.as_path,
+            next_hop: self.next_hop,
+            local_pref: self.local_pref,
+            med: self.med,
+            community: self.community,
+            originator_id: self.originator_id,
+            cluster_list: self.cluster_list,
+        }
+    }
 }
 
 impl<P: Prefix> BgpRoute<P> {
@@ -280,6 +297,21 @@ pub struct BgpRibEntry<P: Prefix> {
     pub igp_cost: Option<NotNan<LinkWeight>>,
     /// Local weight of that route, which is the most preferred metric of the entire route.
     pub weight: u32,
+}
+
+impl<P: Prefix> IntoIpv4Prefix for BgpRibEntry<P> {
+    type T = BgpRibEntry<Ipv4Prefix>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        BgpRibEntry {
+            route: self.route.into_ipv4_prefix(),
+            from_type: self.from_type,
+            from_id: self.from_id,
+            to_id: self.to_id,
+            igp_cost: self.igp_cost,
+            weight: self.weight,
+        }
+    }
 }
 
 impl<P: Prefix> Ord for BgpRibEntry<P> {

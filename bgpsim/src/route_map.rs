@@ -20,7 +20,7 @@
 use crate::{
     bgp::BgpRibEntry,
     ospf::LinkWeight,
-    types::{AsId, Prefix, PrefixSet, RouterId},
+    types::{AsId, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixSet, RouterId},
 };
 
 use ordered_float::NotNan;
@@ -121,6 +121,24 @@ impl<P: Prefix> RouteMap<P> {
     /// Returns wether the Route Map matches the given entry
     pub fn matches(&self, route: &BgpRibEntry<P>) -> bool {
         self.conds.iter().all(|c| c.matches(route))
+    }
+}
+
+impl<P: Prefix> IntoIpv4Prefix for RouteMap<P> {
+    type T = RouteMap<Ipv4Prefix>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        RouteMap {
+            order: self.order,
+            state: self.state,
+            conds: self
+                .conds
+                .into_iter()
+                .map(|x| x.into_ipv4_prefix())
+                .collect(),
+            set: self.set,
+            flow: self.flow,
+        }
     }
 }
 
@@ -486,6 +504,22 @@ pub enum RouteMapMatch<P: Prefix> {
     Community(u32),
     /// Match on the absence of a given community.
     DenyCommunity(u32),
+}
+
+impl<P: Prefix> IntoIpv4Prefix for RouteMapMatch<P> {
+    type T = RouteMapMatch<Ipv4Prefix>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        match self {
+            RouteMapMatch::Prefix(x) => {
+                RouteMapMatch::Prefix(x.into_iter().map(Prefix::into_ipv4_prefix).collect())
+            }
+            RouteMapMatch::AsPath(x) => RouteMapMatch::AsPath(x),
+            RouteMapMatch::NextHop(x) => RouteMapMatch::NextHop(x),
+            RouteMapMatch::Community(x) => RouteMapMatch::Community(x),
+            RouteMapMatch::DenyCommunity(x) => RouteMapMatch::DenyCommunity(x),
+        }
+    }
 }
 
 impl<P: Prefix> RouteMapMatch<P> {

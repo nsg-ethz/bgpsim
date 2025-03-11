@@ -30,7 +30,7 @@
 use crate::{
     formatter::NetworkFormatter,
     ospf::{IgpTarget, OspfImpl},
-    types::{Prefix, PrefixMap, RouterId},
+    types::{IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId},
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -40,6 +40,20 @@ use serde::{Deserialize, Serialize};
 pub struct SrProcess<P: Prefix> {
     /// Static Routes for Prefixes
     pub(crate) static_routes: P::Map<StaticRoute>,
+}
+
+impl<P: Prefix> IntoIpv4Prefix for SrProcess<P> {
+    type T = SrProcess<Ipv4Prefix>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        SrProcess {
+            static_routes: self
+                .static_routes
+                .into_iter()
+                .map(|(p, sr)| (p.into_ipv4_prefix(), sr))
+                .collect(),
+        }
+    }
 }
 
 impl<P: Prefix> SrProcess<P> {

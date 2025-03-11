@@ -21,7 +21,9 @@
 use crate::{
     bgp::{BgpEvent, BgpRoute},
     event::{Event, EventOutcome},
-    types::{AsId, DeviceError, Prefix, PrefixMap, RouterId, StepUpdate},
+    types::{
+        AsId, DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate,
+    },
 };
 
 use serde::{Deserialize, Serialize};
@@ -45,6 +47,24 @@ pub struct ExternalRouter<P: Prefix> {
     as_id: AsId,
     pub(crate) neighbors: HashSet<RouterId>,
     pub(crate) active_routes: P::Map<BgpRoute<P>>,
+}
+
+impl<P: Prefix> IntoIpv4Prefix for ExternalRouter<P> {
+    type T = ExternalRouter<Ipv4Prefix>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        ExternalRouter {
+            name: self.name,
+            router_id: self.router_id,
+            as_id: self.as_id,
+            neighbors: self.neighbors,
+            active_routes: self
+                .active_routes
+                .into_iter()
+                .map(|(p, r)| (p.into_ipv4_prefix(), r.into_ipv4_prefix()))
+                .collect(),
+        }
+    }
 }
 
 impl<P: Prefix> PartialEq for ExternalRouter<P> {

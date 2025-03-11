@@ -39,7 +39,9 @@ use crate::{
         RouteMapDirection::{self, Incoming, Outgoing},
         RouteMapList,
     },
-    types::{AsId, DeviceError, Prefix, PrefixMap, PrefixSet, RouterId},
+    types::{
+        AsId, DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, PrefixSet, RouterId,
+    },
 };
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -802,6 +804,63 @@ impl<P: Prefix> BgpProcess<P> {
             writeln!(f, "{} {}", if selected { "*" } else { " " }, entry.fmt(net)).unwrap();
         }
         result
+    }
+}
+
+impl<P: Prefix> IntoIpv4Prefix for BgpProcess<P> {
+    type T = BgpProcess<Ipv4Prefix>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        BgpProcess {
+            router_id: self.router_id,
+            as_id: self.as_id,
+            igp_cost: self.igp_cost,
+            sessions: self.sessions,
+            rib_in: self
+                .rib_in
+                .into_iter()
+                .map(|(p, rib)| {
+                    (
+                        p.into_ipv4_prefix(),
+                        rib.into_iter()
+                            .map(|(n, e)| (n, e.into_ipv4_prefix()))
+                            .collect(),
+                    )
+                })
+                .collect(),
+            rib: self
+                .rib
+                .into_iter()
+                .map(|(p, e)| (p.into_ipv4_prefix(), e.into_ipv4_prefix()))
+                .collect(),
+            rib_out: self
+                .rib_out
+                .into_iter()
+                .map(|(p, rib)| {
+                    (
+                        p.into_ipv4_prefix(),
+                        rib.into_iter()
+                            .map(|(n, e)| (n, e.into_ipv4_prefix()))
+                            .collect(),
+                    )
+                })
+                .collect(),
+            route_maps_in: self
+                .route_maps_in
+                .into_iter()
+                .map(|(n, x)| (n, x.into_iter().map(|x| x.into_ipv4_prefix()).collect()))
+                .collect(),
+            route_maps_out: self
+                .route_maps_out
+                .into_iter()
+                .map(|(n, x)| (n, x.into_iter().map(|x| x.into_ipv4_prefix()).collect()))
+                .collect(),
+            known_prefixes: self
+                .known_prefixes
+                .into_iter()
+                .map(Prefix::into_ipv4_prefix)
+                .collect(),
+        }
     }
 }
 

@@ -29,7 +29,7 @@ pub use rand_queue::{GeoTimingModel, ModelParams, SimpleTimingModel};
 use crate::{
     bgp::BgpEvent,
     ospf::{local::OspfEvent, OspfArea},
-    types::{Prefix, RouterId, StepUpdate},
+    types::{IntoIpv4Prefix, Ipv4Prefix, Prefix, RouterId, StepUpdate},
 };
 
 /// Event to handle
@@ -129,6 +129,33 @@ impl<P: Prefix, T> Event<P, T> {
     pub fn router(&self) -> RouterId {
         match self {
             Event::Bgp { dst, .. } | Event::Ospf { dst, .. } => *dst,
+        }
+    }
+}
+
+impl<P: Prefix, T> IntoIpv4Prefix for Event<P, T> {
+    type T = Event<Ipv4Prefix, ()>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        match self {
+            Event::Bgp { src, dst, e, .. } => Event::Bgp {
+                p: (),
+                src,
+                dst,
+                e: match e {
+                    BgpEvent::Withdraw(p) => BgpEvent::Withdraw(p.into_ipv4_prefix()),
+                    BgpEvent::Update(bgp_route) => BgpEvent::Update(bgp_route.into_ipv4_prefix()),
+                },
+            },
+            Event::Ospf {
+                src, dst, area, e, ..
+            } => Event::Ospf {
+                p: (),
+                src,
+                dst,
+                area,
+                e,
+            },
         }
     }
 }

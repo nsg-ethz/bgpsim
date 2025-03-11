@@ -29,8 +29,8 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        AsId, NetworkDevice, NetworkDeviceRef, NetworkError, NetworkErrorOption, PhysicalNetwork,
-        Prefix, PrefixSet, RouterId, SimplePrefix,
+        AsId, IntoIpv4Prefix, Ipv4Prefix, NetworkDevice, NetworkDeviceRef, NetworkError,
+        NetworkErrorOption, PhysicalNetwork, Prefix, PrefixSet, RouterId, SimplePrefix,
     },
 };
 
@@ -1103,6 +1103,41 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
             known_prefixes: self.known_prefixes,
             stop_after: self.stop_after,
             queue: self.queue,
+            skip_queue: self.skip_queue,
+        })
+    }
+
+    /// Transforms `self` into a network using the `Ipv4Prefix` type. The entire queue will be
+    /// sewapped accordingly (see [`Network::swap_queue`]).
+    pub fn into_ipv4_prefix<QA>(self, mut queue: QA) -> Result<Network<Ipv4Prefix, QA, Ospf>, Self>
+    where
+        QA: EventQueue<Ipv4Prefix>,
+    {
+        if !self.queue.is_empty() {
+            return Err(self);
+        }
+
+        // transform the routers
+        let routers = self
+            .routers
+            .into_iter()
+            .map(|(id, r)| (id, r.into_ipv4_prefix()))
+            .collect();
+
+        queue.update_params(&routers, &self.net);
+
+        Ok(Network {
+            net: self.net,
+            ospf: self.ospf,
+            routers,
+            queue,
+            bgp_sessions: self.bgp_sessions,
+            known_prefixes: self
+                .known_prefixes
+                .into_iter()
+                .map(Prefix::into_ipv4_prefix)
+                .collect(),
+            stop_after: self.stop_after,
             skip_queue: self.skip_queue,
         })
     }
