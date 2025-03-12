@@ -18,10 +18,10 @@
 use std::{collections::HashMap, ops::Deref};
 
 use bgpsim::{
-    event::EventQueue,
+    event::{Event, EventQueue},
     ospf::GlobalOspf,
     policies::{FwPolicy, PolicyError},
-    prelude::{InteractiveNetwork, Network},
+    prelude::{InteractiveNetwork, Network, NetworkFormatter},
     types::RouterId,
 };
 use getrandom::getrandom;
@@ -287,8 +287,42 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
     let Some(events) = content.get("replay") else {
         return Err("'replay' is not part of the json file".to_string());
     };
-    let events = serde_json::from_value(events.clone())
+    let events: Vec<_> = serde_json::from_value(events.clone())
         .map_err(|e| format!("Cannot deserialize recording! {e}"))?;
+
+    // ensure that all routers mentioned in the event actually exist, and that there exists BGP
+    // sessions in between those routers.
+    let net = Dispatch::<Net>::new().get();
+    for e in &events {
+        match e {
+            Event::Bgp { src, dst, .. } => {
+                // check that the BGP sessions exists
+                net.net()
+                    .get_device(*src)
+                    .map_err(|_| format!("Router {src:?} does not exist"))?
+                    .bgp_session_type(*dst)
+                    .ok_or_else(|| format!("Router {src:?} has no BGP session with {dst:?}",))?;
+                net.net()
+                    .get_device(*dst)
+                    .map_err(|_| format!("Router {dst:?} does not exist"))?
+                    .bgp_session_type(*src)
+                    .ok_or_else(|| format!("Router {dst:?} has no BGP session with {src:?}",))?;
+            }
+            Event::Ospf { src, dst, .. } => {
+                net.net()
+                    .get_device(*src)
+                    .map_err(|_| format!("Router {src:?} does not exist"))?
+                    .internal()
+                    .ok_or_else(|| format!("Router {src:?} is not an internal router"))?;
+                net.net()
+                    .get_device(*dst)
+                    .map_err(|_| format!("Router {dst:?} does not exist"))?
+                    .internal()
+                    .ok_or_else(|| format!("Router {dst:?} is not an internal router"))?;
+            }
+        }
+    }
+
     Ok(Replay {
         events,
         position: 0,
