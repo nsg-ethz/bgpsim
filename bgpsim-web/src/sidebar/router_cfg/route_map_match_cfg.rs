@@ -54,6 +54,7 @@ pub enum Msg {
 pub struct Properties {
     pub router: RouterId,
     pub index: usize,
+    pub disabled: Option<bool>,
     pub m: RouteMapMatch<Pfx>,
     pub on_update: Callback<(usize, Option<RouteMapMatch<Pfx>>)>,
 }
@@ -82,6 +83,7 @@ impl Component for RouteMapMatchCfg {
             .get_internal_router(ctx.props().router)
             .map(|r| r.bgp.get_sessions().keys().copied().collect())
             .unwrap_or_default();
+        let disabled = ctx.props().disabled.unwrap_or(false);
 
         let kind_text = match_kind_text(&ctx.props().m);
 
@@ -94,27 +96,33 @@ impl Component for RouteMapMatchCfg {
                 .collect();
             let current_text = self.value.fmt(&self.net);
             let on_select = ctx.link().callback(Msg::InputUpdateRouter);
-            html! {<Select<RouterId> text={current_text} {options} {on_select} button_class={Classes::from("text-sm")} />}
+            html! {<Select<RouterId> text={current_text} {options} {on_select} button_class={Classes::from("text-sm")} {disabled}/>}
         } else {
             let text = self.value.fmt(self.net.as_ref());
             let on_change = ctx.link().callback(Msg::InputChange);
             let on_set = ctx.link().callback(Msg::InputSet);
             html! {
-                <TextField {text} {on_change} {on_set} correct={self.correct} />
+                <TextField {text} {on_change} {on_set} correct={self.correct} {disabled}/>
             }
         };
 
         let on_select = ctx.link().callback(Msg::KindUpdate);
         let on_delete = ctx.link().callback(|_| Msg::Delete);
 
+        let del_class = if disabled {
+            "ml-2 text-main-ia cursor-not-allowed"
+        } else {
+            "ml-2 hover hover:text-red focus:outline-none transition duration-150 ease-in-out"
+        };
+
         html! {
             <div class="w-full flex">
                 <div class="basis-1/5 flex-none"></div>
-                <div class="w-40 flex-none"><Select<RouteMapMatch<Pfx>> text={kind_text} options={match_kind_options()} {on_select} button_class={Classes::from("text-sm")} /></div>
+                <div class="w-40 flex-none"><Select<RouteMapMatch<Pfx>> text={kind_text} options={match_kind_options()} {on_select} button_class={Classes::from("text-sm")} {disabled}/></div>
                 <div class="w-full ml-2">
                   { value_html }
                 </div>
-                <button class="ml-2 hover hover:text-red focus:outline-none transition duration-150 ease-in-out" onclick={on_delete}> <yew_lucide::X class="w-5 h-5 text-center" /> </button>
+                <button class={del_class} onclick={on_delete} {disabled}> <yew_lucide::X class="w-5 h-5 text-center" /> </button>
             </div>
         }
     }

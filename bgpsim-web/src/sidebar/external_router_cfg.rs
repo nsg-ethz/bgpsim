@@ -53,6 +53,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
     let prefix_input_correct = use_state(|| true);
     let simple = use_selector(|state: &State| state.features().simple);
     let show_ospf = use_selector(|state: &State| state.features().ospf);
+    let disabled = *use_selector(|state: &State| state.replay);
 
     if !info.exists {
         return html!();
@@ -137,29 +138,29 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
         <div class="w-full space-y-2">
             <Divider text={format!("External Router {}", info.name)} />
             <Element text={"Name"}>
-                <TextField text={info.name.clone()} on_change={on_name_change} on_set={on_name_set} correct={*name_input_correct}/>
+                <TextField text={info.name.clone()} on_change={on_name_change} on_set={on_name_set} correct={*name_input_correct} {disabled}/>
             </Element>
             <Element text={"AS Number"}>
-                <TextField text={as_text} on_change={on_asid_change} on_set={on_asid_set} correct={*asid_input_correct}/>
+                <TextField text={as_text} on_change={on_asid_change} on_set={on_asid_set} correct={*asid_input_correct} {disabled}/>
             </Element>
             if *show_ospf {
-                <TopologyCfg router={id} only_internal={true} />
+                <TopologyCfg router={id} only_internal={true} {disabled}/>
             }
             <Divider text={"BGP"} />
             <Element text={"Neighbors"} class={Classes::from("mt-0.5")}>
-                <MultiSelect<RouterId> options={info.bgp_options.clone()} on_add={on_session_add} on_remove={on_session_remove} />
+                <MultiSelect<RouterId> options={info.bgp_options.clone()} on_add={on_session_add} on_remove={on_session_remove} {disabled}/>
             </Element>
             <Divider text={"Advertised Routes"} />
             <Element text={"New route"} >
-                <TextField text={""} placeholder={"prefix"} on_change={on_route_add_change} on_set={on_route_add} correct={*prefix_input_correct} button_text={"Advertise"}/>
+                <TextField text={""} placeholder={"prefix"} on_change={on_route_add_change} on_set={on_route_add} correct={*prefix_input_correct} button_text={"Advertise"} {disabled}/>
             </Element>
             {
                 info.routes.iter().map(|(prefix, route)| html!{
-                    <AdvertisedRouteCfg prefix={*prefix} route={route.clone()} on_update={on_route_update.clone()} on_delete={on_route_delete.clone()} advertised={Rc::clone(&advertised)} />
+                    <AdvertisedRouteCfg prefix={*prefix} route={route.clone()} on_update={on_route_update.clone()} on_delete={on_route_delete.clone()} advertised={Rc::clone(&advertised)} {disabled} />
                 }).collect::<Html>()
             }
             if !*simple {
-                <DeleteRouter router={id} />
+                <DeleteRouter router={id} {disabled} />
             }
             <Divider />
         </div>
@@ -229,6 +230,7 @@ struct AdvertisedRouteProperties {
     on_update: Callback<(Pfx, BgpRoute<Pfx>)>,
     on_delete: Callback<Pfx>,
     advertised: Rc<HashSet<Pfx>>,
+    disabled: Option<bool>,
 }
 
 #[function_component]
@@ -242,6 +244,7 @@ fn AdvertisedRouteCfg(props: &AdvertisedRouteProperties) -> Html {
     let route = &props.route;
     let on_update = &props.on_update;
     let on_delete = &props.on_delete;
+    let disabled = props.disabled.unwrap_or(false);
 
     let prefix_text = props.prefix.to_string();
     let on_prefix_change = callback!(prefix_input_correct -> move |p: String| {
@@ -321,19 +324,19 @@ fn AdvertisedRouteCfg(props: &AdvertisedRouteProperties) -> Html {
         <>
             <ExpandableSection text={format!("Route for {}", prefix)}>
                 <Element text={"Prefix"}>
-                    <TextField text={prefix_text} on_change={on_prefix_change} on_set={on_prefix_set} correct={*prefix_input_correct}/>
+                    <TextField text={prefix_text} on_change={on_prefix_change} on_set={on_prefix_set} correct={*prefix_input_correct} {disabled}/>
                 </Element>
                 <Element text={"AS Path"}>
-                    <TextField text={path_text} on_change={on_path_change} on_set={on_path_set} correct={*path_input_correct}/>
+                    <TextField text={path_text} on_change={on_path_change} on_set={on_path_set} correct={*path_input_correct} {disabled}/>
                 </Element>
                 <Element text={"MED"}>
-                    <TextField text={med_text} on_change={on_med_change} on_set={on_med_set} correct={*med_input_correct}/>
+                    <TextField text={med_text} on_change={on_med_change} on_set={on_med_set} correct={*med_input_correct} {disabled}/>
                 </Element>
                 <Element text={"Communities"}>
-                    <TextField text={community_text} on_change={on_community_change} on_set={on_community_set} correct={*community_input_correct}/>
+                    <TextField text={community_text} on_change={on_community_change} on_set={on_community_set} correct={*community_input_correct} {disabled}/>
                 </Element>
                 <Element text={""}>
-                    <Button text={"delete"} color={Some(SvgColor::RedLight)} on_click={on_delete} />
+                    <Button text={"delete"} color={Some(SvgColor::RedLight)} on_click={on_delete} {disabled} />
                 </Element>
             </ExpandableSection>
         </>

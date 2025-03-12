@@ -43,6 +43,7 @@ use super::net::Pfx;
 pub struct State {
     selected: Selected,
     hover: Hover,
+    pub replay: bool,
     context_menu: ContextMenu,
     layer: Layer,
     prefix: Option<Pfx>,
@@ -63,6 +64,7 @@ impl Default for State {
         Self {
             selected: Default::default(),
             hover: Default::default(),
+            replay: false,
             context_menu: Default::default(),
             layer: Layer::FwState,
             prefix: Default::default(),
@@ -448,7 +450,7 @@ impl Layer {
     }
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ContextMenu {
     None,
     InternalRouterContext(RouterId, Point),

@@ -238,6 +238,10 @@ pub fn QueueSwapPos(props: &QueueSwapProps) -> Html {
         })
         .forget();
     });
+    // return an empty html if in replay mode
+    if *use_selector(|state: &State| state.replay) {
+        return html! {};
+    }
     html! {
         <div class="w-full flex items-center">
             <div class="flex-grow"></div>

@@ -101,35 +101,37 @@ impl Component for RouterCfg {
         let lb_enabled = r.get_load_balancing();
         let lb_text = if lb_enabled { "enabled" } else { "disabled" };
 
+        let disabled = self.state.replay;
+
         html! {
             <div class="w-full space-y-2">
                 <Divider text={format!("Router {name_text}")} />
                 <Element text={"Name"}>
-                    <TextField text={name_text} on_change={on_name_change} on_set={on_name_set} correct={self.name_input_correct}/>
+                    <TextField text={name_text} on_change={on_name_change} on_set={on_name_set} correct={self.name_input_correct} {disabled}/>
                 </Element>
                 <Element text={"AS Number"}>
                     {as_text}
                 </Element>
                 if self.state.features().load_balancing {
                     <Element text={"load balancing"}>
-                        <Toggle text={lb_text} checked={lb_enabled} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} on_click={change_lb} />
+                        <Toggle text={lb_text} checked={lb_enabled} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} on_click={change_lb} {disabled} />
                     </Element>
                 }
                 if self.state.features().ospf {
-                    <TopologyCfg {router} only_internal={false}/>
+                    <TopologyCfg {router} only_internal={false} {disabled}/>
                 }
                 if self.state.features().static_routes {
-                    <StaticRoutesCfg {router}/>
+                    <StaticRoutesCfg {router} {disabled}/>
                 }
                 if self.state.features().bgp {
-                    <BgpCfg {router}/>
+                    <BgpCfg {router} {disabled}/>
                 }
                 <div></div>
                 if self.state.features().specification {
-                    <SpecificationCfg {router} />
+                    <SpecificationCfg {router} /> // The specification should always be modifiable!
                 }
                 if !self.state.features().simple {
-                    <DeleteRouter {router} />
+                    <DeleteRouter {router} {disabled} />
                 }
                 <Divider />
             </div>
@@ -173,11 +175,13 @@ impl Component for RouterCfg {
 #[derive(Properties, PartialEq)]
 pub struct DeleteRouterProps {
     pub router: RouterId,
+    pub disabled: Option<bool>,
 }
 
 #[function_component]
 pub fn DeleteRouter(props: &DeleteRouterProps) -> Html {
     let router = props.router;
+    let disabled = props.disabled.unwrap_or(false);
     let on_click = callback!(move |_| {
         Dispatch::<Net>::new().reduce_mut(move |n| {
             let _ = n.net_mut().remove_router(router);
@@ -192,7 +196,7 @@ pub fn DeleteRouter(props: &DeleteRouterProps) -> Html {
         <ExpandableDivider text={String::from("Delete this router")}>
             <div class="w-full flex flex-row">
                 <div class="flex-1">{"Are you sure?"}</div>
-                <Button text="Delete" color={SvgColor::RedLight} {on_click} full={false}/>
+                <Button text="Delete" color={SvgColor::RedLight} {on_click} full={false} {disabled}/>
             </div>
         </ExpandableDivider>
     }

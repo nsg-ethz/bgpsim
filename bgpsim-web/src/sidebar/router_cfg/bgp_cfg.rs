@@ -47,6 +47,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub router: RouterId,
+    pub disabled: Option<bool>,
 }
 
 impl Component for BgpCfg {
@@ -64,6 +65,7 @@ impl Component for BgpCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let n = &self.net.net();
+        let disabled = ctx.props().disabled.unwrap_or(false);
 
         let bgp_sessions = get_sessions(router, &self.net);
         let bgp_peers = bgp_sessions
@@ -93,19 +95,19 @@ impl Component for BgpCfg {
             <>
                 <Divider text={"BGP Sessions"} />
                 <Element text={"BGP Peers"} class={Classes::from("mt-0.5")}>
-                    <MultiSelect<RouterId> options={bgp_options} on_add={on_session_add} on_remove={on_session_remove} />
+                    <MultiSelect<RouterId> options={bgp_options} on_add={on_session_add} on_remove={on_session_remove} {disabled}/>
                 </Element>
                 {
                     bgp_sessions.into_iter().map(|(dst, text, session_type)| {
                         let on_select = ctx.link().callback(move |t| Msg::UpdateBgpSession(dst, t));
                         html!{
                             <Element {text} class={Classes::from("mt-0.5")} >
-                                <Select<BgpSessionTypeSymmetric> text={session_type.text()} options={session_type.options()} {on_select} />
+                                <Select<BgpSessionTypeSymmetric> text={session_type.text()} options={session_type.options()} {on_select} {disabled}/>
                             </Element>
                         }
                     }).collect::<Html>()
                 }
-                <RouteMapsCfg {router} {bgp_peers} />
+            <RouteMapsCfg {router} {bgp_peers} {disabled} />
             </>
         }
     }

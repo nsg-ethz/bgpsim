@@ -55,6 +55,7 @@ pub enum Msg {
 pub struct Properties {
     pub router: RouterId,
     pub idx: usize,
+    pub disabled: Option<bool>,
 }
 
 impl Component for FwPolicyCfg {
@@ -74,6 +75,7 @@ impl Component for FwPolicyCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let idx = ctx.props().idx;
+        let disabled = ctx.props().disabled.unwrap_or(false);
 
         if !self.net.spec().contains_key(&router) || self.net.spec()[&router].len() <= idx {
             return html!();
@@ -122,7 +124,7 @@ impl Component for FwPolicyCfg {
             };
             html! {
                 <Element text={ "Condition" } {help}>
-                    <TextField text={rex} correct={self.regex_correct} on_change={ctx.link().callback(Msg::CheckRegex)} on_set={ctx.link().callback(Msg::SetRegex)} />
+                    <TextField text={rex} correct={self.regex_correct} on_change={ctx.link().callback(Msg::CheckRegex)} on_set={ctx.link().callback(Msg::SetRegex)} {disabled}/>
                 </Element>
             }
         } else {
@@ -159,14 +161,14 @@ impl Component for FwPolicyCfg {
         html! {
             <ExpandableSection text={section_text}>
                 <Element text={ "Policy kind" }>
-                    <Select<FwPolicy<Pfx>> text={current_kind} {options} {on_select} />
+                    <Select<FwPolicy<Pfx>> text={current_kind} {options} {on_select} {disabled}/>
                 </Element>
                 <Element text={ "Prefix" }>
-                <TextField text={prefix.to_string()} correct={self.prefix_correct} on_change={ctx.link().callback(Msg::CheckPrefix)} on_set={ctx.link().callback(Msg::SetPrefix)} />
+                <TextField text={prefix.to_string()} correct={self.prefix_correct} on_change={ctx.link().callback(Msg::CheckPrefix)} on_set={ctx.link().callback(Msg::SetPrefix)} {disabled}/>
                 </Element>
                 { regex_field }
                 <Element text={""}>
-                    <Button text="Delete" color={SvgColor::RedLight} on_click={on_remove} />
+                    <Button text="Delete" color={SvgColor::RedLight} on_click={on_remove} {disabled}/>
                 </Element>
             </ExpandableSection>
         }

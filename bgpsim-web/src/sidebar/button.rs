@@ -26,6 +26,7 @@ pub enum Msg {}
 #[derive(Properties, PartialEq)]
 pub struct Properties {
     pub text: String,
+    pub disabled: Option<bool>,
     pub color: Option<SvgColor>,
     pub on_click: Callback<()>,
     pub full: Option<bool>,
@@ -67,7 +68,7 @@ impl Component for Button {
             | Some(SvgColor::Gray) => todo!(),
             None => Classes::from("bg-base-1 text-main border-base-5 focus:border-blue"),
         };
-        let class = classes!(
+        let mut class = classes!(
             color_class,
             "ml-4",
             "px-2",
@@ -86,9 +87,14 @@ impl Component for Button {
             classes!("justify-end", "flex")
         };
 
+        let disabled = ctx.props().disabled.unwrap_or(false);
+        if disabled {
+            class = classes!(class, "cursor-not-allowed");
+        }
+
         html! {
             <div class={div_class}>
-                <button {class} {onclick}> {&ctx.props().text} </button>
+                <button {class} {onclick} {disabled}> {&ctx.props().text} </button>
             </div>
         }
     }

@@ -57,9 +57,10 @@ pub fn MainMenu(props: &Properties) -> Html {
             state.is_theme_forced(),
             state.features().simple,
             state.is_dark_mode(),
+            state.replay,
         )
     });
-    let (forced_theme, simple_mode, dark_mode) = (s.0, s.1, s.2);
+    let (forced_theme, simple_mode, dark_mode, replay_mode) = (s.0, s.1, s.2, s.3);
     let url_network = use_state(|| None);
     let file_ref = use_node_ref();
     #[allow(clippy::type_complexity)]
@@ -145,13 +146,15 @@ pub fn MainMenu(props: &Properties) -> Html {
                     }
                 </div>
                 <div class="p-2 flex flex-col space-y-2">
-                    <button class={element_class} onclick={toggle_auto_simulate}>
-                        <yew_lucide::ListVideo class="h-6 mr-4" />
-                        {"Automatic simulation"}
-                        <div class="pointer-events-none flex flex-1 flex-row-reverse mt-2">
-                            <Toggle text={""} on_click={Callback::from(|_| ())} checked={*auto_simulate}/>
-                        </div>
-                    </button>
+                    if !replay_mode {
+                        <button class={element_class} onclick={toggle_auto_simulate}>
+                            <yew_lucide::ListVideo class="h-6 mr-4" />
+                            {"Automatic simulation"}
+                            <div class="pointer-events-none flex flex-1 flex-row-reverse mt-2">
+                                <Toggle text={""} on_click={Callback::from(|_| ())} checked={*auto_simulate}/>
+                            </div>
+                        </button>
+                    }
                     if simple_mode {
                         <button class={element_class} onclick={exit_simple_mode}>
                             <yew_lucide::Monitor class="h-6 mr-4" />

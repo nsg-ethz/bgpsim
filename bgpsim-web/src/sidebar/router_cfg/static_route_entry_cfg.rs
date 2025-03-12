@@ -45,6 +45,7 @@ pub struct Properties {
     pub router: RouterId,
     pub prefix: Pfx,
     pub target: StaticRoute,
+    pub disabled: Option<bool>,
     pub existing: Rc<HashSet<Pfx>>,
     pub on_update: Callback<(Pfx, StaticRoute)>,
     pub on_remove: Callback<Pfx>,
@@ -66,6 +67,7 @@ impl Component for StaticRouteEntryCfg {
         let router = ctx.props().router;
         let target = ctx.props().target;
         let prefix = ctx.props().prefix;
+        let disabled = ctx.props().disabled.unwrap_or(false);
 
         let section_text = format!("Static route for {prefix}");
 
@@ -113,18 +115,18 @@ impl Component for StaticRouteEntryCfg {
             <>
                 <ExpandableSection text={section_text}>
                     <Element text={"State"}>
-                        <Toggle text={state_text} checked={state_checked} on_click={on_state_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} />
+                        <Toggle text={state_text} checked={state_checked} on_click={on_state_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} {disabled} />
                     </Element>
                     if state_checked {
                         <Element text={"Mode"}>
-                            <Toggle text={indirect_text} checked={indirect_checked} on_click={on_indirect_change} checked_color={SvgColor::BlueLight} unchecked_color={SvgColor::RedLight} />
+                            <Toggle text={indirect_text} checked={indirect_checked} on_click={on_indirect_change} checked_color={SvgColor::BlueLight} unchecked_color={SvgColor::RedLight} {disabled}/>
                         </Element>
                         <Element text={"Target"} class={Classes::from("mt-0.5")}>
-                            <Select<RouterId> text={current_target} {options} on_select={on_update_target} />
+                            <Select<RouterId> text={current_target} {options} on_select={on_update_target} {disabled}/>
                         </Element>
                     }
                     <Element text={""}>
-                        <Button text="Delete" color={SvgColor::RedLight} on_click={on_remove} />
+                        <Button text="Delete" color={SvgColor::RedLight} on_click={on_remove} {disabled}/>
                     </Element>
                 </ExpandableSection>
             </>

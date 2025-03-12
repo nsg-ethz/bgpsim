@@ -131,6 +131,7 @@ pub struct Net {
     pub net: Mrc<Network<Pfx, Queue, LocalOspf>>,
     pub pos: Mrc<HashMap<RouterId, Point>>,
     pub spec: Mrc<HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>>,
+    pub replay: Mrc<Replay>,
     pub dim: Dim,
     pub topology_zoo: Option<TopologyZoo>,
     speed: Mrc<HashMap<RouterId, Point>>,
@@ -142,6 +143,7 @@ impl Default for Net {
             net: Mrc::new(Network::new(Queue::new())),
             pos: Default::default(),
             spec: Default::default(),
+            replay: Default::default(),
             dim: Default::default(),
             topology_zoo: None,
             speed: Default::default(),
@@ -192,6 +194,14 @@ impl Net {
     ) -> impl DerefMut<Target = HashMap<RouterId, Vec<(FwPolicy<Pfx>, Result<(), PolicyError<Pfx>>)>>> + '_
     {
         self.spec.borrow_mut()
+    }
+
+    pub fn replay(&self) -> impl Deref<Target = Replay> + '_ {
+        self.replay.borrow()
+    }
+
+    pub fn replay_mut(&self) -> impl DerefMut<Target = Replay> + '_ {
+        self.replay.borrow_mut()
     }
 
     /// Return all BGP sessions of the network. The final bool describes whether the session
@@ -325,6 +335,12 @@ impl Net {
         self.topology_zoo = n.topology_zoo;
         self.normalize_pos();
     }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
+pub struct Replay {
+    pub events: Vec<Event<Pfx, ()>>,
+    pub position: usize,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

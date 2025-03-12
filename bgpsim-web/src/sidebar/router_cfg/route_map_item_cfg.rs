@@ -49,6 +49,7 @@ pub struct Properties {
     pub order: i16,
     pub map: RouteMap<Pfx>,
     pub existing: Rc<HashSet<i16>>,
+    pub disabled: Option<bool>,
     pub on_update: Callback<(i16, RouteMap<Pfx>)>,
     pub on_remove: Callback<i16>,
 }
@@ -69,6 +70,7 @@ impl Component for RouteMapCfg {
         let order_text = ctx.props().order.to_string();
         let on_order_change = ctx.link().callback(Msg::OrderChange);
         let on_order_set = ctx.link().callback(Msg::OrderSet);
+        let disabled = ctx.props().disabled.unwrap_or(false);
 
         let (state_text, state_checked) = match ctx.props().map.state {
             RouteMapState::Allow => ("Permit", true),
@@ -99,26 +101,42 @@ impl Component for RouteMapCfg {
             ctx.props().on_remove.reform(move |_| order)
         };
 
+        let add_btn_class = Classes::from("px-2 rounded shadow-md bg-base-2 border-base-5");
+        let add_btn_class = if disabled {
+            classes!(add_btn_class, "text-main-ia", "cursor-not-allowed")
+        } else {
+            classes!(
+                add_btn_class,
+                "text-main",
+                "hover:shadow-lg",
+                "transition",
+                "ease-in-out",
+                "border",
+                "focus:border-blue",
+                "focus:outline-none"
+            )
+        };
+
         html! {
             <>
                 <ExpandableSection text={section_text}>
                     <Element text={"Order"} small={true}>
-                        <TextField text={order_text} on_change={on_order_change} on_set={on_order_set} correct={self.order_input_correct}/>
+                        <TextField text={order_text} on_change={on_order_change} on_set={on_order_set} correct={self.order_input_correct} {disabled}/>
                     </Element>
                     <Element text={"State"} small={true}>
                         <div class="w-full flex flex-row space-x-4">
                             <div class="basis-1/3">
-                                <Toggle text={state_text} checked={state_checked} on_click={on_state_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} />
+                                <Toggle text={state_text} checked={state_checked} on_click={on_state_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} {disabled}/>
                             </div>
                             <div class="basis-2/3">
                                 if state_checked {
-                                    <Toggle text={flow_text} checked={flow_checked} on_click={on_flow_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} />
+                                    <Toggle text={flow_text} checked={flow_checked} on_click={on_flow_change} checked_color={SvgColor::GreenLight} unchecked_color={SvgColor::RedLight} {disabled} />
                                 }
                             </div>
                         </div>
                     </Element>
                     <Element text={"Match"} small={true}>
-                        <button class="px-2 text-main rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue focus:outline-none bg-base-2" onclick={add_match}>
+                        <button class={add_btn_class.clone()} onclick={add_match} {disabled}>
                             <span class="flex items-center"> <yew_lucide::Plus class="w-3 h-3 mr-2 text-center" /> {"new match"} </span>
                         </button>
                     </Element>
@@ -127,11 +145,11 @@ impl Component for RouteMapCfg {
                             let on_update = ctx.link().callback(Msg::UpdateMatch);
                             let router = ctx.props().router;
                             html! {
-                                <RouteMapMatchCfg {router} {index} {m} {on_update} />
+                                <RouteMapMatchCfg {router} {index} {m} {on_update} {disabled}/>
                             }}).collect::<Html>()
                     }
                     <Element text={"Set"} small={true}>
-                        <button class="px-2 text-main rounded shadow-md hover:shadow-lg transition ease-in-out border border-base-5 focus:border-blue focus:outline-none bg-base-2" onclick={add_set}>
+                        <button class={add_btn_class} onclick={add_set} {disabled}>
                             <span class="flex items-center"> <yew_lucide::Plus class="w-3 h-3 mr-2 text-center" /> {"new set"} </span>
                         </button>
                     </Element>
@@ -140,11 +158,11 @@ impl Component for RouteMapCfg {
                             let on_update = ctx.link().callback(Msg::UpdateSet);
                             let router = ctx.props().router;
                             html! {
-                                <RouteMapSetCfg {router} {index} {set} {on_update} />
+                                <RouteMapSetCfg {router} {index} {set} {on_update} {disabled}/>
                             }}).collect::<Html>()
                     }
                     <Element text={""}>
-                        <Button text="Delete" color={SvgColor::RedLight} on_click={on_remove} />
+                        <Button text="Delete" color={SvgColor::RedLight} on_click={on_remove} {disabled} />
                     </Element>
                 </ExpandableSection>
             </>

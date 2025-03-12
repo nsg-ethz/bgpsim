@@ -31,12 +31,14 @@ use crate::{
 #[function_component]
 pub fn Menu() -> Html {
     let (state, dispatch) = use_store::<State>();
+    let disabled = state.replay;
 
     let context = state.context_menu();
-    let shown = !context.is_none();
-    let menu_options = match context {
-        ContextMenu::None => html!(),
-        ContextMenu::DeleteLink(src, dst, _) => {
+    let shown = !context.is_none() && !disabled;
+    let menu_options = match (disabled, context) {
+        (true, _) => html!(),
+        (false, ContextMenu::None) => html!(),
+        (false, ContextMenu::DeleteLink(src, dst, _)) => {
             let delete_link = callback!(move |_| {
                 Dispatch::<Net>::new()
                     .reduce_mut(move |n| n.net_mut().remove_link(src, dst).unwrap());
@@ -48,7 +50,7 @@ pub fn Menu() -> Html {
                 </>
             }
         }
-        ContextMenu::DeleteSession(src, dst, _) => {
+        (false, ContextMenu::DeleteSession(src, dst, _)) => {
             let delete_session = callback!(move |_| {
                 Dispatch::<Net>::new()
                     .reduce_mut(move |n| n.net_mut().set_bgp_session(src, dst, None).unwrap());
@@ -60,7 +62,7 @@ pub fn Menu() -> Html {
                 </>
             }
         }
-        ContextMenu::InternalRouterContext(router, _) => {
+        (false, ContextMenu::InternalRouterContext(router, _)) => {
             let add_link = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(router, false, Connection::Link));
@@ -98,7 +100,7 @@ pub fn Menu() -> Html {
                 </>
             }
         }
-        ContextMenu::ExternalRouterContext(router, _) => {
+        (false, ContextMenu::ExternalRouterContext(router, _)) => {
             let add_link = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(router, true, Connection::Link));

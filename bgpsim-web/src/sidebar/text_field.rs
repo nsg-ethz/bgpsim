@@ -35,6 +35,7 @@ pub enum Msg {
 pub struct Properties {
     pub text: String,
     pub button_text: Option<String>,
+    pub disabled: Option<bool>,
     pub correct: bool,
     pub placeholder: Option<String>,
     pub on_change: Callback<String>,
@@ -56,6 +57,7 @@ impl Component for TextField {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
+        let disabled = ctx.props().disabled.unwrap_or(false);
         let changed = self.current_text != ctx.props().text;
         let colors = match (changed, ctx.props().correct) {
             (true, true) => {
@@ -68,7 +70,7 @@ impl Component for TextField {
                 classes! {"text-main-ia", "border-base-5", "focus:border-blue", "focus:text-main"}
             }
         };
-        let class = classes! {
+        let mut class = classes! {
             "flex-1", "w-16", "px-3", "text-base", "font-normal", "bg-base-1", "bg-clip-padding", "border", "border-solid", "rounded", "transition", "ease-in-out", "m-0", "focus:outline-none",
             colors,
             ctx.props().class.clone().unwrap_or_default()
@@ -81,8 +83,8 @@ impl Component for TextField {
         let onpaste = ctx.link().callback(|_| Msg::Change);
         let oninput = ctx.link().callback(|_| Msg::Change);
         let onclick = ctx.link().callback(|_| Msg::Set);
-        let enabled = changed && ctx.props().correct;
-        let button_class = if enabled {
+        let can_be_updated = changed && ctx.props().correct && !disabled;
+        let mut button_class = if can_be_updated {
             classes! {"ml-2", "px-2", "flex-none", "text-main", "rounded", "shadow-md", "hover:shadow-lg", "transition", "ease-in-out", "border", "border-base-5", "focus:border-blue", "focus:outline-none", "bg-base-2"}
         } else {
             classes! {"ml-2", "px-2", "flex-none", "rounded", "bg-base-1", "transition", "ease-in-out", "border", "focus:outline-none", "text-base-4", "border-base-2"}
@@ -96,11 +98,16 @@ impl Component for TextField {
 
         let placeholder = ctx.props().placeholder.clone().unwrap_or_default();
 
+        if disabled {
+            class = classes!(class, "cursor-not-allowed");
+            button_class = classes!(button_class, "cursor-not-allowed");
+        }
+
         html! {
             <div class="w-full flex">
-                <input type="text" {class} value={self.current_text.clone()} {placeholder} {onchange} {onkeypress} {onpaste} {oninput} ref={node_ref}/>
+                <input type="text" {class} value={self.current_text.clone()} {placeholder} {onchange} {onkeypress} {onpaste} {oninput} ref={node_ref} {disabled}/>
                 {
-                    if enabled {
+                    if can_be_updated && !disabled {
                         html!{<button class={button_class} {onclick}> {button_text} </button>}
                     } else {
                         html!{<button class={button_class} disabled=true> {button_text} </button>}

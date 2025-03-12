@@ -27,6 +27,7 @@ pub struct Properties {
     pub checked: Option<bool>,
     pub checked_color: Option<SvgColor>,
     pub unchecked_color: Option<SvgColor>,
+    pub disabled: Option<bool>,
     pub on_click: Callback<bool>,
 }
 
@@ -67,7 +68,7 @@ impl Component for Toggle {
             SvgColor::YellowLight | SvgColor::YellowDark => "bg-yellow hover:bg-yellow-dark",
             SvgColor::Light | SvgColor::Dark | SvgColor::Gray => "bg-base-4 hover:bg-base-5",
         };
-        let class = classes!(
+        let mut class = classes!(
             "w-11",
             "h-6",
             "peer-focus:outline-none",
@@ -96,10 +97,15 @@ impl Component for Toggle {
 
         let onclick = ctx.props().on_click.reform(move |_| !checked);
 
+        let disabled = ctx.props().disabled.unwrap_or(false);
+        if disabled {
+            class = classes!(class, "cursor-not-allowed");
+        }
+
         html! {
             <div class="w-full">
                 <label class="inline-flex relative items-center cursor-pointer">
-                    <input type="checkbox" value="" class="sr-only peer" {checked} {onclick}/>
+                    <input type="checkbox" value="" class="sr-only peer" {checked} {disabled} {onclick}/>
                     <div {class}></div>
                     <span class="ml-2 flex-none text-main flex-1">{ &ctx.props().text }</span>
                 </label>

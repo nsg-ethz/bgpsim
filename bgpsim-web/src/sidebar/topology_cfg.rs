@@ -49,6 +49,7 @@ pub enum Msg {
 pub struct Properties {
     pub router: RouterId,
     pub only_internal: bool,
+    pub disabled: Option<bool>,
 }
 
 impl Component for TopologyCfg {
@@ -87,16 +88,17 @@ impl Component for TopologyCfg {
             .collect();
         let on_link_add = ctx.link().callback(Msg::AddLink);
         let on_link_remove = ctx.link().callback(Msg::RemoveLink);
+        let disabled = ctx.props().disabled.unwrap_or(false);
 
         html! {
             <>
                 <Divider text={"Topology + OSPF"} />
                 <Element text={"Links"} class={Classes::from("mt-0.5")}>
-                    <MultiSelect<RouterId> options={link_options} on_add={on_link_add} on_remove={on_link_remove} />
+                    <MultiSelect<RouterId> options={link_options} on_add={on_link_add} on_remove={on_link_remove} {disabled}/>
                 </Element>
                 {
                     neighbors.into_iter().map(|dst| {
-                        html! {<LinkWeightCfg src={ctx.props().router} {dst} />}
+                        html! {<LinkWeightCfg src={ctx.props().router} {dst} {disabled}/>}
                     }).collect::<Html>()
                 }
             </>
@@ -129,6 +131,7 @@ impl Component for TopologyCfg {
 struct LinkWeightProperties {
     src: RouterId,
     dst: RouterId,
+    disabled: Option<bool>,
 }
 
 #[function_component]
@@ -143,6 +146,7 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
     let weight_correct = use_state(|| true);
     let node_ref = use_node_ref();
     let new_flash = use_state(|| true);
+    let disabled = props.disabled.unwrap_or(false);
 
     // early exit if one of the links is towards an external router.
     if info.src_external || info.dst_external {
@@ -200,10 +204,10 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
             <Element text={element_text}>
                 <div class="flex flex-col flex-1 space-y-2">
                     <Element text={"cost"} small={true} class={classes!("text-main-ia")}>
-                        <TextField text={weight_text} on_change={on_weight_change} on_set={on_weight_set} correct={*weight_correct}/>
+                        <TextField text={weight_text} on_change={on_weight_change} on_set={on_weight_set} correct={*weight_correct} {disabled}/>
                     </Element>
                     <Element text={"area"} small={true} class={classes!("text-main-ia")}>
-                        <TextField text={area_text} on_change={on_area_change} on_set={on_area_set} correct={*area_correct}/>
+                        <TextField text={area_text} on_change={on_area_change} on_set={on_area_set} correct={*area_correct} {disabled}/>
                     </Element>
                 </div>
             </Element>

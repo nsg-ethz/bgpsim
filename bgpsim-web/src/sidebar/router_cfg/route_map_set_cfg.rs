@@ -45,6 +45,7 @@ pub enum Msg {
 pub struct Properties {
     pub router: RouterId,
     pub index: usize,
+    pub disabled: Option<bool>,
     pub set: RouteMapSet,
     pub on_update: Callback<(usize, Option<RouteMapSet>)>,
 }
@@ -68,6 +69,7 @@ impl Component for RouteMapSetCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         // first, get the network store.
         let kind_text = set_kind_text(&ctx.props().set);
+        let disabled = ctx.props().disabled.unwrap_or(false);
 
         let is_nh = matches!(ctx.props().set, RouteMapSet::NextHop(_));
 
@@ -81,7 +83,7 @@ impl Component for RouteMapSetCfg {
                 .collect::<Vec<_>>();
             let current_text = self.value.fmt(&self.net);
             let on_select = ctx.link().callback(Msg::InputSetRouter);
-            html! {<Select<RouterId> text={current_text} {options} {on_select} button_class={Classes::from("text-sm")} />}
+            html! {<Select<RouterId> text={current_text} {options} {on_select} button_class={Classes::from("text-sm")} {disabled}/>}
         } else if matches!(self.value, SetValue::None) {
             html! {}
         } else {
@@ -89,21 +91,27 @@ impl Component for RouteMapSetCfg {
             let on_change = ctx.link().callback(Msg::InputChange);
             let on_set = ctx.link().callback(Msg::InputSet);
             html! {
-                <TextField {text} {on_change} {on_set} correct={self.correct} />
+                <TextField {text} {on_change} {on_set} correct={self.correct} {disabled}/>
             }
         };
 
         let on_select = ctx.link().callback(Msg::KindUpdate);
         let on_delete = ctx.link().callback(|_| Msg::Delete);
 
+        let del_class = if disabled {
+            "ml-2 text-main-ia cursor-not-allowed"
+        } else {
+            "ml-2 hover hover:text-red focus:outline-none transition duration-150 ease-in-out"
+        };
+
         html! {
             <div class="w-full flex">
                 <div class="basis-1/5 flex-none"></div>
-                <div class="w-40 flex-none"><Select<RouteMapSet> text={kind_text} options={set_kind_options(ctx.props().router)} {on_select} button_class={Classes::from("text-sm")} /></div>
+                <div class="w-40 flex-none"><Select<RouteMapSet> text={kind_text} options={set_kind_options(ctx.props().router)} {on_select} button_class={Classes::from("text-sm")} {disabled}/></div>
                 <div class="w-full ml-2">
                     { value_html }
                 </div>
-                <button class="ml-2 hover hover:text-red focus:outline-none transition duration-150 ease-in-out" onclick={on_delete}> <yew_lucide::X class="w-5 h-5 text-center" /> </button>
+                <button class={del_class} onclick={on_delete} {disabled}> <yew_lucide::X class="w-5 h-5 text-center" /> </button>
             </div>
         }
     }

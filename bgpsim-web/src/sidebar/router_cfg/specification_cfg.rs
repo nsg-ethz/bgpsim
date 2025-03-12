@@ -41,6 +41,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub router: RouterId,
+    pub disabled: Option<bool>,
 }
 
 impl Component for SpecificationCfg {
@@ -58,12 +59,13 @@ impl Component for SpecificationCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let on_click = ctx.link().callback(|_| Msg::InsertFwPolicy);
+        let disabled = ctx.props().disabled.unwrap_or(false);
 
         html! {
             <ExpandableDivider text={String::from("Specification")} >
-                <div class="w-full flex"><p class="w-full grow">{"Forwarding policies for Router"}</p><Button text={"Add"} {on_click} full={false} /></div>
+                <div class="w-full flex"><p class="w-full grow">{"Forwarding policies for Router"}</p><Button text={"Add"} {on_click} full={false} {disabled}/></div>
                 {
-                    (0..self.net.spec().get(&router).map(|x| x.len()).unwrap_or(0)).map(|idx| html!{ <FwPolicyCfg {router} {idx} /> }).collect::<Html>()
+                    (0..self.net.spec().get(&router).map(|x| x.len()).unwrap_or(0)).map(|idx| html!{ <FwPolicyCfg {router} {idx} {disabled} /> }).collect::<Html>()
                 }
             </ExpandableDivider>
         }

@@ -15,10 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use std::{
-    collections::{HashMap, HashSet},
-    ops::Deref,
-};
+use std::{collections::HashMap, ops::Deref};
 
 use bgpsim::{
     event::EventQueue,
@@ -38,7 +35,7 @@ use web_sys::HtmlElement;
 use yewdux::{mrc::Mrc, prelude::Dispatch};
 
 use crate::{
-    net::{Net, Pfx, Queue},
+    net::{Net, Pfx, Queue, Replay},
     point::Point,
     state::{Features, Layer, State},
 };
@@ -115,6 +112,13 @@ pub fn import_json_str(json_data: impl AsRef<str>) {
         settings.manual_simulation = true;
     }
 
+    // enable manual simulation if there are events to be replayed
+    let mut replay = false;
+    if !net.replay().events.is_empty() {
+        settings.manual_simulation = true;
+        replay = true;
+    }
+
     // enable manual simulation if necessary
     if settings.manual_simulation {
         net.net_mut().manual_simulation();
@@ -131,6 +135,7 @@ pub fn import_json_str(json_data: impl AsRef<str>) {
     state_dispatch.reduce_mut(|s| {
         s.set_layer(settings.layer);
         s.set_prefix(settings.prefix);
+        s.replay = replay;
         *s.features_mut() = settings.features;
     });
 }
@@ -220,20 +225,13 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
         .get("pos")
         .and_then(|v| serde_json::from_value::<HashMap<RouterId, Point>>(v.clone()).ok())
         .unwrap_or_default();
-    let fixed = content
-        .get("fixed")
-        .and_then(|v| serde_json::from_value::<HashSet<RouterId>>(v.clone()).ok())
-        .unwrap_or_else(|| pos.keys().copied().collect());
+    let fixed = pos.keys().copied().collect();
 
     // assign the position of all unfixed nodes
-    let mut re_layout = false;
     for r in net.device_indices() {
-        pos.entry(r).or_insert_with(|| {
-            re_layout = true;
-            Point {
-                x: rand_uniform(),
-                y: rand_uniform(),
-            }
+        pos.entry(r).or_insert_with(|| Point {
+            x: rand_uniform(),
+            y: rand_uniform(),
         });
     }
 
@@ -244,18 +242,23 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
     let topology_zoo = content
         .get("topology_zoo")
         .and_then(|v| serde_json::from_value(v.clone()).ok());
+    let events = content
+        .get("replay")
+        .and_then(|v| serde_json::from_value::<Vec<_>>(v.clone()).ok())
+        .unwrap_or_default();
+    let replay = Replay {
+        events,
+        position: 0,
+    };
 
     let mut imported_net = Net::default();
     imported_net.net = Mrc::new(net);
     imported_net.pos = Mrc::new(pos);
     imported_net.spec = Mrc::new(spec);
     imported_net.topology_zoo = topology_zoo;
+    imported_net.replay = Mrc::new(replay);
 
-    if re_layout {
-        imported_net.spring_layout_with_fixed(fixed);
-    } else {
-        imported_net.normalize_pos();
-    }
+    imported_net.spring_layout_with_fixed(fixed);
 
     Ok((imported_net, settings))
 }

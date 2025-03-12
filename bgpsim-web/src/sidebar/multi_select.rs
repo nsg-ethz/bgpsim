@@ -39,6 +39,7 @@ pub enum Msg<T> {
 #[derive(Properties, PartialEq)]
 pub struct Properties<T: Clone + PartialEq> {
     pub options: Vec<(T, String, bool)>,
+    pub disabled: Option<bool>,
     pub on_add: Callback<T>,
     pub on_remove: Callback<T>,
 }
@@ -60,10 +61,14 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let onclick = ctx.link().callback(Msg::ToggleMenu);
         let onclick_close = ctx.link().callback(|_| Msg::HideMenu);
-        let disabled = ctx.props().options.iter().filter(|(_, _, b)| !*b).count() == 0;
+        let disabled_arg = ctx.props().disabled.unwrap_or(false);
+        let disabled_cnt = ctx.props().options.iter().filter(|(_, _, b)| !*b).count() == 0;
+        let disabled = disabled_arg || disabled_cnt;
         let mut button_class =
             classes! {"w-full", "p-0.5", "flex", "border", "border-base-5", "bg-base-1", "rounded"};
-        if !disabled {
+        if disabled {
+            button_class = classes! {button_class, "cursor-not-allowed"};
+        } else {
             button_class = classes! {button_class, "hover:shadow", "rounded", "transition", "duration-150", "ease-in-out"};
         }
 
@@ -92,9 +97,11 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
             return html! { <p class="w-full mt-0.5 text-main-ia text-center"> {"Empty!"} </p> };
         }
 
+        let checked = self.menu_shown && !disabled;
+
         html! {
             <>
-                <input type="checkbox" value="" class="sr-only peer" checked={self.menu_shown}/>
+                <input type="checkbox" value="" class="sr-only peer" {checked} />
                 <button
                     class="absolute left-0 -top-[0rem] insert-0 h-screen w-screen cursor-default focus:outline-none pointer-events-none peer-checked:pointer-events-auto"
                     onclick={onclick_close}/>
@@ -102,7 +109,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
                     <div class="flex-auto flex flex-wrap">
                     {
                         ctx.props().options.iter().filter(|(_, _, b)| *b).cloned().map(|(entry, text, _)| {
-                            html!{ <MultiSelectItem<T> entry={entry.clone()} {text} on_remove={ctx.link().callback(move |_| Msg::RemoveElement(entry.clone()))} /> }
+                            html!{ <MultiSelectItem<T> entry={entry.clone()} {text} on_remove={ctx.link().callback(move |_| Msg::RemoveElement(entry.clone()))} {disabled} /> }
                         }).collect::<Html>()
                     }
                     </div>
@@ -185,6 +192,7 @@ impl<T: Clone + PartialEq + 'static> Component for MultiSelect<T> {
 #[derive(Properties, PartialEq)]
 pub struct ItemProperties<T: Clone + PartialEq> {
     pub text: String,
+    pub disabled: Option<bool>,
     pub entry: T,
     pub on_remove: Callback<T>,
 }
@@ -195,10 +203,25 @@ fn multi_select_item<T: Clone + PartialEq + 'static>(props: &ItemProperties<T>) 
         let entry = props.entry.clone();
         props.on_remove.reform(move |_| entry.clone())
     };
+    let div_class =
+        "px-3 py-0 m-0.5 rounded text-main bg-base-4 text-sm flex flex-row items-center";
+    let mut btn_class = classes!(
+        "pl-2",
+        "hover",
+        "hover:text-red-dark",
+        "focus:outline-none",
+        "transition",
+        "duration-150",
+        "ease-in-out"
+    );
+    let disabled = props.disabled.unwrap_or(false);
+    if disabled {
+        btn_class = classes!(btn_class, "cursor-not-allowed");
+    }
     html! {
-        <div class="px-3 py-0 m-0.5 rounded text-main bg-base-4 text-sm flex flex-row items-center">
+        <div class={div_class}>
             { props.text.as_str() }
-            <button class="pl-2 hover hover:text-red-dark focus:outline-none transition duration-150 ease-in-out" {onclick}>
+            <button class={btn_class} {onclick} {disabled}>
                 <yew_lucide::X class="w-3 h-3 text-center" />
             </button>
         </div>

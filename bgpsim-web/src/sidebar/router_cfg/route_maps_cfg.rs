@@ -63,6 +63,7 @@ pub enum Msg {
 pub struct Properties {
     pub router: RouterId,
     pub bgp_peers: Vec<(RouterId, String)>,
+    pub disabled: Option<bool>,
 }
 
 impl Component for RouteMapsCfg {
@@ -88,6 +89,7 @@ impl Component for RouteMapsCfg {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
+        let disabled = ctx.props().disabled.unwrap_or(false);
         let n = &self.net.net();
         let r = if let Ok(r) = n.get_internal_router(router) {
             r
@@ -172,28 +174,28 @@ impl Component for RouteMapsCfg {
                         </Element>
                     <ExpandableDivider text={String::from("Incoming Route Map")} padding_top={false} shown={shown_in} >
                             <Element text={"New route map"} >
-                                <TextField text={""} placeholder={"order"} on_change={on_in_order_change} on_set={on_in_route_map_add} correct={self.rm_in_order_correct} button_text={"Add"}/>
+                                <TextField text={""} placeholder={"order"} on_change={on_in_order_change} on_set={on_in_route_map_add} correct={self.rm_in_order_correct} button_text={"Add"} {disabled}/>
                             </Element>
                             <div class={in_box_class} ref={in_ref}>
                                 {
                                     incoming_rms.into_iter().map(|(order, map)|  {
                                         let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Incoming));
                                         let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Incoming));
-                                        html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove}/> }
+                                        html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove} {disabled}/> }
                                     }).collect::<Html>()
                                 }
                             </div>
                         </ExpandableDivider>
                     <ExpandableDivider text={String::from("Outgoing Route Map")} shown={shown_out}>
                             <Element text={"New route map"} >
-                                <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"}/>
+                                <TextField text={""} placeholder={"order"} on_change={on_out_order_change} on_set={on_out_route_map_add} correct={self.rm_out_order_correct} button_text={"Add"} {disabled}/>
                             </Element>
                             <div class={out_box_class} ref={out_ref}>
                                 {
                                     outgoing_rms.into_iter().map(|(order, map)| {
                                         let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Outgoing));
                                         let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Outgoing));
-                                        html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove}/> }
+                                        html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove} {disabled}/> }
                                     }).collect::<Html>()
                                 }
                             </div>

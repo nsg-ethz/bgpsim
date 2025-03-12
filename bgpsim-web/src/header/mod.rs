@@ -46,6 +46,7 @@ pub struct Properties {
 pub fn header(props: &Properties) -> Html {
     let simple = use_selector(|state: &State| state.features().simple);
     let blog_mode = use_selector(|state: &State| state.blog_mode());
+    let replay = use_selector(|state: &State| state.replay);
     html! {
         <>
             <MainMenu node_ref={props.node_ref.clone()}/>
@@ -54,7 +55,7 @@ pub fn header(props: &Properties) -> Html {
             }
             <div class="absolute z-10 w-full p-4 pointer-events-none flex space-x-6">
                 <div class="ml-20 flex-1 flex space-x-4">
-                    if !*simple {
+                    if !*simple && !*replay {
                         <AddRouter />
                     }
                     <LayerSelection />

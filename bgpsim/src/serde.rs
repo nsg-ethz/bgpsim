@@ -24,13 +24,12 @@ use itertools::Itertools;
 use mapproj::{cylindrical::mer::Mer, LonLat, Projection};
 use serde::{Deserialize, Serialize};
 use serde_json::json;
-use std::collections::HashSet;
 
 #[cfg(feature = "topology_zoo")]
 use crate::topology_zoo::TopologyZoo;
 use crate::{
     config::{ConfigExpr, ConfigModifier, NetworkConfig},
-    event::{BasicEventQueue, EventQueue},
+    event::{BasicEventQueue, Event, EventQueue},
     network::Network,
     ospf::{LocalOspf, OspfImpl},
     policies::{FwPolicy, Policy, PolicyError},
@@ -143,9 +142,9 @@ pub struct WebExporter {
     pos: Option<HashMap<RouterId, Point>>,
     spec:
         Option<HashMap<RouterId, Vec<(FwPolicy<Ipv4Prefix>, Result<(), PolicyError<Ipv4Prefix>>)>>>,
-    fixed: Option<HashSet<RouterId>>,
     #[cfg(feature = "topology_zoo")]
     topology_zoo: Option<TopologyZoo>,
+    replay: Option<Vec<Event<Ipv4Prefix, ()>>>,
     #[serde(skip)]
     compact: bool,
 }
@@ -177,9 +176,9 @@ impl WebExporter {
             config_node_routes,
             pos: None,
             spec: None,
-            fixed: None,
             #[cfg(feature = "topology_zoo")]
             topology_zoo: None,
+            replay: None,
             compact: false,
         }
     }
@@ -218,11 +217,6 @@ impl WebExporter {
     /// positions will be overwritten.
     #[cfg(feature = "topology_zoo")]
     pub fn topology_zoo(mut self, topo: TopologyZoo) -> Self {
-        // do nothing if `self.net` is None.
-        let Some(net) = self.net.as_ref() else {
-            return self;
-        };
-
         // build the position
         fn rad(x: Location) -> LonLat {
             let mut lon = x.longitude();
@@ -241,35 +235,19 @@ impl WebExporter {
             // nothing to do, we don't have any geo information available.
             return self;
         }
-        let mut pos = HashMap::new();
-        let mut fixed = HashSet::new();
-        if !geo.is_empty() {
-            let points = geo.values().collect_vec();
-            let center = rad(Location::center(&points));
-            let proj = Mer::new();
-            for r in net.get_topology().node_indices() {
-                let p = match geo.get(&r).map(|pos| rad(*pos)) {
-                    Some(p) => {
-                        fixed.insert(r);
-                        p
-                    }
-                    None => {
-                        let offset = r.index() as f64 / 100.0;
-                        LonLat::new(center.lon() + offset, center.lat() + offset)
-                    }
-                };
-                let xy = proj.proj_lonlat(&p).unwrap();
-                pos.insert(
-                    r,
-                    Point {
-                        x: xy.x(),
-                        y: -xy.y(),
-                    },
-                );
-            }
+        let mut pos = std::collections::HashMap::new();
+        let proj = Mer::new();
+        for (r, p) in geo {
+            let xy = proj.proj_lonlat(&rad(p)).unwrap();
+            pos.insert(
+                r,
+                Point {
+                    x: xy.x(),
+                    y: -xy.y(),
+                },
+            );
         }
 
-        self.fixed = Some(fixed);
         self.topology_zoo = Some(topo);
         self.pos = Some(pos);
         self
@@ -280,10 +258,13 @@ impl WebExporter {
     /// modify the existing positions accordingly, overwriting existing positions while keeping the
     /// old ones.
     pub fn set_positions(mut self, pos: HashMap<RouterId, Point>) -> Self {
-        self.fixed
-            .get_or_insert(Default::default())
-            .extend(pos.keys().copied());
         self.pos.get_or_insert(Default::default()).extend(pos);
+        self
+    }
+
+    /// Replay a recording of events.
+    pub fn replay<P: Prefix, T>(mut self, events: Vec<Event<P, T>>) -> Self {
+        self.replay = Some(events.into_iter().map(|x| x.into_ipv4_prefix()).collect());
         self
     }
 

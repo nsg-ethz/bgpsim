@@ -45,6 +45,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub router: RouterId,
+    pub disabled: Option<bool>,
 }
 
 impl Component for StaticRoutesCfg {
@@ -68,6 +69,7 @@ impl Component for StaticRoutesCfg {
         } else {
             return html! {};
         };
+        let disabled = ctx.props().disabled.unwrap_or(false);
 
         let on_new_sr_change = ctx.link().callback(Msg::NewStaticRouteChange);
         let on_new_sr = ctx.link().callback(Msg::InsertStaticRoute);
@@ -78,13 +80,13 @@ impl Component for StaticRoutesCfg {
         html! {
             <ExpandableDivider text={String::from("Static Routes")} >
                 <Element text={"New static route"} >
-                    <TextField text={""} placeholder={"prefix"} on_change={on_new_sr_change} on_set={on_new_sr} correct={self.new_sr_correct} button_text={"Add"}/>
+                <TextField text={""} placeholder={"prefix"} on_change={on_new_sr_change} on_set={on_new_sr} correct={self.new_sr_correct} button_text={"Add"} {disabled}/>
                 </Element>
                 {
                     static_routes.into_iter().map(|(prefix, target)| {
                         let on_update = ctx.link().callback(Msg::UpdateStaticRoute);
                         let on_remove = ctx.link().callback(Msg::RemoveStaticRoute);
-                        html!{ <StaticRouteEntryCfg {router} {prefix} {target} existing={existing_sr.clone()} {on_update} {on_remove}/> }
+                        html!{ <StaticRouteEntryCfg {router} {prefix} {target} existing={existing_sr.clone()} {on_update} {on_remove} {disabled}/> }
                     }).collect::<Html>()
                 }
             </ExpandableDivider>

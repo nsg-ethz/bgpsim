@@ -38,6 +38,7 @@ pub enum Msg<T> {
 pub struct Properties<T: Clone + PartialEq> {
     pub text: String,
     pub options: Vec<(T, String)>,
+    pub disabled: Option<bool>,
     pub on_select: Callback<T>,
     pub button_class: Option<Classes>,
 }
@@ -58,7 +59,9 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let onclick = ctx.link().callback(|e| Msg::ToggleMenu(e));
         let onclick_close = ctx.link().callback(|_| Msg::HideMenu);
-        let disabled = ctx.props().options.len() <= 1;
+        let disabled_arg = ctx.props().disabled.unwrap_or(false);
+        let disabled_options = ctx.props().options.len() <= 1;
+        let disabled = disabled_arg | disabled_options;
 
         let base_class =
             "w-full py-0.5 px-2 flex items-center border border-base-5 text-main bg-base-2 rounded";
@@ -67,7 +70,10 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
         } else {
             Classes::from(base_class)
         };
-        if !disabled {
+        if disabled {
+            button_class =
+                classes! {button_class, "text-main-ia", "border-base-4", "cursor-not-allowed"};
+        } else {
             button_class = classes! {button_class, "hover:text-main", "hover:shadow", "transition", "duration-150", "ease-in-out"};
         }
         let height = self
@@ -84,9 +90,12 @@ impl<T: Clone + PartialEq + 'static> Component for Select<T> {
         let dropdown_class =
             "absolute w-full shadow-lg border border-base-4 rounded py-1 bg-base-1 right-0 max-h-48 overflow-auto";
         let dropdown_container_class = "relative pointer-events-none peer-checked:pointer-events-auto opacity-0 peer-checked:opacity-100 transition duration-150 ease-in-out";
+
+        let checked = self.menu_shown && !disabled;
+
         html! {
             <>
-                <input type="checkbox" value="" class="sr-only peer" checked={self.menu_shown}/>
+                <input type="checkbox" value="" class="sr-only peer" {checked}/>
                 <button
                     class="absolute left-0 -top-[0rem] insert-0 h-screen w-screen cursor-default focus:outline-none pointer-events-none peer-checked:pointer-events-auto"
                     onclick={onclick_close} />
