@@ -137,7 +137,7 @@ impl State {
     }
 
     pub fn context_menu(&self) -> ContextMenu {
-        self.context_menu.clone()
+        self.context_menu
     }
 
     pub fn prefix(&self) -> Option<Pfx> {

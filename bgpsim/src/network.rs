@@ -1109,6 +1109,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
 
     /// Transforms `self` into a network using the `Ipv4Prefix` type. The entire queue will be
     /// sewapped accordingly (see [`Network::swap_queue`]).
+    #[allow(clippy::result_large_err)]
     pub fn into_ipv4_prefix<QA>(self, mut queue: QA) -> Result<Network<Ipv4Prefix, QA, Ospf>, Self>
     where
         QA: EventQueue<Ipv4Prefix>,
