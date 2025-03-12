@@ -21,7 +21,7 @@ use bgpsim::{
     event::{Event, EventQueue},
     ospf::GlobalOspf,
     policies::{FwPolicy, PolicyError},
-    prelude::{InteractiveNetwork, Network},
+    prelude::{InteractiveNetwork, Network, NetworkFormatter},
     types::RouterId,
 };
 use getrandom::getrandom;
@@ -301,24 +301,46 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
                     .get_device(*src)
                     .map_err(|_| format!("Router {src:?} does not exist"))?
                     .bgp_session_type(*dst)
-                    .ok_or_else(|| format!("Router {src:?} has no BGP session with {dst:?}",))?;
+                    .ok_or_else(|| {
+                        format!(
+                            "Router {} has no BGP session with {}",
+                            src.fmt(net.net().deref()),
+                            dst.fmt(net.net().deref()),
+                        )
+                    })?;
                 net.net()
                     .get_device(*dst)
                     .map_err(|_| format!("Router {dst:?} does not exist"))?
                     .bgp_session_type(*src)
-                    .ok_or_else(|| format!("Router {dst:?} has no BGP session with {src:?}",))?;
+                    .ok_or_else(|| {
+                        format!(
+                            "Router {} has no BGP session with {}",
+                            src.fmt(net.net().deref()),
+                            dst.fmt(net.net().deref()),
+                        )
+                    })?;
             }
             Event::Ospf { src, dst, .. } => {
                 net.net()
                     .get_device(*src)
                     .map_err(|_| format!("Router {src:?} does not exist"))?
                     .internal()
-                    .ok_or_else(|| format!("Router {src:?} is not an internal router"))?;
+                    .ok_or_else(|| {
+                        format!(
+                            "Router {} is not an internal router",
+                            src.fmt(net.net().deref())
+                        )
+                    })?;
                 net.net()
                     .get_device(*dst)
                     .map_err(|_| format!("Router {dst:?} does not exist"))?
                     .internal()
-                    .ok_or_else(|| format!("Router {dst:?} is not an internal router"))?;
+                    .ok_or_else(|| {
+                        format!(
+                            "Router {} is not an internal router",
+                            dst.fmt(net.net().deref())
+                        )
+                    })?;
             }
         }
     }
