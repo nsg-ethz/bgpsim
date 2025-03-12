@@ -355,6 +355,7 @@ pub enum Selected {
     /// Router `.0`, that is external if `.1`.
     Router(RouterId, bool),
     Queue,
+    Replay,
     Verifier,
     /// Create a connection from src `.0` (that is external router with `.1`) of kind `.2`.
     CreateConnection(RouterId, bool, Connection),
@@ -381,9 +382,15 @@ pub enum Hover {
         RouteMapDirection,
         Rc<Vec<RouteMap<Pfx>>>,
     ),
-    Message(RouterId, RouterId, usize, bool),
+    Message(RouterId, RouterId, EventId, bool),
     Policy(RouterId, usize),
     Help(Html),
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum EventId {
+    Queue(usize),
+    Replay(usize),
 }
 
 impl Default for Hover {

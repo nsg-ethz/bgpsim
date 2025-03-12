@@ -17,6 +17,7 @@
 
 mod interactive;
 mod main_menu;
+mod replayer;
 mod verifier;
 
 use std::{collections::HashSet, rc::Rc, str::FromStr};
@@ -35,6 +36,7 @@ use crate::{
 };
 use interactive::InteractivePlayer;
 use main_menu::MainMenu;
+use replayer::Replayer;
 use verifier::Verifier;
 
 #[derive(Properties, PartialEq)]
@@ -64,7 +66,11 @@ pub fn header(props: &Properties) -> Html {
                     }
                 </div>
                 <Verifier />
-                <InteractivePlayer />
+                if *replay {
+                    <Replayer />
+                } else {
+                    <InteractivePlayer />
+                }
             </div>
         </>
     }

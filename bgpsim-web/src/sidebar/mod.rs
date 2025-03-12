@@ -22,6 +22,7 @@ pub mod external_router_cfg;
 pub mod help;
 pub mod multi_select;
 pub mod queue_cfg;
+pub mod replay_cfg;
 pub mod router_cfg;
 pub mod select;
 pub mod text_field;
@@ -42,6 +43,7 @@ use external_router_cfg::ExternalRouterCfg;
 use gloo_events::EventListener;
 use gloo_utils::window;
 use queue_cfg::QueueCfg;
+use replay_cfg::ReplayCfg;
 use router_cfg::RouterCfg;
 use verifier_viewer::VerifierViewer;
 
@@ -68,6 +70,7 @@ pub fn Sidebar() -> Html {
         Selected::Router(r, false) => html! { <RouterCfg router={r} /> },
         Selected::Router(r, true) => html! { <ExternalRouterCfg router={r} /> },
         Selected::Queue => html! { <QueueCfg /> },
+        Selected::Replay => html! { <ReplayCfg /> },
         Selected::Verifier => html! { <VerifierViewer /> },
     };
 

@@ -29,7 +29,7 @@ use yewdux::prelude::*;
 
 use crate::{
     net::{Net, Pfx, Queue},
-    state::{Hover, State},
+    state::{EventId, Hover, State},
     tooltip::{LsaHeaderTable, LsaListTable, RouteTable},
 };
 
@@ -72,32 +72,9 @@ pub fn QueueCfg() -> Html {
     }
 }
 
-#[derive(PartialEq, Properties)]
-pub struct QueueEventCfgProps {
-    pos: usize,
-    event: Event<Pfx, ()>,
-    executable: bool,
-    swappable: bool,
-    node_ref: NodeRef,
-    next_ref: Option<NodeRef>,
-}
-
-#[function_component]
-pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
-    let pos = props.pos;
-    let state = Dispatch::<State>::new();
-    let src = props.event.source();
-    let dst = props.event.router();
-    let header = use_selector_with_deps(
-        |net: &Net, (src, dst, pos)| {
-            format!("{pos}: {} → {}", src.fmt(&net.net()), dst.fmt(&net.net()))
-        },
-        (src, dst, pos),
-    );
-
-    log::debug!("render QueueEventCfg {header}");
-
-    let (title, content) = match &props.event {
+/// Returns the title and the body of the event content.
+pub fn event_title_body(pos: usize, event: &Event<Pfx, ()>) -> (&'static str, Html) {
+    match event {
         Event::Bgp {
             e: BgpEvent::Update(route),
             ..
@@ -145,8 +122,35 @@ pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
             "OSPF Acknowledgement",
             html! { <LsaListTable lsa_list={lsa_list.clone()} idx={pos} /> },
         ),
-    };
+    }
+}
 
+#[derive(PartialEq, Properties)]
+pub struct QueueEventCfgProps {
+    pub pos: usize,
+    pub event: Event<Pfx, ()>,
+    pub executable: bool,
+    pub swappable: bool,
+    pub node_ref: NodeRef,
+    pub next_ref: Option<NodeRef>,
+    pub disabled: Option<bool>,
+}
+
+#[function_component]
+pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
+    let pos = props.pos;
+    let state = Dispatch::<State>::new();
+    let src = props.event.source();
+    let dst = props.event.router();
+
+    let header = use_selector_with_deps(
+        |net: &Net, (src, dst, pos)| {
+            format!("{pos}: {} → {}", src.fmt(&net.net()), dst.fmt(&net.net()))
+        },
+        (src, dst, pos),
+    );
+
+    let (title, content) = event_title_body(pos, &props.event);
     let title = format!("{header}: {title}");
 
     let onclick: Callback<MouseEvent> = if props.executable {
@@ -161,8 +165,9 @@ pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
     } else {
         Callback::noop()
     };
-    let onmouseenter =
-        state.reduce_mut_callback(move |s| s.set_hover(Hover::Message(src, dst, pos, false)));
+    let onmouseenter = state.reduce_mut_callback(move |s| {
+        s.set_hover(Hover::Message(src, dst, EventId::Queue(pos), false))
+    });
     let onmouseleave = state.reduce_mut_callback(|s| s.set_hover(Hover::None));
 
     let main_class =

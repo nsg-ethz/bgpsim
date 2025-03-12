@@ -38,7 +38,7 @@ use crate::{
     net::{Net, Pfx},
     point::Point,
     sidebar::queue_cfg::PrefixTable,
-    state::{Hover, Layer, State},
+    state::{EventId, Hover, Layer, State},
 };
 
 pub struct Tooltip {
@@ -163,52 +163,50 @@ impl Component for Tooltip {
                     </>
                 }
             }
-            Hover::Message(src, dst, i, true) => {
-                if let Some(event) = self.net.net().queue().get(i) {
-                    let (content, title) = match event {
-                        Event::Bgp {
-                            e: BgpEvent::Update(route),
-                            ..
-                        } => (html! { <RouteTable route={route.clone()} /> }, "BGP Update"),
-                        Event::Bgp {
-                            e: BgpEvent::Withdraw(prefix),
-                            ..
-                        } => (html! { <PrefixTable prefix={*prefix} /> }, "BGP Withdraw"),
-                        Event::Ospf {
-                            e: OspfEvent::DatabaseDescription { headers },
-                            ..
-                        } => (
-                            html! { <LsaHeaderTable headers={headers.clone()} /> },
-                            "OSPF Database Description",
-                        ),
-                        Event::Ospf {
-                            e: OspfEvent::LinkStateRequest { headers },
-                            ..
-                        } => (
-                            html! { <LsaHeaderTable headers={headers.clone()} /> },
-                            "OSPF LSA Request",
-                        ),
+            Hover::Message(src, dst, id, true) => {
+                let event = match id {
+                    EventId::Queue(i) => self.net.net().queue().get(i).cloned(),
+                    EventId::Replay(i) => self.net.replay().events.get(i).cloned(),
+                };
+                let Some(event) = event else { return html! {} };
+                let (content, title) = match event {
+                    Event::Bgp {
+                        e: BgpEvent::Update(route),
+                        ..
+                    } => (html! { <RouteTable {route} /> }, "BGP Update"),
+                    Event::Bgp {
+                        e: BgpEvent::Withdraw(prefix),
+                        ..
+                    } => (html! { <PrefixTable {prefix} /> }, "BGP Withdraw"),
+                    Event::Ospf {
+                        e: OspfEvent::DatabaseDescription { headers },
+                        ..
+                    } => (
+                        html! { <LsaHeaderTable {headers} /> },
+                        "OSPF Database Description",
+                    ),
+                    Event::Ospf {
+                        e: OspfEvent::LinkStateRequest { headers },
+                        ..
+                    } => (html! { <LsaHeaderTable {headers} /> }, "OSPF LSA Request"),
 
-                        Event::Ospf {
-                            e: OspfEvent::LinkStateUpdate { lsa_list, ack },
-                            ..
-                        } => (
-                            html! { <LsaListTable lsa_list={lsa_list.clone()} /> },
-                            if *ack {
-                                "OSPF LSA Acknowledgment"
-                            } else {
-                                "OSPF LSA Update"
-                            },
-                        ),
-                    };
-                    html! {
-                            <>
-                            <p> {src.fmt(&self.net.net()).to_string()} {" → "} {dst.fmt(&self.net.net()).to_string()} {": "} {title} </p>
-                                { content }
-                            </>
-                    }
-                } else {
-                    return html! {};
+                    Event::Ospf {
+                        e: OspfEvent::LinkStateUpdate { lsa_list, ack },
+                        ..
+                    } => (
+                        html! { <LsaListTable {lsa_list} /> },
+                        if ack {
+                            "OSPF LSA Acknowledgment"
+                        } else {
+                            "OSPF LSA Update"
+                        },
+                    ),
+                };
+                html! {
+                        <>
+                        <p> {src.fmt(&self.net.net()).to_string()} {" → "} {dst.fmt(&self.net.net()).to_string()} {": "} {title} </p>
+                            { content }
+                        </>
                 }
             }
             Hover::Help(content) => {

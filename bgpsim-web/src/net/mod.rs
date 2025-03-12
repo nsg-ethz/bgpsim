@@ -332,6 +332,7 @@ impl Net {
         self.net = n.net;
         self.pos = n.pos;
         self.spec = n.spec;
+        self.replay = n.replay;
         self.topology_zoo = n.topology_zoo;
         self.normalize_pos();
     }
@@ -341,6 +342,15 @@ impl Net {
 pub struct Replay {
     pub events: Vec<Event<Pfx, ()>>,
     pub position: usize,
+}
+
+impl Replay {
+    /// Pop the next event and move the counter to the right by one.
+    pub fn pop_next(&mut self) -> Option<Event<Pfx, ()>> {
+        let idx = self.position;
+        self.position += 1;
+        self.events.get(idx).cloned()
+    }
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Deserialize, Serialize)]

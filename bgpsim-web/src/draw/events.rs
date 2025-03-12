@@ -29,7 +29,7 @@ use crate::{
     callback,
     net::{use_pos, Net, Queue},
     point::Point,
-    state::{Hover, State},
+    state::{EventId, Hover, State},
 };
 
 const BASE_OFFSET: Point = Point { x: -45.0, y: -30.0 };
@@ -142,8 +142,9 @@ fn event_icon(props: &EventIconProps) -> Html {
     let executable =
         use_selector_with_deps(|net: &Net, id| is_executable(net.net().queue(), *id), i);
 
-    let onmouseenter = dispatch
-        .reduce_mut_callback(move |state| state.set_hover(Hover::Message(src, dst, i, true)));
+    let onmouseenter = dispatch.reduce_mut_callback(move |state| {
+        state.set_hover(Hover::Message(src, dst, EventId::Queue(i), true))
+    });
     let onmouseleave = dispatch.reduce_mut_callback(move |state| state.set_hover(Hover::None));
     let (onclick, mouse_style) = if *executable {
         (
@@ -161,8 +162,8 @@ fn event_icon(props: &EventIconProps) -> Html {
         (callback!(|_| {}), "cursor-not-allowed")
     };
 
-    let hovered = state.hover() == Hover::Message(src, dst, props.i, true)
-        || state.hover() == Hover::Message(src, dst, props.i, false);
+    let hovered = state.hover() == Hover::Message(src, dst, EventId::Queue(props.i), true)
+        || state.hover() == Hover::Message(src, dst, EventId::Queue(props.i), false);
 
     let color = if hovered {
         "stroke-orange"
