@@ -10,6 +10,9 @@ public_url = "/"
 # Whether to include hash values in the output file names.
 filehash = true
 
+[watch]
+ignore = ["tailwind.css", "index.css", "logo/light_text.svg", "logo/light_only.svg", "logo/dark_text.svg", "logo/dark_only.svg"]
+
 [[hooks]]
 stage = "pre_build"
 command = "tailwindcss"
