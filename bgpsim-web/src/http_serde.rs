@@ -21,7 +21,7 @@ use bgpsim::{
     event::{Event, EventQueue},
     ospf::GlobalOspf,
     policies::{FwPolicy, PolicyError},
-    prelude::{InteractiveNetwork, Network, NetworkFormatter},
+    prelude::{InteractiveNetwork, Network},
     types::RouterId,
 };
 use getrandom::getrandom;
