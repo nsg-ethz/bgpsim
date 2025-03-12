@@ -101,8 +101,26 @@ pub fn import_url(s: impl AsRef<str>) {
 pub fn import_json_str(json_data: impl AsRef<str>) {
     let (mut net, mut settings) = match interpret_json_str(json_data.as_ref()) {
         Ok(x) => x,
-        Err(e) => {
-            log::error!("Could not interpret json object: {}", e);
+        Err(net_e) => {
+            // try to interpret the data as an event vector
+            match interpret_event_json_str(json_data.as_ref()) {
+                Ok(replay) => {
+                    // only update the replay
+                    Dispatch::<Net>::new().reduce_mut(|n| {
+                        n.net_mut().manual_simulation();
+                        n.replay_mut().events = replay.events;
+                        n.replay_mut().position = replay.position;
+                    });
+                    Dispatch::<State>::new().reduce_mut(|s| {
+                        s.replay = true;
+                    });
+                }
+                Err(replay_e) => {
+                    log::error!("Could not interpret json object!");
+                    log::error!("Error when interpreting as a network: {net_e}");
+                    log::error!("Error when interpreting as a replay: {replay_e}");
+                }
+            }
             return;
         }
     };
@@ -261,6 +279,20 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
     imported_net.spring_layout_with_fixed(fixed);
 
     Ok((imported_net, settings))
+}
+
+fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
+    let content: Value =
+        serde_json::from_str(s).map_err(|e| format!("cannot parse json file! {e}"))?;
+    let Some(events) = content.get("replay") else {
+        return Err("'replay' is not part of the json file".to_string());
+    };
+    let events = serde_json::from_value(events.clone())
+        .map_err(|e| format!("Cannot deserialize recording! {e}"))?;
+    Ok(Replay {
+        events,
+        position: 0,
+    })
 }
 
 fn rand_uniform() -> f64 {

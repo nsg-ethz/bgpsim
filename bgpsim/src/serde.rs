@@ -268,6 +268,17 @@ impl WebExporter {
         self
     }
 
+    /// Generate a json string that only contains the replay. This can be imported into
+    /// bgpsim.github.io.
+    pub fn replay_only<P: Prefix, T>(events: Vec<Event<P, T>>) -> String {
+        let events: Vec<Event<Ipv4Prefix, ()>> =
+            events.into_iter().map(|x| x.into_ipv4_prefix()).collect();
+        serde_json::json!({
+            "replay": events
+        })
+        .to_string()
+    }
+
     /// Create a json string representing the network.
     pub fn to_json(mut self) -> String {
         if self.compact {
