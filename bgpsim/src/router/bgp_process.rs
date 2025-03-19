@@ -406,14 +406,18 @@ impl<P: Prefix> BgpProcess<P> {
         }
         // phase 1 of BGP protocol
         let (prefix, new) = match event {
-            BgpEvent::Update(route) => match self.insert_route(route, from)? {
-                (p, true) => (p, true),
-                (_, false) => {
-                    // there is nothing to do here. we simply ignore this event!
-                    log::trace!("Ignore BGP update with ORIGINATOR_ID of self.");
-                    return Ok(vec![]);
+            BgpEvent::Update(route) => {
+                let prefix = route.prefix;
+                match self.insert_route(route, from)? {
+                    (p, true) => (p, true),
+                    (_, false) => {
+                        log::trace!("Ignore BGP update with ORIGINATOR_ID of self.");
+                        // In that case, the update message must be dropped. Essentially, it must be
+                        // treated like a withdraw event.
+                        (self.remove_route(prefix, from), false)
+                    }
                 }
-            },
+            }
             BgpEvent::Withdraw(prefix) => (self.remove_route(prefix, from), false),
         };
         self.known_prefixes.insert(prefix);
@@ -645,7 +649,8 @@ impl<P: Prefix> BgpProcess<P> {
     /// route-maps does not requrie a new update from the neighbor.
     ///
     /// This function returns the prefix, along with a boolean. If that boolean is `false`, then
-    /// no route was inserted into the table because ORIGINATOR_ID equals the current router id.
+    /// no route was inserted into the table because ORIGINATOR_ID equals the current router id, or
+    /// if the own router ID is in the CLUSTER_LIST.
     fn insert_route(
         &mut self,
         route: BgpRoute<P>,
@@ -658,7 +663,9 @@ impl<P: Prefix> BgpProcess<P> {
 
         // if the ORIGINATOR_ID field equals the id of the router, then ignore this route and return
         // nothing.
-        if route.originator_id == Some(self.router_id) {
+        if route.originator_id == Some(self.router_id)
+            || route.cluster_list.iter().contains(&self.router_id)
+        {
             return Ok((route.prefix, false));
         }
 

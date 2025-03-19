@@ -9,6 +9,8 @@ dist = "dist"
 public_url = "/"
 # Whether to include hash values in the output file names.
 filehash = true
+# Minify the resulting files on release
+minify = "on_release"
 
 [watch]
 ignore = ["tailwind.css", "index.css", "logo/light_text.svg", "logo/light_only.svg", "logo/dark_text.svg", "logo/dark_only.svg"]

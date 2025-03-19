@@ -352,6 +352,177 @@ mod t2 {
         }
     }
 
+    #[test]
+    fn test_bgp_single_route_reflection<P: Prefix>() {
+        use crate::bgp::BgpSessionType::{EBgp, IBgpPeer};
+
+        let mut r = Router::<P>::new("test".to_string(), 0.into(), AsId(65001));
+        r.bgp.set_session::<()>(100.into(), Some(EBgp)).unwrap();
+        r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
+        r.ospf.ospf_table = hashmap! {
+            100.into() => (vec![100.into()], 0.0),
+            1.into()   => (vec![1.into()], 1.0),
+        };
+        r.bgp.igp_cost = r
+            .ospf
+            .ospf_table
+            .iter()
+            .map(|(r, (_, c))| (*r, *c))
+            .collect();
+
+        ////////////////////////
+        // update from a peer //
+        ////////////////////////
+
+        let (_, events) = r
+            .handle_event(Event::bgp(
+                (),
+                1.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(100),
+                    as_path: vec![AsId(1000)],
+                    next_hop: 1.into(),
+                    local_pref: Some(50),
+                    med: None,
+                    community: Default::default(),
+                    originator_id: Some(1.into()),
+                    cluster_list: Vec::new(),
+                }),
+            ))
+            .unwrap();
+        let entry = r.bgp.get_exact(P::from(100)).unwrap();
+        assert_eq!(entry.from_type, IBgpPeer);
+        assert_eq!(entry.route.next_hop, 1.into());
+        assert_eq!(entry.route.local_pref, Some(50));
+        assert_eq!(
+            events,
+            vec![Event::bgp(
+                (),
+                0.into(),
+                100.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(100),
+                    as_path: vec![AsId(65001), AsId(1000)],
+                    next_hop: 0.into(),
+                    local_pref: None,
+                    med: None,
+                    community: Default::default(),
+                    originator_id: None,
+                    cluster_list: Vec::new(),
+                })
+            )]
+        );
+
+        ////////////////////////////////////
+        // update with 0 as originator_id //
+        ////////////////////////////////////
+
+        let (_, events) = r
+            .handle_event(Event::bgp(
+                (),
+                1.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(100),
+                    as_path: vec![AsId(1000)],
+                    next_hop: 1.into(),
+                    local_pref: Some(150),
+                    med: None,
+                    community: Default::default(),
+                    originator_id: Some(0.into()),
+                    cluster_list: Vec::new(),
+                }),
+            ))
+            .unwrap();
+        assert_eq!(r.bgp.get_exact(P::from(100)), None);
+        assert_eq!(
+            events,
+            vec![Event::bgp(
+                (),
+                0.into(),
+                100.into(),
+                BgpEvent::Withdraw(100.into())
+            )]
+        );
+
+        ////////////////////
+        // reset it again //
+        ////////////////////
+
+        let (_, events) = r
+            .handle_event(Event::bgp(
+                (),
+                1.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(100),
+                    as_path: vec![AsId(1000)],
+                    next_hop: 1.into(),
+                    local_pref: Some(50),
+                    med: None,
+                    community: Default::default(),
+                    originator_id: Some(1.into()),
+                    cluster_list: Vec::new(),
+                }),
+            ))
+            .unwrap();
+        let entry = r.bgp.get_exact(P::from(100)).unwrap();
+        assert_eq!(entry.from_type, IBgpPeer);
+        assert_eq!(entry.route.next_hop, 1.into());
+        assert_eq!(entry.route.local_pref, Some(50));
+        assert_eq!(
+            events,
+            vec![Event::bgp(
+                (),
+                0.into(),
+                100.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(100),
+                    as_path: vec![AsId(65001), AsId(1000)],
+                    next_hop: 0.into(),
+                    local_pref: None,
+                    med: None,
+                    community: Default::default(),
+                    originator_id: None,
+                    cluster_list: Vec::new(),
+                })
+            )]
+        );
+
+        ///////////////////////////////////
+        // update with 0 in cluster_list //
+        ///////////////////////////////////
+
+        let (_, events) = r
+            .handle_event(Event::bgp(
+                (),
+                1.into(),
+                0.into(),
+                BgpEvent::Update(BgpRoute {
+                    prefix: P::from(100),
+                    as_path: vec![AsId(1000)],
+                    next_hop: 1.into(),
+                    local_pref: Some(150),
+                    med: None,
+                    community: Default::default(),
+                    originator_id: Some(1.into()),
+                    cluster_list: vec![1.into(), 0.into()],
+                }),
+            ))
+            .unwrap();
+        assert_eq!(r.bgp.get_exact(P::from(100)), None);
+        assert_eq!(
+            events,
+            vec![Event::bgp(
+                (),
+                0.into(),
+                100.into(),
+                BgpEvent::Withdraw(100.into())
+            )]
+        );
+    }
+
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}
 
