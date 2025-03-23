@@ -858,7 +858,7 @@ fn _build_gao_rexford<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
                     .match_community(GaoRexfordPeerType::Peer.community())
                     .build(),
                 RouteMapBuilder::new()
-                    .order(10)
+                    .order(20)
                     .deny()
                     .match_community(GaoRexfordPeerType::Provider.community())
                     .build(),
