@@ -52,7 +52,7 @@ pub fn replay_cfg() -> Html {
             let events = std::mem::take(&mut net.replay_mut().events);
             let position = std::mem::take(&mut net.replay_mut().position);
             let mut n = net.net_mut();
-            for event in events.into_iter().skip(position) {
+            for (event, _) in events.into_iter().skip(position) {
                 unsafe { n.trigger_event(event).unwrap() };
             }
             // re-enable auto-simulate
@@ -80,7 +80,7 @@ pub struct ReplayEventCfgProps {
     pub event: Event<Pfx, ()>,
     pub past: bool,
     pub next: bool,
-    pub triggered_id: Option<EventId>,
+    pub triggered_id: Option<usize>,
 }
 
 #[function_component]
@@ -96,10 +96,10 @@ pub fn ReplayEventCfg(props: &ReplayEventCfgProps) -> Html {
         },
         (src, dst, pos),
     );
-    let header = if let Some(t) = props.trigger_id {
-        format!("{}  Trigger: {}", header, t)
+    let header = if let Some(t) = props.triggered_id {
+        format!("{header}  Trigger: {t}")
     } else {
-        header
+        header.as_str().to_string()
     };
 
     let (title, content) = event_title_body(pos, &props.event);

@@ -166,7 +166,7 @@ impl Component for Tooltip {
             Hover::Message(src, dst, id, true) => {
                 let event = match id {
                     EventId::Queue(i) => self.net.net().queue().get(i).cloned(),
-                    EventId::Replay(i) => self.net.replay().events.get(i).cloned(),
+                    EventId::Replay(i) => self.net.replay().events.get(i).map(|(e, _)| e.clone()),
                 };
                 let Some(event) = event else { return html! {} };
                 let (content, title) = match event {

@@ -287,13 +287,13 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
     let Some(events) = content.get("replay") else {
         return Err("'replay' is not part of the json file".to_string());
     };
-    let events: Vec<_> = serde_json::from_value(events.clone())
+    let events: Vec<(Event<Pfx, ()>, Option<usize>)> = serde_json::from_value(events.clone())
         .map_err(|e| format!("Cannot deserialize recording! {e}"))?;
 
     // ensure that all routers mentioned in the event actually exist, and that there exists BGP
     // sessions in between those routers.
     let net = Dispatch::<Net>::new().get();
-    for e in &events {
+    for (e, _) in &events {
         match e {
             Event::Bgp { src, dst, .. } => {
                 // check that the BGP sessions exists

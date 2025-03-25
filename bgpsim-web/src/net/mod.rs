@@ -349,7 +349,7 @@ impl Replay {
     pub fn pop_next(&mut self) -> Option<Event<Pfx, ()>> {
         let idx = self.position;
         self.position += 1;
-        self.events.get(idx).cloned()
+        self.events.get(idx).map(|(e, _)| e.clone())
     }
 }
 
