@@ -40,10 +40,10 @@ pub fn replay_cfg() -> Html {
 
     let mut elements: Vec<Html> = Vec::new();
 
-    for (pos, event) in replay.events.iter().cloned().enumerate() {
+    for (pos, (event, triggered_id)) in replay.events.iter().cloned().enumerate() {
         let past = pos < replay.position;
         let next = pos == replay.position;
-        elements.push(html! {<ReplayEventCfg {pos} {event} {past} {next} />});
+        elements.push(html! {<ReplayEventCfg {pos} {event} {past} {next} {triggered_id} />});
     }
 
     let on_click = callback!(|_| {
@@ -80,6 +80,7 @@ pub struct ReplayEventCfgProps {
     pub event: Event<Pfx, ()>,
     pub past: bool,
     pub next: bool,
+    pub triggered_id: Option<EventId>,
 }
 
 #[function_component]
@@ -95,6 +96,11 @@ pub fn ReplayEventCfg(props: &ReplayEventCfgProps) -> Html {
         },
         (src, dst, pos),
     );
+    let header = if let Some(t) = props.trigger_id {
+        format!("{}  Trigger: {}", header, t)
+    } else {
+        header
+    };
 
     let (title, content) = event_title_body(pos, &props.event);
     let title = format!("{header}: {title}");

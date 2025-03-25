@@ -340,7 +340,7 @@ impl Net {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Replay {
-    pub events: Vec<Event<Pfx, ()>>,
+    pub events: Vec<(Event<Pfx, ()>, Option<usize>)>,
     pub position: usize,
 }
 

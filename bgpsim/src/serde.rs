@@ -144,7 +144,7 @@ pub struct WebExporter {
         Option<HashMap<RouterId, Vec<(FwPolicy<Ipv4Prefix>, Result<(), PolicyError<Ipv4Prefix>>)>>>,
     #[cfg(feature = "topology_zoo")]
     topology_zoo: Option<TopologyZoo>,
-    replay: Option<Vec<Event<Ipv4Prefix, ()>>>,
+    replay: Option<Vec<(Event<Ipv4Prefix, ()>, Option<usize>)>>,
     #[serde(skip)]
     compact: bool,
 }
@@ -264,15 +264,51 @@ impl WebExporter {
 
     /// Replay a recording of events.
     pub fn replay<P: Prefix, T>(mut self, events: Vec<Event<P, T>>) -> Self {
-        self.replay = Some(events.into_iter().map(|x| x.into_ipv4_prefix()).collect());
+        self.replay = Some(
+            events
+                .into_iter()
+                .map(|x| (x.into_ipv4_prefix(), None))
+                .collect(),
+        );
+        self
+    }
+
+    /// Replay a recording of events. Each event is associated with the index of the event that triggered it.
+    pub fn replay_with_trigger<P: Prefix, T>(
+        mut self,
+        events: Vec<(Event<P, T>, Option<usize>)>,
+    ) -> Self {
+        self.replay = Some(
+            events
+                .into_iter()
+                .map(|(x, id)| (x.into_ipv4_prefix(), id))
+                .collect(),
+        );
         self
     }
 
     /// Generate a json string that only contains the replay. This can be imported into
     /// bgpsim.github.io.
     pub fn replay_only<P: Prefix, T>(events: Vec<Event<P, T>>) -> String {
-        let events: Vec<Event<Ipv4Prefix, ()>> =
-            events.into_iter().map(|x| x.into_ipv4_prefix()).collect();
+        let events: Vec<(Event<Ipv4Prefix, ()>, Option<usize>)> = events
+            .into_iter()
+            .map(|x| (x.into_ipv4_prefix(), None))
+            .collect();
+        serde_json::json!({
+            "replay": events
+        })
+        .to_string()
+    }
+
+    /// Generate a json string that only contains the replay. This can be imported into
+    /// bgpsim.github.io. Each event is associated with the index of the event that triggered it.
+    pub fn replay_only_with_trigger<P: Prefix, T>(
+        events: Vec<(Event<P, T>, Option<usize>)>,
+    ) -> String {
+        let events: Vec<(Event<Ipv4Prefix, ()>, Option<usize>)> = events
+            .into_iter()
+            .map(|(x, id)| (x.into_ipv4_prefix(), id))
+            .collect();
         serde_json::json!({
             "replay": events
         })
