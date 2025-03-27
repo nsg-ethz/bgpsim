@@ -155,6 +155,26 @@ fn event_icon(props: &EventIconProps) -> Html {
         },
         id,
     );
+    let trigger_info = use_selector_with_deps(
+        |net: &Net, id| match *id {
+            EventId::Queue(_) => (None, Vec::new()),
+            EventId::Replay(id) => {
+                let trigger = net.replay().events.get(id).and_then(|(_, t)| *t);
+                let triggers_next = net
+                    .replay()
+                    .events
+                    .iter()
+                    .enumerate()
+                    .skip(id)
+                    .filter(|(_, (_, t))| *t == Some(id))
+                    .map(|(id, _)| id)
+                    .collect::<Vec<_>>();
+                (trigger, triggers_next)
+            }
+        },
+        id,
+    );
+    let (trigger, triggers_next) = (trigger_info.0, trigger_info.1.clone());
 
     let onmouseenter = dispatch.reduce_mut_callback(move |state| {
         state.set_hover(Hover::Message {
@@ -162,8 +182,8 @@ fn event_icon(props: &EventIconProps) -> Html {
             dst,
             id,
             show_tooltip: true,
-            trigger: None,
-            triggers_next: Vec::new(),
+            trigger,
+            triggers_next: triggers_next.clone(),
         })
     });
     let onmouseleave = dispatch.reduce_mut_callback(move |state| state.set_hover(Hover::None));
