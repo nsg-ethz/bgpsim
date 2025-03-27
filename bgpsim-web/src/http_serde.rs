@@ -27,6 +27,7 @@ use bgpsim::{
 use getrandom::getrandom;
 use gloo_net::http::RequestBuilder;
 use gloo_utils::window;
+use maplit::btreeset;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use wasm_bindgen::JsCast;
@@ -264,8 +265,12 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
         .get("replay")
         .and_then(|v| serde_json::from_value::<Vec<_>>(v.clone()).ok())
         .unwrap_or_default();
+    let events_in_flight = (!events.is_empty())
+        .then(|| btreeset![0])
+        .unwrap_or_default();
     let replay = Replay {
         events,
+        events_in_flight,
         position: 0,
     };
 
@@ -345,8 +350,12 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
         }
     }
 
+    let events_in_flight = (!events.is_empty())
+        .then(|| btreeset![0])
+        .unwrap_or_default();
     Ok(Replay {
         events,
+        events_in_flight,
         position: 0,
     })
 }

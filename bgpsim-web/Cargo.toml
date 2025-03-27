@@ -39,6 +39,7 @@ gloo-net = "0.4.0"
 wasm-bindgen-futures = "0.4"
 fdg-sim = "0.9.1"
 ciborium = "0.2"
+maplit = "1.0.2"
 
 [build-dependencies]
 bgpsim = { path = "../bgpsim", features = ["topology_zoo"] }

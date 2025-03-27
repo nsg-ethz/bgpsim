@@ -45,18 +45,27 @@ pub struct BgpSessionQueueProps {
 #[function_component]
 pub fn BgpSessionQueue(props: &BgpSessionQueueProps) -> Html {
     let dst = props.dst;
-
+    let in_replay_mode = use_selector(|s: &State| s.replay);
     let events = use_selector_with_deps(
-        |net: &Net, dst| {
-            net.net()
-                .queue()
-                .iter()
-                .enumerate()
-                .filter(|(_, e)| e.router() == *dst)
-                .map(|(i, e)| (i, e.clone()))
-                .collect::<Vec<_>>()
+        |net: &Net, (dst, in_replay_mode)| {
+            if *in_replay_mode {
+                net.replay()
+                    .events_in_flight
+                    .iter()
+                    .map(|id| (EventId::Replay(*id), net.replay().events[*id].0.clone()))
+                    .filter(|(_, event)| event.router() == *dst)
+                    .collect::<Vec<_>>()
+            } else {
+                net.net()
+                    .queue()
+                    .iter()
+                    .enumerate()
+                    .filter(|(_, e)| e.router() == *dst)
+                    .map(|(i, e)| (EventId::Queue(i), e.clone()))
+                    .collect::<Vec<_>>()
+            }
         },
-        dst,
+        (dst, *in_replay_mode),
     );
 
     let p = use_pos(dst);
@@ -70,9 +79,9 @@ pub fn BgpSessionQueue(props: &BgpSessionQueueProps) -> Html {
     events
         .iter()
         .enumerate()
-        .map(|(num, (i, event))| {
+        .map(|(num, (id, event))| {
             let p = get_event_pos(p, num, overlap);
-            let i = *i;
+            let id = *id;
             let (src, dst, kind) = match event.clone() {
                 Event::Bgp {
                     src,
@@ -111,7 +120,7 @@ pub fn BgpSessionQueue(props: &BgpSessionQueueProps) -> Html {
                     ..
                 } => (src, dst, EventKind::OspfAck),
             };
-            html! { <EventIcon {p} {src} {dst} {kind} {i} /> }
+            html! { <EventIcon {p} {src} {dst} {kind} {id} /> }
         })
         .collect()
 }
@@ -132,27 +141,50 @@ struct EventIconProps {
     src: RouterId,
     dst: RouterId,
     kind: EventKind,
-    i: usize,
+    id: EventId,
 }
 
 #[function_component(EventIcon)]
 fn event_icon(props: &EventIconProps) -> Html {
     let (state, dispatch) = use_store::<State>();
-    let (src, dst, i) = (props.src, props.dst, props.i);
-    let executable =
-        use_selector_with_deps(|net: &Net, id| is_executable(net.net().queue(), *id), i);
+    let (src, dst, id) = (props.src, props.dst, props.id);
+    let executable = use_selector_with_deps(
+        |net: &Net, id| match *id {
+            EventId::Queue(id) => is_executable(net.net().queue(), id),
+            EventId::Replay(id) => net.replay().position == id,
+        },
+        id,
+    );
 
     let onmouseenter = dispatch.reduce_mut_callback(move |state| {
-        state.set_hover(Hover::Message(src, dst, EventId::Queue(i), true))
+        state.set_hover(Hover::Message {
+            src,
+            dst,
+            id,
+            show_tooltip: true,
+            trigger: None,
+            triggers_next: Vec::new(),
+        })
     });
     let onmouseleave = dispatch.reduce_mut_callback(move |state| state.set_hover(Hover::None));
     let (onclick, mouse_style) = if *executable {
         (
-            callback!(i -> move |_| {
+            callback!(id -> move |_| {
                 Dispatch::<Net>::new().reduce_mut(move |n| {
-                    let mut net = n.net_mut();
-                    net.queue_mut().swap_to_front(i);
-                    net.simulate_step().unwrap();
+                    match id {
+                        EventId::Queue(id) => {
+                            let mut net = n.net_mut();
+                            net.queue_mut().swap_to_front(id);
+                            net.simulate_step().unwrap();
+                        },
+                        EventId::Replay(_) => {
+                            let Some(event) = n.replay_mut().pop_next() else {
+                                log::warn!("No events to replay!");
+                                return;
+                            };
+                            unsafe { n.net_mut().trigger_event(event).unwrap() };
+                        }
+                    }
                 });
                 Dispatch::<State>::new().reduce_mut(move |s| s.set_hover(Hover::None));
             }),
@@ -162,8 +194,15 @@ fn event_icon(props: &EventIconProps) -> Html {
         (callback!(|_| {}), "cursor-not-allowed")
     };
 
-    let hovered = state.hover() == Hover::Message(src, dst, EventId::Queue(props.i), true)
-        || state.hover() == Hover::Message(src, dst, EventId::Queue(props.i), false);
+    let hovered = match state.hover {
+        Hover::Message {
+            src: s,
+            dst: d,
+            id: i,
+            ..
+        } if src == s && dst == d && id == i => true,
+        _ => false,
+    };
 
     let color = if hovered {
         "stroke-orange"

@@ -313,7 +313,7 @@ pub fn CanvasBgpConfig() -> Html {
 pub fn CanvasEventQueue() -> Html {
     let nodes = use_selector(|net: &Net| net.net().internal_indices().collect::<Vec<_>>());
     let state = use_selector(|state: &State| match (state.hover(), state.disable_hover) {
-        (Hover::Message(src, dst, _, _), false) => Some((src, dst)),
+        (Hover::Message { src, dst, .. }, false) => Some((src, dst)),
         _ => None,
     });
 

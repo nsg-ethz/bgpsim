@@ -15,6 +15,8 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+use std::collections::HashMap;
+
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -28,6 +30,7 @@ use bgpsim::{
     event::Event,
     prelude::{InteractiveNetwork, NetworkFormatter},
 };
+use itertools::Itertools;
 
 use super::divider::Divider;
 use super::Button;
@@ -40,10 +43,19 @@ pub fn replay_cfg() -> Html {
 
     let mut elements: Vec<Html> = Vec::new();
 
+    let triggers_next: HashMap<usize, Vec<usize>> = replay
+        .events
+        .iter()
+        .enumerate()
+        .filter_map(|(event, (_, trigger))| trigger.map(|t| (t, event)))
+        .into_group_map();
+
     for (pos, (event, triggered_id)) in replay.events.iter().cloned().enumerate() {
-        let past = pos < replay.position;
-        let next = pos == replay.position;
-        elements.push(html! {<ReplayEventCfg {pos} {event} {past} {next} {triggered_id} />});
+        let is_executed = pos < replay.position;
+        let is_next = pos == replay.position;
+        let triggers_next = triggers_next.get(&pos).cloned().unwrap_or_default();
+        elements
+            .push(html! {<ReplayEventCfg {pos} {event} {is_executed} {is_next} {triggered_id} {triggers_next} />});
     }
 
     let on_click = callback!(|_| {
@@ -78,9 +90,17 @@ pub fn replay_cfg() -> Html {
 pub struct ReplayEventCfgProps {
     pub pos: usize,
     pub event: Event<Pfx, ()>,
-    pub past: bool,
-    pub next: bool,
+    pub is_executed: bool,
+    pub is_next: bool,
     pub triggered_id: Option<usize>,
+    pub triggers_next: Vec<usize>,
+}
+
+#[derive(Debug, PartialEq, Eq)]
+enum TriggerHighlight {
+    IsTrigger,
+    IsTriggered,
+    None,
 }
 
 #[function_component]
@@ -96,6 +116,17 @@ pub fn ReplayEventCfg(props: &ReplayEventCfgProps) -> Html {
         },
         (src, dst, pos),
     );
+    let highlight = use_selector_with_deps(
+        |state: &State, pos| match &state.hover {
+            Hover::Message { trigger, .. } if *trigger == Some(*pos) => TriggerHighlight::IsTrigger,
+            Hover::Message { triggers_next, .. } if triggers_next.contains(pos) => {
+                TriggerHighlight::IsTriggered
+            }
+            _ => TriggerHighlight::None,
+        },
+        props.pos,
+    );
+
     let header = if let Some(t) = props.triggered_id {
         format!("{header}  Trigger: {t}")
     } else {
@@ -105,7 +136,7 @@ pub fn ReplayEventCfg(props: &ReplayEventCfgProps) -> Html {
     let (title, content) = event_title_body(pos, &props.event);
     let title = format!("{header}: {title}");
 
-    let onclick: Callback<MouseEvent> = if props.next {
+    let onclick: Callback<MouseEvent> = if props.is_next {
         Callback::from(move |_| {
             Dispatch::<Net>::new().reduce_mut(move |n| {
                 let Some(event) = n.replay_mut().pop_next() else {
@@ -120,39 +151,61 @@ pub fn ReplayEventCfg(props: &ReplayEventCfgProps) -> Html {
         Callback::noop()
     };
 
+    let trigger = props.triggered_id;
+    let triggers_next = props.triggers_next.clone();
     let onmouseenter = state.reduce_mut_callback(move |s| {
-        s.set_hover(Hover::Message(src, dst, EventId::Replay(pos), false))
+        s.set_hover(Hover::Message {
+            src,
+            dst,
+            id: EventId::Replay(pos),
+            show_tooltip: false,
+            trigger,
+            triggers_next: triggers_next.clone(),
+        })
     });
     let onmouseleave = state.reduce_mut_callback(|s| s.set_hover(Hover::None));
 
     let base_class =
-        "p-4 border-2 rounded-md shadow-md w-full flex flex-col translate-y-0 overflow-hidden";
-    let main_class = if props.next {
+        "p-4 border-2 rounded-md shadow-md w-full flex flex-col translate-y-0 overflow-hidden transition duration-150 ease-in-out";
+
+    let border_color = match *highlight {
+        TriggerHighlight::IsTrigger => "border-red",
+        TriggerHighlight::IsTriggered => "border-green",
+        TriggerHighlight::None => {
+            if props.is_next {
+                "border-blue"
+            } else if props.is_executed {
+                "border-base-2"
+            } else {
+                "border-base-5"
+            }
+        }
+    };
+
+    let main_class = if props.is_next {
         classes!(
             base_class,
-            "transition",
-            "duration-150",
-            "ease-in-out",
+            border_color,
             "bg-base-2",
             "hover:bg-base-3",
-            "border-blue",
             "cursor-pointer"
         )
-    } else if props.past {
+    } else if props.is_executed {
         classes!(
             base_class,
+            border_color,
             "text-main-ia",
-            "border-base-2",
             "bg-base-1",
-            "pointer-events-none"
+            "hover:bg-base-2",
+            "cursor-default"
         )
     } else {
         classes!(
             base_class,
-            "border-base-5",
+            border_color,
             "bg-base-2",
-            "pointer-events-none",
-            "cursor-not-allowed"
+            "hover:bg-base-3",
+            "cursor-default"
         )
     };
 

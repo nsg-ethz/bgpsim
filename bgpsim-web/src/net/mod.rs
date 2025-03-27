@@ -18,7 +18,7 @@
 mod spring_layout;
 
 use std::{
-    collections::{vec_deque::Iter, HashMap, HashSet, VecDeque},
+    collections::{vec_deque::Iter, BTreeSet, HashMap, HashSet, VecDeque},
     ops::{Deref, DerefMut},
     rc::Rc,
 };
@@ -341,6 +341,7 @@ impl Net {
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Replay {
     pub events: Vec<(Event<Pfx, ()>, Option<usize>)>,
+    pub events_in_flight: BTreeSet<usize>,
     pub position: usize,
 }
 
@@ -348,6 +349,15 @@ impl Replay {
     /// Pop the next event and move the counter to the right by one.
     pub fn pop_next(&mut self) -> Option<Event<Pfx, ()>> {
         let idx = self.position;
+        let new_in_flight = self
+            .events
+            .iter()
+            .enumerate()
+            .skip(idx + 1)
+            .filter(|(_, (_, t))| *t == Some(idx))
+            .map(|(id, _)| id);
+        self.events_in_flight.remove(&idx);
+        self.events_in_flight.extend(new_in_flight);
         self.position += 1;
         self.events.get(idx).map(|(e, _)| e.clone())
     }

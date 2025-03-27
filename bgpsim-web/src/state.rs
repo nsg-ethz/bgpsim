@@ -42,7 +42,7 @@ use super::net::Pfx;
 #[derive(Clone, Debug, PartialEq, Store)]
 pub struct State {
     selected: Selected,
-    hover: Hover,
+    pub hover: Hover,
     pub replay: bool,
     context_menu: ContextMenu,
     layer: Layer,
@@ -382,7 +382,14 @@ pub enum Hover {
         RouteMapDirection,
         Rc<Vec<RouteMap<Pfx>>>,
     ),
-    Message(RouterId, RouterId, EventId, bool),
+    Message {
+        src: RouterId,
+        dst: RouterId,
+        id: EventId,
+        show_tooltip: bool,
+        trigger: Option<usize>,
+        triggers_next: Vec<usize>,
+    },
     Policy(RouterId, usize),
     Help(Html),
 }

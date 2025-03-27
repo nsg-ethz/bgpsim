@@ -166,7 +166,14 @@ pub fn QueueEventCfg(props: &QueueEventCfgProps) -> Html {
         Callback::noop()
     };
     let onmouseenter = state.reduce_mut_callback(move |s| {
-        s.set_hover(Hover::Message(src, dst, EventId::Queue(pos), false))
+        s.set_hover(Hover::Message {
+            src,
+            dst,
+            id: EventId::Queue(pos),
+            show_tooltip: false,
+            trigger: None,
+            triggers_next: Vec::new(),
+        })
     });
     let onmouseleave = state.reduce_mut_callback(|s| s.set_hover(Hover::None));
 

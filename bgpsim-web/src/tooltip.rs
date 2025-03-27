@@ -163,7 +163,13 @@ impl Component for Tooltip {
                     </>
                 }
             }
-            Hover::Message(src, dst, id, true) => {
+            Hover::Message {
+                src,
+                dst,
+                id,
+                show_tooltip: true,
+                ..
+            } => {
                 let event = match id {
                     EventId::Queue(i) => self.net.net().queue().get(i).cloned(),
                     EventId::Replay(i) => self.net.replay().events.get(i).map(|(e, _)| e.clone()),
@@ -216,7 +222,7 @@ impl Component for Tooltip {
                     </div>
                 }
             }
-            Hover::Message(_, _, _, _) | Hover::Policy(_, _) => return html! {},
+            Hover::Message { .. } | Hover::Policy(_, _) => return html! {},
             Hover::None => unreachable!(),
         };
 
