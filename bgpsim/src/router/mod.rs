@@ -147,6 +147,19 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
         }
     }
 
+    /// Manually trigger the given event, returning the result of that event. No new events will be
+    /// enqueued automatically.
+    ///
+    /// # Safety
+    /// The network (that this router is in) will be in an inconsistent state. Make sure to deal
+    /// with that properly.
+    pub unsafe fn trigger_event<T: Default>(
+        &mut self,
+        event: Event<P, T>,
+    ) -> Result<EventOutcome<P, T>, DeviceError> {
+        self.handle_event(event)
+    }
+
     /// handle an `Event`. This function returns all events triggered by this function, and a
     /// boolean to check if there was an update or not.
     pub(crate) fn handle_event<T: Default>(
@@ -160,12 +173,6 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
                 let events = self.bgp.handle_event(src, e)?;
                 let new = self.get_next_hop(prefix);
                 Ok((StepUpdate::new(prefix, old, new), events))
-            }
-            Event::Bgp { .. } => {
-                error!(
-                    "Recenved a BGP event that is not targeted at this router! Ignore the event!"
-                );
-                Ok((StepUpdate::Unchanged, vec![]))
             }
             Event::Ospf {
                 src, dst, area, e, ..
@@ -182,11 +189,8 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
                     Ok((StepUpdate::Unchanged, ospf_events))
                 }
             }
-            Event::Ospf { .. } => {
-                error!(
-                    "Recenved an OSPF event that is not targeted at this router! Ignore the event!"
-                );
-                Ok((StepUpdate::Unchanged, vec![]))
+            Event::Bgp { dst, .. } | Event::Ospf { dst, .. } => {
+                Err(DeviceError::WrongRouter(self.router_id, dst))
             }
         }
     }

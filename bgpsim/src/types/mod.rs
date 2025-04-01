@@ -461,6 +461,9 @@ impl<'a, P: Prefix, Ospf> NetworkDeviceRef<'a, P, Ospf> {
 /// Router Errors
 #[derive(Error, Debug, PartialEq, Eq, Serialize, Deserialize)]
 pub enum DeviceError {
+    /// Router 0 cannot handle event for router 1.
+    #[error("Event with destination {1:?} was triggered on router {0:?}!")]
+    WrongRouter(RouterId, RouterId),
     /// No BGP session is established
     #[error("BGP Session with {0:?} is not yet created!")]
     NoBgpSession(RouterId),
