@@ -1081,6 +1081,11 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Devi
                     r.fmt(net)
                 )
             }
+            DeviceError::WrongRouter(executing, recipiant) => format!(
+                "Router {} cannot execute an event destined for {}",
+                executing.fmt(net),
+                recipiant.fmt(net)
+            ),
         }
     }
 }
