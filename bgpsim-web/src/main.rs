@@ -129,7 +129,7 @@ fn entry() -> Html {
                     });
                 }
 
-                if let Some(file) = params.get("nsg").or_else(params.get("n")) {
+                if let Some(file) = params.get("nsg").or_else(|| params.get("n")) {
                     import_download_json(format!(
                         "https://nsg.ee.ethz.ch/files/public/bgpsim/{file}.json"
                     ))
