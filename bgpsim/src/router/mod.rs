@@ -35,7 +35,6 @@ use crate::{
     },
 };
 use itertools::Itertools;
-use log::*;
 use serde::{Deserialize, Serialize};
 
 mod bgp_process;
