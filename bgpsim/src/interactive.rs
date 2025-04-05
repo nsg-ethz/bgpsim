@@ -16,10 +16,8 @@
 //! This module contains an extension trait that allows you to interact with the simulator on a
 //! per-message level.
 
-use std::{
-    collections::{HashMap, VecDeque},
-    thread::JoinHandle,
-};
+use crossbeam::channel::{bounded, Receiver, Sender};
+use std::collections::HashMap;
 
 use log::debug;
 
@@ -198,14 +196,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
             // log the job
             log::trace!("{}", event.fmt(self));
             // execute the event
-            let (step_update, events) = match self
+            let (step_update, events) = self
                 .routers
                 .get_mut(&event.router())
                 .ok_or(NetworkError::DeviceNotFound(event.router()))?
-            {
-                NetworkDevice::InternalRouter(r) => r.handle_event(event.clone()),
-                NetworkDevice::ExternalRouter(r) => r.handle_event(event.clone()),
-            }?;
+                .handle_event(event.clone())?;
 
             self.enqueue_events(events);
 
@@ -363,14 +358,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
         // log the job
         log::trace!("{}", event.fmt(self));
         // execute the event
-        let (step_update, events) = match self
+        let (step_update, events) = self
             .routers
             .get_mut(&event.router())
             .ok_or(NetworkError::DeviceNotFound(event.router()))?
-        {
-            NetworkDevice::InternalRouter(r) => r.handle_event(event.clone()),
-            NetworkDevice::ExternalRouter(r) => r.handle_event(event.clone()),
-        }?;
+            .handle_event(event.clone())?;
 
         Ok((step_update, events))
     }
@@ -378,16 +370,6 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
     unsafe fn enqueue_event(&mut self, event: Event<P, Q::Priority>) {
         self.enqueue_events(vec![event]);
     }
-}
-
-macro_rules! join_task {
-    ($self:ident, $t:ident, $routers:ident, $result:ident, $ospf:ty) => {{
-        let empty: HashMap<RouterId, NetworkDevice<P, $ospf>> = Default::default();
-        let (r, events, success) = $t.join().unwrap();
-        $result = $result.and(success);
-        $routers.push_back(r);
-        $self.queue.push_many(events, &empty, &$self.net);
-    }};
 }
 
 impl<P, Q, Ospf> ParallelNetwork<P, Q, Ospf> for Network<P, Q, Ospf>
@@ -398,6 +380,7 @@ where
     Ospf: OspfImpl,
 {
     fn simulate_parallel(&mut self, num_threads: Option<usize>) -> Result<(), NetworkError> {
+        let mut remaining_iter = self.stop_after;
         // get the number of threads.
         let num_threads = num_threads
             .unwrap_or_else(|| {
@@ -405,118 +388,136 @@ where
                     .map(|x| x.into())
                     .unwrap_or(4)
             })
-            .min(2);
+            .max(1);
 
         // take out all routers.
         let mut routers = HashMap::new();
         std::mem::swap(&mut routers, &mut self.routers);
-        let mut routers = routers.into_values().collect::<VecDeque<_>>();
+        let mut routers = routers.into_values().collect::<Vec<_>>();
 
-        let mut tasks = Vec::new();
-        let result = loop {
-            // exit condition: queue is empty and set of tasks is empty
-            if self.queue.is_empty() && tasks.is_empty() {
-                break Ok(());
+        // create two channels, bounded by the number of routers in the network
+        let (task_sender, task_receiver) =
+            bounded::<Job<P, Q::Priority, Ospf::Process>>(routers.len() + 1);
+        let (result_sender, result_receiver) =
+            bounded::<Res<P, Q::Priority, Ospf::Process>>(routers.len() + 1);
+
+        let workers = (0..num_threads)
+            .map(|_| {
+                let task_receiver = task_receiver.clone();
+                let result_sender = result_sender.clone();
+                std::thread::spawn(move || worker(task_receiver, result_sender))
+            })
+            .collect::<Vec<_>>();
+        // drop our end of the results sender.
+        std::mem::drop(result_sender);
+
+        let num_routers = routers.len();
+        let mut result = Ok(());
+        let empty = HashMap::<RouterId, NetworkDevice<P, Ospf::Process>>::new();
+
+        // start the process
+        'main: loop {
+            // exit condition
+            if self.queue.is_empty() && routers.len() == num_routers {
+                break 'main;
             }
 
-            while tasks.len() + 1 < num_threads {
-                let Some(task) = spawn(&mut routers, &mut self.queue) else {
-                    break;
-                };
-                tasks.push(task);
-            }
-
-            // try to join all threads
-            let mut result = Ok(());
+            // first, try to perform as many jobs as possible
             let mut i = 0;
-            while i < tasks.len() {
-                if tasks[i].is_finished() {
-                    let t = tasks.swap_remove(i);
-                    join_task!(self, t, routers, result, Ospf::Process);
-                } else {
-                    i += 1;
+            while i < routers.len() {
+                // break out if queue is empty
+                if self.queue.is_empty() {
+                    break;
                 }
+                // try to trigger all events on router i
+                let rid = routers[i].router_id();
+                let events = self.queue.pop_events_for(rid);
+                if !events.is_empty() {
+                    // enqueue job
+                    if let Some(x) = remaining_iter.as_mut() {
+                        if *x < events.len() {
+                            // no convergence!
+                            result = Err(NetworkError::NoConvergence);
+                            break 'main;
+                        }
+                        *x -= events.len();
+                    }
+                    let r = routers.swap_remove(i);
+                    task_sender.send((r, events)).unwrap();
+                }
+                i += 1;
             }
 
-            // if there was an error, join all tasks
+            // now, receive the next task
+            let (r, events, success) = result_receiver.recv().unwrap();
+            routers.push(r);
+            self.queue.push_many(events, &empty, &self.net);
+            result = result.and(success.map_err(NetworkError::DeviceError));
+
+            // get all the other events that are already ready.
+            for (r, events, success) in result_receiver.try_iter() {
+                routers.push(r);
+                self.queue.push_many(events, &empty, &self.net);
+                result = result.and(success.map_err(NetworkError::DeviceError));
+            }
+
+            // check if we have an error
             if result.is_err() {
-                for t in tasks {
-                    join_task!(self, t, routers, result, Ospf::Process);
-                }
-                break result;
+                break 'main;
             }
+        }
 
-            // sleep for a brief amount of time
-            std::thread::sleep(std::time::Duration::from_micros(10));
-        };
+        // kill all processes by dropping the task channel
+        std::mem::drop(task_sender);
+        workers.into_iter().for_each(|t| t.join().unwrap());
+
+        // get the last events back to potentially reconstruct the network. Since we have already
+        // dropped our part of the result sender, we can just wait here until the result channel is
+        // disconnected (which will happen only after all workers have exited and all results have
+        // been pulled.)
+        while let Ok((r, events, success)) = result_receiver.recv() {
+            routers.push(r);
+            self.queue.push_many(events, &empty, &self.net);
+            result = result.and(success.map_err(NetworkError::DeviceError));
+        }
 
         // put the routers back
         self.routers = routers.into_iter().map(|r| (r.router_id(), r)).collect();
 
-        result.map_err(|e| e.into())
+        result
     }
 }
 
-macro_rules! execute_events {
-    ($r:ident, $out:ident, $events:ident, $result:ident) => {
-        for e in $events {
-            match $r.handle_event(e) {
-                Ok((_, new_events)) => {
-                    $out.extend(new_events);
-                }
+type Job<P, T, Ospf> = (NetworkDevice<P, Ospf>, Vec<Event<P, T>>);
+type Res<P, T, Ospf> = (
+    NetworkDevice<P, Ospf>,
+    Vec<Event<P, T>>,
+    Result<(), DeviceError>,
+);
+
+fn worker<P: Prefix, T: Default, Ospf: OspfProcess>(
+    recv: Receiver<Job<P, T, Ospf>>,
+    send: Sender<Res<P, T, Ospf>>,
+) {
+    loop {
+        let Ok((mut r, events)) = recv.recv() else {
+            break;
+        };
+        let mut result = Ok(());
+        let mut out_events = Vec::new();
+        for e in events {
+            match r.handle_event(e) {
+                Ok((_, next_events)) => out_events.extend(next_events),
                 Err(e) => {
-                    $result = Err(e);
+                    result = Err(e);
                     break;
                 }
-            }
-        }
-    };
-}
-
-fn spawn<P, Q, Ospf>(
-    routers: &mut VecDeque<NetworkDevice<P, Ospf>>,
-    queue: &mut Q,
-) -> Option<
-    JoinHandle<(
-        NetworkDevice<P, Ospf>,
-        Vec<Event<P, Q::Priority>>,
-        Result<(), DeviceError>,
-    )>,
->
-where
-    P: Prefix,
-    Q: ConcurrentEventQueue<P>,
-    Q::Priority: Send + Sync + 'static,
-    Ospf: OspfProcess,
-{
-    if queue.is_empty() {
-        return None;
-    }
-
-    for _ in 0..routers.len() {
-        let mut r = routers.pop_front()?;
-        let events = queue.pop_events_for(r.router_id());
-        if events.is_empty() {
-            // no events for that router
-            routers.push_back(r);
-            continue;
-        }
-        // otherwise, spawn a thread
-        return Some(std::thread::spawn(move || {
-            let mut out = Vec::new();
-            let mut result = Ok(());
-            match &mut r {
-                NetworkDevice::InternalRouter(r) => {
-                    execute_events!(r, out, events, result)
-                }
-                NetworkDevice::ExternalRouter(r) => {
-                    execute_events!(r, out, events, result)
-                }
             };
-            (r, out, result)
-        }));
+        }
+
+        // send the event back
+        send.send((r, out_events, result)).unwrap();
     }
-    None
 }
 
 /// Builder interface to partially clone the source network while moving values from the conquered

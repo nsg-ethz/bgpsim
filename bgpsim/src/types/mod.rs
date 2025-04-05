@@ -15,9 +15,10 @@
 
 //! Module containing all type definitions
 
+use crate::event::{Event, EventOutcome};
 use crate::formatter::NetworkFormatter;
 use crate::ospf::local::LsaKey;
-use crate::ospf::OspfImpl;
+use crate::ospf::{OspfImpl, OspfProcess};
 use crate::{
     bgp::BgpSessionType, external_router::ExternalRouter, network::Network, router::Router,
 };
@@ -283,6 +284,18 @@ impl<P: Prefix, Ospf> NetworkDevice<P, Ospf> {
         match self {
             NetworkDevice::InternalRouter(r) => r.router_id(),
             NetworkDevice::ExternalRouter(r) => r.router_id(),
+        }
+    }
+}
+
+impl<P: Prefix, Ospf: OspfProcess> NetworkDevice<P, Ospf> {
+    pub(crate) fn handle_event<T: Default>(
+        &mut self,
+        event: Event<P, T>,
+    ) -> Result<EventOutcome<P, T>, DeviceError> {
+        match self {
+            NetworkDevice::InternalRouter(r) => r.handle_event(event),
+            NetworkDevice::ExternalRouter(r) => r.handle_event(event),
         }
     }
 }
