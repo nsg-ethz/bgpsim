@@ -381,6 +381,12 @@ where
 {
     fn simulate_parallel(&mut self, num_threads: Option<usize>) -> Result<(), NetworkError> {
         let mut remaining_iter = self.stop_after;
+
+        // take out all routers.
+        let mut routers = HashMap::new();
+        std::mem::swap(&mut routers, &mut self.routers);
+        let mut routers = routers.into_values().collect::<Vec<_>>();
+
         // get the number of threads.
         let num_threads = num_threads
             .unwrap_or_else(|| {
@@ -388,12 +394,9 @@ where
                     .map(|x| x.into())
                     .unwrap_or(4)
             })
-            .max(1);
-
-        // take out all routers.
-        let mut routers = HashMap::new();
-        std::mem::swap(&mut routers, &mut self.routers);
-        let mut routers = routers.into_values().collect::<Vec<_>>();
+            .max(1) // at least one worker
+            .min(routers.len()); // at most as many workers as there are routers
+        let num_concurrent_jobs = num_threads;
 
         // create two channels, bounded by the number of routers in the network
         let (task_sender, task_receiver) =
@@ -422,9 +425,14 @@ where
                 break 'main;
             }
 
-            // first, try to perform as many jobs as possible
+            // first, try to perform as many jobs as possible.
             let mut i = 0;
             while i < routers.len() {
+                // Only ever enqueue as many jobs as there are threads to increase batching (plus
+                // one, so one thread can immediately continue working.)
+                if num_routers - routers.len() >= num_concurrent_jobs {
+                    break;
+                }
                 // break out if queue is empty
                 if self.queue.is_empty() {
                     break;
@@ -453,13 +461,6 @@ where
             routers.push(r);
             self.queue.push_many(events, &empty, &self.net);
             result = result.and(success.map_err(NetworkError::DeviceError));
-
-            // get all the other events that are already ready.
-            for (r, events, success) in result_receiver.try_iter() {
-                routers.push(r);
-                self.queue.push_many(events, &empty, &self.net);
-                result = result.and(success.map_err(NetworkError::DeviceError));
-            }
 
             // check if we have an error
             if result.is_err() {
