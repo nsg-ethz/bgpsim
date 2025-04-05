@@ -20,7 +20,7 @@ use std::hash::Hash;
 use serde::{Deserialize, Serialize};
 
 mod queue;
-pub use queue::{BasicEventQueue, EventQueue, FmtPriority};
+pub use queue::{BasicEventQueue, ConcurrentEventQueue, EventQueue, FmtPriority, PerRouterQueue};
 #[cfg(feature = "rand_queue")]
 mod rand_queue;
 #[cfg(feature = "rand_queue")]

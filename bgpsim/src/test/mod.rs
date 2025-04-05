@@ -113,6 +113,7 @@ mod test_network;
 mod test_network_complete;
 mod test_network_config;
 mod test_ospf;
+mod test_parallel_queue;
 mod test_record;
 #[cfg(all(feature = "topology_zoo", feature = "rand", feature = "rand_queue"))]
 mod test_roland;

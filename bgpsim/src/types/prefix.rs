@@ -55,13 +55,16 @@ where
         + Into<Ipv4Addr>
         + Into<u32>
         + Serialize
+        + Send
+        + Sync
+        + 'static
         + for<'de> Deserialize<'de>,
 {
     /// Set prefixes that are known.
     type Set: PrefixSet<P = Self>;
 
     /// Mapping of one prefix to a concrete value `T`.
-    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>>: PrefixMap<
+    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static>: PrefixMap<
         T,
         P = Self,
     >;
@@ -91,6 +94,9 @@ where
         + FromIterator<Self::P>
         + IntoIterator<Item = Self::P>
         + Serialize
+        + Send
+        + Sync
+        + 'static
         + for<'de> Deserialize<'de>,
 {
     /// The type of prefix
@@ -152,7 +158,10 @@ where
         + FromIterator<(Self::P, T)>
         + IntoIterator<Item = (Self::P, T)>
         + Serialize
-        + for<'de> Deserialize<'de>,
+        + for<'de> Deserialize<'de>
+        + Send
+        + Sync
+        + 'static,
 {
     /// The type of prefix
     type P: Prefix;
@@ -329,8 +338,9 @@ const SINGLE_PREFIX: SinglePrefix = SinglePrefix;
 impl Prefix for SinglePrefix {
     type Set = SinglePrefixSet;
 
-    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
-        SinglePrefixMap<T>;
+    type Map<
+        T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static,
+    > = SinglePrefixMap<T>;
 
     fn contains(&self, _other: &Self) -> bool {
         true
@@ -485,7 +495,7 @@ impl<T> FromIterator<(SinglePrefix, T)> for SinglePrefixMap<T> {
 
 impl<T> PrefixMap<T> for SinglePrefixMap<T>
 where
-    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>,
+    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static,
 {
     type P = SinglePrefix;
 
@@ -669,8 +679,9 @@ impl From<SimplePrefix> for Ipv4Net {
 impl Prefix for SimplePrefix {
     type Set = HashSet<SimplePrefix>;
 
-    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
-        HashMap<SimplePrefix, T>;
+    type Map<
+        T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static,
+    > = HashMap<SimplePrefix, T>;
 
     fn contains(&self, other: &Self) -> bool {
         self == other
@@ -723,7 +734,7 @@ impl PrefixSet for HashSet<SimplePrefix> {
 
 impl<T> PrefixMap<T> for HashMap<SimplePrefix, T>
 where
-    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>,
+    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static,
 {
     type P = SimplePrefix;
 
@@ -931,8 +942,9 @@ impl From<Ipv4Prefix> for Ipv4Net {
 impl Prefix for Ipv4Prefix {
     type Set = PSet<Ipv4Prefix>;
 
-    type Map<T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>> =
-        PMap<Ipv4Prefix, T>;
+    type Map<
+        T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static,
+    > = PMap<Ipv4Prefix, T>;
 
     fn contains(&self, other: &Self) -> bool {
         self.0.contains(&other.0)
@@ -992,7 +1004,7 @@ impl PrefixSet for PSet<Ipv4Prefix> {
 
 impl<T> PrefixMap<T> for PMap<Ipv4Prefix, T>
 where
-    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de>,
+    T: Clone + PartialEq + Debug + Serialize + for<'de> Deserialize<'de> + Send + Sync + 'static,
 {
     type P = Ipv4Prefix;
 

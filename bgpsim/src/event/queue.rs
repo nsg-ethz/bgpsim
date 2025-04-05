@@ -22,7 +22,7 @@ use crate::{
 
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, VecDeque};
+use std::collections::{BTreeMap, HashMap, VecDeque};
 
 use super::Event;
 
@@ -81,6 +81,13 @@ pub trait EventQueue<P: Prefix> {
     /// # Safety
     /// The caller must ensure that all parameters of `self` and `conquered` are the same.
     unsafe fn clone_events(&self, conquered: Self) -> Self;
+}
+
+/// Interface of a concurrent event queue. Compared to the [`EventQueue`], it yields a list of events
+/// that should all be processed by a single router.
+pub trait ConcurrentEventQueue<P: Prefix>: EventQueue<P> {
+    /// pop the next set of events for one specific router.
+    fn pop_events_for(&mut self, destination: RouterId) -> Vec<Event<P, Self::Priority>>;
 }
 
 /// Basic event queue
@@ -176,5 +183,91 @@ impl FmtPriority for usize {
 impl FmtPriority for () {
     fn fmt(&self) -> String {
         String::new()
+    }
+}
+
+/// The basic concurrent event queue that maintains a FIFO queue for each router.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+pub struct PerRouterQueue<P: Prefix> {
+    pub(crate) events: BTreeMap<RouterId, VecDeque<Event<P, ()>>>,
+    pub(crate) num_events: usize,
+}
+
+impl<P: Prefix> Default for PerRouterQueue<P> {
+    fn default() -> Self {
+        Self {
+            events: BTreeMap::new(),
+            num_events: 0,
+        }
+    }
+}
+
+impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
+    type Priority = ();
+
+    fn push<Ospf: OspfProcess>(
+        &mut self,
+        event: Event<P, Self::Priority>,
+        _routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        _net: &PhysicalNetwork,
+    ) {
+        self.events
+            .entry(event.router())
+            .or_default()
+            .push_back(event);
+        self.num_events += 1
+    }
+
+    fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
+        let mut e = self.events.first_entry()?;
+        let ev = e.get_mut().pop_front().unwrap();
+        if e.get().is_empty() {
+            e.remove_entry();
+        }
+        self.num_events -= 1;
+        Some(ev)
+    }
+
+    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
+        Some(self.events.first_key_value()?.1.front().unwrap())
+    }
+
+    fn len(&self) -> usize {
+        self.num_events
+    }
+
+    fn is_empty(&self) -> bool {
+        self.num_events == 0
+    }
+
+    fn clear(&mut self) {
+        self.events.clear();
+        self.num_events = 0;
+    }
+
+    fn update_params<Ospf: OspfProcess>(
+        &mut self,
+        _routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        _net: &PhysicalNetwork,
+    ) {
+    }
+
+    fn get_time(&self) -> Option<f64> {
+        None
+    }
+
+    unsafe fn clone_events(&self, _conquered: Self) -> Self {
+        self.clone()
+    }
+}
+
+impl<P: Prefix> ConcurrentEventQueue<P> for PerRouterQueue<P> {
+    fn pop_events_for(&mut self, destination: RouterId) -> Vec<Event<P, Self::Priority>> {
+        let Some(e) = self.events.remove(&destination) else {
+            return Vec::new();
+        };
+        self.num_events -= e.len();
+        e.into()
     }
 }

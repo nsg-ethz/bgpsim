@@ -277,6 +277,14 @@ impl<P: Prefix, Ospf> NetworkDevice<P, Ospf> {
             NetworkDevice::ExternalRouter(r) => r.name(),
         }
     }
+
+    /// Get the name of the device.
+    pub(crate) fn router_id(&self) -> RouterId {
+        match self {
+            NetworkDevice::InternalRouter(r) => r.router_id(),
+            NetworkDevice::ExternalRouter(r) => r.router_id(),
+        }
+    }
 }
 
 impl<P: Prefix, Ospf> IntoIpv4Prefix for NetworkDevice<P, Ospf> {

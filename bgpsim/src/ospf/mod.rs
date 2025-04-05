@@ -773,7 +773,7 @@ pub trait OspfCoordinator:
 
 /// OSPF process running on each node.
 pub trait OspfProcess:
-    std::fmt::Debug + PartialEq + Clone + for<'de> Deserialize<'de> + Serialize
+    std::fmt::Debug + PartialEq + Clone + for<'de> Deserialize<'de> + Serialize + Send + Sync + 'static
 {
     /// Create a new OSPF process
     fn new(router_id: RouterId) -> Self;
