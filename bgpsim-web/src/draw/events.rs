@@ -214,15 +214,12 @@ fn event_icon(props: &EventIconProps) -> Html {
         (callback!(|_| {}), "cursor-not-allowed")
     };
 
-    let hovered = match state.hover {
-        Hover::Message {
+    let hovered = matches!(state.hover, Hover::Message {
             src: s,
             dst: d,
             id: i,
             ..
-        } if src == s && dst == d && id == i => true,
-        _ => false,
-    };
+        } if src == s && dst == d && id == i);
 
     let color = if hovered {
         "stroke-orange"
