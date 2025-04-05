@@ -1053,7 +1053,7 @@ where
     }
 
     fn children(&self, prefix: &Self::P) -> Self::Children<'_> {
-        self.children(*prefix)
+        self.children(prefix)
     }
 
     fn clear(&mut self) {

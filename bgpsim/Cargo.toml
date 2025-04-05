@@ -43,7 +43,7 @@ export = ["dep:bimap"]
 
 [dependencies]
 bgpsim-macros = {path = "../bgpsim-macros", version = "0.18.1"}
-prefix-trie = { version = "0.6.0", features = ["serde", "ipnet"] }
+prefix-trie = { version = "0.7.0", features = ["serde", "ipnet"] }
 thiserror = "1"
 petgraph = { version = "0.6", features = [ "serde-1" ]}
 log = "0.4"
