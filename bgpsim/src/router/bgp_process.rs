@@ -437,7 +437,7 @@ impl<P: Prefix> BgpProcess<P> {
     }
 
     /// Update the stored IGP weights to all internal routers.
-    pub(super) fn update_igp(&mut self, igp: &impl OspfProcess) {
+    pub(crate) fn update_igp(&mut self, igp: &impl OspfProcess) {
         self.igp_cost = igp
             .get_table()
             .iter()

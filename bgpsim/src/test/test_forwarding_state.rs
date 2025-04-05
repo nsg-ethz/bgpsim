@@ -14,10 +14,12 @@
 // limitations under the License.
 
 use crate::{
-    bgp::BgpSessionType::*,
+    bgp::{BgpEvent, BgpRoute, BgpSessionType::*},
     config::{Config, ConfigExpr::*, NetworkConfig},
-    network::Network,
+    network::{Network, INTERNAL_AS},
+    ospf::local::{LocalNeighborhoodChange, LocalOspfProcess},
     route_map::*,
+    router::Router,
     types::{AsId, Ipv4Prefix, Prefix, SimplePrefix},
 };
 
@@ -376,9 +378,10 @@ mod ipv4 {
             vec![vec![r2, r3, r1, e1]]
         );
 
+        // this one is not deflected, bgp has a more specific prefix
         assert_eq!(
             fw_state.get_paths(r2, prefix!("100.0.2.0/24" as)).unwrap(),
-            vec![vec![r2, r3, r4, e4]]
+            vec![vec![r2, r4, e4]]
         );
 
         assert_eq!(
@@ -388,7 +391,7 @@ mod ipv4 {
 
         assert_eq!(
             fw_state.get_paths(r2, prefix!("100.0.2.1/32" as)).unwrap(),
-            vec![vec![r2, r3, r4, e4]]
+            vec![vec![r2, r4, e4]]
         );
 
         assert_eq!(
@@ -396,6 +399,106 @@ mod ipv4 {
                 .get_paths(r2, prefix!("100.0.2.129/32" as))
                 .unwrap(),
             vec![vec![r2, r3, r4, e4]]
+        );
+    }
+
+    #[test]
+    fn longest_prefix_match_single_router() {
+        let r = 0.into();
+        let e1 = 1.into();
+        let e2 = 2.into();
+        let e3 = 3.into();
+        let mut router =
+            Router::<Ipv4Prefix, LocalOspfProcess>::new("test".to_string(), r, INTERNAL_AS);
+
+        // add the link to the two routers
+        router
+            .ospf
+            .handle_neighborhood_change::<Ipv4Prefix, ()>(
+                LocalNeighborhoodChange::SetExternalLink {
+                    ext: e1,
+                    weight: Some(1.0),
+                },
+            )
+            .unwrap();
+        router
+            .ospf
+            .handle_neighborhood_change::<Ipv4Prefix, ()>(
+                LocalNeighborhoodChange::SetExternalLink {
+                    ext: e2,
+                    weight: Some(1.0),
+                },
+            )
+            .unwrap();
+        router
+            .ospf
+            .handle_neighborhood_change::<Ipv4Prefix, ()>(
+                LocalNeighborhoodChange::SetExternalLink {
+                    ext: e3,
+                    weight: Some(1.0),
+                },
+            )
+            .unwrap();
+
+        // add the bgp sessions
+        router.bgp.set_session::<()>(e1, Some(EBgp)).unwrap();
+        router.bgp.set_session::<()>(e2, Some(EBgp)).unwrap();
+
+        router.bgp.update_igp(&router.ospf);
+
+        // advertise some routes
+        router
+            .bgp
+            .handle_event::<()>(
+                e1,
+                BgpEvent::Update(BgpRoute {
+                    prefix: prefix!("1.0.0.0/8" as),
+                    as_path: vec![1.into()],
+                    next_hop: e1,
+                    local_pref: Default::default(),
+                    med: Default::default(),
+                    community: Default::default(),
+                    originator_id: Default::default(),
+                    cluster_list: Default::default(),
+                }),
+            )
+            .unwrap();
+
+        // advertise some routes
+        router
+            .bgp
+            .handle_event::<()>(
+                e2,
+                BgpEvent::Update(BgpRoute {
+                    prefix: prefix!("1.1.1.0/24" as),
+                    as_path: vec![2.into()],
+                    next_hop: e2,
+                    local_pref: Default::default(),
+                    med: Default::default(),
+                    community: Default::default(),
+                    originator_id: Default::default(),
+                    cluster_list: Default::default(),
+                }),
+            )
+            .unwrap();
+
+        // configure a static route
+        router
+            .sr
+            .set(prefix!("1.1.0.0/16" as), Some(StaticRoute::Direct(e3)));
+
+        assert_eq!(router.get_next_hop(prefix!("1.0.0.0/32" as)), vec![e1]);
+        assert_eq!(router.get_next_hop(prefix!("1.1.0.0/32" as)), vec![e3]);
+        assert_eq!(router.get_next_hop(prefix!("1.1.1.0/32" as)), vec![e2]);
+
+        let fw_state = router.get_fib();
+        assert_eq!(
+            fw_state.into_iter().collect::<Vec<_>>(),
+            vec![
+                (prefix!("1.0.0.0/8" as), vec![e1]),
+                (prefix!("1.1.0.0/16" as), vec![e3]),
+                (prefix!("1.1.1.0/24" as), vec![e2])
+            ]
         );
     }
 }

@@ -233,13 +233,23 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
     ///
     /// TODO make this function return a slice
     pub fn get_next_hop(&self, prefix: P) -> Vec<RouterId> {
-        // first, check sr, and then, check bgp. If both do not match, drop the traffic.
-        let target = if let Some(target) = self.sr.get(prefix) {
-            IgpTarget::from(target)
-        } else if let Some(nh) = self.bgp.get(prefix) {
-            IgpTarget::Ospf(nh)
-        } else {
-            IgpTarget::Drop
+        // get the next hop according to both SR and BGP
+        let sr_target = self.sr.get_table().get_lpm(&prefix);
+        let bgp_target = self.bgp.get_route(prefix);
+
+        // pick the shorter prefix if both are present
+        let target = match (sr_target, bgp_target) {
+            // If both are present, but the BGP prefix contains the SR prefix, then the SR prefix is
+            // more specific (or at least the same) --> Pick SR.
+            (Some((sr_p, sr_target)), Some(route)) if route.route.prefix.contains(sr_p) => {
+                IgpTarget::from(*sr_target)
+            }
+            // Otherwise, if only the static route is present, also pick the static route.
+            (Some((_, target)), None) => IgpTarget::from(*target),
+            // In any other case, pick the BGP route if available
+            (_, Some(route)) => IgpTarget::Ospf(route.route.next_hop),
+            // Finally, if nothing is available, just drop
+            (None, None) => IgpTarget::Drop,
         };
 
         // lookup the IGP target in the IGP process

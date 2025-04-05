@@ -56,7 +56,7 @@ pub struct LocalOspfProcess {
 }
 
 /// Neighborhood change event local to a specific router.
-pub(super) enum LocalNeighborhoodChange {
+pub(crate) enum LocalNeighborhoodChange {
     AddNeighbor {
         neighbor: RouterId,
         area: OspfArea,
@@ -164,7 +164,7 @@ impl LocalOspfProcess {
     }
 
     /// Handle a neighborhood change.
-    pub(super) fn handle_neighborhood_change<P: Prefix, T: Default>(
+    pub(crate) fn handle_neighborhood_change<P: Prefix, T: Default>(
         &mut self,
         change: LocalNeighborhoodChange,
     ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {

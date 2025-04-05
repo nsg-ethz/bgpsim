@@ -25,6 +25,7 @@ use std::collections::{BTreeMap, HashMap, HashSet};
 
 pub use database::{OspfRib, OspfRibEntry};
 pub use lsa::*;
+pub(crate) use process::LocalNeighborhoodChange;
 pub use process::LocalOspfProcess;
 
 use itertools::Itertools;
@@ -34,7 +35,6 @@ use serde::{Deserialize, Serialize};
 use crate::{
     event::Event,
     formatter::NetworkFormatter,
-    ospf::local::process::LocalNeighborhoodChange,
     types::{NetworkDevice, NetworkError, NetworkErrorOption, Prefix, RouterId},
 };
 
