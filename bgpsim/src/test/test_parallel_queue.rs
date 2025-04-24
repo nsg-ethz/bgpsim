@@ -118,10 +118,7 @@ mod t {
     #[test]
     fn single_prefix<P: Prefix, Ospf: OspfImpl + Debug>() -> Result<(), NetworkError> {
         let mut ref_net = get_test_net_bgp::<P, Ospf>();
-        let mut test_net = ref_net
-            .clone()
-            .swap_queue(PerRouterQueue::default())
-            .unwrap();
+        let mut test_net = ref_net.clone().swap_queue(PerRouterQueue::default());
 
         test_net.manual_simulation();
         let p = P::from(0);
@@ -144,10 +141,7 @@ mod t {
     #[test]
     fn many_prefixes<P: Prefix, Ospf: OspfImpl + Debug>() -> Result<(), NetworkError> {
         let mut ref_net = get_test_net_bgp::<P, Ospf>();
-        let mut test_net = ref_net
-            .clone()
-            .swap_queue(PerRouterQueue::default())
-            .unwrap();
+        let mut test_net = ref_net.clone().swap_queue(PerRouterQueue::default());
 
         test_net.manual_simulation();
         let prefixes = (0..1000).map(P::from).collect::<Vec<_>>();

@@ -240,7 +240,7 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
 ///     ModelParams::new(0.1, 0.1, 2.0, 5.0, 0.01),
 ///     ModelParams::new(0.000_1, 0.000_1, 2.0, 5.0, 0.0),
 ///     &TopologyZoo::EliBackbone.geo_location(),
-/// )).unwrap();
+/// ));
 ///
 /// // execute the event and measure the time
 /// net.withdraw_external_route(ads[0][0], prefix)?;
