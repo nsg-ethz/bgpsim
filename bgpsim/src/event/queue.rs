@@ -27,6 +27,11 @@ use std::collections::{BTreeMap, HashMap, VecDeque};
 use super::Event;
 
 /// Interface of an event queue.
+///
+/// *Note*: A custom `EventQueue` implementation is allowed to drop events that are pushed into the
+/// queue. This filtering can be done in `push` or `pop`. In case it is done in `pop`, then the
+/// functions `peek`, `len`, and `is_empty` are not required to apply the filter, but can
+/// overestimate the queue.
 pub trait EventQueue<P: Prefix> {
     /// Type of the priority.
     type Priority: Default + FmtPriority + Clone;
@@ -49,17 +54,31 @@ pub trait EventQueue<P: Prefix> {
         events.into_iter().for_each(|e| self.push(e, routers, net))
     }
 
-    /// pop the next event
+    /// Pop the next event.
     fn pop(&mut self) -> Option<Event<P, Self::Priority>>;
 
-    /// peek the next event
+    /// peek the next event.
+    ///
+    /// *Note*: `Self::peek` is allowed to return an event that is actually not returned by
+    /// `Self::pop`. You must, however, maintain the invariant that `Self::peek` **cannot** return
+    /// `None` while `Self::pop` returns `Some(e)`.
     fn peek(&self) -> Option<&Event<P, Self::Priority>>;
 
     /// Get the number of enqueued events
+    ///
+    /// *Note*: `Self::len` is allowed to overapproximate the number of events that are actually
+    /// returned by `Self::pop`. You must, however, maintain the invariant that `Self::len`
+    /// **cannot** return 0 while `Self::pop` returns `Some(e)`.
     fn len(&self) -> usize;
 
     /// Return `True` if no event is enqueued.
-    fn is_empty(&self) -> bool;
+    ///
+    /// *Note*: `Self::is_empty` is allowed to return `false`, even through `Self::pop` will return
+    /// `None`. This function, however, is not allowed to return `true` while `Self::pop` returns
+    /// `Some(e)`.
+    fn is_empty(&self) -> bool {
+        self.peek().is_none()
+    }
 
     /// Remove all events from the queue.
     fn clear(&mut self);
