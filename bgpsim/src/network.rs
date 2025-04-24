@@ -424,20 +424,15 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
 }
 
 impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
-    /// Swap out the queue with a different one. This requires that the queue is empty! If it is
-    /// not, then nothing is changed.
-    #[allow(clippy::result_large_err)]
-    pub fn swap_queue<QA>(self, mut queue: QA) -> Result<Network<P, QA, Ospf>, Self>
+    /// Swap out the queue with a different one. The caller is responsible to ensure that the two
+    /// queues contain an equivalent set of events.
+    pub fn swap_queue<QA>(self, mut queue: QA) -> Network<P, QA, Ospf>
     where
         QA: EventQueue<P>,
     {
-        if !self.queue.is_empty() {
-            return Err(self);
-        }
-
         queue.update_params(&self.routers, &self.net);
 
-        Ok(Network {
+        Network {
             net: self.net,
             ospf: self.ospf,
             routers: self.routers,
@@ -446,7 +441,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
             stop_after: self.stop_after,
             queue,
             skip_queue: self.skip_queue,
-        })
+        }
     }
 
     /// This function creates an link in the network. The link will have weight fo 100.0 for both
