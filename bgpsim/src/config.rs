@@ -72,7 +72,6 @@
 use log::debug;
 
 use crate::{
-    bgp::BgpSessionType,
     event::EventQueue,
     formatter::NetworkFormatter,
     network::Network,
@@ -850,20 +849,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     source,
                     target,
                     target_is_client,
-                } => {
-                    let ty = Some(
-                        if self.get_device(*source)?.is_external()
-                            || self.get_device(*target)?.is_external()
-                        {
-                            BgpSessionType::EBgp
-                        } else if *target_is_client {
-                            BgpSessionType::IBgpClient
-                        } else {
-                            BgpSessionType::IBgpPeer
-                        },
-                    );
-                    self.set_bgp_session(*source, *target, ty)
-                }
+                } => self.set_bgp_session(*source, *target, Some(*target_is_client)),
                 ConfigExpr::BgpRouteMap {
                     router,
                     neighbor,
@@ -1069,14 +1055,13 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
         }
 
         // get all BGP sessions
-        for ((source, target), session_type) in &self.bgp_sessions {
+        for ((source, target), target_is_client) in &self.bgp_sessions {
             // skip removed sessions.
-            let Some(session_type) = session_type else {
+            let Some(target_is_client) = target_is_client else {
                 continue;
             };
 
-            let (src, dst, session_type) = (*source, *target, *session_type);
-            let target_is_client = matches!(session_type, BgpSessionType::IBgpClient);
+            let (src, dst, target_is_client) = (*source, *target, *target_is_client);
 
             // try to add the session to the configuration.
             match c.add(ConfigExpr::BgpSession {

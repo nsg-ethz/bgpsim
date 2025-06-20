@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use crate::{
-    bgp::{BgpEvent, BgpRoute, BgpSessionType::*},
+    bgp::{BgpEvent, BgpRoute},
     config::{Config, ConfigExpr::*, NetworkConfig},
     network::{Network, DEFAULT_INTERNAL_ASN as INTERNAL_ASN},
     ospf::local::{LocalNeighborhoodChange, LocalOspfProcess},
@@ -285,14 +285,14 @@ mod ipv4 {
         net.set_link_weight(r4, r2, 1.0).unwrap();
         net.set_link_weight(r4, r3, 1.0).unwrap();
 
-        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r2, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r2, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r3, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, e1, Some(EBgp)).unwrap();
-        net.set_bgp_session(r4, e4, Some(EBgp)).unwrap();
+        net.set_bgp_session(r1, r2, Some(false)).unwrap();
+        net.set_bgp_session(r1, r3, Some(false)).unwrap();
+        net.set_bgp_session(r1, r4, Some(false)).unwrap();
+        net.set_bgp_session(r2, r3, Some(false)).unwrap();
+        net.set_bgp_session(r2, r4, Some(false)).unwrap();
+        net.set_bgp_session(r3, r4, Some(false)).unwrap();
+        net.set_bgp_session(r1, e1, Some(false)).unwrap();
+        net.set_bgp_session(r4, e4, Some(false)).unwrap();
 
         net.advertise_external_route(e1, prefix!("100.0.0.0/16"), [1, 10], None, None)
             .unwrap();
@@ -393,8 +393,14 @@ mod ipv4 {
             .unwrap();
 
         // add the bgp sessions
-        router.bgp.set_session::<()>(e1, Some(EBgp)).unwrap();
-        router.bgp.set_session::<()>(e2, Some(EBgp)).unwrap();
+        router
+            .bgp
+            .set_session::<()>(e1, Some((ASN(1), false)))
+            .unwrap();
+        router
+            .bgp
+            .set_session::<()>(e2, Some((ASN(2), false)))
+            .unwrap();
 
         router.bgp.update_igp(&router.ospf);
 

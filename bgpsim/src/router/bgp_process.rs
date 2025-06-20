@@ -61,7 +61,7 @@ pub struct BgpProcess<P: Prefix> {
     /// The cost to reach all internal routers
     pub(crate) igp_cost: HashMap<RouterId, LinkWeight>,
     /// hashmap of all bgp sessions
-    pub(crate) sessions: HashMap<RouterId, BgpSessionType>,
+    pub(crate) sessions: HashMap<RouterId, (ASN, bool, BgpSessionType)>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
     /// to another hashmap, which maps the received router id to the entry. This way, we can store
     /// one entry for every prefix and every session.
@@ -129,14 +129,24 @@ impl<P: Prefix> BgpProcess<P> {
         Ok(entries)
     }
 
-    /// Returns an interator over all BGP sessions
-    pub fn get_sessions(&self) -> &HashMap<RouterId, BgpSessionType> {
+    /// Returns an interator over all BGP sessions. The first value is the peer ASN, the second one
+    /// is whether the peer is a client or not, and the third summarizes this info into the BGP
+    /// session type.
+    pub fn get_sessions(&self) -> &HashMap<RouterId, (ASN, bool, BgpSessionType)> {
         &self.sessions
+    }
+
+    /// Returns the BGP session information: the remote ASN, and whether it is configured as a
+    /// client.
+    pub fn get_session_info(&self, neighbor: RouterId) -> Option<(ASN, bool)> {
+        self.sessions
+            .get(&neighbor)
+            .map(|(asn, client, _)| (*asn, *client))
     }
 
     /// Returns the bgp session type.
     pub fn get_session_type(&self, neighbor: RouterId) -> Option<BgpSessionType> {
-        self.sessions.get(&neighbor).copied()
+        self.sessions.get(&neighbor).map(|(_, _, ty)| *ty)
     }
 
     /// Get a specific route map item with the given order, or `None`.
@@ -220,7 +230,7 @@ impl<P: Prefix> BgpProcess<P> {
      * Configuration Functions
      */
 
-    /// Set a BGP session with a neighbor. If `session_type` is `None`, then any potentially
+    /// Set a BGP session with a neighbor. If `target_is_client` is `None`, then any potentially
     /// existing session will be removed. Otherwise, any existing session will be replaced by he new
     /// type. Finally, the BGP tables are updated, and events are generated. This function will
     /// return the old session type (if it exists). This function will also return the set of events
@@ -228,10 +238,11 @@ impl<P: Prefix> BgpProcess<P> {
     pub(crate) fn set_session<T: Default>(
         &mut self,
         target: RouterId,
-        session_type: Option<BgpSessionType>,
+        info: Option<(ASN, bool)>,
     ) -> UpdateOutcome<BgpSessionType, P, T> {
-        let old_type = if let Some(ty) = session_type {
-            self.sessions.insert(target, ty)
+        let old_info = if let Some((target_asn, c)) = info {
+            let ty = BgpSessionType::new(self.asn, target_asn, c);
+            self.sessions.insert(target, (target_asn, c, ty))
         } else {
             for prefix in self.known_prefixes.iter() {
                 // remove the entry in the rib tables
@@ -245,7 +256,8 @@ impl<P: Prefix> BgpProcess<P> {
         };
 
         // udpate the tables
-        self.update_tables(true).map(|events| (old_type, events))
+        self.update_tables(true)
+            .map(|events| (old_info.map(|(_, _, x)| x), events))
     }
 
     /// Update or remove a route-map from the router. If a route-map with the same order (for the
@@ -579,7 +591,7 @@ impl<P: Prefix> BgpProcess<P> {
 
         let rib_best = self.rib.get(&prefix);
 
-        for (peer, peer_type) in self.sessions.iter() {
+        for (peer, (_, _, peer_type)) in self.sessions.iter() {
             // get the current route
             let current_route: Option<&BgpRibEntry<P>> =
                 self.rib_out.get(&prefix).and_then(|x| x.get(peer));
@@ -654,7 +666,7 @@ impl<P: Prefix> BgpProcess<P> {
         route: BgpRoute<P>,
         from: RouterId,
     ) -> Result<(P, bool), DeviceError> {
-        let from_type = *self
+        let (_, _, from_type) = *self
             .sessions
             .get(&from)
             .ok_or(DeviceError::NoBgpSession(from))?;
@@ -753,7 +765,7 @@ impl<P: Prefix> BgpProcess<P> {
         mut entry: BgpRibEntry<P>,
         target_peer: RouterId,
     ) -> Result<Option<BgpRibEntry<P>>, DeviceError> {
-        let target_session_type = *self
+        let (_, _, target_session_type) = *self
             .sessions
             .get(&target_peer)
             .ok_or(DeviceError::NoBgpSession(target_peer))?;

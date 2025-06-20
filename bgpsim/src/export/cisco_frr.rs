@@ -31,7 +31,6 @@ use crate::{
     config::{ConfigExpr, ConfigModifier},
     network::Network,
     ospf::{InternalEdge, OspfArea, OspfImpl, OspfProcess},
-    prelude::BgpSessionType,
     route_map::{
         RouteMap, RouteMapDirection as RmDir, RouteMapFlow, RouteMapMatch, RouteMapMatchAsPath,
         RouteMapSet, RouteMapState,
@@ -352,15 +351,9 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         router_bgp.network(addressor.internal_network());
 
         // create each neighbor
-        for (n, ty) in router.bgp.get_sessions().iter().sorted_by_key(|(x, _)| *x) {
+        for (n, (_, client, _)) in router.bgp.get_sessions().iter().sorted_by_key(|(x, _)| *x) {
             let rm_name = rm_name(net, *n);
-            router_bgp.neighbor(self.bgp_neigbor_config(
-                net,
-                addressor,
-                *n,
-                matches!(ty, BgpSessionType::IBgpClient),
-                &rm_name,
-            )?);
+            router_bgp.neighbor(self.bgp_neigbor_config(net, addressor, *n, *client, &rm_name)?);
 
             // build the default route-map to permit everything
             default_rm.push_str(

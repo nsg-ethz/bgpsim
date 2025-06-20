@@ -16,7 +16,6 @@
 //! Test the `record` module
 
 use crate::{
-    bgp::BgpSessionType::*,
     event::EventQueue,
     network::Network,
     record::RecordNetwork,
@@ -60,11 +59,11 @@ where
     net.set_link_weight(r1, r0, 1.0)?;
     net.set_link_weight(r1, b1, 1.0)?;
     net.set_link_weight(b1, r1, 1.0)?;
-    net.set_bgp_session(e0, b0, Some(EBgp))?;
-    net.set_bgp_session(r0, b0, Some(IBgpClient))?;
-    net.set_bgp_session(r0, r1, Some(IBgpPeer))?;
-    net.set_bgp_session(r1, b1, Some(IBgpClient))?;
-    net.set_bgp_session(e1, b1, Some(EBgp))?;
+    net.set_bgp_session(e0, b0, Some(false))?;
+    net.set_bgp_session(r0, b0, Some(true))?;
+    net.set_bgp_session(r0, r1, Some(false))?;
+    net.set_bgp_session(r1, b1, Some(true))?;
+    net.set_bgp_session(e1, b1, Some(false))?;
 
     Ok((e0, b0, r0, r1, b1, e1))
 }

@@ -218,12 +218,12 @@ impl Net {
                     SessionType::try_from(ty).expect("Already checked!"),
                     is_external,
                 ) {
-                    (_, true) => quote! {::bgpsim::prelude::BgpSessionType::EBgp},
+                    (_, true) => quote! {false},
                     (SessionType::Empty, false) | (SessionType::IBgpPeer, false) => {
-                        quote! {::bgpsim::prelude::BgpSessionType::IBgpPeer}
+                        quote! {false}
                     }
                     (SessionType::IBgpClient, false) => {
-                        quote! {::bgpsim::prelude::BgpSessionType::IBgpClient}
+                        quote! {true}
                     }
                     _ => unreachable!(),
                 };

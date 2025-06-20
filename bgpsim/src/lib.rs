@@ -112,11 +112,11 @@
 //!     t.set_link_weight(r1, r0, 1.0)?;
 //!     t.set_link_weight(r1, b1, 1.0)?;
 //!     t.set_link_weight(b1, r1, 1.0)?;
-//!     t.set_bgp_session(e0, b0, Some(BgpSessionType::EBgp))?;
-//!     t.set_bgp_session(r0, b0, Some(BgpSessionType::IBgpClient))?;
-//!     t.set_bgp_session(r0, r1, Some(BgpSessionType::IBgpPeer))?;
-//!     t.set_bgp_session(r1, b1, Some(BgpSessionType::IBgpClient))?;
-//!     t.set_bgp_session(e1, b1, Some(BgpSessionType::EBgp))?;
+//!     t.set_bgp_session(e0, b0, Some(false))?;
+//!     t.set_bgp_session(r0, b0, Some(true))?;
+//!     t.set_bgp_session(r0, r1, Some(false))?;
+//!     t.set_bgp_session(r1, b1, Some(true))?;
+//!     t.set_bgp_session(e1, b1, Some(false))?;
 //!
 //!     // advertise the same prefix on both routers
 //!     t.advertise_external_route(e0, prefix, &[1, 2, 3], None, None)?;

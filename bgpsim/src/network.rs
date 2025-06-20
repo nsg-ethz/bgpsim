@@ -19,7 +19,7 @@
 //! network.
 
 use crate::{
-    bgp::{BgpSessionType, BgpState, BgpStateRef, Community},
+    bgp::{BgpState, BgpStateRef, Community},
     config::{NetworkConfig, RouteMapEdit},
     event::{BasicEventQueue, Event, EventQueue},
     external_router::ExternalRouter,
@@ -91,7 +91,7 @@ pub struct Network<
     pub(crate) ospf: OspfNetwork<Ospf::Coordinator>,
     pub(crate) routers: HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     #[serde_as(as = "Vec<(_, _)>")]
-    pub(crate) bgp_sessions: HashMap<(RouterId, RouterId), Option<BgpSessionType>>,
+    pub(crate) bgp_sessions: HashMap<(RouterId, RouterId), Option<bool>>,
     pub(crate) known_prefixes: P::Set,
     pub(crate) stop_after: Option<usize>,
     pub(crate) queue: Q,
@@ -523,16 +523,16 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
         Ok(())
     }
 
-    /// Setup a BGP session between source and target. If `session_type` is `None`, then any
-    /// existing session will be removed. Otherwise, any existing session will be replaced by the
-    /// `session_type`.
+    /// Setup a BGP session between source and target. If `ty` is `None`, then any existing session
+    /// will be removed. Otherwise, any existing session will be replaced by the type (whether
+    /// target is a client or not).
     pub fn set_bgp_session(
         &mut self,
         source: RouterId,
         target: RouterId,
-        session_type: Option<BgpSessionType>,
+        ty: Option<bool>,
     ) -> Result<(), NetworkError> {
-        self._set_bgp_session(source, target, session_type)?;
+        self._set_bgp_session(source, target, ty)?;
 
         // refresh the active BGP sessions in the network
         self.refresh_bgp_sessions()?;
@@ -542,10 +542,10 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// Set BGP sessions from an iterator.
     pub fn set_bgp_session_from<I>(&mut self, sessions: I) -> Result<(), NetworkError>
     where
-        I: IntoIterator<Item = (RouterId, RouterId, Option<BgpSessionType>)>,
+        I: IntoIterator<Item = (RouterId, RouterId, Option<bool>)>,
     {
-        for (source, target, session_type) in sessions.into_iter() {
-            self._set_bgp_session(source, target, session_type)?;
+        for (source, target, ty) in sessions.into_iter() {
+            self._set_bgp_session(source, target, ty)?;
         }
 
         // refresh the active BGP sessions in the network
@@ -867,56 +867,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
         &mut self,
         source: RouterId,
         target: RouterId,
-        session_type: Option<BgpSessionType>,
+        ty: Option<bool>,
     ) -> Result<(), NetworkError> {
-        let is_source_external = self.get_device(source)?.is_external();
-        let is_target_external = self.get_device(target)?.is_external();
-        let (source_type, target_type) = match session_type {
-            Some(BgpSessionType::IBgpPeer) => {
-                if is_source_external || is_target_external {
-                    Err(NetworkError::InvalidBgpSessionType(
-                        source,
-                        target,
-                        BgpSessionType::IBgpPeer,
-                    ))
-                } else {
-                    Ok((
-                        Some(BgpSessionType::IBgpPeer),
-                        Some(BgpSessionType::IBgpPeer),
-                    ))
-                }
-            }
-            Some(BgpSessionType::IBgpClient) => {
-                if is_source_external || is_target_external {
-                    Err(NetworkError::InvalidBgpSessionType(
-                        source,
-                        target,
-                        BgpSessionType::IBgpClient,
-                    ))
-                } else {
-                    Ok((
-                        Some(BgpSessionType::IBgpClient),
-                        Some(BgpSessionType::IBgpPeer),
-                    ))
-                }
-            }
-            Some(BgpSessionType::EBgp) => {
-                if !(is_source_external || is_target_external) {
-                    Err(NetworkError::InvalidBgpSessionType(
-                        source,
-                        target,
-                        BgpSessionType::EBgp,
-                    ))
-                } else {
-                    Ok((Some(BgpSessionType::EBgp), Some(BgpSessionType::EBgp)))
-                }
-            }
-            None => Ok((None, None)),
-        }?;
-
-        // set the bgp sessions locally in the network.
-        self.bgp_sessions.insert((source, target), source_type);
-        self.bgp_sessions.insert((target, source), target_type);
+        self.bgp_sessions.insert((source, target), ty);
+        self.bgp_sessions
+            .insert((target, source), ty.map(|_| false));
         Ok(())
     }
 
@@ -939,17 +894,17 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
             })
             .collect();
 
-        for (source, target, ty) in effective_sessions {
-            let target_name = self
+        for (source, target, target_is_client) in effective_sessions {
+            let (target_name, target_asn) = self
                 .routers
                 .get(&target)
-                .map(|x| x.name())
-                .unwrap_or("?")
-                .to_string();
+                .map(|x| (x.name().to_string(), x.asn()))
+                .unwrap_or(("?".to_string(), ASN(0)));
+            let info = target_is_client.map(|x| (target_asn, x));
             let events = match self.routers.get_mut(&source) {
                 Some(NetworkDevice::InternalRouter(r)) => {
-                    if r.bgp.get_session_type(target) != ty && source < target {
-                        let action = if ty.is_some() {
+                    if r.bgp.get_session_info(target) != info && source < target {
+                        let action = if info.is_some() {
                             "established"
                         } else {
                             "broke down"
@@ -959,11 +914,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
                             r.name(),
                         );
                     }
-                    r.bgp.set_session(target, ty)?.1
+                    r.bgp.set_session(target, info)?.1
                 }
                 Some(NetworkDevice::ExternalRouter(r)) => {
                     let was_connected = r.get_bgp_sessions().contains(&target);
-                    let is_connected = ty.is_some();
+                    let is_connected = info.is_some();
                     if was_connected != is_connected && source < target {
                         let action = if is_connected {
                             "established"

@@ -14,7 +14,6 @@
 // limitations under the License.
 
 use crate::{
-    bgp::BgpSessionType::*,
     config::{Config, ConfigExpr, ConfigModifier::*, ConfigPatch, NetworkConfig, RouteMapEdit},
     event::{BasicEventQueue, EventQueue},
     interactive::InteractiveNetwork,
@@ -915,8 +914,8 @@ mod t {
         net.add_link(r1, ex).unwrap();
         net.set_link_weight(r1, r2, 1.0).unwrap();
         net.set_link_weight(r2, r1, 1.0).unwrap();
-        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, ex, Some(EBgp)).unwrap();
+        net.set_bgp_session(r1, r2, Some(false)).unwrap();
+        net.set_bgp_session(r1, ex, Some(false)).unwrap();
         net.set_bgp_route_map(
             r1,
             r2,

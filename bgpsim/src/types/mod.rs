@@ -271,6 +271,14 @@ impl<P: Prefix, Ospf> NetworkDevice<P, Ospf> {
         matches!(self, Self::ExternalRouter(_))
     }
 
+    /// Get the AsId of the device.
+    pub fn asn(&self) -> ASN {
+        match self {
+            Self::InternalRouter(r) => r.asn(),
+            Self::ExternalRouter(r) => r.asn(),
+        }
+    }
+
     /// Get the name of the device.
     pub(crate) fn name(&self) -> &str {
         match self {
@@ -457,7 +465,12 @@ impl<'a, P: Prefix, Ospf> NetworkDeviceRef<'a, P, Ospf> {
     /// device.
     pub fn bgp_sessions(&self) -> Vec<(RouterId, BgpSessionType)> {
         match self {
-            Self::InternalRouter(r) => r.bgp.get_sessions().iter().map(|(r, t)| (*r, *t)).collect(),
+            Self::InternalRouter(r) => r
+                .bgp
+                .get_sessions()
+                .iter()
+                .map(|(r, (_, _, t))| (*r, *t))
+                .collect(),
             Self::ExternalRouter(r) => r
                 .get_bgp_sessions()
                 .iter()

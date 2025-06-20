@@ -371,6 +371,20 @@ impl BgpSessionType {
     pub fn is_ibgp(&self) -> bool {
         !self.is_ebgp()
     }
+
+    /// Create a new BGP session type from the source and target ASN, and whether the target is a
+    /// route reflector client.
+    pub fn new(source_asn: ASN, target_asn: ASN, target_is_client: bool) -> Self {
+        if source_asn == target_asn {
+            if target_is_client {
+                BgpSessionType::IBgpClient
+            } else {
+                BgpSessionType::IBgpPeer
+            }
+        } else {
+            BgpSessionType::EBgp
+        }
+    }
 }
 
 /// BGP Events

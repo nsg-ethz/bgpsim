@@ -21,13 +21,12 @@ mod t {
     use std::collections::{BTreeMap, BTreeSet};
 
     use crate::{
-        bgp::{BgpRoute, BgpSessionType::*},
+        bgp::BgpRoute,
         builder::{constant_link_weight, equal_preferences, NetworkBuilder},
         config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
         event::BasicEventQueue,
         network::{Network, DEFAULT_INTERNAL_ASN},
         ospf::{global::GlobalOspf, local::LocalOspf, OspfImpl, OspfProcess},
-        prelude::BgpSessionType,
         route_map::{
             RouteMap, RouteMapDirection::*, RouteMapFlow::*, RouteMapSet as Set, RouteMapState::*,
         },
@@ -105,16 +104,16 @@ mod t {
         net.set_link_weight(*R4, *R3, 3.0).unwrap();
 
         // configure iBGP full mesh
-        net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R3, *R4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(*R1, *R2, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R3, *R4, Some(false)).unwrap();
 
         // configure eBGP sessions
-        net.set_bgp_session(*R1, *E1, Some(EBgp)).unwrap();
-        net.set_bgp_session(*R4, *E4, Some(EBgp)).unwrap();
+        net.set_bgp_session(*R1, *E1, Some(false)).unwrap();
+        net.set_bgp_session(*R4, *E4, Some(false)).unwrap();
 
         net
     }
@@ -126,16 +125,16 @@ mod t {
         let mut net = get_test_net_igp::<P, Ospf>();
 
         // configure iBGP full mesh
-        net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R3, *R4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(*R1, *R2, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R3, *R4, Some(false)).unwrap();
 
         // configure eBGP sessions
-        net.set_bgp_session(*R1, *E1, Some(EBgp)).unwrap();
-        net.set_bgp_session(*R4, *E4, Some(EBgp)).unwrap();
+        net.set_bgp_session(*R1, *E1, Some(false)).unwrap();
+        net.set_bgp_session(*R4, *E4, Some(false)).unwrap();
 
         net
     }
@@ -153,7 +152,7 @@ mod t {
             .unwrap_internal()
             .ospf
             .is_reachable(e));
-        net.set_bgp_session(r, e, Some(EBgp)).unwrap();
+        net.set_bgp_session(r, e, Some(false)).unwrap();
         net.advertise_external_route(e, p, [1], None, None).unwrap();
         test_route!(net, r, p, [r, e]);
     }
@@ -190,8 +189,8 @@ mod t {
         net.set_link_weight(*R4, r5, 1.0).unwrap();
         net.set_link_weight(r5, *R3, 1.0).unwrap();
         net.set_link_weight(r5, *R4, 1.0).unwrap();
-        net.set_bgp_session(*R1, r5, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R4, r5, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(*R1, r5, Some(false)).unwrap();
+        net.set_bgp_session(*R4, r5, Some(false)).unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
@@ -804,16 +803,16 @@ mod t {
         net.set_link_weight(*R4, *R3, 2.0).unwrap();
 
         // configure iBGP full mesh
-        net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R3, *R4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(*R1, *R2, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R3, *R4, Some(false)).unwrap();
 
         // configure eBGP sessions
-        net.set_bgp_session(*R1, *E1, Some(EBgp)).unwrap();
-        net.set_bgp_session(*R4, *E4, Some(EBgp)).unwrap();
+        net.set_bgp_session(*R1, *E1, Some(false)).unwrap();
+        net.set_bgp_session(*R4, *E4, Some(false)).unwrap();
 
         net
     }
@@ -919,10 +918,8 @@ mod t {
         // set the configuration
         net.build_link_weights(constant_link_weight, 1.0).unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.set_bgp_session(r1, r2, Some(BgpSessionType::IBgpPeer))
-            .unwrap();
-        net.set_bgp_session(r1, r3, Some(BgpSessionType::IBgpClient))
-            .unwrap();
+        net.set_bgp_session(r1, r2, Some(false)).unwrap();
+        net.set_bgp_session(r1, r3, Some(true)).unwrap();
 
         // advertise prefix
         net.advertise_external_route(e3, p, [3, 3, 30], None, None)

@@ -14,7 +14,6 @@
 // limitations under the License.
 
 use crate::{
-    bgp::BgpSessionType::*,
     event::EventQueue,
     network::Network,
     types::{NetworkError, Prefix, RouterId, SimplePrefix, ASN},
@@ -70,11 +69,11 @@ mod t {
         net.set_link_weight(r1, r0, 1.0).unwrap();
         net.set_link_weight(r1, b1, 1.0).unwrap();
         net.set_link_weight(b1, r1, 1.0).unwrap();
-        net.set_bgp_session(e0, b0, Some(EBgp)).unwrap();
-        net.set_bgp_session(r0, b0, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r0, r1, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, b1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(e1, b1, Some(EBgp)).unwrap();
+        net.set_bgp_session(e0, b0, Some(false)).unwrap();
+        net.set_bgp_session(r0, b0, Some(true)).unwrap();
+        net.set_bgp_session(r0, r1, Some(false)).unwrap();
+        net.set_bgp_session(r1, b1, Some(true)).unwrap();
+        net.set_bgp_session(e1, b1, Some(false)).unwrap();
 
         (e0, b0, r0, r1, b1, e1)
     }
@@ -211,10 +210,10 @@ mod t {
         net.set_link_weight(r3, r2, 1.0).unwrap();
         net.set_link_weight(r4, r2, 1.0).unwrap();
         net.set_link_weight(r4, r3, 3.0).unwrap();
-        net.set_bgp_session(r1, e1, Some(EBgp)).unwrap();
-        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(r1, e1, Some(false)).unwrap();
+        net.set_bgp_session(r1, r2, Some(false)).unwrap();
+        net.set_bgp_session(r1, r3, Some(false)).unwrap();
+        net.set_bgp_session(r1, r4, Some(false)).unwrap();
 
         (e1, r1, r2, r3, r4, e4)
     }
@@ -238,9 +237,9 @@ mod t {
         test_route!(net, r4, prefix, [r4, r2, r1, e1]);
 
         // insert new sessions
-        net.set_bgp_session(r2, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r3, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r4, e4, Some(EBgp)).unwrap();
+        net.set_bgp_session(r2, r4, Some(false)).unwrap();
+        net.set_bgp_session(r3, r4, Some(false)).unwrap();
+        net.set_bgp_session(r4, e4, Some(false)).unwrap();
 
         // remove all old sessions
         net.set_bgp_session(r1, r2, None).unwrap();
@@ -275,9 +274,9 @@ mod t {
         test_route!(net, r4, prefix, [r4, r2, r1, e1]);
 
         // insert new sessions
-        net.set_bgp_session(r2, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r3, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r4, e4, Some(EBgp)).unwrap();
+        net.set_bgp_session(r2, r4, Some(false)).unwrap();
+        net.set_bgp_session(r3, r4, Some(false)).unwrap();
+        net.set_bgp_session(r4, e4, Some(false)).unwrap();
 
         // remove all old sessions
         net.set_bgp_session(r1, r2, None).unwrap();
@@ -325,11 +324,11 @@ mod t {
         net.set_link_weight(r1, r0, 1.0).unwrap();
         net.set_link_weight(r0, b1, 1.0).unwrap();
         net.set_link_weight(b1, r0, 1.0).unwrap();
-        net.set_bgp_session(e0, b0, Some(EBgp)).unwrap();
-        net.set_bgp_session(r0, b0, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r0, r1, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, b1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(e1, b1, Some(EBgp)).unwrap();
+        net.set_bgp_session(e0, b0, Some(false)).unwrap();
+        net.set_bgp_session(r0, b0, Some(true)).unwrap();
+        net.set_bgp_session(r0, r1, Some(false)).unwrap();
+        net.set_bgp_session(r1, b1, Some(true)).unwrap();
+        net.set_bgp_session(e1, b1, Some(false)).unwrap();
 
         // advertise the same prefix on both routers
         net.advertise_external_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
@@ -379,11 +378,11 @@ mod t {
         net.set_link_weight(r1, r0, 1.0).unwrap();
         net.set_link_weight(r0, b1, 1.0).unwrap();
         net.set_link_weight(b1, r0, 1.0).unwrap();
-        net.set_bgp_session(e0, b0, Some(EBgp)).unwrap();
-        net.set_bgp_session(r0, b0, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r0, r1, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, b1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(e1, b1, Some(EBgp)).unwrap();
+        net.set_bgp_session(e0, b0, Some(false)).unwrap();
+        net.set_bgp_session(r0, b0, Some(true)).unwrap();
+        net.set_bgp_session(r0, r1, Some(false)).unwrap();
+        net.set_bgp_session(r1, b1, Some(true)).unwrap();
+        net.set_bgp_session(e1, b1, Some(false)).unwrap();
 
         // advertise the same prefix on both routers
         net.advertise_external_route(e1, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
@@ -448,15 +447,15 @@ mod t {
         net.set_link_weight(b2, r1, 1.0).unwrap();
         net.set_link_weight(r2, b0, 1.0).unwrap();
         net.set_link_weight(b0, r2, 1.0).unwrap();
-        net.set_bgp_session(r0, b0, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r1, b1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, b2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r0, r1, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r0, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(b0, e0, Some(EBgp)).unwrap();
-        net.set_bgp_session(b1, e1, Some(EBgp)).unwrap();
-        net.set_bgp_session(b2, e2, Some(EBgp)).unwrap();
+        net.set_bgp_session(r0, b0, Some(true)).unwrap();
+        net.set_bgp_session(r1, b1, Some(true)).unwrap();
+        net.set_bgp_session(r2, b2, Some(true)).unwrap();
+        net.set_bgp_session(r0, r1, Some(false)).unwrap();
+        net.set_bgp_session(r0, r2, Some(false)).unwrap();
+        net.set_bgp_session(r1, r2, Some(false)).unwrap();
+        net.set_bgp_session(b0, e0, Some(false)).unwrap();
+        net.set_bgp_session(b1, e1, Some(false)).unwrap();
+        net.set_bgp_session(b2, e2, Some(false)).unwrap();
 
         net.set_msg_limit(Some(1000));
 
@@ -556,19 +555,19 @@ mod t {
         net.set_link_weight(e2, rr, 100.0).unwrap();
         net.set_link_weight(rr, e3, 3.0).unwrap();
         net.set_link_weight(e3, rr, 100.0).unwrap();
-        net.set_bgp_session(rr, r1, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(rr, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(rr, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r2, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, e1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, e2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r3, e2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r3, e3, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(p1, e1, Some(EBgp)).unwrap();
-        net.set_bgp_session(p2, e2, Some(EBgp)).unwrap();
-        net.set_bgp_session(p3, e3, Some(EBgp)).unwrap();
+        net.set_bgp_session(rr, r1, Some(false)).unwrap();
+        net.set_bgp_session(rr, r2, Some(false)).unwrap();
+        net.set_bgp_session(rr, r3, Some(false)).unwrap();
+        net.set_bgp_session(r1, r2, Some(false)).unwrap();
+        net.set_bgp_session(r1, r3, Some(false)).unwrap();
+        net.set_bgp_session(r2, r3, Some(false)).unwrap();
+        net.set_bgp_session(r1, e1, Some(true)).unwrap();
+        net.set_bgp_session(r2, e2, Some(true)).unwrap();
+        net.set_bgp_session(r3, e2, Some(true)).unwrap();
+        net.set_bgp_session(r3, e3, Some(true)).unwrap();
+        net.set_bgp_session(p1, e1, Some(false)).unwrap();
+        net.set_bgp_session(p2, e2, Some(false)).unwrap();
+        net.set_bgp_session(p3, e3, Some(false)).unwrap();
 
         // apply the start configuration
         net.advertise_external_route(p1, prefix, vec![ASN(1)], None, None)
@@ -676,19 +675,19 @@ mod t {
         net.set_link_weight(e2, rr, 100.0).unwrap();
         net.set_link_weight(rr, e3, 3.0).unwrap();
         net.set_link_weight(e3, rr, 100.0).unwrap();
-        net.set_bgp_session(rr, r1, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(rr, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(rr, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r2, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, e1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, e2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r3, e2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r3, e3, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(p1, e1, Some(EBgp)).unwrap();
-        net.set_bgp_session(p2, e2, Some(EBgp)).unwrap();
-        net.set_bgp_session(p3, e3, Some(EBgp)).unwrap();
+        net.set_bgp_session(rr, r1, Some(false)).unwrap();
+        net.set_bgp_session(rr, r2, Some(false)).unwrap();
+        net.set_bgp_session(rr, r3, Some(false)).unwrap();
+        net.set_bgp_session(r1, r2, Some(false)).unwrap();
+        net.set_bgp_session(r1, r3, Some(false)).unwrap();
+        net.set_bgp_session(r2, r3, Some(false)).unwrap();
+        net.set_bgp_session(r1, e1, Some(true)).unwrap();
+        net.set_bgp_session(r2, e2, Some(true)).unwrap();
+        net.set_bgp_session(r3, e2, Some(true)).unwrap();
+        net.set_bgp_session(r3, e3, Some(true)).unwrap();
+        net.set_bgp_session(p1, e1, Some(false)).unwrap();
+        net.set_bgp_session(p2, e2, Some(false)).unwrap();
+        net.set_bgp_session(p3, e3, Some(false)).unwrap();
 
         net.advertise_external_route(p1, prefix, vec![ASN(1)], None, None)
             .unwrap();
@@ -706,7 +705,7 @@ mod t {
         // modify r1
         net.set_bgp_session(r1, r2, None).unwrap();
         net.set_bgp_session(r1, r3, None).unwrap();
-        net.set_bgp_session(rr, r1, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(rr, r1, Some(true)).unwrap();
 
         test_route!(net, r1, prefix, [r1, e1, p1]);
         test_route!(net, r2, prefix, [r2, e2, p2]);
@@ -715,7 +714,7 @@ mod t {
 
         // modify r2
         net.set_bgp_session(r2, r3, None).unwrap();
-        net.set_bgp_session(rr, r2, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(rr, r2, Some(true)).unwrap();
 
         test_route!(net, r1, prefix, [r1, e1, p1]);
         test_route!(net, r2, prefix, [r2, e1, p1]);
@@ -723,7 +722,7 @@ mod t {
         test_route!(net, rr, prefix, [rr, e1, p1]);
 
         // modify r3
-        net.set_bgp_session(rr, r3, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(rr, r3, Some(true)).unwrap();
 
         test_route!(net, r1, prefix, [r1, e1, p1]);
         test_route!(net, r2, prefix, [r2, e1, p1]);
@@ -789,16 +788,16 @@ mod t {
         net.set_link_weight(r2, r1, 1.0).unwrap();
         net.set_link_weight(e1, r1, 1.0).unwrap();
         net.set_link_weight(e0, r2, 1.0).unwrap();
-        net.set_bgp_session(s, rr1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(s, rr2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(rr1, r1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(rr2, r2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r1, e0, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, e0, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, e1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(s, ps, Some(EBgp)).unwrap();
-        net.set_bgp_session(e0, p0, Some(EBgp)).unwrap();
-        net.set_bgp_session(e1, p1, Some(EBgp)).unwrap();
+        net.set_bgp_session(s, rr1, Some(true)).unwrap();
+        net.set_bgp_session(s, rr2, Some(true)).unwrap();
+        net.set_bgp_session(rr1, r1, Some(true)).unwrap();
+        net.set_bgp_session(rr2, r2, Some(true)).unwrap();
+        net.set_bgp_session(r1, e0, Some(true)).unwrap();
+        net.set_bgp_session(r2, e0, Some(true)).unwrap();
+        net.set_bgp_session(r2, e1, Some(true)).unwrap();
+        net.set_bgp_session(s, ps, Some(false)).unwrap();
+        net.set_bgp_session(e0, p0, Some(false)).unwrap();
+        net.set_bgp_session(e1, p1, Some(false)).unwrap();
 
         net.advertise_external_route(ps, prefix, vec![ASN(1)], None, None)
             .unwrap();
@@ -823,7 +822,7 @@ mod t {
         test_bad_route!(fw_loop, net, r2, prefix, [], [r2, r1]);
 
         // add session r1 ---> e1
-        net.set_bgp_session(r1, e1, Some(IBgpClient)).unwrap();
+        net.set_bgp_session(r1, e1, Some(true)).unwrap();
 
         test_route!(net, s, prefix, [s, ps]);
         test_route!(net, rr1, prefix, [rr1, rr2, e1, p1]);
@@ -924,25 +923,25 @@ mod t2 {
         net.set_link_weight(e4, r3, 9.0).unwrap();
         net.set_link_weight(e2, r4, 1.0).unwrap();
         net.set_link_weight(e3, r4, 4.0).unwrap();
-        net.set_bgp_session(rr, r1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(rr, r2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(rr, r3, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(rr, r4, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r1, e1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r1, e3, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, e1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, e2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, e3, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r3, e2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r3, e3, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r3, e4, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r4, e2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r4, e4, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(e1, p1, Some(EBgp)).unwrap();
-        net.set_bgp_session(e2, p2, Some(EBgp)).unwrap();
-        net.set_bgp_session(e3, p3, Some(EBgp)).unwrap();
-        net.set_bgp_session(e4, p4, Some(EBgp)).unwrap();
-        net.set_bgp_session(rr, pr, Some(EBgp)).unwrap();
+        net.set_bgp_session(rr, r1, Some(true)).unwrap();
+        net.set_bgp_session(rr, r2, Some(true)).unwrap();
+        net.set_bgp_session(rr, r3, Some(true)).unwrap();
+        net.set_bgp_session(rr, r4, Some(true)).unwrap();
+        net.set_bgp_session(r1, e1, Some(true)).unwrap();
+        net.set_bgp_session(r1, e3, Some(true)).unwrap();
+        net.set_bgp_session(r2, e1, Some(true)).unwrap();
+        net.set_bgp_session(r2, e2, Some(true)).unwrap();
+        net.set_bgp_session(r2, e3, Some(true)).unwrap();
+        net.set_bgp_session(r3, e2, Some(true)).unwrap();
+        net.set_bgp_session(r3, e3, Some(true)).unwrap();
+        net.set_bgp_session(r3, e4, Some(true)).unwrap();
+        net.set_bgp_session(r4, e2, Some(true)).unwrap();
+        net.set_bgp_session(r4, e4, Some(true)).unwrap();
+        net.set_bgp_session(e1, p1, Some(false)).unwrap();
+        net.set_bgp_session(e2, p2, Some(false)).unwrap();
+        net.set_bgp_session(e3, p3, Some(false)).unwrap();
+        net.set_bgp_session(e4, p4, Some(false)).unwrap();
+        net.set_bgp_session(rr, pr, Some(false)).unwrap();
 
         net.set_bgp_route_map(
             e2,
@@ -1119,24 +1118,24 @@ mod t2 {
         net.set_link_weight(e1, r4, 8.0).unwrap();
         net.set_link_weight(e4, r4, 9.0).unwrap();
 
-        net.set_bgp_session(r1, e1, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r1, ex, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, ex, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r2, e2, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r3, e3, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r4, e4, Some(IBgpClient)).unwrap();
-        net.set_bgp_session(r1, r2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r2, r3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r2, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r3, r4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(r1, pr, Some(EBgp)).unwrap();
-        net.set_bgp_session(e1, p1, Some(EBgp)).unwrap();
-        net.set_bgp_session(ex, px, Some(EBgp)).unwrap();
-        net.set_bgp_session(e2, p2, Some(EBgp)).unwrap();
-        net.set_bgp_session(e3, p3, Some(EBgp)).unwrap();
-        net.set_bgp_session(e4, p4, Some(EBgp)).unwrap();
+        net.set_bgp_session(r1, e1, Some(true)).unwrap();
+        net.set_bgp_session(r1, ex, Some(true)).unwrap();
+        net.set_bgp_session(r2, ex, Some(true)).unwrap();
+        net.set_bgp_session(r2, e2, Some(true)).unwrap();
+        net.set_bgp_session(r3, e3, Some(true)).unwrap();
+        net.set_bgp_session(r4, e4, Some(true)).unwrap();
+        net.set_bgp_session(r1, r2, Some(false)).unwrap();
+        net.set_bgp_session(r1, r3, Some(false)).unwrap();
+        net.set_bgp_session(r1, r4, Some(false)).unwrap();
+        net.set_bgp_session(r2, r3, Some(false)).unwrap();
+        net.set_bgp_session(r2, r4, Some(false)).unwrap();
+        net.set_bgp_session(r3, r4, Some(false)).unwrap();
+        net.set_bgp_session(r1, pr, Some(false)).unwrap();
+        net.set_bgp_session(e1, p1, Some(false)).unwrap();
+        net.set_bgp_session(ex, px, Some(false)).unwrap();
+        net.set_bgp_session(e2, p2, Some(false)).unwrap();
+        net.set_bgp_session(e3, p3, Some(false)).unwrap();
+        net.set_bgp_session(e4, p4, Some(false)).unwrap();
 
         net.advertise_external_route(p1, prefix1, vec![ASN(1)], None, None)
             .unwrap();
@@ -1159,7 +1158,7 @@ mod t2 {
 
         // now, remove the session between ex and r2
         assert_eq!(
-            net.set_bgp_session(r3, e1, Some(IBgpClient)),
+            net.set_bgp_session(r3, e1, Some(true)),
             Err(NetworkError::NoConvergence)
         );
     }

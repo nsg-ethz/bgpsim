@@ -30,7 +30,7 @@ use crate::{
     event::EventQueue,
     network::{Network, DEFAULT_INTERNAL_ASN},
     ospf::{LinkWeight, OspfImpl},
-    prelude::{BgpSessionType, GlobalOspf},
+    prelude::GlobalOspf,
     route_map::{RouteMapBuilder, RouteMapDirection},
     types::{IndexType, NetworkError, Prefix, RouterId, ASN},
 };
@@ -418,7 +418,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             .internal_indices()
             .detach()
             .tuple_combinations()
-            .map(|(a, b)| (a, b, Some(BgpSessionType::IBgpPeer)));
+            .map(|(a, b)| (a, b, Some(false)));
 
         self.set_bgp_session_from(sessions)
     }
@@ -442,9 +442,9 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
                 let src_is_rr = route_reflectors.contains(&src);
                 let dst_is_rr = route_reflectors.contains(&dst);
                 match (src_is_rr, dst_is_rr) {
-                    (true, true) => sessions.push((src, dst, Some(BgpSessionType::IBgpPeer))),
-                    (true, false) => sessions.push((src, dst, Some(BgpSessionType::IBgpClient))),
-                    (false, true) => sessions.push((dst, src, Some(BgpSessionType::IBgpClient))),
+                    (true, true) => sessions.push((src, dst, Some(false))),
+                    (true, false) => sessions.push((src, dst, Some(true))),
+                    (false, true) => sessions.push((dst, src, Some(true))),
                     (false, false) => sessions.push((src, dst, None)),
                 }
             }
@@ -464,7 +464,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
                 {
                     continue;
                 }
-                sessions.push((neighbor, ext, Some(BgpSessionType::EBgp)));
+                sessions.push((neighbor, ext, Some(false)));
             }
         }
         self.set_bgp_session_from(sessions)
@@ -868,7 +868,7 @@ fn _build_gao_rexford<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
         };
 
         // first, add the BGP session (if it not already exists)
-        net.set_bgp_session(ext, int, Some(BgpSessionType::EBgp))?;
+        net.set_bgp_session(ext, int, Some(false))?;
 
         net.set_bgp_route_map(int, ext, RouteMapDirection::Incoming, in_rm)?;
         for out_rm in out_rms {

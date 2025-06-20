@@ -4,7 +4,6 @@ mod t {
     use std::fmt::Debug;
 
     use crate::{
-        bgp::BgpSessionType::*,
         event::{BasicEventQueue, PerRouterQueue},
         interactive::ParallelNetwork,
         network::Network,
@@ -80,16 +79,16 @@ mod t {
         net.set_link_weight(*R4, *R3, 3.0).unwrap();
 
         // configure iBGP full mesh
-        net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R3, *R4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(*R1, *R2, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R3, *R4, Some(false)).unwrap();
 
         // configure eBGP sessions
-        net.set_bgp_session(*R1, *E1, Some(EBgp)).unwrap();
-        net.set_bgp_session(*R4, *E4, Some(EBgp)).unwrap();
+        net.set_bgp_session(*R1, *E1, Some(false)).unwrap();
+        net.set_bgp_session(*R4, *E4, Some(false)).unwrap();
 
         net
     }
@@ -101,16 +100,16 @@ mod t {
         let mut net = get_test_net_igp::<P, Ospf>();
 
         // configure iBGP full mesh
-        net.set_bgp_session(*R1, *R2, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R1, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R3, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R2, *R4, Some(IBgpPeer)).unwrap();
-        net.set_bgp_session(*R3, *R4, Some(IBgpPeer)).unwrap();
+        net.set_bgp_session(*R1, *R2, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R1, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R3, Some(false)).unwrap();
+        net.set_bgp_session(*R2, *R4, Some(false)).unwrap();
+        net.set_bgp_session(*R3, *R4, Some(false)).unwrap();
 
         // configure eBGP sessions
-        net.set_bgp_session(*R1, *E1, Some(EBgp)).unwrap();
-        net.set_bgp_session(*R4, *E4, Some(EBgp)).unwrap();
+        net.set_bgp_session(*R1, *E1, Some(false)).unwrap();
+        net.set_bgp_session(*R4, *E4, Some(false)).unwrap();
 
         net
     }
