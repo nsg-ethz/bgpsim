@@ -707,13 +707,15 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conf
             ConfigExpr::BgpSession {
                 source,
                 target,
-                session_type,
+                target_is_client: true,
             } => format!(
-                "BGP Session: {} -> {}: type: {}",
+                "BGP Session: {} -> {} (RR client)",
                 source.fmt(net),
                 target.fmt(net),
-                session_type
             ),
+            ConfigExpr::BgpSession { source, target, .. } => {
+                format!("BGP Session: {} -> {}", source.fmt(net), target.fmt(net),)
+            }
             ConfigExpr::BgpRouteMap {
                 router,
                 neighbor,

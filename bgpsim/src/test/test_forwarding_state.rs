@@ -40,11 +40,11 @@ mod t {
     }
 
     macro_rules! bgp_session {
-        ($source:expr,$target:expr,$ty:expr) => {
+        ($source:expr,$target:expr,$client:expr) => {
             BgpSession {
                 source: $source,
                 target: $target,
-                session_type: $ty,
+                target_is_client: $client,
             }
         };
     }
@@ -132,25 +132,25 @@ mod t {
             c.add(link_weight!(b3, r4, 4.0)).unwrap();
 
             // bgp sessions
-            c.add(bgp_session!(rr, r1, IBgpClient)).unwrap();
-            c.add(bgp_session!(rr, r2, IBgpClient)).unwrap();
-            c.add(bgp_session!(rr, r3, IBgpClient)).unwrap();
-            c.add(bgp_session!(rr, r4, IBgpClient)).unwrap();
-            c.add(bgp_session!(r1, b1, IBgpClient)).unwrap();
-            c.add(bgp_session!(r1, b3, IBgpClient)).unwrap();
-            c.add(bgp_session!(r2, b1, IBgpClient)).unwrap();
-            c.add(bgp_session!(r2, b2, IBgpClient)).unwrap();
-            c.add(bgp_session!(r2, b3, IBgpClient)).unwrap();
-            c.add(bgp_session!(r3, b2, IBgpClient)).unwrap();
-            c.add(bgp_session!(r3, b3, IBgpClient)).unwrap();
-            c.add(bgp_session!(r3, b4, IBgpClient)).unwrap();
-            c.add(bgp_session!(r4, b2, IBgpClient)).unwrap();
-            c.add(bgp_session!(r4, b4, IBgpClient)).unwrap();
-            c.add(bgp_session!(b1, e1, EBgp)).unwrap();
-            c.add(bgp_session!(b2, e2, EBgp)).unwrap();
-            c.add(bgp_session!(b3, e3, EBgp)).unwrap();
-            c.add(bgp_session!(b4, e4, EBgp)).unwrap();
-            c.add(bgp_session!(rr, er, EBgp)).unwrap();
+            c.add(bgp_session!(rr, r1, true)).unwrap();
+            c.add(bgp_session!(rr, r2, true)).unwrap();
+            c.add(bgp_session!(rr, r3, true)).unwrap();
+            c.add(bgp_session!(rr, r4, true)).unwrap();
+            c.add(bgp_session!(r1, b1, true)).unwrap();
+            c.add(bgp_session!(r1, b3, true)).unwrap();
+            c.add(bgp_session!(r2, b1, true)).unwrap();
+            c.add(bgp_session!(r2, b2, true)).unwrap();
+            c.add(bgp_session!(r2, b3, true)).unwrap();
+            c.add(bgp_session!(r3, b2, true)).unwrap();
+            c.add(bgp_session!(r3, b3, true)).unwrap();
+            c.add(bgp_session!(r3, b4, true)).unwrap();
+            c.add(bgp_session!(r4, b2, true)).unwrap();
+            c.add(bgp_session!(r4, b4, true)).unwrap();
+            c.add(bgp_session!(b1, e1, false)).unwrap();
+            c.add(bgp_session!(b2, e2, false)).unwrap();
+            c.add(bgp_session!(b3, e3, false)).unwrap();
+            c.add(bgp_session!(b4, e4, false)).unwrap();
+            c.add(bgp_session!(rr, er, false)).unwrap();
 
             // local pref setting
             c.add(BgpRouteMap {

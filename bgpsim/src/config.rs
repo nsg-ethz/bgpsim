@@ -45,18 +45,18 @@
 //!     let mut c2 = Config::<SimplePrefix>::new();
 //!
 //!     // add the same bgp expression
-//!     c1.add(BgpSession { source: r0, target: r1, session_type: IBgpPeer })?;
-//!     c2.add(BgpSession { source: r0, target: r1, session_type: IBgpPeer })?;
+//!     c1.add(BgpSession { source: r0, target: r1, target_is_client: false })?;
+//!     c2.add(BgpSession { source: r0, target: r1, target_is_client: false })?;
 //!
 //!     // add one only to c1
-//!     c1.add(BgpSession { source: r0, target: r2, session_type: IBgpPeer })?;
+//!     c1.add(BgpSession { source: r0, target: r2, target_is_client: false })?;
 //!
 //!     // add one only to c2
-//!     c2.add(BgpSession { source: r0, target: r3, session_type: IBgpPeer })?;
+//!     c2.add(BgpSession { source: r0, target: r3, target_is_client: false })?;
 //!
 //!     // add one to both, but differently
-//!     c1.add(BgpSession { source: r0, target: r4, session_type: IBgpPeer })?;
-//!     c2.add(BgpSession { source: r0, target: r4, session_type: IBgpClient })?;
+//!     c1.add(BgpSession { source: r0, target: r4, target_is_client: false })?;
+//!     c2.add(BgpSession { source: r0, target: r4, target_is_client: true })?;
 //!
 //!     // Compute the patch (difference between c1 and c2)
 //!     let patch = c1.get_diff(&c2);
@@ -276,25 +276,8 @@ impl<P: Prefix> PartialEq for Config<P> {
         }
 
         for key in self.expr.keys() {
-            match (self.expr[key].clone(), other.expr[key].clone()) {
-                (
-                    ConfigExpr::BgpSession {
-                        source: s1,
-                        target: t1,
-                        session_type: ty1,
-                    },
-                    ConfigExpr::BgpSession {
-                        source: s2,
-                        target: t2,
-                        session_type: ty2,
-                    },
-                ) if ty1 == ty2 && ty1 == BgpSessionType::IBgpPeer => {
-                    if !((s1 == s2 && t1 == t2) || (s1 == t2 && t1 == s2)) {
-                        return false;
-                    }
-                }
-                (acq, exp) if acq != exp => return false,
-                _ => {}
+            if self.expr[key] != other.expr[key] {
+                return false;
             }
         }
         true
@@ -335,8 +318,8 @@ pub enum ConfigExpr<P: Prefix> {
         source: RouterId,
         /// Target router for Session
         target: RouterId,
-        /// Session type
-        session_type: BgpSessionType,
+        /// Whether the target is a route reflector client of the source
+        target_is_client: bool,
     },
     /// Set the BGP Route Map
     BgpRouteMap {
@@ -396,21 +379,16 @@ impl<P: Prefix + PartialEq> PartialEq for ConfigExpr<P> {
                 ConfigExpr::BgpSession {
                     source: s1,
                     target: t1,
-                    session_type: ty1,
+                    target_is_client: c1,
                 },
                 ConfigExpr::BgpSession {
                     source: s2,
                     target: t2,
-                    session_type: ty2,
+                    target_is_client: c2,
                 },
-            ) => match (ty1, ty2) {
-                (BgpSessionType::IBgpPeer, BgpSessionType::IBgpPeer)
-                | (BgpSessionType::EBgp, BgpSessionType::EBgp) => {
-                    (s1, t1) == (s2, t2) || (s1, t1) == (t2, s2)
-                }
-                (BgpSessionType::IBgpClient, BgpSessionType::IBgpClient) => (s1, t1) == (s2, t2),
-                (BgpSessionType::IBgpClient, BgpSessionType::IBgpPeer) => (s1, t1) == (t2, s2),
-                (BgpSessionType::IBgpPeer, BgpSessionType::IBgpClient) => (s1, t1) == (t2, s2),
+            ) => match (c1, c2) {
+                (true, true) => (s1, t1) == (s2, t2),
+                (false, false) => (s1, t1) == (s2, t2) || (s1, t1) == (t2, s2),
                 _ => false,
             },
             (
@@ -485,11 +463,7 @@ impl<P: Prefix> ConfigExpr<P> {
                     }
                 }
             }
-            ConfigExpr::BgpSession {
-                source,
-                target,
-                session_type: _,
-            } => {
+            ConfigExpr::BgpSession { source, target, .. } => {
                 if source < target {
                     ConfigExprKey::BgpSession {
                         speaker_a: *source,
@@ -875,8 +849,21 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                 ConfigExpr::BgpSession {
                     source,
                     target,
-                    session_type,
-                } => self.set_bgp_session(*source, *target, Some(*session_type)),
+                    target_is_client,
+                } => {
+                    let ty = Some(
+                        if self.get_device(*source)?.is_external()
+                            || self.get_device(*target)?.is_external()
+                        {
+                            BgpSessionType::EBgp
+                        } else if *target_is_client {
+                            BgpSessionType::IBgpClient
+                        } else {
+                            BgpSessionType::IBgpPeer
+                        },
+                    );
+                    self.set_bgp_session(*source, *target, ty)
+                }
                 ConfigExpr::BgpRouteMap {
                     router,
                     neighbor,
@@ -914,11 +901,9 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                 } => self
                     .set_ospf_area(*source, *target, OspfArea::BACKBONE)
                     .map(|_| ()),
-                ConfigExpr::BgpSession {
-                    source,
-                    target,
-                    session_type: _,
-                } => self.set_bgp_session(*source, *target, None),
+                ConfigExpr::BgpSession { source, target, .. } => {
+                    self.set_bgp_session(*source, *target, None)
+                }
                 ConfigExpr::BgpRouteMap {
                     router,
                     neighbor,
@@ -1091,35 +1076,32 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
             };
 
             let (src, dst, session_type) = (*source, *target, *session_type);
+            let target_is_client = matches!(session_type, BgpSessionType::IBgpClient);
 
             // try to add the session to the configuration.
             match c.add(ConfigExpr::BgpSession {
                 source: src,
                 target: dst,
-                session_type,
+                target_is_client,
             }) {
                 Ok(_) => {}
                 Err(ConfigError::ConfigExprOverload) => {
                     let Some(ConfigExpr::BgpSession {
                         source,
                         target,
-                        session_type: old_session,
+                        target_is_client: old_client,
                     }) = c.get_mut(ConfigExprKey::BgpSession {
                         speaker_a: src,
                         speaker_b: dst,
                     })
                     else {
-                        unreachable!()
+                        unreachable!();
                     };
 
-                    if *old_session == BgpSessionType::IBgpPeer
-                        && session_type == BgpSessionType::IBgpClient
-                    {
+                    if target_is_client && !*old_client {
                         std::mem::swap(source, target);
-                        *old_session = BgpSessionType::IBgpClient;
-                    } else if *old_session == BgpSessionType::IBgpClient
-                        && session_type == BgpSessionType::IBgpClient
-                    {
+                        *old_client = true;
+                    } else if target_is_client && *old_client {
                         return Err(NetworkError::InconsistentBgpSession(src, dst));
                     }
                 }

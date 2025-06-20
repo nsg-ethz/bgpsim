@@ -354,7 +354,13 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         // create each neighbor
         for (n, ty) in router.bgp.get_sessions().iter().sorted_by_key(|(x, _)| *x) {
             let rm_name = rm_name(net, *n);
-            router_bgp.neighbor(self.bgp_neigbor_config(net, addressor, *n, *ty, &rm_name)?);
+            router_bgp.neighbor(self.bgp_neigbor_config(
+                net,
+                addressor,
+                *n,
+                matches!(ty, BgpSessionType::IBgpClient),
+                &rm_name,
+            )?);
 
             // build the default route-map to permit everything
             default_rm.push_str(
@@ -387,7 +393,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         n: RouterId,
-        ty: BgpSessionType,
+        is_client: bool,
         rm_name: &str,
     ) -> Result<RouterBgpNeighbor, ExportError> {
         let r = self.router;
@@ -410,12 +416,8 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         bgp_neighbor.route_map_out(format!("{rm_name}-out"));
         bgp_neighbor.next_hop_self();
         bgp_neighbor.soft_reconfiguration_inbound();
-        match ty {
-            BgpSessionType::IBgpPeer => {}
-            BgpSessionType::IBgpClient => {
-                bgp_neighbor.route_reflector_client();
-            }
-            BgpSessionType::EBgp => {}
+        if is_client {
+            bgp_neighbor.route_reflector_client();
         }
         Ok(bgp_neighbor)
     }
@@ -757,20 +759,13 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                 ConfigExpr::BgpSession {
                     source,
                     target,
-                    session_type,
+                    target_is_client,
                 } => {
                     // normalize the type and the neighbor
-                    let (ty, neighbor) = if source == self.router {
-                        (session_type, target)
+                    let (neighbor_is_client, neighbor) = if source == self.router {
+                        (target_is_client, target)
                     } else if target == self.router {
-                        (
-                            if session_type == BgpSessionType::IBgpClient {
-                                BgpSessionType::IBgpPeer
-                            } else {
-                                session_type
-                            },
-                            source,
-                        )
+                        (false, source)
                     } else {
                         return Err(ExportError::ModifierDoesNotAffectRouter);
                     };
@@ -780,9 +775,13 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                     Ok(format!(
                         "{}{}{}",
                         RouterBgp::new(self.asn)
-                            .neighbor(
-                                self.bgp_neigbor_config(net, addressor, neighbor, ty, &rm_name)?
-                            )
+                            .neighbor(self.bgp_neigbor_config(
+                                net,
+                                addressor,
+                                neighbor,
+                                neighbor_is_client,
+                                &rm_name
+                            )?)
                             .build(self.target),
                         RouteMapItem::new(format!("{rm_name}-in"), u16::MAX, true)
                             .build(self.target),
@@ -897,13 +896,13 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                 ConfigExpr::BgpSession {
                     source,
                     target,
-                    session_type: ty,
+                    target_is_client,
                 } => {
                     let mut neighbor =
                         RouterBgpNeighbor::new(self.router_id_to_ip(target, net, addressor)?);
-                    if ty == BgpSessionType::IBgpClient && source == self.router {
+                    if target_is_client && source == self.router {
                         neighbor.route_reflector_client();
-                    } else if ty == BgpSessionType::IBgpPeer && source == self.router {
+                    } else if !target_is_client && source == self.router {
                         neighbor.no_route_reflector_client();
                     } else {
                         return Ok(String::new());

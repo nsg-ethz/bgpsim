@@ -37,11 +37,11 @@ macro_rules! link_weight {
 }
 
 macro_rules! bgp_session {
-    ($source:expr,$target:expr,$ty:expr) => {
+    ($source:expr,$target:expr,$client:expr) => {
         ConfigExpr::BgpSession {
             source: $source,
             target: $target,
-            session_type: $ty,
+            target_is_client: $client,
         }
     };
 }
@@ -89,11 +89,11 @@ mod t {
         c.add(link_weight!(r1, r0, 1.0)).unwrap();
         c.add(link_weight!(r1, b1, 1.0)).unwrap();
         c.add(link_weight!(b1, r1, 1.0)).unwrap();
-        c.add(bgp_session!(e0, b0, EBgp)).unwrap();
-        c.add(bgp_session!(r0, b0, IBgpClient)).unwrap();
-        c.add(bgp_session!(r0, r1, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, b1, IBgpClient)).unwrap();
-        c.add(bgp_session!(e1, b1, EBgp)).unwrap();
+        c.add(bgp_session!(e0, b0, false)).unwrap();
+        c.add(bgp_session!(r0, b0, true)).unwrap();
+        c.add(bgp_session!(r0, r1, false)).unwrap();
+        c.add(bgp_session!(r1, b1, true)).unwrap();
+        c.add(bgp_session!(e1, b1, false)).unwrap();
 
         net.set_config(&c).unwrap();
 
@@ -197,10 +197,10 @@ mod t {
         c.add(link_weight!(r3, r2, 1.0)).unwrap();
         c.add(link_weight!(r4, r2, 1.0)).unwrap();
         c.add(link_weight!(r4, r3, 3.0)).unwrap();
-        c.add(bgp_session!(r1, e1, EBgp)).unwrap();
-        c.add(bgp_session!(r1, r2, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, r3, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, r4, IBgpPeer)).unwrap();
+        c.add(bgp_session!(r1, e1, false)).unwrap();
+        c.add(bgp_session!(r1, r2, false)).unwrap();
+        c.add(bgp_session!(r1, r3, false)).unwrap();
+        c.add(bgp_session!(r1, r4, false)).unwrap();
 
         // apply initial configuration
         net.set_config(&c).unwrap();
@@ -229,21 +229,21 @@ mod t {
         eprintln!("{:#?}", net.get_device(r2));
 
         // add all new sessions
-        net.apply_modifier(&Insert(bgp_session!(r2, r4, IBgpPeer)))
+        net.apply_modifier(&Insert(bgp_session!(r2, r4, false)))
             .unwrap();
-        net.apply_modifier(&Insert(bgp_session!(r3, r4, IBgpPeer)))
+        net.apply_modifier(&Insert(bgp_session!(r3, r4, false)))
             .unwrap();
-        net.apply_modifier(&Insert(bgp_session!(r4, e4, EBgp)))
+        net.apply_modifier(&Insert(bgp_session!(r4, e4, false)))
             .unwrap();
 
         eprintln!("{:#?}", net.get_device(r2));
 
         // remove all old sessions
-        net.apply_modifier(&Remove(bgp_session!(r1, r2, IBgpPeer)))
+        net.apply_modifier(&Remove(bgp_session!(r1, r2, false)))
             .unwrap();
-        net.apply_modifier(&Remove(bgp_session!(r1, r3, IBgpPeer)))
+        net.apply_modifier(&Remove(bgp_session!(r1, r3, false)))
             .unwrap();
-        net.apply_modifier(&Remove(bgp_session!(r1, e1, EBgp)))
+        net.apply_modifier(&Remove(bgp_session!(r1, e1, false)))
             .unwrap();
 
         eprintln!("{:#?}", net.get_device(r2));
@@ -278,21 +278,21 @@ mod t {
         eprintln!("{:#?}", net.get_device(r2));
 
         // add all new sessions
-        net.apply_modifier(&Insert(bgp_session!(r2, r4, IBgpPeer)))
+        net.apply_modifier(&Insert(bgp_session!(r2, r4, false)))
             .unwrap();
-        net.apply_modifier(&Insert(bgp_session!(r3, r4, IBgpPeer)))
+        net.apply_modifier(&Insert(bgp_session!(r3, r4, false)))
             .unwrap();
-        net.apply_modifier(&Insert(bgp_session!(r4, e4, EBgp)))
+        net.apply_modifier(&Insert(bgp_session!(r4, e4, false)))
             .unwrap();
 
         eprintln!("{:#?}", net.get_device(r2));
 
         // remove all old sessions
-        net.apply_modifier(&Remove(bgp_session!(r1, r2, IBgpPeer)))
+        net.apply_modifier(&Remove(bgp_session!(r1, r2, false)))
             .unwrap();
-        net.apply_modifier(&Remove(bgp_session!(r1, r3, IBgpPeer)))
+        net.apply_modifier(&Remove(bgp_session!(r1, r3, false)))
             .unwrap();
-        net.apply_modifier(&Remove(bgp_session!(r1, e1, EBgp)))
+        net.apply_modifier(&Remove(bgp_session!(r1, e1, false)))
             .unwrap();
 
         eprintln!("{:#?}", net.get_device(r2));
@@ -339,11 +339,11 @@ mod t {
         c.add(link_weight!(r1, r0, 1.0)).unwrap();
         c.add(link_weight!(r0, b1, 1.0)).unwrap();
         c.add(link_weight!(b1, r0, 1.0)).unwrap();
-        c.add(bgp_session!(e0, b0, EBgp)).unwrap();
-        c.add(bgp_session!(r0, b0, IBgpClient)).unwrap();
-        c.add(bgp_session!(r0, r1, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, b1, IBgpClient)).unwrap();
-        c.add(bgp_session!(e1, b1, EBgp)).unwrap();
+        c.add(bgp_session!(e0, b0, false)).unwrap();
+        c.add(bgp_session!(r0, b0, true)).unwrap();
+        c.add(bgp_session!(r0, r1, false)).unwrap();
+        c.add(bgp_session!(r1, b1, true)).unwrap();
+        c.add(bgp_session!(e1, b1, false)).unwrap();
 
         net.set_config(&c).unwrap();
 
@@ -396,11 +396,11 @@ mod t {
         c.add(link_weight!(r1, r0, 1.0)).unwrap();
         c.add(link_weight!(r0, b1, 1.0)).unwrap();
         c.add(link_weight!(b1, r0, 1.0)).unwrap();
-        c.add(bgp_session!(e0, b0, EBgp)).unwrap();
-        c.add(bgp_session!(r0, b0, IBgpClient)).unwrap();
-        c.add(bgp_session!(r0, r1, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, b1, IBgpClient)).unwrap();
-        c.add(bgp_session!(e1, b1, EBgp)).unwrap();
+        c.add(bgp_session!(e0, b0, false)).unwrap();
+        c.add(bgp_session!(r0, b0, true)).unwrap();
+        c.add(bgp_session!(r0, r1, false)).unwrap();
+        c.add(bgp_session!(r1, b1, true)).unwrap();
+        c.add(bgp_session!(e1, b1, false)).unwrap();
 
         net.set_config(&c).unwrap();
 
@@ -468,15 +468,15 @@ mod t {
         c.add(link_weight!(b2, r1, 1.0)).unwrap();
         c.add(link_weight!(r2, b0, 1.0)).unwrap();
         c.add(link_weight!(b0, r2, 1.0)).unwrap();
-        c.add(bgp_session!(r0, b0, IBgpClient)).unwrap();
-        c.add(bgp_session!(r1, b1, IBgpClient)).unwrap();
-        c.add(bgp_session!(r2, b2, IBgpClient)).unwrap();
-        c.add(bgp_session!(r0, r1, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r0, r2, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, r2, IBgpPeer)).unwrap();
-        c.add(bgp_session!(b0, e0, EBgp)).unwrap();
-        c.add(bgp_session!(b1, e1, EBgp)).unwrap();
-        c.add(bgp_session!(b2, e2, EBgp)).unwrap();
+        c.add(bgp_session!(r0, b0, true)).unwrap();
+        c.add(bgp_session!(r1, b1, true)).unwrap();
+        c.add(bgp_session!(r2, b2, true)).unwrap();
+        c.add(bgp_session!(r0, r1, false)).unwrap();
+        c.add(bgp_session!(r0, r2, false)).unwrap();
+        c.add(bgp_session!(r1, r2, false)).unwrap();
+        c.add(bgp_session!(b0, e0, false)).unwrap();
+        c.add(bgp_session!(b1, e1, false)).unwrap();
+        c.add(bgp_session!(b2, e2, false)).unwrap();
 
         net.set_config(&c).unwrap();
 
@@ -580,19 +580,19 @@ mod t {
         c.add(link_weight!(e2, rr, 100.0)).unwrap();
         c.add(link_weight!(rr, e3, 3.0)).unwrap();
         c.add(link_weight!(e3, rr, 100.0)).unwrap();
-        c.add(bgp_session!(rr, r1, IBgpPeer)).unwrap();
-        c.add(bgp_session!(rr, r2, IBgpPeer)).unwrap();
-        c.add(bgp_session!(rr, r3, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, r2, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, r3, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r2, r3, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, e1, IBgpClient)).unwrap();
-        c.add(bgp_session!(r2, e2, IBgpClient)).unwrap();
-        c.add(bgp_session!(r3, e2, IBgpClient)).unwrap();
-        c.add(bgp_session!(r3, e3, IBgpClient)).unwrap();
-        c.add(bgp_session!(p1, e1, EBgp)).unwrap();
-        c.add(bgp_session!(p2, e2, EBgp)).unwrap();
-        c.add(bgp_session!(p3, e3, EBgp)).unwrap();
+        c.add(bgp_session!(rr, r1, false)).unwrap();
+        c.add(bgp_session!(rr, r2, false)).unwrap();
+        c.add(bgp_session!(rr, r3, false)).unwrap();
+        c.add(bgp_session!(r1, r2, false)).unwrap();
+        c.add(bgp_session!(r1, r3, false)).unwrap();
+        c.add(bgp_session!(r2, r3, false)).unwrap();
+        c.add(bgp_session!(r1, e1, true)).unwrap();
+        c.add(bgp_session!(r2, e2, true)).unwrap();
+        c.add(bgp_session!(r3, e2, true)).unwrap();
+        c.add(bgp_session!(r3, e3, true)).unwrap();
+        c.add(bgp_session!(p1, e1, false)).unwrap();
+        c.add(bgp_session!(p2, e2, false)).unwrap();
+        c.add(bgp_session!(p3, e3, false)).unwrap();
 
         net.set_config(&c).unwrap();
 
@@ -614,7 +614,7 @@ mod t {
         // change from the bottom up
         // modify e2
         let mut patch = ConfigPatch::new();
-        patch.add(Remove(bgp_session!(r3, e2, IBgpClient)));
+        patch.add(Remove(bgp_session!(r3, e2, true)));
         let patch_result = net.apply_patch(&patch);
         println!("{patch_result:#?}");
         assert!(patch_result == Err(NetworkError::NoConvergence));
@@ -704,19 +704,19 @@ mod t {
         c.add(link_weight!(e2, rr, 100.0)).unwrap();
         c.add(link_weight!(rr, e3, 3.0)).unwrap();
         c.add(link_weight!(e3, rr, 100.0)).unwrap();
-        c.add(bgp_session!(rr, r1, IBgpPeer)).unwrap();
-        c.add(bgp_session!(rr, r2, IBgpPeer)).unwrap();
-        c.add(bgp_session!(rr, r3, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, r2, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, r3, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r2, r3, IBgpPeer)).unwrap();
-        c.add(bgp_session!(r1, e1, IBgpClient)).unwrap();
-        c.add(bgp_session!(r2, e2, IBgpClient)).unwrap();
-        c.add(bgp_session!(r3, e2, IBgpClient)).unwrap();
-        c.add(bgp_session!(r3, e3, IBgpClient)).unwrap();
-        c.add(bgp_session!(p1, e1, EBgp)).unwrap();
-        c.add(bgp_session!(p2, e2, EBgp)).unwrap();
-        c.add(bgp_session!(p3, e3, EBgp)).unwrap();
+        c.add(bgp_session!(rr, r1, false)).unwrap();
+        c.add(bgp_session!(rr, r2, false)).unwrap();
+        c.add(bgp_session!(rr, r3, false)).unwrap();
+        c.add(bgp_session!(r1, r2, false)).unwrap();
+        c.add(bgp_session!(r1, r3, false)).unwrap();
+        c.add(bgp_session!(r2, r3, false)).unwrap();
+        c.add(bgp_session!(r1, e1, true)).unwrap();
+        c.add(bgp_session!(r2, e2, true)).unwrap();
+        c.add(bgp_session!(r3, e2, true)).unwrap();
+        c.add(bgp_session!(r3, e3, true)).unwrap();
+        c.add(bgp_session!(p1, e1, false)).unwrap();
+        c.add(bgp_session!(p2, e2, false)).unwrap();
+        c.add(bgp_session!(p3, e3, false)).unwrap();
 
         net.set_config(&c).unwrap();
 
@@ -741,25 +741,17 @@ mod t {
         // change from the middle routers first
         // modify r1
         assert_eq!(
-            net.apply_modifier(&Remove(bgp_session!(r1, r2, IBgpPeer))),
+            net.apply_modifier(&Remove(bgp_session!(r1, r2, false))),
             Ok(())
         );
         assert_eq!(
-            net.apply_modifier(&Remove(bgp_session!(r1, r3, IBgpPeer))),
+            net.apply_modifier(&Remove(bgp_session!(r1, r3, false))),
             Ok(())
         );
         assert_eq!(
             net.apply_modifier(&Update {
-                from: ConfigExpr::BgpSession {
-                    source: rr,
-                    target: r1,
-                    session_type: IBgpPeer
-                },
-                to: ConfigExpr::BgpSession {
-                    source: rr,
-                    target: r1,
-                    session_type: IBgpClient
-                },
+                from: bgp_session!(rr, r1, false),
+                to: bgp_session!(rr, r1, true),
             }),
             Ok(())
         );
@@ -771,15 +763,15 @@ mod t {
 
         // modify r2
         assert_eq!(
-            net.apply_modifier(&Remove(bgp_session!(r2, r3, IBgpPeer))),
+            net.apply_modifier(&Remove(bgp_session!(r2, r3, false))),
             Ok(())
         );
         assert_eq!(
-            net.apply_modifier(&Remove(bgp_session!(rr, r2, IBgpPeer))),
+            net.apply_modifier(&Remove(bgp_session!(rr, r2, false))),
             Ok(())
         );
         assert_eq!(
-            net.apply_modifier(&Insert(bgp_session!(rr, r2, IBgpClient))),
+            net.apply_modifier(&Insert(bgp_session!(rr, r2, true))),
             Ok(())
         );
 
@@ -790,11 +782,11 @@ mod t {
 
         // modify r3
         assert_eq!(
-            net.apply_modifier(&Remove(bgp_session!(rr, r3, IBgpPeer))),
+            net.apply_modifier(&Remove(bgp_session!(rr, r3, false))),
             Ok(())
         );
         assert_eq!(
-            net.apply_modifier(&Insert(bgp_session!(rr, r3, IBgpClient))),
+            net.apply_modifier(&Insert(bgp_session!(rr, r3, true))),
             Ok(())
         );
 
@@ -805,7 +797,7 @@ mod t {
 
         // modify e2
         assert_eq!(
-            net.apply_modifier(&Remove(bgp_session!(r3, e2, IBgpClient))),
+            net.apply_modifier(&Remove(bgp_session!(r3, e2, true))),
             Ok(())
         );
         test_route!(net, r1, prefix, [r1, e1, p1]);
@@ -866,16 +858,16 @@ mod t {
         c.add(link_weight!(r2, r1, 1.0)).unwrap();
         c.add(link_weight!(e1, r1, 1.0)).unwrap();
         c.add(link_weight!(e0, r2, 1.0)).unwrap();
-        c.add(bgp_session!(s, rr1, IBgpClient)).unwrap();
-        c.add(bgp_session!(s, rr2, IBgpClient)).unwrap();
-        c.add(bgp_session!(rr1, r1, IBgpClient)).unwrap();
-        c.add(bgp_session!(rr2, r2, IBgpClient)).unwrap();
-        c.add(bgp_session!(r1, e0, IBgpClient)).unwrap();
-        c.add(bgp_session!(r2, e0, IBgpClient)).unwrap();
-        c.add(bgp_session!(r2, e1, IBgpClient)).unwrap();
-        c.add(bgp_session!(s, ps, EBgp)).unwrap();
-        c.add(bgp_session!(e0, p0, EBgp)).unwrap();
-        c.add(bgp_session!(e1, p1, EBgp)).unwrap();
+        c.add(bgp_session!(s, rr1, true)).unwrap();
+        c.add(bgp_session!(s, rr2, true)).unwrap();
+        c.add(bgp_session!(rr1, r1, true)).unwrap();
+        c.add(bgp_session!(rr2, r2, true)).unwrap();
+        c.add(bgp_session!(r1, e0, true)).unwrap();
+        c.add(bgp_session!(r2, e0, true)).unwrap();
+        c.add(bgp_session!(r2, e1, true)).unwrap();
+        c.add(bgp_session!(s, ps, false)).unwrap();
+        c.add(bgp_session!(e0, p0, false)).unwrap();
+        c.add(bgp_session!(e1, p1, false)).unwrap();
 
         net.set_config(&c).unwrap();
 
@@ -893,7 +885,7 @@ mod t {
         test_route!(net, r2, prefix, [r2, e0, p0]);
 
         // remove session r2 ---> e0
-        net.apply_modifier(&Remove(bgp_session!(r2, e0, IBgpClient)))
+        net.apply_modifier(&Remove(bgp_session!(r2, e0, true)))
             .unwrap();
 
         test_route!(net, s, prefix, [s, ps]);
@@ -903,7 +895,7 @@ mod t {
         test_bad_route!(fw_loop, net, r2, prefix, [], [r2, r1]);
 
         // add session r1 ---> e1
-        net.apply_modifier(&Insert(bgp_session!(r1, e1, IBgpClient)))
+        net.apply_modifier(&Insert(bgp_session!(r1, e1, true)))
             .unwrap();
         test_route!(net, s, prefix, [s, ps]);
         test_route!(net, rr1, prefix, [rr1, rr2, e1, p1]);
@@ -1085,25 +1077,25 @@ fn carousel_gadget() {
     c.add(link_weight!(e4, r3, 9.0)).unwrap();
     c.add(link_weight!(e2, r4, 1.0)).unwrap();
     c.add(link_weight!(e3, r4, 4.0)).unwrap();
-    c.add(bgp_session!(rr, r1, IBgpClient)).unwrap();
-    c.add(bgp_session!(rr, r2, IBgpClient)).unwrap();
-    c.add(bgp_session!(rr, r3, IBgpClient)).unwrap();
-    c.add(bgp_session!(rr, r4, IBgpClient)).unwrap();
-    c.add(bgp_session!(r1, e1, IBgpClient)).unwrap();
-    c.add(bgp_session!(r1, e3, IBgpClient)).unwrap();
-    c.add(bgp_session!(r2, e1, IBgpClient)).unwrap();
-    c.add(bgp_session!(r2, e2, IBgpClient)).unwrap();
-    c.add(bgp_session!(r2, e3, IBgpClient)).unwrap();
-    c.add(bgp_session!(r3, e2, IBgpClient)).unwrap();
-    c.add(bgp_session!(r3, e3, IBgpClient)).unwrap();
-    c.add(bgp_session!(r3, e4, IBgpClient)).unwrap();
-    c.add(bgp_session!(r4, e2, IBgpClient)).unwrap();
-    c.add(bgp_session!(r4, e4, IBgpClient)).unwrap();
-    c.add(bgp_session!(e1, p1, EBgp)).unwrap();
-    c.add(bgp_session!(e2, p2, EBgp)).unwrap();
-    c.add(bgp_session!(e3, p3, EBgp)).unwrap();
-    c.add(bgp_session!(e4, p4, EBgp)).unwrap();
-    c.add(bgp_session!(rr, pr, EBgp)).unwrap();
+    c.add(bgp_session!(rr, r1, true)).unwrap();
+    c.add(bgp_session!(rr, r2, true)).unwrap();
+    c.add(bgp_session!(rr, r3, true)).unwrap();
+    c.add(bgp_session!(rr, r4, true)).unwrap();
+    c.add(bgp_session!(r1, e1, true)).unwrap();
+    c.add(bgp_session!(r1, e3, true)).unwrap();
+    c.add(bgp_session!(r2, e1, true)).unwrap();
+    c.add(bgp_session!(r2, e2, true)).unwrap();
+    c.add(bgp_session!(r2, e3, true)).unwrap();
+    c.add(bgp_session!(r3, e2, true)).unwrap();
+    c.add(bgp_session!(r3, e3, true)).unwrap();
+    c.add(bgp_session!(r3, e4, true)).unwrap();
+    c.add(bgp_session!(r4, e2, true)).unwrap();
+    c.add(bgp_session!(r4, e4, true)).unwrap();
+    c.add(bgp_session!(e1, p1, false)).unwrap();
+    c.add(bgp_session!(e2, p2, false)).unwrap();
+    c.add(bgp_session!(e3, p3, false)).unwrap();
+    c.add(bgp_session!(e4, p4, false)).unwrap();
+    c.add(bgp_session!(rr, pr, false)).unwrap();
 
     c.add(ConfigExpr::BgpRouteMap {
         router: e2,
@@ -1305,24 +1297,24 @@ fn test_twicebad_gadget() {
     c.add(link_weight!(e1, r4, 8.0)).unwrap();
     c.add(link_weight!(e4, r4, 9.0)).unwrap();
 
-    c.add(bgp_session!(r1, e1, IBgpClient)).unwrap();
-    c.add(bgp_session!(r1, ex, IBgpClient)).unwrap();
-    c.add(bgp_session!(r2, ex, IBgpClient)).unwrap();
-    c.add(bgp_session!(r2, e2, IBgpClient)).unwrap();
-    c.add(bgp_session!(r3, e3, IBgpClient)).unwrap();
-    c.add(bgp_session!(r4, e4, IBgpClient)).unwrap();
-    c.add(bgp_session!(r1, r2, IBgpPeer)).unwrap();
-    c.add(bgp_session!(r1, r3, IBgpPeer)).unwrap();
-    c.add(bgp_session!(r1, r4, IBgpPeer)).unwrap();
-    c.add(bgp_session!(r2, r3, IBgpPeer)).unwrap();
-    c.add(bgp_session!(r2, r4, IBgpPeer)).unwrap();
-    c.add(bgp_session!(r3, r4, IBgpPeer)).unwrap();
-    c.add(bgp_session!(r1, pr, EBgp)).unwrap();
-    c.add(bgp_session!(e1, p1, EBgp)).unwrap();
-    c.add(bgp_session!(ex, px, EBgp)).unwrap();
-    c.add(bgp_session!(e2, p2, EBgp)).unwrap();
-    c.add(bgp_session!(e3, p3, EBgp)).unwrap();
-    c.add(bgp_session!(e4, p4, EBgp)).unwrap();
+    c.add(bgp_session!(r1, e1, true)).unwrap();
+    c.add(bgp_session!(r1, ex, true)).unwrap();
+    c.add(bgp_session!(r2, ex, true)).unwrap();
+    c.add(bgp_session!(r2, e2, true)).unwrap();
+    c.add(bgp_session!(r3, e3, true)).unwrap();
+    c.add(bgp_session!(r4, e4, true)).unwrap();
+    c.add(bgp_session!(r1, r2, false)).unwrap();
+    c.add(bgp_session!(r1, r3, false)).unwrap();
+    c.add(bgp_session!(r1, r4, false)).unwrap();
+    c.add(bgp_session!(r2, r3, false)).unwrap();
+    c.add(bgp_session!(r2, r4, false)).unwrap();
+    c.add(bgp_session!(r3, r4, false)).unwrap();
+    c.add(bgp_session!(r1, pr, false)).unwrap();
+    c.add(bgp_session!(e1, p1, false)).unwrap();
+    c.add(bgp_session!(ex, px, false)).unwrap();
+    c.add(bgp_session!(e2, p2, false)).unwrap();
+    c.add(bgp_session!(e3, p3, false)).unwrap();
+    c.add(bgp_session!(e4, p4, false)).unwrap();
 
     net.set_config(&c).unwrap();
 
@@ -1360,7 +1352,7 @@ fn test_twicebad_gadget() {
     );
 
     // now, remove the session between ex and r2
-    let m1 = Insert(bgp_session!(r3, e1, IBgpClient));
+    let m1 = Insert(bgp_session!(r3, e1, true));
 
     net.set_msg_limit(Some(5_000));
 

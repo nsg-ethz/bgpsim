@@ -447,11 +447,11 @@ where
                 ConfigExpr::BgpSession {
                     source,
                     target,
-                    session_type,
+                    target_is_client,
                 } => ConfigExpr::BgpSession {
                     source: node(source)?,
                     target: node(target)?,
-                    session_type,
+                    target_is_client,
                 },
                 ConfigExpr::BgpRouteMap {
                     router,

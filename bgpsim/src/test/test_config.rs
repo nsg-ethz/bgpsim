@@ -13,7 +13,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-use crate::bgp::BgpSessionType::*;
 use crate::config::{Config, ConfigExpr::*, ConfigModifier::*, ConfigPatch, RouteMapEdit};
 use crate::types::{Ipv4Prefix, Prefix, RouterId, SimplePrefix, SinglePrefix};
 use crate::{route_map::*, router::StaticRoute::*};
@@ -29,11 +28,11 @@ macro_rules! link_weight {
 }
 
 macro_rules! bgp_session {
-    ($source:expr,$target:expr,$ty:expr) => {
+    ($source:expr,$target:expr,$client:expr) => {
         BgpSession {
             source: $source,
             target: $target,
-            session_type: $ty,
+            target_is_client: $client,
         }
     };
 }
@@ -48,21 +47,21 @@ mod t1 {
         let mut c2 = Config::<P>::new();
 
         // add the same bgp expression
-        let sess1 = bgp_session!(0.into(), 1.into(), IBgpPeer);
+        let sess1 = bgp_session!(0.into(), 1.into(), false);
         c1.add(sess1.clone()).unwrap();
         c2.add(sess1).unwrap();
 
         // add one only to c1
-        let sess2 = bgp_session!(0.into(), 2.into(), IBgpPeer);
+        let sess2 = bgp_session!(0.into(), 2.into(), false);
         c1.add(sess2.clone()).unwrap();
 
         // add one only to c2
-        let sess3 = bgp_session!(0.into(), 3.into(), IBgpPeer);
+        let sess3 = bgp_session!(0.into(), 3.into(), false);
         c2.add(sess3.clone()).unwrap();
 
         // add one to both, but differently
-        let sess4a = bgp_session!(0.into(), 4.into(), IBgpPeer);
-        let sess4b = bgp_session!(0.into(), 4.into(), IBgpClient);
+        let sess4a = bgp_session!(0.into(), 4.into(), false);
+        let sess4b = bgp_session!(0.into(), 4.into(), true);
         c1.add(sess4a.clone()).unwrap();
         c2.add(sess4b.clone()).unwrap();
 
@@ -255,10 +254,10 @@ mod t2 {
         c.add(link_weight!(r0, r1, 2.0)).unwrap_err();
 
         // unique BGP Session
-        c.add(bgp_session!(r0, r1, EBgp)).unwrap();
-        c.add(bgp_session!(r0, r2, EBgp)).unwrap();
-        c.add(bgp_session!(r1, r0, EBgp)).unwrap_err();
-        c.add(bgp_session!(r0, r1, IBgpClient)).unwrap_err();
+        c.add(bgp_session!(r0, r1, false)).unwrap();
+        c.add(bgp_session!(r0, r2, false)).unwrap();
+        c.add(bgp_session!(r1, r0, false)).unwrap_err();
+        c.add(bgp_session!(r0, r1, true)).unwrap_err();
 
         // unique BGP local pref
         c.add(BgpRouteMap {
@@ -401,22 +400,19 @@ mod t2 {
         {
             // unique Bgp Sessions
             let mut c = Config::<P>::new();
-            c.add(bgp_session!(r0, r1, EBgp)).unwrap();
-            c.apply_modifier(&Remove(bgp_session!(r0, r1, EBgp)))
+            c.add(bgp_session!(r0, r1, false)).unwrap();
+            c.apply_modifier(&Remove(bgp_session!(r0, r1, false)))
                 .unwrap();
             assert_eq!(c.len(), 0);
 
-            c.add(bgp_session!(r0, r1, EBgp)).unwrap();
-            c.apply_modifier(&Remove(bgp_session!(r0, r1, IBgpPeer)))
-                .unwrap_err();
-            assert_eq!(c.len(), 1);
-            c.apply_modifier(&Remove(bgp_session!(r0, r1, EBgp)))
+            c.add(bgp_session!(r0, r1, false)).unwrap();
+            c.apply_modifier(&Remove(bgp_session!(r0, r1, false)))
                 .unwrap();
             assert_eq!(c.len(), 0);
 
-            c.add(bgp_session!(r0, r1, EBgp)).unwrap();
+            c.add(bgp_session!(r0, r1, false)).unwrap();
 
-            c.apply_modifier(&Remove(bgp_session!(r0, r2, EBgp)))
+            c.apply_modifier(&Remove(bgp_session!(r0, r2, false)))
                 .unwrap_err();
             assert_eq!(c.len(), 1);
         }
