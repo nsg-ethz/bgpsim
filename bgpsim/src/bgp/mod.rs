@@ -107,6 +107,38 @@ impl std::fmt::Display for Community {
     }
 }
 
+impl std::str::FromStr for Community {
+    type Err = ParseCommunityError;
+
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let Some((asn, num)) = s.split_once(":") else {
+            return match s.to_lowercase().replace("_", "-").as_str() {
+                "no-export" => Ok(NO_EXPORT),
+                "no-advertise" => Ok(NO_ADVERTISE),
+                "no-export-subconfed" => Ok(NO_EXPORT_SUBCONFED),
+                "graceful-shutdown" => Ok(GRACEFUL_SHUTDOWN),
+                "blackhole" => Ok(BLACKHOLE),
+                _ => Err(ParseCommunityError::NotWellKnown(s.to_string())),
+            };
+        };
+        Ok(Self {
+            asn: ASN(asn.parse()?),
+            num: num.parse()?,
+        })
+    }
+}
+
+/// Error returned when parsing a community
+#[derive(Clone, Debug, PartialEq, Eq, thiserror::Error)]
+pub enum ParseCommunityError {
+    /// Number parsing error
+    #[error("{0}")]
+    Int(#[from] std::num::ParseIntError),
+    /// Is not a recognized well-known community.
+    #[error("`{0}` is not a well known community")]
+    NotWellKnown(String),
+}
+
 /// Bgp Route
 /// The following attributes are omitted
 /// - ORIGIN: assumed to be always set to IGP
