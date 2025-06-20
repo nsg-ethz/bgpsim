@@ -26,8 +26,9 @@ use itertools::Itertools;
 use rand::{distributions::Uniform, prelude::*};
 
 use crate::{
+    bgp::Community,
     event::EventQueue,
-    network::Network,
+    network::{Network, DEFAULT_INTERNAL_ASN},
     ospf::{LinkWeight, OspfImpl},
     prelude::{BgpSessionType, GlobalOspf},
     route_map::{RouteMapBuilder, RouteMapDirection},
@@ -1249,12 +1250,16 @@ pub enum GaoRexfordPeerType {
 
 impl GaoRexfordPeerType {
     /// Return the community associated with that kind.
-    pub fn community(&self) -> u32 {
-        match self {
+    pub fn community(&self) -> Community {
+        let num = match self {
             GaoRexfordPeerType::Customer => 501,
             GaoRexfordPeerType::Peer => 502,
             GaoRexfordPeerType::Provider => 503,
             GaoRexfordPeerType::Ignore => 500,
+        };
+        Community {
+            asn: DEFAULT_INTERNAL_ASN,
+            num,
         }
     }
 

@@ -57,7 +57,7 @@ pub struct BgpProcess<P: Prefix> {
     /// The Router ID
     router_id: RouterId,
     /// The AS-ID of the router
-    as_id: ASN,
+    asn: ASN,
     /// The cost to reach all internal routers
     pub(crate) igp_cost: HashMap<RouterId, LinkWeight>,
     /// hashmap of all bgp sessions
@@ -82,10 +82,10 @@ pub struct BgpProcess<P: Prefix> {
 
 impl<P: Prefix> BgpProcess<P> {
     /// Generate a new, empty BgpProcess
-    pub(crate) fn new(router_id: RouterId, as_id: ASN) -> Self {
+    pub(crate) fn new(router_id: RouterId, asn: ASN) -> Self {
         Self {
             router_id,
-            as_id,
+            asn,
             igp_cost: Default::default(),
             sessions: Default::default(),
             rib_in: Default::default(),
@@ -723,6 +723,18 @@ impl<P: Prefix> BgpProcess<P> {
             entry.igp_cost = Some(Default::default());
         }
 
+        // if eBGP, remove all private communities
+        if self
+            .get_session_type(neighbor)
+            .map(|x| x.is_ebgp())
+            .unwrap_or(true)
+        {
+            entry
+                .route
+                .community
+                .retain(|c| c.is_public() || c.asn == self.asn);
+        }
+
         // set the default values
         entry.route.apply_default();
 
@@ -786,7 +798,16 @@ impl<P: Prefix> BgpProcess<P> {
             entry.route.local_pref = None;
             entry.route.originator_id = None;
             entry.route.cluster_list = Vec::new();
-            entry.route.as_path.insert(0, self.as_id);
+            entry.route.as_path.insert(0, self.asn);
+        }
+
+        // if eBGP, remove all own communities
+        if self
+            .get_session_type(target_peer)
+            .map(|x| x.is_ebgp())
+            .unwrap_or(true)
+        {
+            entry.route.community.retain(|c| c.asn != self.asn);
         }
 
         Ok(Some(entry))
@@ -818,7 +839,7 @@ impl<P: Prefix> IntoIpv4Prefix for BgpProcess<P> {
     fn into_ipv4_prefix(self) -> Self::T {
         BgpProcess {
             router_id: self.router_id,
-            as_id: self.as_id,
+            asn: self.asn,
             igp_cost: self.igp_cost,
             sessions: self.sessions,
             rib_in: self

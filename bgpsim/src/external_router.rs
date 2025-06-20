@@ -19,7 +19,7 @@
 //! operators.
 
 use crate::{
-    bgp::{BgpEvent, BgpRoute},
+    bgp::{BgpEvent, BgpRoute, Community},
     event::{Event, EventOutcome},
     types::{
         DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate, ASN,
@@ -132,7 +132,7 @@ impl<P: Prefix> ExternalRouter<P> {
 
     /// Start advertizing a specific route. All neighbors (including future neighbors) will get an
     /// update message with the route.
-    pub(crate) fn advertise_prefix<T: Default, I: IntoIterator<Item = u32>>(
+    pub(crate) fn advertise_prefix<T: Default, I: IntoIterator<Item = Community>>(
         &mut self,
         prefix: P,
         as_path: Vec<ASN>,

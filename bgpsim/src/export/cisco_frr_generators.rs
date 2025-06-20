@@ -20,6 +20,7 @@ use itertools::Itertools;
 use std::{fmt::Write, net::Ipv4Addr};
 
 use crate::{
+    bgp::Community,
     ospf::{LinkWeight, OspfArea},
     types::ASN,
 };
@@ -1947,7 +1948,7 @@ impl StaticRoute {
 /// let nh: ipnet::Ipv4Net = "10.0.1.1/32".parse().unwrap();
 /// assert_eq!(
 ///     RouteMapItem::new("test", 10, true)
-///         .match_community_list(CommunityList::new("test-cl").community(10, 10))
+///         .match_community_list(CommunityList::new("test-cl").community((10, 10)))
 ///         .match_next_hop(PrefixList::new("test-nh").prefix(nh))
 ///         .set_weight(200)
 ///         .set_local_pref(200)
@@ -2128,7 +2129,7 @@ impl RouteMapItem {
     /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
-    ///         .match_community_list(CommunityList::new("test-cl").community(10, 10))
+    ///         .match_community_list(CommunityList::new("test-cl").community((10, 10)))
     ///         .build(Target::Frr),
     ///     "\
     /// bgp community-list standard test-cl permit 10:10
@@ -2147,7 +2148,7 @@ impl RouteMapItem {
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
     ///         .no_match_community_list(CommunityList::new("test-cl-old"))
-    ///         .match_community_list(CommunityList::new("test-cl-new").community(10, 20))
+    ///         .match_community_list(CommunityList::new("test-cl-new").community((10, 20)))
     ///         .build(Target::Frr),
     ///     "\
     /// no bgp community-list standard test-cl-old
@@ -2473,7 +2474,7 @@ impl RouteMapItem {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
-    ///     RouteMapItem::new("test", 10, true).set_community(10, 10).build(Target::Frr),
+    ///     RouteMapItem::new("test", 10, true).set_community((10, 10)).build(Target::Frr),
     ///     "\
     /// route-map test permit 10
     ///   set community 10:10
@@ -2487,7 +2488,7 @@ impl RouteMapItem {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
-    ///     RouteMapItem::new("test", 10, true).set_community(10, 10).build(Target::CiscoNexus7000),
+    ///     RouteMapItem::new("test", 10, true).set_community((10, 10)).build(Target::CiscoNexus7000),
     ///     "\
     /// route-map test permit 10
     ///   set community additive 10:10
@@ -2495,9 +2496,8 @@ impl RouteMapItem {
     /// "
     /// );
     /// ```
-    pub fn set_community(&mut self, asn: impl Into<ASN>, community: u32) -> &mut Self {
-        self.set_community
-            .push((format!("{}:{}", asn.into().0, community), true));
+    pub fn set_community(&mut self, c: impl Into<Community>) -> &mut Self {
+        self.set_community.push((c.into().to_string(), true));
         self
     }
 
@@ -2521,7 +2521,7 @@ impl RouteMapItem {
     /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
-    ///         .no_set_community(10, 10)
+    ///         .no_set_community((10, 10))
     ///         .build(Target::CiscoNexus7000),
     ///     "\
     /// route-map test permit 10
@@ -2530,9 +2530,8 @@ impl RouteMapItem {
     /// "
     /// );
     /// ```
-    pub fn no_set_community(&mut self, asn: impl Into<ASN>, community: u32) -> &mut Self {
-        self.set_community
-            .push((format!("{}:{}", asn.into().0, community), false));
+    pub fn no_set_community(&mut self, c: impl Into<Community>) -> &mut Self {
+        self.set_community.push((c.into().to_string(), false));
         self
     }
 
@@ -2542,7 +2541,7 @@ impl RouteMapItem {
     /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
-    ///         .delete_community_list(CommunityList::new("test-cl-del").community(10, 10))
+    ///         .delete_community_list(CommunityList::new("test-cl-del").community((10, 10)))
     ///         .build(Target::Frr),
     ///     "\
     /// bgp community-list standard test-cl-del permit 10:10
@@ -2712,7 +2711,7 @@ impl RouteMapItem {
     /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, CommunityList, PrefixList, Target};
     /// assert_eq!(
     ///     RouteMapItem::new("test", 10, true)
-    ///         .match_community_list(CommunityList::new("test-cl").community(10, 10))
+    ///         .match_community_list(CommunityList::new("test-cl").community(((10, 10))))
     ///         .set_weight(100)
     ///         .continues(20)
     ///         .build(Target::Frr),
@@ -3023,13 +3022,12 @@ impl CommunityList {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{CommunityList, Target};
     /// assert_eq!(
-    ///     CommunityList::new("test").community(10, 10).community(10, 20).build(Target::Frr),
+    ///     CommunityList::new("test").community((10, 10)).community((10, 20)).build(Target::Frr),
     ///     "bgp community-list standard test permit 10:10 10:20\n"
     /// );
     /// ```
-    pub fn community(&mut self, asn: impl Into<ASN>, community: u32) -> &mut Self {
-        self.communities
-            .push(format!("{}:{}", asn.into().0, community));
+    pub fn community(&mut self, community: impl Into<Community>) -> &mut Self {
+        self.communities.push(community.into().to_string());
         self
     }
 
@@ -3039,7 +3037,7 @@ impl CommunityList {
     /// # use bgpsim::export::cisco_frr_generators::{CommunityList, Target};
     /// assert_eq!(
     ///     CommunityList::new("test")
-    ///         .community(10, 10).community(10, 20)
+    ///         .community((10, 10)).community((10, 20))
     ///         .deny(10, 30).deny(10, 40)
     ///         .build(Target::Frr),
     ///     "\
@@ -3049,9 +3047,8 @@ impl CommunityList {
     /// "
     /// );
     /// ```
-    pub fn deny(&mut self, asn: impl Into<ASN>, community: u32) -> &mut Self {
-        self.deny_communities
-            .push(format!("{}:{}", asn.into().0, community));
+    pub fn deny(&mut self, community: impl Into<Community>) -> &mut Self {
+        self.deny_communities.push(community.into().to_string());
         self
     }
 

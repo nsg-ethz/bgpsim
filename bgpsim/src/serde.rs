@@ -28,6 +28,7 @@ use serde_json::json;
 #[cfg(feature = "topology_zoo")]
 use crate::topology_zoo::TopologyZoo;
 use crate::{
+    bgp::Community,
     config::{ConfigExpr, ConfigModifier, NetworkConfig},
     event::{BasicEventQueue, Event, EventQueue},
     network::Network,
@@ -42,7 +43,7 @@ use crate::{
 const JSON_FIELD_NAME_NETWORK: &str = "net";
 const JSON_FIELD_NAME_CONFIG: &str = "config_nodes_routes";
 
-type ExportRoutes<P> = (RouterId, P, Vec<ASN>, Option<u32>, BTreeSet<u32>);
+type ExportRoutes<P> = (RouterId, P, Vec<ASN>, Option<u32>, BTreeSet<Community>);
 type ExportConfig<P> = Vec<ConfigExpr<P>>;
 type ExportRouters = Vec<(RouterId, String, Option<ASN>)>;
 type ExportLinks = Vec<(RouterId, RouterId)>;

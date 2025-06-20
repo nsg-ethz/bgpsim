@@ -19,7 +19,7 @@
 //! network.
 
 use crate::{
-    bgp::{BgpSessionType, BgpState, BgpStateRef},
+    bgp::{BgpSessionType, BgpState, BgpStateRef, Community},
     config::{NetworkConfig, RouteMapEdit},
     event::{BasicEventQueue, Event, EventQueue},
     external_router::ExternalRouter,
@@ -40,6 +40,8 @@ use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 1_000_000;
+/// The default AS number assigned to internal routers.
+pub const DEFAULT_INTERNAL_ASN: ASN = ASN(65535);
 
 /// # Network struct
 /// The struct contains all information about the underlying physical network (Links), a manages
@@ -141,7 +143,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     ///
     /// If you wish to create a router with a different AS number, use [`Self::add_router_with_asn`].
     pub fn add_router(&mut self, name: impl Into<String>) -> RouterId {
-        self.add_router_with_asn(name, 65535)
+        self.add_router_with_asn(name, DEFAULT_INTERNAL_ASN)
     }
 
     /// Add a new router to the topology with a custom AS number. This function returns the ID of
@@ -738,7 +740,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     where
         A: IntoIterator,
         A::Item: Into<ASN>,
-        C: IntoIterator<Item = u32>,
+        C: IntoIterator<Item = Community>,
     {
         let prefix: P = prefix.into();
         let as_path: Vec<ASN> = as_path.into_iter().map(|id| id.into()).collect();

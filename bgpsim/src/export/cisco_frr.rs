@@ -27,7 +27,7 @@ use ipnet::Ipv4Net;
 use itertools::Itertools;
 
 use crate::{
-    bgp::BgpRoute,
+    bgp::{BgpRoute, Community},
     config::{ConfigExpr, ConfigModifier},
     network::Network,
     ospf::{InternalEdge, OspfArea, OspfImpl, OspfProcess},
@@ -557,10 +557,10 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         if let Some((communities, deny_communities)) = rm_match_community_list(rm) {
             let mut cl = CommunityList::new(format!("{name}-{ord}-cl"));
             for c in communities {
-                cl.community(self.asn, c);
+                cl.community(c);
             }
             for c in deny_communities {
-                cl.deny(self.asn, c);
+                cl.deny(c);
             }
             route_map_item.match_community_list(cl);
         }
@@ -583,7 +583,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         if let Some(communities) = rm_delete_community_list(rm) {
             let mut cl = CommunityList::new(format!("{name}-{ord}-del-cl"));
             for c in communities {
-                cl.community(self.asn, c);
+                cl.community(c);
             }
             route_map_item.delete_community_list(cl);
         }
@@ -603,7 +603,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
                 RouteMapSet::IgpCost(_) => {
                     unimplemented!("Changing the IGP cost is not implemented yet!")
                 }
-                RouteMapSet::SetCommunity(c) => route_map_item.set_community(self.asn, *c),
+                RouteMapSet::SetCommunity(c) => route_map_item.set_community(*c),
                 RouteMapSet::DelCommunity(_) => &mut route_map_item, // nothing to do, already done!
             };
         }
@@ -1070,7 +1070,7 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         route_map.prepend_as_path(route.as_path.iter().skip(1));
         route_map.set_med(route.med.unwrap_or(0));
         for c in route.community.iter() {
-            route_map.set_community(65535, *c); // TODO change this!
+            route_map.set_community(*c);
         }
         config.push_str(&route_map.build(self.target));
 
@@ -1179,7 +1179,9 @@ fn rm_match_prefix_list<P: Prefix>(rm: &RouteMap<P>) -> Option<P::Set> {
 
 /// Extract the set of communities that must be present in the route, and those that must be absent,
 /// such that it matches
-fn rm_match_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<(HashSet<u32>, HashSet<u32>)> {
+fn rm_match_community_list<P: Prefix>(
+    rm: &RouteMap<P>,
+) -> Option<(HashSet<Community>, HashSet<Community>)> {
     let mut communities = HashSet::new();
     let mut deny_communities = HashSet::new();
 
@@ -1234,7 +1236,7 @@ fn rm_match_next_hop<P: Prefix>(rm: &RouteMap<P>) -> Option<RouterId> {
 }
 
 /// Extract the set of communities that must be present in the route such that it matches
-fn rm_delete_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<HashSet<u32>> {
+fn rm_delete_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<HashSet<Community>> {
     let mut communities = HashSet::new();
 
     for set in rm.set.iter() {

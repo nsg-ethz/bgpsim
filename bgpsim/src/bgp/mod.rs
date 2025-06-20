@@ -27,6 +27,86 @@ use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::BTreeSet, hash::Hash};
 
+/// The community has an AS number and a community number.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
+pub struct Community {
+    /// AS number associated with the community. This is used to filter communities on eBGP sessions.
+    pub asn: ASN,
+    /// the actual AS number
+    pub num: u32,
+}
+
+/// Well-known community, defined by [RFC 1997](https://www.rfc-editor.org/rfc/rfc1997.html). All
+/// routes received carrying a communities attribute containing this value MUST NOT be advertised
+/// outside a BGP confederation boundary (a stand-alone autonomous system that is not part of a
+/// confederation should be considered a confederation itself).
+pub const NO_EXPORT: Community = Community {
+    asn: ASN(0xffff),
+    num: 0xff01,
+};
+/// Well-known community, defined by [RFC 1997](https://www.rfc-editor.org/rfc/rfc1997.html). All
+/// routes received carrying a communities attribute containing this value MUST NOT be advertised to
+/// other BGP peers.
+pub const NO_ADVERTISE: Community = Community {
+    asn: ASN(0xffff),
+    num: 0xff02,
+};
+/// Well-known community, defined by [RFC 1997](https://www.rfc-editor.org/rfc/rfc1997.html). All
+/// routes received carrying a communities attribute containing this value MUST NOT be advertised to
+/// external BGP peers (this includes peers in other members autonomous systems inside a BGP
+/// confederation).
+pub const NO_EXPORT_SUBCONFED: Community = Community {
+    asn: ASN(0xffff),
+    num: 0xff03,
+};
+/// Well-known community, defined by [RFC 8326](https://www.rfc-editor.org/rfc/rfc8326.html). All
+/// routes received carring a communities attribute containing this value SHOULD be modified to have
+/// a low LOCAL_PREF value. The RECOMMENDED value is 0.
+pub const GRACEFUL_SHUTDOWN: Community = Community {
+    asn: ASN(0xffff),
+    num: 0,
+};
+/// Well-known community, defined by [RFC 7999](https://www.rfc-editor.org/rfc/rfc7999.html). All
+/// routes received carring a communities attribute containing this value SHOULD drop all traffic
+/// towards the destination.
+///
+/// A BGP speaker receiving an announcement tagged with the BLACKHOLE community SHOULD add the
+/// NO_ADVERTISE or NO_EXPORT community as defined in [RFC1997], or a similar community, to prevent
+/// propagation of the prefix outside the local AS.  The community to prevent propagation SHOULD be
+/// chosen according to the operator's routing policy.
+///
+/// Whether to honor this community is a choice made by each operator.
+pub const BLACKHOLE: Community = Community {
+    asn: ASN(0xffff),
+    num: 666,
+};
+
+impl Community {
+    /// Create a new community
+    pub fn new(asn: impl Into<ASN>, num: u32) -> Self {
+        Self {
+            asn: asn.into(),
+            num,
+        }
+    }
+    /// Check if the community is a public (transitive) one.
+    pub fn is_public(&self) -> bool {
+        self.asn.0 == 65535
+    }
+}
+
+impl<A: Into<ASN>> From<(A, u32)> for Community {
+    fn from(value: (A, u32)) -> Community {
+        Community::new(value.0, value.1)
+    }
+}
+
+impl std::fmt::Display for Community {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        write!(f, "{}:{}", self.asn, self.num)
+    }
+}
+
 /// Bgp Route
 /// The following attributes are omitted
 /// - ORIGIN: assumed to be always set to IGP
@@ -46,7 +126,7 @@ pub struct BgpRoute<P: Prefix> {
     /// MED (Multi-Exit Discriminator)
     pub med: Option<u32>,
     /// Community
-    pub community: BTreeSet<u32>,
+    pub community: BTreeSet<Community>,
     /// Optional field ORIGINATOR_ID
     pub originator_id: Option<RouterId>,
     /// Optional field CLUSTER_LIST
@@ -82,7 +162,7 @@ impl<P: Prefix> BgpRoute<P> {
     where
         A: IntoIterator,
         A::Item: Into<ASN>,
-        C: IntoIterator<Item = u32>,
+        C: IntoIterator<Item = Community>,
     {
         let as_path: Vec<ASN> = as_path.into_iter().map(|id| id.into()).collect();
         Self {

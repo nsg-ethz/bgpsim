@@ -18,7 +18,7 @@
 //! This module contains the necessary structures to build route maps for internal BGP routers.
 
 use crate::{
-    bgp::BgpRibEntry,
+    bgp::{BgpRibEntry, Community},
     ospf::LinkWeight,
     types::{IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixSet, RouterId, ASN},
 };
@@ -312,13 +312,13 @@ impl<P: Prefix> RouteMapBuilder<P> {
     }
 
     /// Add a match condition to the Route-Map, matching on the community with exact value
-    pub fn match_community(&mut self, community: u32) -> &mut Self {
+    pub fn match_community(&mut self, community: Community) -> &mut Self {
         self.conds.push(RouteMapMatch::Community(community));
         self
     }
 
     /// Add a match condition to the Route-Map, matching on the absence of a community.
-    pub fn match_deny_community(&mut self, community: u32) -> &mut Self {
+    pub fn match_deny_community(&mut self, community: Community) -> &mut Self {
         self.conds.push(RouteMapMatch::DenyCommunity(community));
         self
     }
@@ -379,13 +379,13 @@ impl<P: Prefix> RouteMapBuilder<P> {
     }
 
     /// Add a set expression, overwriting the Community
-    pub fn set_community(&mut self, community: u32) -> &mut Self {
+    pub fn set_community(&mut self, community: Community) -> &mut Self {
         self.set.push(RouteMapSet::SetCommunity(community));
         self
     }
 
     /// Add a set expression, resetting the Community
-    pub fn remove_community(&mut self, community: u32) -> &mut Self {
+    pub fn remove_community(&mut self, community: Community) -> &mut Self {
         self.set.push(RouteMapSet::DelCommunity(community));
         self
     }
@@ -501,9 +501,9 @@ pub enum RouteMapMatch<P: Prefix> {
     /// Matches on the Next Hop (exact value)
     NextHop(RouterId),
     /// Matches on the community (either not set, or set and matches a value or a range)
-    Community(u32),
+    Community(Community),
     /// Match on the absence of a given community.
-    DenyCommunity(u32),
+    DenyCommunity(Community),
 }
 
 impl<P: Prefix> IntoIpv4Prefix for RouteMapMatch<P> {
@@ -620,9 +620,9 @@ pub enum RouteMapSet {
     /// overwrite the distance attribute (IGP weight). This does not affect peers.
     IgpCost(LinkWeight),
     /// Set the community value
-    SetCommunity(u32),
+    SetCommunity(Community),
     /// Remove the community value
-    DelCommunity(u32),
+    DelCommunity(Community),
 }
 
 impl RouteMapSet {
