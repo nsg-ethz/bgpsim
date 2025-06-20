@@ -16,7 +16,7 @@
 use crate::{
     bgp::{BgpEvent, BgpRoute, BgpSessionType::*},
     config::{Config, ConfigExpr::*, NetworkConfig},
-    network::{Network, INTERNAL_ASN},
+    network::{Network, DEFAULT_INTERNAL_ASN as INTERNAL_ASN},
     ospf::local::{LocalNeighborhoodChange, LocalOspfProcess},
     route_map::*,
     router::Router,

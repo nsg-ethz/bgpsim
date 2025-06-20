@@ -39,7 +39,7 @@ use std::{cmp::Ordering, fmt};
 ///     .order(10)
 ///     .allow()
 ///     .match_prefix(SimplePrefix::from(0))
-///     .set_community(1)
+///     .set_community((10, 1))
 ///     .reset_local_pref()
 ///     .continue_next()
 ///     .build();
@@ -195,7 +195,7 @@ where
 ///     .order(10)
 ///     .allow()
 ///     .match_prefix(SimplePrefix::from(0))
-///     .set_community(1)
+///     .set_community((10, 1))
 ///     .reset_local_pref()
 ///     .build();
 /// ```
@@ -312,14 +312,15 @@ impl<P: Prefix> RouteMapBuilder<P> {
     }
 
     /// Add a match condition to the Route-Map, matching on the community with exact value
-    pub fn match_community(&mut self, community: Community) -> &mut Self {
-        self.conds.push(RouteMapMatch::Community(community));
+    pub fn match_community(&mut self, community: impl Into<Community>) -> &mut Self {
+        self.conds.push(RouteMapMatch::Community(community.into()));
         self
     }
 
     /// Add a match condition to the Route-Map, matching on the absence of a community.
-    pub fn match_deny_community(&mut self, community: Community) -> &mut Self {
-        self.conds.push(RouteMapMatch::DenyCommunity(community));
+    pub fn match_deny_community(&mut self, community: impl Into<Community>) -> &mut Self {
+        self.conds
+            .push(RouteMapMatch::DenyCommunity(community.into()));
         self
     }
 
@@ -379,14 +380,14 @@ impl<P: Prefix> RouteMapBuilder<P> {
     }
 
     /// Add a set expression, overwriting the Community
-    pub fn set_community(&mut self, community: Community) -> &mut Self {
-        self.set.push(RouteMapSet::SetCommunity(community));
+    pub fn set_community(&mut self, community: impl Into<Community>) -> &mut Self {
+        self.set.push(RouteMapSet::SetCommunity(community.into()));
         self
     }
 
     /// Add a set expression, resetting the Community
-    pub fn remove_community(&mut self, community: Community) -> &mut Self {
-        self.set.push(RouteMapSet::DelCommunity(community));
+    pub fn remove_community(&mut self, community: impl Into<Community>) -> &mut Self {
+        self.set.push(RouteMapSet::DelCommunity(community.into()));
         self
     }
 

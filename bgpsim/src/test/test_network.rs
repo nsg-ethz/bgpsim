@@ -25,7 +25,7 @@ mod t {
         builder::{constant_link_weight, equal_preferences, NetworkBuilder},
         config::{ConfigExpr::IgpLinkWeight, NetworkConfig},
         event::BasicEventQueue,
-        network::Network,
+        network::{Network, DEFAULT_INTERNAL_ASN},
         ospf::{global::GlobalOspf, local::LocalOspf, OspfImpl, OspfProcess},
         prelude::BgpSessionType,
         route_map::{
@@ -1048,7 +1048,7 @@ mod t {
         };
         let route_r421 = BgpRoute {
             prefix: p,
-            as_path: vec![ASN(65535), ASN(65104), ASN(100)],
+            as_path: vec![DEFAULT_INTERNAL_ASN, ASN(65104), ASN(100)],
             next_hop: *R1,
             local_pref: None,
             med: None,
@@ -1225,7 +1225,7 @@ mod t {
         };
         let route_r421 = BgpRoute {
             prefix: p,
-            as_path: vec![ASN(65535), ASN(65104), ASN(100)],
+            as_path: vec![DEFAULT_INTERNAL_ASN, ASN(65104), ASN(100)],
             next_hop: *R1,
             local_pref: None,
             med: Some(0),

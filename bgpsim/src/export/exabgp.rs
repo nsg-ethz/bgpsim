@@ -145,7 +145,7 @@ pub const RUNNER_POSTAMBLE: &str = "\nwhile True:\n    time.sleep(1)\n";
 ///     router-id 2.0.0.1;
 ///     local-address 1.192.0.2;
 ///     local-as 100;
-///     peer-as 65535;
+///     peer-as 65500;
 ///     family { ipv4 unicast; }
 ///     capability { route-refresh; }
 /// }"

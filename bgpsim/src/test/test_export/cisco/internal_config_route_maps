@@ -80,9 +80,9 @@ exit
 route-map neighbor-R0_ext_4-out permit 65535
 exit
 !
-router bgp 65535
+router bgp 65500
   router-id 10.0.0.1
-  neighbor 10.0.1.1 remote-as 65535
+  neighbor 10.0.1.1 remote-as 65500
     update-source Loopback0
     address-family ipv4 unicast
       weight 100
@@ -93,7 +93,7 @@ router bgp 65535
       soft-reconfiguration inbound
     exit
   exit
-  neighbor 10.0.2.1 remote-as 65535
+  neighbor 10.0.2.1 remote-as 65500
     update-source Loopback0
     address-family ipv4 unicast
       weight 100
@@ -104,7 +104,7 @@ router bgp 65535
       soft-reconfiguration inbound
     exit
   exit
-  neighbor 10.0.3.1 remote-as 65535
+  neighbor 10.0.3.1 remote-as 65500
     update-source Loopback0
     address-family ipv4 unicast
       weight 100
@@ -135,7 +135,7 @@ ip route 10.0.0.0/8 null 0
 ! Route-Maps
 !
 ip prefix-list neighbor-R0_ext_4-in-32778-pl seq 1 permit 100.0.0.0/24
-ip community-list standard neighbor-R0_ext_4-in-32778-cl permit 65535:10
+ip community-list standard neighbor-R0_ext_4-in-32778-cl permit 65500:10
 route-map neighbor-R0_ext_4-in permit 32778
   match ip address prefix-list neighbor-R0_ext_4-in-32778-pl
   match community neighbor-R0_ext_4-in-32778-cl
@@ -143,27 +143,27 @@ route-map neighbor-R0_ext_4-in permit 32778
   continue 32798
 exit
 !
-ip community-list standard neighbor-R0_ext_4-in-32788-cl permit 65535:20
+ip community-list standard neighbor-R0_ext_4-in-32788-cl permit 65500:20
 route-map neighbor-R0_ext_4-in permit 32788
   match community neighbor-R0_ext_4-in-32788-cl
   set weight 20
 exit
 !
-ip community-list standard neighbor-R0_ext_4-in-32798-cl permit 65535:30
+ip community-list standard neighbor-R0_ext_4-in-32798-cl permit 65500:30
 route-map neighbor-R0_ext_4-in permit 32798
   match community neighbor-R0_ext_4-in-32798-cl
   set weight 30
   continue 32808
 exit
 !
-ip community-list standard neighbor-R0_ext_4-in-32808-cl permit 65535:40
+ip community-list standard neighbor-R0_ext_4-in-32808-cl permit 65500:40
 route-map neighbor-R0_ext_4-in permit 32808
   match community neighbor-R0_ext_4-in-32808-cl
   set weight 40
   continue 65535
 exit
 !
-ip community-list standard neighbor-R0_ext_4-out-32778-cl permit 65535:20
+ip community-list standard neighbor-R0_ext_4-out-32778-cl permit 65500:20
 route-map neighbor-R0_ext_4-out deny 32778
   match community neighbor-R0_ext_4-out-32778-cl
 exit

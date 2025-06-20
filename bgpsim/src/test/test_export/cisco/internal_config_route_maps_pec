@@ -87,9 +87,9 @@ exit
 route-map neighbor-R0_ext_4-out permit 65535
 exit
 !
-router bgp 65535
+router bgp 65500
   router-id 10.0.0.1
-  neighbor 10.0.1.1 remote-as 65535
+  neighbor 10.0.1.1 remote-as 65500
     update-source Loopback0
     address-family ipv4 unicast
       weight 100
@@ -100,7 +100,7 @@ router bgp 65535
       soft-reconfiguration inbound
     exit
   exit
-  neighbor 10.0.2.1 remote-as 65535
+  neighbor 10.0.2.1 remote-as 65500
     update-source Loopback0
     address-family ipv4 unicast
       weight 100
@@ -111,7 +111,7 @@ router bgp 65535
       soft-reconfiguration inbound
     exit
   exit
-  neighbor 10.0.3.1 remote-as 65535
+  neighbor 10.0.3.1 remote-as 65500
     update-source Loopback0
     address-family ipv4 unicast
       weight 100

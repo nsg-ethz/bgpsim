@@ -97,7 +97,7 @@ fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
         RouteMapBuilder::new()
             .allow()
             .order(10)
-            .match_community(10)
+            .match_community((65500, 10))
             .match_prefix(0.into())
             .set_weight(10)
             .continue_at(30)
@@ -112,7 +112,7 @@ fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
         RouteMapBuilder::new()
             .allow()
             .order(20)
-            .match_community(20)
+            .match_community((65500, 20))
             .set_weight(20)
             .exit()
             .build(),
@@ -126,7 +126,7 @@ fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
         RouteMapBuilder::new()
             .allow()
             .order(30)
-            .match_community(30)
+            .match_community((65500, 30))
             .set_weight(30)
             .continue_next()
             .build(),
@@ -140,7 +140,7 @@ fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
         RouteMapBuilder::new()
             .allow()
             .order(40)
-            .match_community(40)
+            .match_community((65500, 40))
             .set_weight(40)
             .continue_next()
             .build(),
@@ -154,7 +154,7 @@ fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
         RouteMapBuilder::new()
             .deny()
             .order(10)
-            .match_community(20)
+            .match_community((65500, 20))
             .build(),
     )
     .unwrap();

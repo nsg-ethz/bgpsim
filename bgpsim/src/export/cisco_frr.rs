@@ -397,12 +397,12 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         if neighbor_asn == self.asn {
             // internal neighbor
             bgp_neighbor.remote_as(neighbor_asn);
-            bgp_neighbor.update_source(self.iface(r, n, addressor)?);
+            bgp_neighbor.update_source(loopback_iface(self.target, 0));
+            bgp_neighbor.send_community();
         } else {
             // external neighbor
             bgp_neighbor.remote_as(neighbor_asn);
-            bgp_neighbor.update_source(loopback_iface(self.target, 0));
-            bgp_neighbor.send_community();
+            bgp_neighbor.update_source(self.iface(r, n, addressor)?);
         }
 
         bgp_neighbor.weight(100);

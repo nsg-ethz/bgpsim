@@ -99,7 +99,7 @@ use syn::parse_macro_input;
 ///         r1 -> b1: client;
 ///     };
 ///     routes = {
-///         e0 -> "10.0.0.0/8" as {path: [1, 3, 4], med: 100, community: 20};
+///         e0 -> "10.0.0.0/8" as {path: [1, 3, 4], med: 100, community: (0x65535, 666)};
 ///         e1 -> "10.0.0.0/8" as {path: [2, 4]};
 ///     };
 ///     return ((b0, b1), (e0, e1))
@@ -148,7 +148,7 @@ use syn::parse_macro_input;
 ///             Ipv4Net::new(Ipv4Addr::new(10, 0, 0, 0),8).unwrap(),
 ///             [1, 3, 4],
 ///             Some(100),
-///             [20],
+///             [(65535, 666).into()],
 ///         ).unwrap();
 ///     _net.advertise_external_route(
 ///             e1,
@@ -186,7 +186,7 @@ use syn::parse_macro_input;
 ///         r1 -> b1: client;
 ///     };
 ///     routes = {
-///         e0 -> "10.0.0.0/8" as {path: [1, 3, 4], med: 100, community: 20};
+///         e0 -> "10.0.0.0/8" as {path: [1, 3, 4], med: 100, community: [(65535,666), (65535, 1)]};
 ///         e1 -> "10.0.0.0/8" as {path: [2, 4]};
 ///     };
 ///     return ((b0, b1), (r0, r1), (e0, e1))

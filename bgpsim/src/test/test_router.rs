@@ -584,8 +584,7 @@ mod t1 {
         let mut r = ExternalRouter::<P>::new("router".to_string(), 0.into(), ASN(65001));
 
         // advertise route
-        let (_, events) =
-            r.advertise_prefix::<(), Option<u32>>(P::from(0), vec![ASN(0)], None, None);
+        let (_, events) = r.advertise_prefix::<(), _>(P::from(0), vec![ASN(0)], None, None);
 
         // check that no event was created
         assert_eq!(events.len(), 0);

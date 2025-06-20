@@ -201,11 +201,17 @@ mod t1 {
         );
 
         assert_eq!(
-            RouteMap::<P>::new(10, Deny, vec![Match::Community(0)], vec![], Continue),
+            RouteMap::<P>::new(
+                10,
+                Deny,
+                vec![Match::Community((10, 0).into())],
+                vec![],
+                Continue
+            ),
             RouteMapBuilder::<P>::new()
                 .order(10)
                 .deny()
-                .match_community(0)
+                .match_community((10, 0))
                 .build()
         );
 
@@ -273,20 +279,32 @@ mod t1 {
         );
 
         assert_eq!(
-            RouteMap::<P>::new(10, Allow, vec![], vec![Set::SetCommunity(10)], Continue),
+            RouteMap::<P>::new(
+                10,
+                Allow,
+                vec![],
+                vec![Set::SetCommunity((10, 10).into())],
+                Continue
+            ),
             RouteMapBuilder::<P>::new()
                 .order(10)
                 .allow()
-                .set_community(10)
+                .set_community((10, 10))
                 .build()
         );
 
         assert_eq!(
-            RouteMap::<P>::new(10, Allow, vec![], vec![Set::DelCommunity(10)], Continue),
+            RouteMap::<P>::new(
+                10,
+                Allow,
+                vec![],
+                vec![Set::DelCommunity((10, 10).into())],
+                Continue
+            ),
             RouteMapBuilder::<P>::new()
                 .order(10)
                 .allow()
-                .remove_community(10)
+                .remove_community((10, 10))
                 .build()
         );
     }
@@ -315,35 +333,35 @@ mod t1 {
             RouteMapBuilder::<P>::new()
                 .order(1)
                 .allow()
-                .set_community(10)
+                .set_community((10, 10))
                 .continue_next()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(2)
                 .allow()
-                .match_community(20)
-                .set_community(0)
+                .match_community((10, 20))
+                .set_community((10, 0))
                 .continue_next()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(3)
                 .allow()
-                .match_community(10)
-                .set_community(20)
+                .match_community((10, 10))
+                .set_community((10, 20))
                 .continue_next()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(4)
                 .allow()
-                .match_community(20)
-                .set_community(30)
+                .match_community((10, 20))
+                .set_community((10, 30))
                 .continue_next()
                 .build(),
         ];
 
         assert_eq!(
             rms.apply(entry).unwrap().route.community,
-            btreeset! {10, 20, 30}
+            btreeset! {(10, 10).into(), (10, 20).into(), (10, 30).into()}
         );
     }
 
@@ -371,35 +389,35 @@ mod t1 {
             RouteMapBuilder::<P>::new()
                 .order(1)
                 .allow()
-                .set_community(10)
+                .set_community((10, 10))
                 .continue_at(3)
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(2)
                 .allow()
-                .match_community(10)
-                .set_community(20)
+                .match_community((10, 10))
+                .set_community((10, 20))
                 .continue_next()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(3)
                 .allow()
-                .match_community(10)
-                .set_community(30)
+                .match_community((10, 10))
+                .set_community((10, 30))
                 .continue_next()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(4)
                 .allow()
-                .match_community(10)
-                .set_community(40)
+                .match_community((10, 10))
+                .set_community((10, 40))
                 .continue_next()
                 .build(),
         ];
 
         assert_eq!(
             rms.apply(entry).unwrap().route.community,
-            btreeset! {10, 30, 40}
+            btreeset! {(10, 10).into(), (10, 30).into(), (10, 40).into()}
         );
     }
 
@@ -427,33 +445,36 @@ mod t1 {
             RouteMapBuilder::<P>::new()
                 .order(1)
                 .allow()
-                .set_community(10)
+                .set_community((10, 10))
                 .continue_at(3)
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(2)
                 .allow()
-                .match_community(10)
-                .set_community(20)
+                .match_community((10, 10))
+                .set_community((10, 20))
                 .continue_next()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(4)
                 .allow()
-                .match_community(10)
-                .set_community(40)
+                .match_community((10, 10))
+                .set_community((10, 40))
                 .continue_next()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(5)
                 .allow()
-                .match_community(10)
-                .set_community(50)
+                .match_community((10, 10))
+                .set_community((10, 50))
                 .continue_next()
                 .build(),
         ];
 
-        assert_eq!(rms.apply(entry).unwrap().route.community, btreeset! {10});
+        assert_eq!(
+            rms.apply(entry).unwrap().route.community,
+            btreeset! {(10, 10).into()}
+        );
     }
 
     #[test]
@@ -480,33 +501,36 @@ mod t1 {
             RouteMapBuilder::<P>::new()
                 .order(1)
                 .allow()
-                .set_community(10)
+                .set_community((10, 10))
                 .exit()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(2)
                 .allow()
-                .match_community(10)
-                .set_community(20)
+                .match_community((10, 10))
+                .set_community((10, 20))
                 .continue_next()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(3)
                 .allow()
-                .match_community(10)
-                .set_community(30)
+                .match_community((10, 10))
+                .set_community((10, 30))
                 .continue_next()
                 .build(),
             RouteMapBuilder::<P>::new()
                 .order(4)
                 .allow()
-                .match_community(10)
-                .set_community(40)
+                .match_community((10, 10))
+                .set_community((10, 40))
                 .continue_next()
                 .build(),
         ];
 
-        assert_eq!(rms.apply(entry).unwrap().route.community, btreeset! {10});
+        assert_eq!(
+            rms.apply(entry).unwrap().route.community,
+            btreeset! {(10, 10).into()}
+        );
     }
 
     #[instantiate_tests(<SinglePrefix>)]
@@ -653,15 +677,21 @@ mod t2 {
         assert!(map.apply(entry).1.is_some());
 
         // Match on Community, exact
-        let map = RouteMap::new(10, Deny, vec![Match::Community(0)], vec![], Continue);
+        let map = RouteMap::new(
+            10,
+            Deny,
+            vec![Match::Community((10, 0).into())],
+            vec![],
+            Continue,
+        );
         let mut entry = default_entry;
         entry.route.community = Default::default();
         assert_eq!(map.apply(entry.clone()).0, Continue);
         assert!(map.apply(entry.clone()).1.is_some());
-        entry.route.community.insert(1);
+        entry.route.community.insert((10, 1).into());
         assert_eq!(map.apply(entry.clone()).0, Continue);
         assert!(map.apply(entry.clone()).1.is_some());
-        entry.route.community.insert(0);
+        entry.route.community.insert((10, 0).into());
         assert_eq!(map.apply(entry.clone()).0, Exit);
         assert!(map.apply(entry).1.is_none());
     }

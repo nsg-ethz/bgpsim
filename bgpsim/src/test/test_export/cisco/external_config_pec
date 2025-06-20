@@ -23,7 +23,7 @@ exit
 !
 router bgp 4
   router-id 20.0.0.1
-  neighbor 10.192.0.2 remote-as 65535
+  neighbor 10.192.0.2 remote-as 65500
     update-source Ethernet8/1
     address-family ipv4 unicast
       next-hop-self

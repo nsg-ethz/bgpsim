@@ -103,7 +103,7 @@ impl<A: Into<ASN>> From<(A, u32)> for Community {
 
 impl std::fmt::Display for Community {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}:{}", self.asn, self.num)
+        write!(f, "{}:{}", self.asn.0, self.num)
     }
 }
 

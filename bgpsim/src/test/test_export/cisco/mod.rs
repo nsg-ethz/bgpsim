@@ -128,7 +128,7 @@ exit
         map: RouteMapBuilder::new()
             .allow()
             .order(12)
-            .match_community(100)
+            .match_community((65500, 100))
             .set_local_pref(200)
             .build(),
     };
@@ -138,7 +138,7 @@ exit
             .generate_command(&net, &mut ip, Insert(cmd2a.clone()))
             .unwrap(),
         "\
-ip community-list standard neighbor-R0_ext_4-in-32780-cl permit 65535:100
+ip community-list standard neighbor-R0_ext_4-in-32780-cl permit 65500:100
 route-map neighbor-R0_ext_4-in permit 32780
   match community neighbor-R0_ext_4-in-32780-cl
   set local-preference 200
@@ -154,8 +154,8 @@ exit
         map: RouteMapBuilder::new()
             .allow()
             .order(13)
-            .match_community(200)
-            .set_community(300)
+            .match_community((65500, 200))
+            .set_community((65500, 300))
             .build(),
     };
 
@@ -164,10 +164,10 @@ exit
             .generate_command(&net, &mut ip, Insert(cmd3.clone()))
             .unwrap(),
         "\
-ip community-list standard neighbor-R0_ext_4-in-32781-cl permit 65535:200
+ip community-list standard neighbor-R0_ext_4-in-32781-cl permit 65500:200
 route-map neighbor-R0_ext_4-in permit 32781
   match community neighbor-R0_ext_4-in-32781-cl
-  set community additive 65535:300
+  set community additive 65500:300
   continue 32788
 exit
 route-map neighbor-R0_ext_4-in permit 32780
@@ -183,7 +183,7 @@ exit
         map: RouteMapBuilder::new()
             .deny()
             .order(12)
-            .match_community(100)
+            .match_community((65500, 100))
             .build(),
     };
     assert_str_eq!(
@@ -200,7 +200,7 @@ exit
         "\
 no ip community-list standard neighbor-R0_ext_4-in-32780-cl
 no route-map neighbor-R0_ext_4-in permit 32780
-ip community-list standard neighbor-R0_ext_4-in-32780-cl permit 65535:100
+ip community-list standard neighbor-R0_ext_4-in-32780-cl permit 65500:100
 route-map neighbor-R0_ext_4-in deny 32780
   match community neighbor-R0_ext_4-in-32780-cl
 exit
@@ -214,7 +214,7 @@ exit
         map: RouteMapBuilder::new()
             .allow()
             .order(20)
-            .match_community(20)
+            .match_community((65500, 20))
             .match_prefix(1.into())
             .set_weight(200)
             .build(),

@@ -2506,7 +2506,7 @@ impl RouteMapItem {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
     /// assert_eq!(
-    ///     RouteMapItem::new("test", 10, true).no_set_community(10, 10).build(Target::Frr),
+    ///     RouteMapItem::new("test", 10, true).no_set_community((10, 10)).build(Target::Frr),
     ///     "\
     /// route-map test permit 10
     ///   no set community 10:10
@@ -3038,7 +3038,7 @@ impl CommunityList {
     /// assert_eq!(
     ///     CommunityList::new("test")
     ///         .community((10, 10)).community((10, 20))
-    ///         .deny(10, 30).deny(10, 40)
+    ///         .deny((10, 30)).deny((10, 40))
     ///         .build(Target::Frr),
     ///     "\
     /// bgp community-list standard test deny 10:30

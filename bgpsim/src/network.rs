@@ -41,7 +41,7 @@ use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 1_000_000;
 /// The default AS number assigned to internal routers.
-pub const DEFAULT_INTERNAL_ASN: ASN = ASN(65535);
+pub const DEFAULT_INTERNAL_ASN: ASN = ASN(65500);
 
 /// # Network struct
 /// The struct contains all information about the underlying physical network (Links), a manages

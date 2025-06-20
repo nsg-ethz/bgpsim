@@ -932,7 +932,7 @@ mod t {
             RouteMapBuilder::new().order(100).deny().build(),
         )
         .unwrap();
-        net.advertise_external_route(ex, p, [100, 100, 1], None, [10])
+        net.advertise_external_route(ex, p, [100, 100, 1], None, [(65500, 10).into()])
             .unwrap();
         net.manual_simulation();
 
@@ -963,7 +963,7 @@ mod t {
                         RouteMapBuilder::new()
                             .order(50)
                             .deny()
-                            .match_community(10)
+                            .match_community((65500, 10))
                             .build(),
                     ),
                 },
@@ -994,7 +994,7 @@ mod t {
             map: RouteMapBuilder::new()
                 .order(50)
                 .deny()
-                .match_community(10)
+                .match_community((65500, 10))
                 .build(),
         }))
         .unwrap();

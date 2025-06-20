@@ -135,12 +135,12 @@ mod t1 {
         let rm0 = RouteMapBuilder::new()
             .deny()
             .order(20)
-            .match_community(10)
+            .match_community((10, 10))
             .build();
         let rm1 = RouteMapBuilder::new()
             .deny()
             .order(20)
-            .match_community(12)
+            .match_community((10, 12))
             .build();
         let rm2 = RouteMapBuilder::new().allow().order(10).build();
 
