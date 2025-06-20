@@ -29,7 +29,7 @@ use itertools::Itertools;
 use crate::{
     bgp::BgpRoute,
     config::{ConfigExpr, ConfigModifier},
-    network::{Network, INTERNAL_ASN},
+    network::Network,
     ospf::{InternalEdge, OspfArea, OspfImpl, OspfProcess},
     prelude::BgpSessionType,
     route_map::{
@@ -392,12 +392,15 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     ) -> Result<RouterBgpNeighbor, ExportError> {
         let r = self.router;
         let mut bgp_neighbor = RouterBgpNeighbor::new(self.router_id_to_ip(n, net, addressor)?);
+        let neighbor_asn = net.get_device(n)?.asn();
 
-        if let Some(neighbor) = net.get_device(n)?.external() {
-            bgp_neighbor.remote_as(neighbor.asn());
+        if neighbor_asn == self.asn {
+            // internal neighbor
+            bgp_neighbor.remote_as(neighbor_asn);
             bgp_neighbor.update_source(self.iface(r, n, addressor)?);
         } else {
-            bgp_neighbor.remote_as(INTERNAL_ASN);
+            // external neighbor
+            bgp_neighbor.remote_as(neighbor_asn);
             bgp_neighbor.update_source(loopback_iface(self.target, 0));
             bgp_neighbor.send_community();
         }
@@ -554,10 +557,10 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         if let Some((communities, deny_communities)) = rm_match_community_list(rm) {
             let mut cl = CommunityList::new(format!("{name}-{ord}-cl"));
             for c in communities {
-                cl.community(INTERNAL_ASN, c);
+                cl.community(self.asn, c);
             }
             for c in deny_communities {
-                cl.deny(INTERNAL_ASN, c);
+                cl.deny(self.asn, c);
             }
             route_map_item.match_community_list(cl);
         }
@@ -580,7 +583,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         if let Some(communities) = rm_delete_community_list(rm) {
             let mut cl = CommunityList::new(format!("{name}-{ord}-del-cl"));
             for c in communities {
-                cl.community(INTERNAL_ASN, c);
+                cl.community(self.asn, c);
             }
             route_map_item.delete_community_list(cl);
         }
@@ -600,7 +603,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
                 RouteMapSet::IgpCost(_) => {
                     unimplemented!("Changing the IGP cost is not implemented yet!")
                 }
-                RouteMapSet::SetCommunity(c) => route_map_item.set_community(INTERNAL_ASN, *c),
+                RouteMapSet::SetCommunity(c) => route_map_item.set_community(self.asn, *c),
                 RouteMapSet::DelCommunity(_) => &mut route_map_item, // nothing to do, already done!
             };
         }
@@ -979,10 +982,11 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         let mut router_bgp = RouterBgp::new(self.asn);
         router_bgp.router_id(addressor.router_address(self.router)?);
         for neighbor in router.neighbors.iter() {
+            let neighbor_asn = net.get_device(*neighbor)?.asn();
             router_bgp.neighbor(
                 RouterBgpNeighbor::new(self.router_id_to_ip(*neighbor, net, addressor)?)
                     .update_source(self.iface(self.router, *neighbor, addressor)?)
-                    .remote_as(INTERNAL_ASN)
+                    .remote_as(neighbor_asn)
                     .next_hop_self()
                     .route_map_in(EXTERNAL_RM_IN)
                     .route_map_out(EXTERNAL_RM_OUT),
@@ -1066,7 +1070,7 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         route_map.prepend_as_path(route.as_path.iter().skip(1));
         route_map.set_med(route.med.unwrap_or(0));
         for c in route.community.iter() {
-            route_map.set_community(INTERNAL_ASN, *c);
+            route_map.set_community(65535, *c); // TODO change this!
         }
         config.push_str(&route_map.build(self.target));
 
@@ -1124,11 +1128,12 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
+        let neighbor_asn = net.get_device(neighbor)?.asn();
         Ok(RouterBgp::new(self.asn)
             .neighbor(
                 RouterBgpNeighbor::new(self.router_id_to_ip(neighbor, net, addressor)?)
                     .update_source(self.iface(self.router, neighbor, addressor)?)
-                    .remote_as(INTERNAL_ASN)
+                    .remote_as(neighbor_asn)
                     .next_hop_self()
                     .route_map_in(EXTERNAL_RM_IN)
                     .route_map_out(EXTERNAL_RM_OUT),

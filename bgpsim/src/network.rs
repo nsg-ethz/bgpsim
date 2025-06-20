@@ -40,8 +40,6 @@ use serde_with::serde_as;
 use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 1_000_000;
-/// The AS number assigned to internal routers.
-pub const INTERNAL_ASN: ASN = ASN(65535);
 
 /// # Network struct
 /// The struct contains all information about the underlying physical network (Links), a manages
@@ -143,12 +141,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     ///
     /// If you wish to create a router with a different AS number, use [`Self::add_router_with_asn`].
     pub fn add_router(&mut self, name: impl Into<String>) -> RouterId {
-        let new_router = Router::new(name.into(), self.net.add_node(()), INTERNAL_ASN);
-        let router_id = new_router.router_id();
-        self.routers.insert(router_id, new_router.into());
-        self.ospf.add_router(router_id, true);
-
-        router_id
+        self.add_router_with_asn(name, 65535)
     }
 
     /// Add a new router to the topology with a custom AS number. This function returns the ID of

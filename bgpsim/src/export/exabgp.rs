@@ -23,7 +23,7 @@ use std::{
 
 use crate::{
     bgp::BgpRoute,
-    network::{Network, INTERNAL_ASN},
+    network::Network,
     ospf::OspfImpl,
     types::{Ipv4Prefix, Prefix, PrefixMap, RouterId, ASN},
 };
@@ -323,11 +323,13 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
     }
 
     /// Generate the configuration for a single neighbor
-    fn generate_neighbor_cfg<A: Addressor<P>>(
+    fn generate_neighbor_cfg<A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
+        let asn = net.get_device(neighbor)?.asn();
         Ok(format!(
             "\
 neighbor {} {{
@@ -342,7 +344,7 @@ neighbor {} {{
             addressor.router_address(self.router)?,
             addressor.iface_address(self.router, neighbor)?,
             self.asn.0,
-            INTERNAL_ASN.0,
+            asn.0,
         ))
     }
 
@@ -371,7 +373,7 @@ pub fn announce_route<P: Prefix>(route: &BgpRoute<P>) -> String {
                 route
                     .community
                     .iter()
-                    .map(|x| format!("{}:{}", INTERNAL_ASN.0, x))
+                    .map(|x| format!("{}:{}", 65535, x)) // TODO replace with proper community
                     .join(", ")
             )
         },
@@ -388,13 +390,13 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> ExternalCfgGen<P, Q, Ospf, A
 {
     fn generate_config(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         Ok(self
             .neighbors
             .iter()
-            .map(|x| self.generate_neighbor_cfg(addressor, *x))
+            .map(|x| self.generate_neighbor_cfg(net, addressor, *x))
             .collect::<Result<Vec<String>, ExportError>>()?
             .into_iter()
             .join("\n"))
