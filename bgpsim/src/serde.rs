@@ -34,17 +34,17 @@ use crate::{
     ospf::{LocalOspf, OspfImpl},
     policies::{FwPolicy, Policy, PolicyError},
     types::{
-        AsId, IntoIpv4Prefix, Ipv4Prefix, NetworkDeviceRef, NetworkError, Prefix, PrefixMap,
-        RouterId,
+        IntoIpv4Prefix, Ipv4Prefix, NetworkDeviceRef, NetworkError, Prefix, PrefixMap, RouterId,
+        ASN,
     },
 };
 
 const JSON_FIELD_NAME_NETWORK: &str = "net";
 const JSON_FIELD_NAME_CONFIG: &str = "config_nodes_routes";
 
-type ExportRoutes<P> = (RouterId, P, Vec<AsId>, Option<u32>, BTreeSet<u32>);
+type ExportRoutes<P> = (RouterId, P, Vec<ASN>, Option<u32>, BTreeSet<u32>);
 type ExportConfig<P> = Vec<ConfigExpr<P>>;
-type ExportRouters = Vec<(RouterId, String, Option<AsId>)>;
+type ExportRouters = Vec<(RouterId, String, Option<ASN>)>;
 type ExportLinks = Vec<(RouterId, RouterId)>;
 type ExportTuple<P> = (
     ExportConfig<P>,
@@ -95,12 +95,12 @@ where
     /// Create a json value containing the configuration.
     fn as_config_node_routes(&self) -> ExportTuple<P> {
         let config = Vec::from_iter(self.get_config().unwrap().iter().cloned());
-        let mut nodes: Vec<(RouterId, String, Option<AsId>)> = self
+        let mut nodes: Vec<(RouterId, String, Option<ASN>)> = self
             .devices()
             .map(|r| match r {
                 NetworkDeviceRef::InternalRouter(r) => (r.router_id(), r.name().to_string(), None),
                 NetworkDeviceRef::ExternalRouter(r) => {
-                    (r.router_id(), r.name().to_string(), Some(r.as_id()))
+                    (r.router_id(), r.name().to_string(), Some(r.asn()))
                 }
             })
             .collect();
@@ -395,7 +395,7 @@ where
         F: FnOnce() -> Q,
     {
         let config: Vec<ConfigExpr<P>> = serde_json::from_value(config)?;
-        let nodes: Vec<(RouterId, String, Option<AsId>)> = serde_json::from_value(nodes)?;
+        let nodes: Vec<(RouterId, String, Option<ASN>)> = serde_json::from_value(nodes)?;
         let links: Vec<(RouterId, RouterId)> = serde_json::from_value(links)?;
         let routes: Vec<ExportRoutes<P>> = serde_json::from_value(routes)?;
         let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();

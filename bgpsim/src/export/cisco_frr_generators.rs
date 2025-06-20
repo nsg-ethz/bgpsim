@@ -21,7 +21,7 @@ use std::{fmt::Write, net::Ipv4Addr};
 
 use crate::{
     ospf::{LinkWeight, OspfArea},
-    types::AsId,
+    types::ASN,
 };
 
 /// Instance of the OSPF router.
@@ -718,7 +718,7 @@ exit
 /// ```
 /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
 /// # use std::net::Ipv4Addr;
-/// # use bgpsim::types::AsId;
+/// # use bgpsim::types::ASN;
 /// use ipnet::Ipv4Net;
 ///
 /// let router_id: Ipv4Addr = "10.0.0.1".parse().unwrap();
@@ -758,7 +758,7 @@ exit
 /// ```
 #[derive(Debug)]
 pub struct RouterBgp {
-    as_id: AsId,
+    asn: ASN,
     router_id: Option<Ipv4Addr>,
     no_router_id: bool,
     neighbors: Vec<(RouterBgpNeighbor, bool)>,
@@ -767,9 +767,9 @@ pub struct RouterBgp {
 
 impl RouterBgp {
     /// Create a new BGP configuration builder
-    pub fn new(as_id: impl Into<AsId>) -> Self {
+    pub fn new(asn: impl Into<ASN>) -> Self {
         Self {
-            as_id: as_id.into(),
+            asn: asn.into(),
             router_id: Default::default(),
             no_router_id: Default::default(),
             neighbors: Default::default(),
@@ -787,7 +787,7 @@ impl RouterBgp {
     /// );
     /// ```
     pub fn no(&self) -> String {
-        format!("no router bgp {}\n", self.as_id.0)
+        format!("no router bgp {}\n", self.asn.0)
     }
 
     /// Set the router-id for the BGP router instance.
@@ -883,7 +883,7 @@ impl RouterBgp {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgp::new(10)
@@ -908,7 +908,7 @@ impl RouterBgp {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgp::new(10)
@@ -932,7 +932,7 @@ impl RouterBgp {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgp, RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// use ipnet::Ipv4Net;
     ///
     /// let router_id: Ipv4Addr = "10.0.0.1".parse().unwrap();
@@ -1040,7 +1040,7 @@ router bgp {id}
 {router_id}{neighbors}{af}\
 exit
 ",
-            id = self.as_id.0,
+            id = self.asn.0,
             router_id = router_id,
             neighbors = neighbor_code,
             af = af
@@ -1052,7 +1052,7 @@ exit
 #[derive(Debug, Clone)]
 pub struct RouterBgpNeighbor {
     neighbor_id: Ipv4Addr,
-    remote_as: Option<AsId>,
+    remote_as: Option<ASN>,
     weight: Option<u16>,
     no_weight: bool,
     update_source: Option<String>,
@@ -1105,7 +1105,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1124,7 +1124,7 @@ impl RouterBgpNeighbor {
     ///     "  neighbor 20.0.0.1 remote-as 20\n"
     /// );
     /// ```
-    pub fn remote_as(&mut self, remote_as: impl Into<AsId>) -> &mut Self {
+    pub fn remote_as(&mut self, remote_as: impl Into<ASN>) -> &mut Self {
         self.remote_as = Some(remote_as.into());
         self
     }
@@ -1134,7 +1134,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1171,7 +1171,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1209,7 +1209,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1240,7 +1240,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1260,7 +1260,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1298,7 +1298,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1335,7 +1335,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1372,7 +1372,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1409,7 +1409,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1446,7 +1446,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1484,7 +1484,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1521,7 +1521,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1559,7 +1559,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1596,7 +1596,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1633,7 +1633,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1670,7 +1670,7 @@ impl RouterBgpNeighbor {
     /// ```
     /// # use bgpsim::export::cisco_frr_generators::{RouterBgpNeighbor, Target};
     /// # use std::net::Ipv4Addr;
-    /// # use bgpsim::types::AsId;
+    /// # use bgpsim::types::ASN;
     /// let neighbor_addr: Ipv4Addr = "20.0.0.1".parse().unwrap();
     /// assert_eq!(
     ///     RouterBgpNeighbor::new(neighbor_addr)
@@ -1982,7 +1982,7 @@ pub struct RouteMapItem {
     set_med: Option<(u32, bool)>,
     set_community: Vec<(String, bool)>,
     delete_community: Vec<(CommunityList, bool)>,
-    prepend_as_path: Option<(Vec<AsId>, bool)>,
+    prepend_as_path: Option<(Vec<ASN>, bool)>,
     cont: Option<(u16, bool)>,
 }
 
@@ -2495,9 +2495,9 @@ impl RouteMapItem {
     /// "
     /// );
     /// ```
-    pub fn set_community(&mut self, as_id: impl Into<AsId>, community: u32) -> &mut Self {
+    pub fn set_community(&mut self, asn: impl Into<ASN>, community: u32) -> &mut Self {
         self.set_community
-            .push((format!("{}:{}", as_id.into().0, community), true));
+            .push((format!("{}:{}", asn.into().0, community), true));
         self
     }
 
@@ -2530,9 +2530,9 @@ impl RouteMapItem {
     /// "
     /// );
     /// ```
-    pub fn no_set_community(&mut self, as_id: impl Into<AsId>, community: u32) -> &mut Self {
+    pub fn no_set_community(&mut self, asn: impl Into<ASN>, community: u32) -> &mut Self {
         self.set_community
-            .push((format!("{}:{}", as_id.into().0, community), false));
+            .push((format!("{}:{}", asn.into().0, community), false));
         self
     }
 
@@ -2596,7 +2596,7 @@ impl RouteMapItem {
     /// "
     /// );
     /// ```
-    pub fn prepend_as_path<As: Into<AsId>>(
+    pub fn prepend_as_path<As: Into<ASN>>(
         &mut self,
         path: impl IntoIterator<Item = As>,
     ) -> &mut Self {
@@ -2824,7 +2824,7 @@ impl RouteMapItem {
             cfg.push_str(if *mode { "  " } else { "  no " });
             cfg.push_str(&format!("set comm-list {} delete\n", c.name));
         }
-        // prepend_as_path: Option<(Vec<AsId>, bool)>,
+        // prepend_as_path: Option<(Vec<ASN>, bool)>,
         match self.prepend_as_path.as_ref() {
             Some((path, true)) => cfg.push_str(&format!(
                 "  set as-path prepend {}\n",
@@ -3027,9 +3027,9 @@ impl CommunityList {
     ///     "bgp community-list standard test permit 10:10 10:20\n"
     /// );
     /// ```
-    pub fn community(&mut self, as_id: impl Into<AsId>, community: u32) -> &mut Self {
+    pub fn community(&mut self, asn: impl Into<ASN>, community: u32) -> &mut Self {
         self.communities
-            .push(format!("{}:{}", as_id.into().0, community));
+            .push(format!("{}:{}", asn.into().0, community));
         self
     }
 
@@ -3049,9 +3049,9 @@ impl CommunityList {
     /// "
     /// );
     /// ```
-    pub fn deny(&mut self, as_id: impl Into<AsId>, community: u32) -> &mut Self {
+    pub fn deny(&mut self, asn: impl Into<ASN>, community: u32) -> &mut Self {
         self.deny_communities
-            .push(format!("{}:{}", as_id.into().0, community));
+            .push(format!("{}:{}", asn.into().0, community));
         self
     }
 
@@ -3123,8 +3123,8 @@ impl AsPathList {
     ///     "bgp as-path access-list test permit _10_\n"
     /// );
     /// ```
-    pub fn contains_as(&mut self, as_id: impl Into<AsId>) -> &mut Self {
-        self.regex = format!("_{}_", as_id.into().0);
+    pub fn contains_as(&mut self, asn: impl Into<ASN>) -> &mut Self {
+        self.regex = format!("_{}_", asn.into().0);
         self
     }
 

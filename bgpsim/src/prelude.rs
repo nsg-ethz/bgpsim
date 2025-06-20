@@ -26,6 +26,6 @@ pub use crate::ospf::global::GlobalOspf;
 pub use crate::ospf::{LinkWeight, OspfCoordinator, OspfImpl, OspfProcess};
 pub use crate::record::RecordNetwork;
 pub use crate::types::{
-    AsId, Ipv4Prefix, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix,
+    Ipv4Prefix, NetworkError, Prefix, RouterId, SimplePrefix, SinglePrefix, ASN,
 };
 pub use bgpsim_macros::*;

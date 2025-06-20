@@ -20,7 +20,7 @@ pub use state::*;
 
 use crate::{
     ospf::LinkWeight,
-    types::{AsId, IntoIpv4Prefix, Ipv4Prefix, Prefix, RouterId},
+    types::{IntoIpv4Prefix, Ipv4Prefix, Prefix, RouterId, ASN},
 };
 
 use ordered_float::NotNan;
@@ -38,7 +38,7 @@ pub struct BgpRoute<P: Prefix> {
     /// IP PREFIX
     pub prefix: P,
     /// AS-PATH, where the origin of the route is last, and the ID of a new AS is prepended.
-    pub as_path: Vec<AsId>,
+    pub as_path: Vec<ASN>,
     /// NEXT-HOP for reaching the source of the route.
     pub next_hop: RouterId,
     /// LOCAL-PREF
@@ -81,10 +81,10 @@ impl<P: Prefix> BgpRoute<P> {
     ) -> Self
     where
         A: IntoIterator,
-        A::Item: Into<AsId>,
+        A::Item: Into<ASN>,
         C: IntoIterator<Item = u32>,
     {
-        let as_path: Vec<AsId> = as_path.into_iter().map(|id| id.into()).collect();
+        let as_path: Vec<ASN> = as_path.into_iter().map(|id| id.into()).collect();
         Self {
             prefix: prefix.into(),
             as_path,

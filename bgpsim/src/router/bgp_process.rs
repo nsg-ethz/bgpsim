@@ -39,9 +39,7 @@ use crate::{
         RouteMapDirection::{self, Incoming, Outgoing},
         RouteMapList,
     },
-    types::{
-        AsId, DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, PrefixSet, RouterId,
-    },
+    types::{DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, PrefixSet, RouterId, ASN},
 };
 use itertools::Itertools;
 use ordered_float::NotNan;
@@ -59,7 +57,7 @@ pub struct BgpProcess<P: Prefix> {
     /// The Router ID
     router_id: RouterId,
     /// The AS-ID of the router
-    as_id: AsId,
+    as_id: ASN,
     /// The cost to reach all internal routers
     pub(crate) igp_cost: HashMap<RouterId, LinkWeight>,
     /// hashmap of all bgp sessions
@@ -84,7 +82,7 @@ pub struct BgpProcess<P: Prefix> {
 
 impl<P: Prefix> BgpProcess<P> {
     /// Generate a new, empty BgpProcess
-    pub(crate) fn new(router_id: RouterId, as_id: AsId) -> Self {
+    pub(crate) fn new(router_id: RouterId, as_id: ASN) -> Self {
         Self {
             router_id,
             as_id,

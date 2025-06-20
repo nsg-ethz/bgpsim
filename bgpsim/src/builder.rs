@@ -31,7 +31,7 @@ use crate::{
     ospf::{LinkWeight, OspfImpl},
     prelude::{BgpSessionType, GlobalOspf},
     route_map::{RouteMapBuilder, RouteMapDirection},
-    types::{AsId, IndexType, NetworkError, Prefix, RouterId},
+    types::{IndexType, NetworkError, Prefix, RouterId, ASN},
 };
 
 /// Trait for generating random configurations quickly. The following example shows how you can
@@ -219,9 +219,9 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net: Network<SimplePrefix, _, GlobalOspf> = TopologyZoo::Abilene.build(Queue::new());
     /// # let prefix = Prefix::from(0);
-    /// # let e1 = net.add_external_router("e1", AsId(1));
-    /// # let e2 = net.add_external_router("e2", AsId(2));
-    /// # let e3 = net.add_external_router("e3", AsId(3));
+    /// # let e1 = net.add_external_router("e1", ASN(1));
+    /// # let e2 = net.add_external_router("e2", ASN(2));
+    /// # let e3 = net.add_external_router("e3", ASN(3));
     ///
     /// // let mut net = ...
     /// // let prefix = ...
@@ -531,7 +531,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         F: FnOnce(&Self, A) -> Vec<Vec<RouterId>>,
     {
         let prefs = preferences(self, a);
-        let last_as = AsId(100);
+        let last_as = ASN(100);
 
         let old_skip_queue = self.skip_queue;
         self.skip_queue = false;
@@ -539,7 +539,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         for (i, routers) in prefs.iter().enumerate() {
             let own_as_num = i + 1;
             for router in routers {
-                let router_as = self.get_device(*router)?.external_or_err()?.as_id();
+                let router_as = self.get_device(*router)?.external_or_err()?.asn();
                 let as_path = std::iter::repeat_n(router_as, own_as_num).chain(once(last_as));
                 self.advertise_external_route(*router, prefix, as_path, None, None)?;
             }
@@ -565,9 +565,9 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             .into_iter()
             .map(|neighbor| {
                 let neighbor_name = self.get_device(neighbor)?.name().to_owned();
-                let id = self.add_external_router("tmp", AsId(42));
+                let id = self.add_external_router("tmp", ASN(42));
                 let r = self.get_external_router_mut(id)?;
-                r.set_as_id(AsId(id.index() as u32));
+                r.set_asn(ASN(id.index() as u32));
                 r.set_name(format!("{}_ext_{}", neighbor_name, id.index()));
                 new_links.push((id, neighbor));
                 Ok(id)

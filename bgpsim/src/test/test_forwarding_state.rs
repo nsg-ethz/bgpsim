@@ -16,11 +16,11 @@
 use crate::{
     bgp::{BgpEvent, BgpRoute, BgpSessionType::*},
     config::{Config, ConfigExpr::*, NetworkConfig},
-    network::{Network, INTERNAL_AS},
+    network::{Network, INTERNAL_ASN},
     ospf::local::{LocalNeighborhoodChange, LocalOspfProcess},
     route_map::*,
     router::Router,
-    types::{AsId, Ipv4Prefix, Prefix, SimplePrefix},
+    types::{Ipv4Prefix, Prefix, SimplePrefix, ASN},
 };
 
 #[generic_tests::define]
@@ -63,11 +63,11 @@ mod t {
             let b2 = net.add_router("b2");
             let b3 = net.add_router("b3");
             let b4 = net.add_router("b4");
-            let e1 = net.add_external_router("e1", AsId(65101));
-            let e2 = net.add_external_router("e2", AsId(65102));
-            let e3 = net.add_external_router("e3", AsId(65103));
-            let e4 = net.add_external_router("e4", AsId(65104));
-            let er = net.add_external_router("er", AsId(65100));
+            let e1 = net.add_external_router("e1", ASN(65101));
+            let e2 = net.add_external_router("e2", ASN(65102));
+            let e3 = net.add_external_router("e3", ASN(65103));
+            let e4 = net.add_external_router("e4", ASN(65104));
+            let er = net.add_external_router("er", ASN(65100));
 
             net.add_link(rr, r1).unwrap();
             net.add_link(rr, r2).unwrap();
@@ -177,70 +177,22 @@ mod t {
             .unwrap();
             net.set_config(&c).unwrap();
 
-            net.advertise_external_route(
-                er,
-                P::from(1),
-                vec![AsId(65100), AsId(65201)],
-                None,
-                None,
-            )
-            .unwrap();
-            net.advertise_external_route(
-                er,
-                P::from(2),
-                vec![AsId(65100), AsId(65202)],
-                None,
-                None,
-            )
-            .unwrap();
-            net.advertise_external_route(
-                e1,
-                P::from(1),
-                vec![AsId(65101), AsId(65201)],
-                None,
-                None,
-            )
-            .unwrap();
-            net.advertise_external_route(
-                e2,
-                P::from(1),
-                vec![AsId(65102), AsId(65201)],
-                None,
-                None,
-            )
-            .unwrap();
-            net.advertise_external_route(
-                e2,
-                P::from(2),
-                vec![AsId(65102), AsId(65202)],
-                None,
-                None,
-            )
-            .unwrap(); //
-            net.advertise_external_route(
-                e3,
-                P::from(1),
-                vec![AsId(65103), AsId(65201)],
-                None,
-                None,
-            )
-            .unwrap();
-            net.advertise_external_route(
-                e3,
-                P::from(2),
-                vec![AsId(65103), AsId(65202)],
-                None,
-                None,
-            )
-            .unwrap();
-            net.advertise_external_route(
-                e4,
-                P::from(2),
-                vec![AsId(65104), AsId(65202)],
-                None,
-                None,
-            )
-            .unwrap();
+            net.advertise_external_route(er, P::from(1), vec![ASN(65100), ASN(65201)], None, None)
+                .unwrap();
+            net.advertise_external_route(er, P::from(2), vec![ASN(65100), ASN(65202)], None, None)
+                .unwrap();
+            net.advertise_external_route(e1, P::from(1), vec![ASN(65101), ASN(65201)], None, None)
+                .unwrap();
+            net.advertise_external_route(e2, P::from(1), vec![ASN(65102), ASN(65201)], None, None)
+                .unwrap();
+            net.advertise_external_route(e2, P::from(2), vec![ASN(65102), ASN(65202)], None, None)
+                .unwrap(); //
+            net.advertise_external_route(e3, P::from(1), vec![ASN(65103), ASN(65201)], None, None)
+                .unwrap();
+            net.advertise_external_route(e3, P::from(2), vec![ASN(65103), ASN(65202)], None, None)
+                .unwrap();
+            net.advertise_external_route(e4, P::from(2), vec![ASN(65104), ASN(65202)], None, None)
+                .unwrap();
 
             let mut routers = net.internal_indices().collect::<Vec<_>>();
             routers.sort();
@@ -409,7 +361,7 @@ mod ipv4 {
         let e2 = 2.into();
         let e3 = 3.into();
         let mut router =
-            Router::<Ipv4Prefix, LocalOspfProcess>::new("test".to_string(), r, INTERNAL_AS);
+            Router::<Ipv4Prefix, LocalOspfProcess>::new("test".to_string(), r, INTERNAL_ASN);
 
         // add the link to the two routers
         router

@@ -10,7 +10,7 @@ mod t {
         network::Network,
         ospf::{GlobalOspf, LocalOspf, OspfImpl},
         prelude::InteractiveNetwork,
-        types::{AsId, Ipv4Prefix, NetworkError, Prefix, RouterId, SimplePrefix},
+        types::{Ipv4Prefix, NetworkError, Prefix, RouterId, SimplePrefix, ASN},
     };
     use lazy_static::lazy_static;
     use pretty_assertions::assert_eq;
@@ -35,12 +35,12 @@ mod t {
     fn get_test_net<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
         let mut net: Network<P, BasicEventQueue<P>, Ospf> = Network::default();
 
-        assert_eq!(*E1, net.add_external_router("E1", AsId(65101)));
+        assert_eq!(*E1, net.add_external_router("E1", ASN(65101)));
         assert_eq!(*R1, net.add_router("R1"));
         assert_eq!(*R2, net.add_router("R2"));
         assert_eq!(*R3, net.add_router("R3"));
         assert_eq!(*R4, net.add_router("R4"));
-        assert_eq!(*E4, net.add_external_router("E4", AsId(65104)));
+        assert_eq!(*E4, net.add_external_router("E4", ASN(65104)));
 
         net.add_link(*R1, *E1).unwrap();
         net.add_link(*R1, *R2).unwrap();

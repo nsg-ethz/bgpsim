@@ -26,7 +26,7 @@ use super::{ip_err, Addressor, ExportError, LinkId, MaybePec};
 use crate::{
     network::Network,
     ospf::OspfImpl,
-    types::{AsId, NonOverlappingPrefix, Prefix, PrefixMap, RouterId},
+    types::{NonOverlappingPrefix, Prefix, PrefixMap, RouterId, ASN},
 };
 
 /// Builder for the default addressor. The following are the default arguments:
@@ -160,7 +160,7 @@ pub struct DefaultAddressor<'a, P: Prefix, Q, Ospf: OspfImpl> {
     /// Iterator over all networks of external AS Ids
     external_as_addr_iter: Ipv4Subnets,
     /// Iterator over all external router networks for each external AS.
-    external_router_addr_iters: HashMap<AsId, Ipv4Subnets>,
+    external_router_addr_iters: HashMap<ASN, Ipv4Subnets>,
     /// prefix length of external routers
     external_router_prefix_len: u8,
     /// Already assigned prefixes to routers
@@ -256,7 +256,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Addressor<P> for DefaultAddressor<'_, P, Q, O
             Entry::Occupied(e) => *e.get(),
             Entry::Vacant(e) => {
                 let net = ip_err(if let Some(r) = self.net.get_device(router)?.external() {
-                    match self.external_router_addr_iters.entry(r.as_id()) {
+                    match self.external_router_addr_iters.entry(r.asn()) {
                         Entry::Occupied(mut e) => e.get_mut().next(),
                         Entry::Vacant(e) => e
                             .insert(

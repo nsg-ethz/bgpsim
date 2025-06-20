@@ -22,7 +22,7 @@ use crate::{
     bgp::{BgpEvent, BgpRoute},
     event::{Event, EventOutcome},
     types::{
-        AsId, DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate,
+        DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate, ASN,
     },
 };
 
@@ -44,7 +44,7 @@ use std::collections::HashSet;
 pub struct ExternalRouter<P: Prefix> {
     name: String,
     router_id: RouterId,
-    as_id: AsId,
+    asn: ASN,
     pub(crate) neighbors: HashSet<RouterId>,
     pub(crate) active_routes: P::Map<BgpRoute<P>>,
 }
@@ -56,7 +56,7 @@ impl<P: Prefix> IntoIpv4Prefix for ExternalRouter<P> {
         ExternalRouter {
             name: self.name,
             router_id: self.router_id,
-            as_id: self.as_id,
+            asn: self.asn,
             neighbors: self.neighbors,
             active_routes: self
                 .active_routes
@@ -71,7 +71,7 @@ impl<P: Prefix> PartialEq for ExternalRouter<P> {
     fn eq(&self, other: &Self) -> bool {
         self.name == other.name
             && self.router_id == other.router_id
-            && self.as_id == other.as_id
+            && self.asn == other.asn
             && self.neighbors == other.neighbors
             && self.active_routes.eq(&other.active_routes)
     }
@@ -82,7 +82,7 @@ impl<P: Prefix> Clone for ExternalRouter<P> {
         Self {
             name: self.name.clone(),
             router_id: self.router_id,
-            as_id: self.as_id,
+            asn: self.asn,
             neighbors: self.neighbors.clone(),
             active_routes: self.active_routes.clone(),
         }
@@ -91,11 +91,11 @@ impl<P: Prefix> Clone for ExternalRouter<P> {
 
 impl<P: Prefix> ExternalRouter<P> {
     /// Create a new NetworkDevice instance
-    pub(crate) fn new(name: String, router_id: RouterId, as_id: AsId) -> Self {
+    pub(crate) fn new(name: String, router_id: RouterId, asn: ASN) -> Self {
         Self {
             name,
             router_id,
-            as_id,
+            asn,
             neighbors: HashSet::new(),
             active_routes: Default::default(),
         }
@@ -116,8 +116,8 @@ impl<P: Prefix> ExternalRouter<P> {
     }
 
     /// Return the AS of the network device
-    pub fn as_id(&self) -> AsId {
-        self.as_id
+    pub fn asn(&self) -> ASN {
+        self.asn
     }
 
     /// Return the name of the network device
@@ -135,7 +135,7 @@ impl<P: Prefix> ExternalRouter<P> {
     pub(crate) fn advertise_prefix<T: Default, I: IntoIterator<Item = u32>>(
         &mut self,
         prefix: P,
-        as_path: Vec<AsId>,
+        as_path: Vec<ASN>,
         med: Option<u32>,
         community: I,
     ) -> (BgpRoute<P>, Vec<Event<P, T>>) {
@@ -245,7 +245,7 @@ impl<P: Prefix> ExternalRouter<P> {
     }
 
     /// Set the AS Id
-    pub(crate) fn set_as_id(&mut self, as_id: AsId) {
-        self.as_id = as_id;
+    pub(crate) fn set_asn(&mut self, as_id: ASN) {
+        self.asn = as_id;
     }
 }

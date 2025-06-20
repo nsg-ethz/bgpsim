@@ -20,7 +20,7 @@ use crate::{
     event::EventQueue,
     network::Network,
     record::RecordNetwork,
-    types::{AsId, NetworkError, RouterId, SinglePrefix as P},
+    types::{NetworkError, RouterId, SinglePrefix as P, ASN},
 };
 
 use pretty_assertions::assert_eq;
@@ -41,12 +41,12 @@ fn setup_simple<Q>(
 where
     Q: EventQueue<P>,
 {
-    let e0 = net.add_external_router("E0", AsId(1));
+    let e0 = net.add_external_router("E0", ASN(1));
     let b0 = net.add_router("B0");
     let r0 = net.add_router("R0");
     let r1 = net.add_router("R1");
     let b1 = net.add_router("B1");
-    let e1 = net.add_external_router("E1", AsId(1));
+    let e1 = net.add_external_router("E1", ASN(1));
 
     net.add_link(e0, b0)?;
     net.add_link(b0, r0)?;
@@ -77,11 +77,11 @@ fn test_simple_deterministic() {
     let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net).unwrap();
 
     // advertise the same prefix on both routers
-    net.advertise_external_route(e0, prefix, vec![AsId(1), AsId(2), AsId(3)], None, None)
+    net.advertise_external_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
         .unwrap();
 
     let mut rec = net
-        .record(|n| n.advertise_external_route(e1, prefix, vec![AsId(4), AsId(5)], None, None))
+        .record(|n| n.advertise_external_route(e1, prefix, vec![ASN(4), ASN(5)], None, None))
         .unwrap();
 
     assert_eq!(

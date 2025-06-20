@@ -41,53 +41,53 @@ pub type RouterId = NodeIndex<IndexType>;
 
 /// AS Number
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy, Serialize, Deserialize)]
-pub struct AsId(pub u32);
+pub struct ASN(pub u32);
 
-impl std::fmt::Display for AsId {
+impl std::fmt::Display for ASN {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         write!(f, "AS{}", self.0)
     }
 }
 
-impl From<u32> for AsId {
+impl From<u32> for ASN {
     fn from(x: u32) -> Self {
         Self(x)
     }
 }
 
-impl From<u64> for AsId {
+impl From<u64> for ASN {
     fn from(x: u64) -> Self {
         Self(x as u32)
     }
 }
 
-impl From<usize> for AsId {
+impl From<usize> for ASN {
     fn from(x: usize) -> Self {
         Self(x as u32)
     }
 }
 
-impl From<i32> for AsId {
+impl From<i32> for ASN {
     fn from(x: i32) -> Self {
         Self(x as u32)
     }
 }
 
-impl From<i64> for AsId {
+impl From<i64> for ASN {
     fn from(x: i64) -> Self {
         Self(x as u32)
     }
 }
 
-impl From<isize> for AsId {
+impl From<isize> for ASN {
     fn from(x: isize) -> Self {
         Self(x as u32)
     }
 }
 
-impl<T> From<&T> for AsId
+impl<T> From<&T> for ASN
 where
-    T: Into<AsId> + Copy,
+    T: Into<ASN> + Copy,
 {
     fn from(x: &T) -> Self {
         (*x).into()
@@ -430,10 +430,10 @@ impl<'a, P: Prefix, Ospf> NetworkDeviceRef<'a, P, Ospf> {
     }
 
     /// Get the AsId of the device.
-    pub fn as_id(&self) -> AsId {
+    pub fn asn(&self) -> ASN {
         match self {
-            Self::InternalRouter(r) => r.as_id(),
-            Self::ExternalRouter(r) => r.as_id(),
+            Self::InternalRouter(r) => r.asn(),
+            Self::ExternalRouter(r) => r.asn(),
         }
     }
 

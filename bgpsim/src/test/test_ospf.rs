@@ -26,7 +26,7 @@ use crate::{
         local::{Lsa, LsaKey},
         GlobalOspf, LocalOspf, OspfArea, OspfImpl,
     },
-    types::{AsId, NetworkError, RouterId, SimplePrefix as Prefix},
+    types::{NetworkError, RouterId, SimplePrefix as Prefix, ASN},
 };
 use itertools::Itertools;
 
@@ -65,9 +65,9 @@ fn test_net<Ospf: OspfImpl>() -> Result<
     let r5 = net.add_router("R5");
     let r6 = net.add_router("R6");
     let r7 = net.add_router("R7");
-    let r8 = net.add_external_router("E8", AsId(8));
-    let r9 = net.add_external_router("E9", AsId(9));
-    let r10 = net.add_external_router("E10", AsId(10));
+    let r8 = net.add_external_router("E8", ASN(8));
+    let r9 = net.add_external_router("E9", ASN(9));
+    let r10 = net.add_external_router("E10", ASN(10));
 
     net.add_links_from([
         (r0, r1),
@@ -135,8 +135,8 @@ fn test_net_disconnected<Ospf: OspfImpl>() -> Result<
     let r6 = net.add_router("R6");
     let r7 = net.add_router("R7");
     let r8 = net.add_router("R8");
-    let r9 = net.add_external_router("E9", AsId(9));
-    let r10 = net.add_external_router("E10", AsId(10));
+    let r9 = net.add_external_router("E9", ASN(9));
+    let r10 = net.add_external_router("E10", ASN(10));
 
     net.add_links_from([
         (r0, r1),

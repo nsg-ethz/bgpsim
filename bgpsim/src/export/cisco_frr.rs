@@ -29,7 +29,7 @@ use itertools::Itertools;
 use crate::{
     bgp::BgpRoute,
     config::{ConfigExpr, ConfigModifier},
-    network::{Network, INTERNAL_AS},
+    network::{Network, INTERNAL_ASN},
     ospf::{InternalEdge, OspfArea, OspfImpl, OspfProcess},
     prelude::BgpSessionType,
     route_map::{
@@ -37,7 +37,7 @@ use crate::{
         RouteMapSet, RouteMapState,
     },
     router::{Router, StaticRoute},
-    types::{AsId, Prefix, PrefixMap, PrefixSet, RouterId},
+    types::{Prefix, PrefixMap, PrefixSet, RouterId, ASN},
 };
 
 use super::{
@@ -59,7 +59,7 @@ pub struct CiscoFrrCfgGen<P: Prefix> {
     target: Target,
     ifaces: Vec<String>,
     router: RouterId,
-    as_id: AsId,
+    asn: ASN,
     /// Used to remember which loopback addresses were already used, and for which prefix. Only used
     /// for external routers.
     loopback_prefixes: BiMap<u8, Ipv4Net>,
@@ -83,7 +83,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         target: Target,
         ifaces: Vec<String>,
     ) -> Result<Self, ExportError> {
-        let as_id = net.get_device(router)?.as_id();
+        let asn = net.get_device(router)?.asn();
 
         // initialize all route-maps
         let route_maps = net
@@ -115,7 +115,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
             target,
             ifaces,
             router,
-            as_id,
+            asn,
             loopback_prefixes: Default::default(),
             local_area: Default::default(),
             mac_addresses: Default::default(),
@@ -347,7 +347,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         let r = self.router;
 
         // create the bgp configuration
-        let mut router_bgp = RouterBgp::new(self.as_id);
+        let mut router_bgp = RouterBgp::new(self.asn);
         router_bgp.router_id(addressor.router_address(r)?);
         router_bgp.network(addressor.internal_network());
 
@@ -394,10 +394,10 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         let mut bgp_neighbor = RouterBgpNeighbor::new(self.router_id_to_ip(n, net, addressor)?);
 
         if let Some(neighbor) = net.get_device(n)?.external() {
-            bgp_neighbor.remote_as(neighbor.as_id());
+            bgp_neighbor.remote_as(neighbor.asn());
             bgp_neighbor.update_source(self.iface(r, n, addressor)?);
         } else {
-            bgp_neighbor.remote_as(INTERNAL_AS);
+            bgp_neighbor.remote_as(INTERNAL_ASN);
             bgp_neighbor.update_source(loopback_iface(self.target, 0));
             bgp_neighbor.send_community();
         }
@@ -554,19 +554,18 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         if let Some((communities, deny_communities)) = rm_match_community_list(rm) {
             let mut cl = CommunityList::new(format!("{name}-{ord}-cl"));
             for c in communities {
-                cl.community(INTERNAL_AS, c);
+                cl.community(INTERNAL_ASN, c);
             }
             for c in deny_communities {
-                cl.deny(INTERNAL_AS, c);
+                cl.deny(INTERNAL_ASN, c);
             }
             route_map_item.match_community_list(cl);
         }
 
         // AsPath match
-        if let Some(as_id) = rm_match_as_path_list(rm) {
-            route_map_item.match_as_path_list(
-                AsPathList::new(format!("{name}-{ord}-asl")).contains_as(as_id),
-            );
+        if let Some(asn) = rm_match_as_path_list(rm) {
+            route_map_item
+                .match_as_path_list(AsPathList::new(format!("{name}-{ord}-asl")).contains_as(asn));
         }
 
         // match on the next-hop
@@ -581,7 +580,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         if let Some(communities) = rm_delete_community_list(rm) {
             let mut cl = CommunityList::new(format!("{name}-{ord}-del-cl"));
             for c in communities {
-                cl.community(INTERNAL_AS, c);
+                cl.community(INTERNAL_ASN, c);
             }
             route_map_item.delete_community_list(cl);
         }
@@ -601,7 +600,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
                 RouteMapSet::IgpCost(_) => {
                     unimplemented!("Changing the IGP cost is not implemented yet!")
                 }
-                RouteMapSet::SetCommunity(c) => route_map_item.set_community(INTERNAL_AS, *c),
+                RouteMapSet::SetCommunity(c) => route_map_item.set_community(INTERNAL_ASN, *c),
                 RouteMapSet::DelCommunity(_) => &mut route_map_item, // nothing to do, already done!
             };
         }
@@ -777,7 +776,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                     // missing.
                     Ok(format!(
                         "{}{}{}",
-                        RouterBgp::new(self.as_id)
+                        RouterBgp::new(self.asn)
                             .neighbor(
                                 self.bgp_neigbor_config(net, addressor, neighbor, ty, &rm_name)?
                             )
@@ -831,7 +830,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                         .area(0)
                         .build(self.target))
                 }
-                ConfigExpr::BgpSession { source, target, .. } => Ok(RouterBgp::new(self.as_id)
+                ConfigExpr::BgpSession { source, target, .. } => Ok(RouterBgp::new(self.asn)
                     .no_neighbor(RouterBgpNeighbor::new(self.router_id_to_ip(
                         if source == self.router {
                             target
@@ -906,7 +905,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                     } else {
                         return Ok(String::new());
                     }
-                    Ok(RouterBgp::new(self.as_id)
+                    Ok(RouterBgp::new(self.asn)
                         .neighbor(neighbor)
                         .build(self.target))
                 }
@@ -977,13 +976,13 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         config.push_str(&self.iface_config(net, addressor)?);
 
         // manually create the bgp configuration
-        let mut router_bgp = RouterBgp::new(self.as_id);
+        let mut router_bgp = RouterBgp::new(self.asn);
         router_bgp.router_id(addressor.router_address(self.router)?);
         for neighbor in router.neighbors.iter() {
             router_bgp.neighbor(
                 RouterBgpNeighbor::new(self.router_id_to_ip(*neighbor, net, addressor)?)
                     .update_source(self.iface(self.router, *neighbor, addressor)?)
-                    .remote_as(INTERNAL_AS)
+                    .remote_as(INTERNAL_ASN)
                     .next_hop_self()
                     .route_map_in(EXTERNAL_RM_IN)
                     .route_map_out(EXTERNAL_RM_OUT),
@@ -1033,7 +1032,7 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         let mut config = String::new();
 
         let mut prefix_list = PrefixList::new(format!("prefix-list-{}", route.prefix.as_num()));
-        let mut bgp_config = RouterBgp::new(self.as_id);
+        let mut bgp_config = RouterBgp::new(self.asn);
 
         // add all loopback ip addresses. This is special if we can store multiple IP addresses on
         // the same loopback interface
@@ -1067,7 +1066,7 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         route_map.prepend_as_path(route.as_path.iter().skip(1));
         route_map.set_med(route.med.unwrap_or(0));
         for c in route.community.iter() {
-            route_map.set_community(INTERNAL_AS, *c);
+            route_map.set_community(INTERNAL_ASN, *c);
         }
         config.push_str(&route_map.build(self.target));
 
@@ -1103,7 +1102,7 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         }
 
         // remove all advertisements in BGP
-        let mut bgp_config = RouterBgp::new(self.as_id);
+        let mut bgp_config = RouterBgp::new(self.asn);
         for net in addressor.prefix(prefix)? {
             bgp_config.no_network(net);
         }
@@ -1125,11 +1124,11 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
-        Ok(RouterBgp::new(self.as_id)
+        Ok(RouterBgp::new(self.asn)
             .neighbor(
                 RouterBgpNeighbor::new(self.router_id_to_ip(neighbor, net, addressor)?)
                     .update_source(self.iface(self.router, neighbor, addressor)?)
-                    .remote_as(INTERNAL_AS)
+                    .remote_as(INTERNAL_ASN)
                     .next_hop_self()
                     .route_map_in(EXTERNAL_RM_IN)
                     .route_map_out(EXTERNAL_RM_OUT),
@@ -1143,7 +1142,7 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         addressor: &mut A,
         neighbor: RouterId,
     ) -> Result<String, ExportError> {
-        Ok(RouterBgp::new(self.as_id)
+        Ok(RouterBgp::new(self.asn)
             .neighbor(RouterBgpNeighbor::new(
                 self.router_id_to_ip(neighbor, net, addressor)?,
             ))
@@ -1196,18 +1195,18 @@ fn rm_match_community_list<P: Prefix>(rm: &RouteMap<P>) -> Option<(HashSet<u32>,
 
 /// TODO this is not implemented yet. It only works if there is a single AS that must be present in
 /// the path. Otherwise, it will simply panic!
-fn rm_match_as_path_list<P: Prefix>(rm: &RouteMap<P>) -> Option<AsId> {
+fn rm_match_as_path_list<P: Prefix>(rm: &RouteMap<P>) -> Option<ASN> {
     let mut contained_ases = Vec::new();
 
     for cond in rm.conds.iter() {
-        if let RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(as_id)) = cond {
-            contained_ases.push(as_id)
+        if let RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(asn)) = cond {
+            contained_ases.push(asn)
         };
     }
 
     match contained_ases.as_slice() {
         [] => None,
-        [as_id] => Some(**as_id),
+        [asn] => Some(**asn),
         _ => unimplemented!("More complex AS path constraints are not implemented yet!"),
     }
 }

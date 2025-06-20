@@ -22,7 +22,7 @@ use crate::{
         RouteMapFlow::*, RouteMapMatch as Match, RouteMapMatchAsPath as AClause,
         RouteMapMatchClause as Clause, RouteMapSet as Set, RouteMapState::*, *,
     },
-    types::{AsId, Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
+    types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix, ASN},
 };
 
 #[generic_tests::define]
@@ -34,7 +34,7 @@ mod t1 {
         let default_entry = BgpRibEntry {
             route: BgpRoute {
                 prefix: P::from(0),
-                as_path: vec![AsId(0)],
+                as_path: vec![ASN(0)],
                 next_hop: 0.into(),
                 local_pref: Some(1),
                 med: Some(10),
@@ -159,14 +159,14 @@ mod t1 {
             RouteMap::<P>::new(
                 10,
                 Deny,
-                vec![Match::AsPath(AClause::Contains(AsId(0)))],
+                vec![Match::AsPath(AClause::Contains(ASN(0)))],
                 vec![],
                 Continue
             ),
             RouteMapBuilder::<P>::new()
                 .order(10)
                 .deny()
-                .match_as_path_contains(AsId(0))
+                .match_as_path_contains(ASN(0))
                 .build()
         );
 
@@ -296,7 +296,7 @@ mod t1 {
         let entry = BgpRibEntry {
             route: BgpRoute {
                 prefix: P::from(0),
-                as_path: vec![AsId(0)],
+                as_path: vec![ASN(0)],
                 next_hop: 0.into(),
                 local_pref: None,
                 med: None,
@@ -352,7 +352,7 @@ mod t1 {
         let entry = BgpRibEntry {
             route: BgpRoute {
                 prefix: P::from(0),
-                as_path: vec![AsId(0)],
+                as_path: vec![ASN(0)],
                 next_hop: 0.into(),
                 local_pref: None,
                 med: None,
@@ -408,7 +408,7 @@ mod t1 {
         let entry = BgpRibEntry {
             route: BgpRoute {
                 prefix: P::from(0),
-                as_path: vec![AsId(0)],
+                as_path: vec![ASN(0)],
                 next_hop: 0.into(),
                 local_pref: None,
                 med: None,
@@ -461,7 +461,7 @@ mod t1 {
         let entry = BgpRibEntry {
             route: BgpRoute {
                 prefix: P::from(0),
-                as_path: vec![AsId(0)],
+                as_path: vec![ASN(0)],
                 next_hop: 0.into(),
                 local_pref: None,
                 med: None,
@@ -528,7 +528,7 @@ mod t2 {
         let default_entry = BgpRibEntry {
             route: BgpRoute::<P> {
                 prefix: P::from(0),
-                as_path: vec![AsId(0)],
+                as_path: vec![ASN(0)],
                 next_hop: 0.into(),
                 local_pref: None,
                 med: None,
@@ -599,18 +599,18 @@ mod t2 {
         let map = RouteMap::new(
             10,
             Deny,
-            vec![Match::AsPath(AClause::Contains(AsId(0)))],
+            vec![Match::AsPath(AClause::Contains(ASN(0)))],
             vec![],
             Continue,
         );
         let mut entry = default_entry.clone();
-        entry.route.as_path = vec![AsId(0)];
+        entry.route.as_path = vec![ASN(0)];
         assert_eq!(map.apply(entry.clone()).0, Exit);
         assert!(map.apply(entry.clone()).1.is_none());
-        entry.route.as_path = vec![AsId(1), AsId(0), AsId(2)];
+        entry.route.as_path = vec![ASN(1), ASN(0), ASN(2)];
         assert_eq!(map.apply(entry.clone()).0, Exit);
         assert!(map.apply(entry.clone()).1.is_none());
-        entry.route.as_path = vec![AsId(1), AsId(2)];
+        entry.route.as_path = vec![ASN(1), ASN(2)];
         assert_eq!(map.apply(entry.clone()).0, Continue);
         assert!(map.apply(entry).1.is_some());
 
@@ -623,10 +623,10 @@ mod t2 {
             Exit,
         );
         let mut entry = default_entry.clone();
-        entry.route.as_path = vec![AsId(0)];
+        entry.route.as_path = vec![ASN(0)];
         assert_eq!(map.apply(entry.clone()).0, Exit);
         assert!(map.apply(entry.clone()).1.is_none());
-        entry.route.as_path = vec![AsId(1), AsId(2)];
+        entry.route.as_path = vec![ASN(1), ASN(2)];
         assert_eq!(map.apply(entry.clone()).0, Continue);
         assert!(map.apply(entry).1.is_some());
 
@@ -639,16 +639,16 @@ mod t2 {
             Exit,
         );
         let mut entry = default_entry.clone();
-        entry.route.as_path = vec![AsId(0), AsId(1)];
+        entry.route.as_path = vec![ASN(0), ASN(1)];
         assert_eq!(map.apply(entry.clone()).0, Exit);
         assert!(map.apply(entry.clone()).1.is_none());
-        entry.route.as_path = vec![AsId(0), AsId(1), AsId(2), AsId(3)];
+        entry.route.as_path = vec![ASN(0), ASN(1), ASN(2), ASN(3)];
         assert_eq!(map.apply(entry.clone()).0, Exit);
         assert!(map.apply(entry.clone()).1.is_none());
         entry.route.as_path = vec![];
         assert_eq!(map.apply(entry.clone()).0, Continue);
         assert!(map.apply(entry.clone()).1.is_some());
-        entry.route.as_path = vec![AsId(0), AsId(1), AsId(2), AsId(3), AsId(4)];
+        entry.route.as_path = vec![ASN(0), ASN(1), ASN(2), ASN(3), ASN(4)];
         assert_eq!(map.apply(entry.clone()).0, Continue);
         assert!(map.apply(entry).1.is_some());
 
@@ -671,7 +671,7 @@ mod t2 {
         let default_entry = BgpRibEntry {
             route: BgpRoute::<P> {
                 prefix: P::from(0),
-                as_path: vec![AsId(0)],
+                as_path: vec![ASN(0)],
                 next_hop: 0.into(),
                 local_pref: None,
                 med: None,

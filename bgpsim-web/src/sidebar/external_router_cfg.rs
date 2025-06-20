@@ -21,7 +21,7 @@ use bgpsim::{
     bgp::BgpRoute,
     formatter::NetworkFormatter,
     prelude::BgpSessionType,
-    types::{AsId, RouterId},
+    types::{RouterId, ASN},
 };
 use itertools::join;
 use yew::prelude::*;
@@ -72,7 +72,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
         asid_input_correct.set(new_asid.to_lowercase().trim_start_matches("as").parse::<u32>().is_ok());
     });
     let on_asid_set = callback!(move |new_asid: String| {
-        let new_asid = AsId::from(
+        let new_asid = ASN::from(
             new_asid
                 .to_lowercase()
                 .trim_start_matches("as")
@@ -108,7 +108,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
         };
         prefix_input_correct.set(false);
         Dispatch::<Net>::new().reduce_mut(move |net| {
-            let _ = net.net_mut().advertise_external_route::<Option<AsId>, Option<u32>>(id, p, None, None, None);
+            let _ = net.net_mut().advertise_external_route::<Option<ASN>, Option<u32>>(id, p, None, None, None);
         });
     });
     let on_route_update = callback!(move |(prefix, route): (Pfx, BgpRoute<Pfx>)| {
@@ -171,7 +171,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
 pub struct RouterInfo {
     exists: bool,
     name: String,
-    as_id: AsId,
+    as_id: ASN,
     bgp_options: Vec<(RouterId, String, bool)>,
     routes: Vec<(Pfx, BgpRoute<Pfx>)>,
     advertised_prefixes: HashSet<Pfx>,
@@ -215,7 +215,7 @@ impl RouterInfo {
         Self {
             exists: true,
             name: r.name().to_string(),
-            as_id: r.as_id(),
+            as_id: r.asn(),
             bgp_options,
             routes,
             advertised_prefixes,
@@ -275,7 +275,7 @@ fn AdvertisedRouteCfg(props: &AdvertisedRouteProperties) -> Html {
             .flat_map(|s| s.split(','))
             .map(|s| s.trim())
             .filter_map(|s| s.parse::<u32>().ok())
-            .map(AsId::from)
+            .map(ASN::from)
             .collect();
         route.as_path = new_path;
         on_update.emit((prefix, route));

@@ -33,7 +33,7 @@ mod t {
         },
         router::StaticRoute::*,
         types::{
-            AsId, Ipv4Prefix, NetworkError, Prefix, PrefixMap, RouterId, SimplePrefix, SinglePrefix,
+            Ipv4Prefix, NetworkError, Prefix, PrefixMap, RouterId, SimplePrefix, SinglePrefix, ASN,
         },
     };
     use lazy_static::lazy_static;
@@ -60,12 +60,12 @@ mod t {
     fn get_test_net<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
         let mut net: Network<P, BasicEventQueue<P>, Ospf> = Network::default();
 
-        assert_eq!(*E1, net.add_external_router("E1", AsId(65101)));
+        assert_eq!(*E1, net.add_external_router("E1", ASN(65101)));
         assert_eq!(*R1, net.add_router("R1"));
         assert_eq!(*R2, net.add_router("R2"));
         assert_eq!(*R3, net.add_router("R3"));
         assert_eq!(*R4, net.add_router("R4"));
-        assert_eq!(*E4, net.add_external_router("E4", AsId(65104)));
+        assert_eq!(*E4, net.add_external_router("E4", ASN(65104)));
 
         net.add_link(*R1, *E1).unwrap();
         net.add_link(*R1, *R2).unwrap();
@@ -164,7 +164,7 @@ mod t {
         let p = P::from(0);
 
         // advertise prefix on e1
-        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        net.advertise_external_route(*E1, p, vec![ASN(65101), ASN(65201)], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -173,7 +173,7 @@ mod t {
         test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
         // advertise prefix on e4
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -260,7 +260,7 @@ mod t {
         }
 
         // advertise prefix on e1
-        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        net.advertise_external_route(*E1, p, vec![ASN(65101), ASN(65201)], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -269,7 +269,7 @@ mod t {
         test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
         // advertise prefix on e4
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -287,7 +287,7 @@ mod t {
         let p = P::from(0);
 
         // advertise prefix on e1
-        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        net.advertise_external_route(*E1, p, vec![ASN(65101), ASN(65201)], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -338,7 +338,7 @@ mod t {
         assert_eq!(r4_rib.igp_cost.unwrap(), NotNan::new(3.0).unwrap());
 
         // advertise prefix on e4
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -404,9 +404,9 @@ mod t {
         }
 
         // advertise both prefixes
-        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        net.advertise_external_route(*E1, p, vec![ASN(65101), ASN(65201)], None, None)
             .unwrap();
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -447,9 +447,9 @@ mod t {
         let p = P::from(0);
 
         // advertise both prefixes
-        net.advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+        net.advertise_external_route(*E1, p, vec![ASN(65101), ASN(65201)], None, None)
             .unwrap();
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], None, None)
             .unwrap();
 
         // The network must have converged back
@@ -459,14 +459,8 @@ mod t {
         test_route!(net, *R4, p, [*R4, *E4]);
 
         // change the AS path
-        net.advertise_external_route(
-            *E4,
-            p,
-            vec![AsId(65104), AsId(65500), AsId(65201)],
-            None,
-            None,
-        )
-        .unwrap();
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65500), ASN(65201)], None, None)
+            .unwrap();
 
         // we now expect all routers to choose R1 as an egress
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -475,7 +469,7 @@ mod t {
         test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
         // change back
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], None, None)
             .unwrap();
 
         // The network must have converged back
@@ -485,7 +479,7 @@ mod t {
         test_route!(net, *R4, p, [*R4, *E4]);
 
         // change the MED
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], Some(20), None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], Some(20), None)
             .unwrap();
 
         // we now expect all routers to choose R1 as an egress
@@ -496,7 +490,7 @@ mod t {
 
         // change the MED, such that it has the same AS ID in the first entry, so that MED is actually
         // compared!
-        net.advertise_external_route(*E4, p, vec![AsId(65101), AsId(65201)], Some(20), None)
+        net.advertise_external_route(*E4, p, vec![ASN(65101), ASN(65201)], Some(20), None)
             .unwrap();
 
         // we now expect all routers to choose R1 as an egress
@@ -506,7 +500,7 @@ mod t {
         test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
         // change back
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], None, None)
             .unwrap();
 
         // The network must have converged back
@@ -523,10 +517,10 @@ mod t {
 
         // advertise both prefixes
         original_net
-            .advertise_external_route(*E1, p, vec![AsId(65101), AsId(65201)], None, None)
+            .advertise_external_route(*E1, p, vec![ASN(65101), ASN(65201)], None, None)
             .unwrap();
         original_net
-            .advertise_external_route(*E4, p, vec![AsId(65104), AsId(65201)], None, None)
+            .advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], None, None)
             .unwrap();
 
         // we expect the following state:
@@ -695,19 +689,13 @@ mod t {
         // advertise a prefix on both ends
         let p = P::from(0);
         original_net
-            .advertise_external_route(
-                *E1,
-                p,
-                vec![AsId(65101), AsId(65103), AsId(65201)],
-                None,
-                None,
-            )
+            .advertise_external_route(*E1, p, vec![ASN(65101), ASN(65103), ASN(65201)], None, None)
             .unwrap();
         original_net
             .advertise_external_route(
                 *E4,
                 p,
-                vec![AsId(65104), AsId(65101), AsId(65103), AsId(65201)],
+                vec![ASN(65104), ASN(65101), ASN(65103), ASN(65201)],
                 None,
                 None,
             )
@@ -835,7 +823,7 @@ mod t {
         let mut net = get_test_net_bgp_load_balancing::<P, Ospf>();
 
         let p = P::from(0);
-        net.advertise_external_route(*E1, p, vec![AsId(65101)], None, None)
+        net.advertise_external_route(*E1, p, vec![ASN(65101)], None, None)
             .unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -867,9 +855,9 @@ mod t {
         let p = P::from(0);
 
         // advertise a route at E1 and E4, and make the one at E4 the preferred one.
-        net.advertise_external_route(*E1, p, vec![AsId(1), AsId(2), AsId(3)], None, None)
+        net.advertise_external_route(*E1, p, vec![ASN(1), ASN(2), ASN(3)], None, None)
             .unwrap();
-        net.advertise_external_route(*E4, p, vec![AsId(5)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(5)], None, None)
             .unwrap();
 
         // check that all nodes are using E4 without load balancing
@@ -921,7 +909,7 @@ mod t {
         let r1 = net.add_router("r1");
         let r2 = net.add_router("r2");
         let r3 = net.add_router("r3");
-        let e3 = net.add_external_router("e3", AsId(3));
+        let e3 = net.add_external_router("e3", ASN(3));
         let p = P::from(1);
 
         net.add_link(r1, r2).unwrap();
@@ -959,7 +947,7 @@ mod t {
         let state = net.get_bgp_state(p);
         let route_e1 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65101), AsId(100)],
+            as_path: vec![ASN(65101), ASN(100)],
             next_hop: *E1,
             local_pref: None,
             med: None,
@@ -969,7 +957,7 @@ mod t {
         };
         let route_r1 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65101), AsId(100)],
+            as_path: vec![ASN(65101), ASN(100)],
             next_hop: *R1,
             local_pref: Some(100),
             med: Some(0),
@@ -979,7 +967,7 @@ mod t {
         };
         let route_e4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(100)],
+            as_path: vec![ASN(65104), ASN(100)],
             next_hop: *E4,
             local_pref: None,
             med: None,
@@ -989,7 +977,7 @@ mod t {
         };
         let route_r4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(100)],
+            as_path: vec![ASN(65104), ASN(100)],
             next_hop: *R4,
             local_pref: Some(100),
             med: Some(0),
@@ -1029,13 +1017,13 @@ mod t {
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(100)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(100)], None, None)
             .unwrap();
 
         let state = net.get_bgp_state(p);
         let route_e4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(100)],
+            as_path: vec![ASN(65104), ASN(100)],
             next_hop: *E4,
             local_pref: None,
             med: None,
@@ -1045,7 +1033,7 @@ mod t {
         };
         let route_r4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(100)],
+            as_path: vec![ASN(65104), ASN(100)],
             next_hop: *R4,
             local_pref: Some(100),
             med: Some(0),
@@ -1060,7 +1048,7 @@ mod t {
         };
         let route_r421 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65535), AsId(65104), AsId(100)],
+            as_path: vec![ASN(65535), ASN(65104), ASN(100)],
             next_hop: *R1,
             local_pref: None,
             med: None,
@@ -1133,7 +1121,7 @@ mod t {
         let state = net.get_bgp_state(p);
         let route_e1 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65101), AsId(100)],
+            as_path: vec![ASN(65101), ASN(100)],
             next_hop: *E1,
             local_pref: None,
             med: None,
@@ -1143,7 +1131,7 @@ mod t {
         };
         let route_r1 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65101), AsId(100)],
+            as_path: vec![ASN(65101), ASN(100)],
             next_hop: *R1,
             local_pref: Some(100),
             med: Some(0),
@@ -1153,7 +1141,7 @@ mod t {
         };
         let route_e4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(100)],
+            as_path: vec![ASN(65104), ASN(100)],
             next_hop: *E4,
             local_pref: None,
             med: None,
@@ -1163,7 +1151,7 @@ mod t {
         };
         let route_r4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(100)],
+            as_path: vec![ASN(65104), ASN(100)],
             next_hop: *R4,
             local_pref: Some(100),
             med: Some(0),
@@ -1206,13 +1194,13 @@ mod t {
         net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.advertise_external_route(*E4, p, vec![AsId(65104), AsId(100)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(100)], None, None)
             .unwrap();
 
         let state = net.get_bgp_state(p);
         let route_e4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(100)],
+            as_path: vec![ASN(65104), ASN(100)],
             next_hop: *E4,
             local_pref: None,
             med: None,
@@ -1222,7 +1210,7 @@ mod t {
         };
         let route_r4 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65104), AsId(100)],
+            as_path: vec![ASN(65104), ASN(100)],
             next_hop: *R4,
             local_pref: Some(100),
             med: Some(0),
@@ -1237,7 +1225,7 @@ mod t {
         };
         let route_r421 = BgpRoute {
             prefix: p,
-            as_path: vec![AsId(65535), AsId(65104), AsId(100)],
+            as_path: vec![ASN(65535), ASN(65104), ASN(100)],
             next_hop: *R1,
             local_pref: None,
             med: Some(0),

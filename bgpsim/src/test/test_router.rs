@@ -20,7 +20,7 @@ use crate::{
     event::Event,
     external_router::*,
     router::*,
-    types::{AsId, Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
+    types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix, ASN},
 };
 
 use maplit::{hashmap, hashset};
@@ -33,7 +33,7 @@ mod t2 {
     fn test_bgp_single<P: Prefix>() {
         use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
 
-        let mut r = Router::<P>::new("test".to_string(), 0.into(), AsId(65001));
+        let mut r = Router::<P>::new("test".to_string(), 0.into(), ASN(65001));
         r.bgp.set_session::<()>(100.into(), Some(EBgp)).unwrap();
         r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
         r.bgp.set_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
@@ -70,7 +70,7 @@ mod t2 {
                 0.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(200),
-                    as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
+                    as_path: vec![ASN(1), ASN(2), ASN(3), ASN(4), ASN(5)],
                     next_hop: 100.into(),
                     local_pref: None,
                     med: None,
@@ -116,7 +116,7 @@ mod t2 {
                 0.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(201),
-                    as_path: vec![AsId(1), AsId(2), AsId(3)],
+                    as_path: vec![ASN(1), ASN(2), ASN(3)],
                     next_hop: 11.into(),
                     local_pref: Some(50),
                     med: None,
@@ -166,7 +166,7 @@ mod t2 {
                 0.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(200),
-                    as_path: vec![AsId(1), AsId(2), AsId(3), AsId(4), AsId(5)],
+                    as_path: vec![ASN(1), ASN(2), ASN(3), ASN(4), ASN(5)],
                     next_hop: 10.into(),
                     local_pref: None,
                     med: None,
@@ -197,16 +197,16 @@ mod t2 {
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(200),
                     as_path: vec![
-                        AsId(1),
-                        AsId(2),
-                        AsId(3),
-                        AsId(4),
-                        AsId(5),
-                        AsId(6),
-                        AsId(7),
-                        AsId(8),
-                        AsId(9),
-                        AsId(10),
+                        ASN(1),
+                        ASN(2),
+                        ASN(3),
+                        ASN(4),
+                        ASN(5),
+                        ASN(6),
+                        ASN(7),
+                        ASN(8),
+                        ASN(9),
+                        ASN(10),
                     ],
                     next_hop: 5.into(),
                     local_pref: Some(150),
@@ -356,7 +356,7 @@ mod t2 {
     fn test_bgp_single_route_reflection<P: Prefix>() {
         use crate::bgp::BgpSessionType::{EBgp, IBgpPeer};
 
-        let mut r = Router::<P>::new("test".to_string(), 0.into(), AsId(65001));
+        let mut r = Router::<P>::new("test".to_string(), 0.into(), ASN(65001));
         r.bgp.set_session::<()>(100.into(), Some(EBgp)).unwrap();
         r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
         r.ospf.ospf_table = hashmap! {
@@ -381,7 +381,7 @@ mod t2 {
                 0.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(100),
-                    as_path: vec![AsId(1000)],
+                    as_path: vec![ASN(1000)],
                     next_hop: 1.into(),
                     local_pref: Some(50),
                     med: None,
@@ -403,7 +403,7 @@ mod t2 {
                 100.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(100),
-                    as_path: vec![AsId(65001), AsId(1000)],
+                    as_path: vec![ASN(65001), ASN(1000)],
                     next_hop: 0.into(),
                     local_pref: None,
                     med: None,
@@ -425,7 +425,7 @@ mod t2 {
                 0.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(100),
-                    as_path: vec![AsId(1000)],
+                    as_path: vec![ASN(1000)],
                     next_hop: 1.into(),
                     local_pref: Some(150),
                     med: None,
@@ -457,7 +457,7 @@ mod t2 {
                 0.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(100),
-                    as_path: vec![AsId(1000)],
+                    as_path: vec![ASN(1000)],
                     next_hop: 1.into(),
                     local_pref: Some(50),
                     med: None,
@@ -479,7 +479,7 @@ mod t2 {
                 100.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(100),
-                    as_path: vec![AsId(65001), AsId(1000)],
+                    as_path: vec![ASN(65001), ASN(1000)],
                     next_hop: 0.into(),
                     local_pref: None,
                     med: None,
@@ -501,7 +501,7 @@ mod t2 {
                 0.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(100),
-                    as_path: vec![AsId(1000)],
+                    as_path: vec![ASN(1000)],
                     next_hop: 1.into(),
                     local_pref: Some(150),
                     med: None,
@@ -537,14 +537,14 @@ mod t1 {
     #[test]
     fn external_router_advertise_to_neighbors<P: Prefix>() {
         // test that an external router will advertise a route to an already existing neighbor
-        let mut r = ExternalRouter::<P>::new("router".to_string(), 0.into(), AsId(65001));
+        let mut r = ExternalRouter::<P>::new("router".to_string(), 0.into(), ASN(65001));
 
         // add the session
         let events = r.establish_ebgp_session::<()>(1.into()).unwrap();
         assert!(events.is_empty());
 
         // advertise route
-        let (_, events) = r.advertise_prefix(P::from(0), vec![AsId(0)], None, None);
+        let (_, events) = r.advertise_prefix(P::from(0), vec![ASN(0)], None, None);
 
         // check that one event was created
         assert_eq!(events.len(), 1);
@@ -556,7 +556,7 @@ mod t1 {
                 1.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(0),
-                    as_path: vec![AsId(0)],
+                    as_path: vec![ASN(0)],
                     next_hop: 0.into(),
                     local_pref: None,
                     med: None,
@@ -581,11 +581,11 @@ mod t1 {
     #[test]
     fn external_router_new_neighbor<P: Prefix>() {
         // test that an external router will advertise a route to an already existing neighbor
-        let mut r = ExternalRouter::<P>::new("router".to_string(), 0.into(), AsId(65001));
+        let mut r = ExternalRouter::<P>::new("router".to_string(), 0.into(), ASN(65001));
 
         // advertise route
         let (_, events) =
-            r.advertise_prefix::<(), Option<u32>>(P::from(0), vec![AsId(0)], None, None);
+            r.advertise_prefix::<(), Option<u32>>(P::from(0), vec![ASN(0)], None, None);
 
         // check that no event was created
         assert_eq!(events.len(), 0);
@@ -603,7 +603,7 @@ mod t1 {
                 1.into(),
                 BgpEvent::Update(BgpRoute {
                     prefix: P::from(0),
-                    as_path: vec![AsId(0)],
+                    as_path: vec![ASN(0)],
                     next_hop: 0.into(),
                     local_pref: None,
                     med: None,
@@ -638,7 +638,7 @@ mod ipv4 {
 
     #[test]
     fn test_hierarchical_bgp() {
-        let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), AsId(65001));
+        let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), ASN(65001));
         r.bgp.set_session::<()>(100.into(), Some(EBgp)).unwrap();
         r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
         r.bgp.set_session::<()>(2.into(), Some(IBgpPeer)).unwrap();
@@ -723,7 +723,7 @@ mod ipv4 {
 
     #[test]
     fn next_hop_static_route() {
-        let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), AsId(65001));
+        let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), ASN(65001));
         r.bgp.set_session::<()>(100.into(), Some(EBgp)).unwrap();
         r.bgp.set_session::<()>(1.into(), Some(IBgpPeer)).unwrap();
         r.bgp.set_session::<()>(2.into(), Some(IBgpPeer)).unwrap();

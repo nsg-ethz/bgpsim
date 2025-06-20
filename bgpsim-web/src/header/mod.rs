@@ -22,7 +22,7 @@ mod verifier;
 
 use std::{collections::HashSet, rc::Rc, str::FromStr};
 
-use bgpsim::types::AsId;
+use bgpsim::types::ASN;
 use gloo_utils::window;
 use strum::IntoEnumIterator;
 use web_sys::HtmlInputElement;
@@ -201,13 +201,13 @@ fn add_new_router(net: &mut Net, internal: bool, event: MouseEvent) {
         net.net_mut().add_router(name)
     } else {
         log::debug!("add external router");
-        let used_as: HashSet<AsId> = net
+        let used_as: HashSet<ASN> = net
             .net()
             .external_indices()
-            .map(|r| net.net().get_external_router(r).unwrap().as_id())
+            .map(|r| net.net().get_external_router(r).unwrap().asn())
             .collect();
         // safety: this unwrap is ok because of the infinite iterator!
-        let as_id = (1..).map(AsId).find(|x| !used_as.contains(x)).unwrap();
+        let as_id = (1..).map(ASN).find(|x| !used_as.contains(x)).unwrap();
         net.net_mut().add_external_router(name, as_id)
     };
     // get the point of where to add the router

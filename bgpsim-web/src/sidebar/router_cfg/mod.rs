@@ -93,7 +93,7 @@ impl Component for RouterCfg {
         };
 
         let name_text = router.fmt(n).to_string();
-        let as_text = format!("AS{}", r.as_id().0);
+        let as_text = format!("AS{}", r.asn().0);
         let on_name_change = ctx.link().callback(Msg::OnNameChange);
         let on_name_set = ctx.link().callback(Msg::OnNameSet);
 

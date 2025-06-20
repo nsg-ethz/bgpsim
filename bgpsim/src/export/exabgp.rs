@@ -23,9 +23,9 @@ use std::{
 
 use crate::{
     bgp::BgpRoute,
-    network::{Network, INTERNAL_AS},
+    network::{Network, INTERNAL_ASN},
     ospf::OspfImpl,
-    types::{AsId, Ipv4Prefix, Prefix, PrefixMap, RouterId},
+    types::{Ipv4Prefix, Prefix, PrefixMap, RouterId, ASN},
 };
 
 use super::{Addressor, ExportError, ExternalCfgGen};
@@ -118,7 +118,7 @@ pub const RUNNER_POSTAMBLE: &str = "\nwhile True:\n    time.sleep(1)\n";
 ///     // ...
 /// #   use bgpsim::builder::NetworkBuilder;
 /// #   let mut net: Network<_, _, GlobalOspf> = Network::build_complete_graph(BasicEventQueue::<P>::new(), 1);
-/// #   let router = net.add_external_router("external_router", AsId(100));
+/// #   let router = net.add_external_router("external_router", ASN(100));
 /// #   net.internal_indices().detach().for_each(|r| net.add_link(r, router).unwrap());
 /// #   net.build_ibgp_full_mesh()?;
 /// #   net.build_ebgp_sessions()?;
@@ -194,7 +194,7 @@ pub const RUNNER_POSTAMBLE: &str = "\nwhile True:\n    time.sleep(1)\n";
 #[derive(Debug)]
 pub struct ExaBgpCfgGen<P: Prefix> {
     router: RouterId,
-    as_id: AsId,
+    asn: ASN,
     routes: BTreeMap<P, BTreeMap<Duration, Option<BgpRoute<P>>>>,
     neighbors: BTreeSet<RouterId>,
     current_time: Duration,
@@ -210,7 +210,7 @@ impl<P: Prefix> ExaBgpCfgGen<P> {
         let r = net.get_device(router)?.external_or_err()?;
         Ok(Self {
             router,
-            as_id: r.as_id(),
+            asn: r.asn(),
             routes: r
                 .active_routes
                 .iter()
@@ -341,8 +341,8 @@ neighbor {} {{
             addressor.iface_address(neighbor, self.router)?,
             addressor.router_address(self.router)?,
             addressor.iface_address(self.router, neighbor)?,
-            self.as_id.0,
-            INTERNAL_AS.0,
+            self.asn.0,
+            INTERNAL_ASN.0,
         ))
     }
 
@@ -371,7 +371,7 @@ pub fn announce_route<P: Prefix>(route: &BgpRoute<P>) -> String {
                 route
                     .community
                     .iter()
-                    .map(|x| format!("{}:{}", INTERNAL_AS.0, x))
+                    .map(|x| format!("{}:{}", INTERNAL_ASN.0, x))
                     .join(", ")
             )
         },

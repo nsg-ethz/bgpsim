@@ -21,7 +21,7 @@ mod t {
         network::Network,
         ospf::{GlobalOspf, LocalOspf, OspfImpl, OspfProcess, EXTERNAL_LINK_WEIGHT},
         prelude::BgpSessionType,
-        types::{AsId, Prefix, SimplePrefix, SinglePrefix},
+        types::{Prefix, SimplePrefix, SinglePrefix, ASN},
     };
 
     #[cfg(feature = "rand")]
@@ -135,7 +135,7 @@ mod t {
     fn test_build_external_rotuers<P: Prefix, Ospf: OspfImpl>() {
         let mut net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10);
         assert_eq!(net.external_indices().count(), 0);
-        net.add_external_router("R1", AsId(1));
+        net.add_external_router("R1", ASN(1));
         assert_eq!(net.external_indices().count(), 1);
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
@@ -154,7 +154,7 @@ mod t {
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
         net.build_link_weights(constant_link_weight, 1.0).unwrap();
-        let r_last = net.add_external_router("test", AsId(1000));
+        let r_last = net.add_external_router("test", ASN(1000));
         net.build_ebgp_sessions().unwrap();
         for id in net.external_indices() {
             let r = net.get_device(id).unwrap().unwrap_external();

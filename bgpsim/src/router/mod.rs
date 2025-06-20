@@ -31,7 +31,7 @@ use crate::{
     event::{Event, EventOutcome},
     ospf::{global::GlobalOspfProcess, IgpTarget, OspfProcess},
     types::{
-        AsId, DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate,
+        DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate, ASN,
     },
 };
 use itertools::Itertools;
@@ -53,7 +53,7 @@ pub struct Router<P: Prefix, Ospf = GlobalOspfProcess> {
     /// ID of the router
     router_id: RouterId,
     /// AS Id of the router
-    as_id: AsId,
+    asn: ASN,
     /// The IGP routing process
     pub ospf: Ospf,
     /// The Static Routing Process
@@ -74,7 +74,7 @@ impl<P: Prefix, Ospf> IntoIpv4Prefix for Router<P, Ospf> {
         Router {
             name: self.name,
             router_id: self.router_id,
-            as_id: self.as_id,
+            asn: self.asn,
             ospf: self.ospf,
             sr: self.sr.into_ipv4_prefix(),
             bgp: self.bgp.into_ipv4_prefix(),
@@ -88,7 +88,7 @@ impl<P: Prefix, Ospf: Clone> Clone for Router<P, Ospf> {
         Router {
             name: self.name.clone(),
             router_id: self.router_id,
-            as_id: self.as_id,
+            asn: self.asn,
             ospf: self.ospf.clone(),
             sr: self.sr.clone(),
             bgp: self.bgp.clone(),
@@ -114,8 +114,8 @@ impl<P: Prefix, Ospf> Router<P, Ospf> {
     }
 
     /// Return the AS ID of the Router
-    pub fn as_id(&self) -> AsId {
-        self.as_id
+    pub fn asn(&self) -> ASN {
+        self.asn
     }
 
     /// Check if load balancing is enabled
@@ -134,14 +134,14 @@ impl<P: Prefix, Ospf> Router<P, Ospf> {
 }
 
 impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
-    pub(crate) fn new(name: String, router_id: RouterId, as_id: AsId) -> Router<P, Ospf> {
+    pub(crate) fn new(name: String, router_id: RouterId, asn: ASN) -> Router<P, Ospf> {
         Router {
             name,
             router_id,
-            as_id,
+            asn,
             ospf: Ospf::new(router_id),
             sr: SrProcess::new(),
-            bgp: BgpProcess::new(router_id, as_id),
+            bgp: BgpProcess::new(router_id, asn),
             do_load_balancing: false,
         }
     }
@@ -292,7 +292,7 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
             Router {
                 name: self.name,
                 router_id: self.router_id,
-                as_id: self.as_id,
+                asn: self.asn,
                 ospf: Ospf2::new(self.router_id),
                 sr: self.sr,
                 bgp: self.bgp,

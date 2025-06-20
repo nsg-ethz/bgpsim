@@ -20,7 +20,7 @@
 use crate::{
     bgp::BgpRibEntry,
     ospf::LinkWeight,
-    types::{AsId, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixSet, RouterId},
+    types::{IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixSet, RouterId, ASN},
 };
 
 use ordered_float::NotNan;
@@ -280,7 +280,7 @@ impl<P: Prefix> RouteMapBuilder<P> {
     }
 
     /// Add a match condition to the Route-Map, requiring that the as path contains a specific AS
-    pub fn match_as_path_contains(&mut self, as_id: AsId) -> &mut Self {
+    pub fn match_as_path_contains(&mut self, as_id: ASN) -> &mut Self {
         self.conds
             .push(RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(as_id)));
         self
@@ -579,14 +579,14 @@ where
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub enum RouteMapMatchAsPath {
     /// Contains a specific AsId
-    Contains(AsId),
+    Contains(ASN),
     /// Match on the length of the As Path
     Length(RouteMapMatchClause<usize>),
 }
 
 impl RouteMapMatchAsPath {
     /// Returns true if the value matches the clause
-    pub fn matches(&self, path: &[AsId]) -> bool {
+    pub fn matches(&self, path: &[ASN]) -> bool {
         match self {
             Self::Contains(as_id) => path.contains(as_id),
             Self::Length(clause) => clause.matches(&path.len()),

@@ -29,8 +29,8 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
-        AsId, IntoIpv4Prefix, Ipv4Prefix, NetworkDevice, NetworkDeviceRef, NetworkError,
-        NetworkErrorOption, PhysicalNetwork, Prefix, PrefixSet, RouterId, SimplePrefix,
+        IntoIpv4Prefix, Ipv4Prefix, NetworkDevice, NetworkDeviceRef, NetworkError,
+        NetworkErrorOption, PhysicalNetwork, Prefix, PrefixSet, RouterId, SimplePrefix, ASN,
     },
 };
 
@@ -41,7 +41,7 @@ use std::collections::{HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 1_000_000;
 /// The AS number assigned to internal routers.
-pub const INTERNAL_AS: AsId = AsId(65535);
+pub const INTERNAL_ASN: ASN = ASN(65535);
 
 /// # Network struct
 /// The struct contains all information about the underlying physical network (Links), a manages
@@ -137,11 +137,28 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         }
     }
 
-    /// Add a new router to the topology. Note, that the AS id is always set to `AsId(65001)`. This
-    /// function returns the ID of the router, which can be used to reference it while confiugring
-    /// the network.
+    /// Add a new router to the topology with the default AS number of `AsId(65001)`. This function
+    /// returns the ID of the router, which can be used to reference it while confiugring the
+    /// network.
+    ///
+    /// If you wish to create a router with a different AS number, use [`Self::add_router_with_asn`].
     pub fn add_router(&mut self, name: impl Into<String>) -> RouterId {
-        let new_router = Router::new(name.into(), self.net.add_node(()), INTERNAL_AS);
+        let new_router = Router::new(name.into(), self.net.add_node(()), INTERNAL_ASN);
+        let router_id = new_router.router_id();
+        self.routers.insert(router_id, new_router.into());
+        self.ospf.add_router(router_id, true);
+
+        router_id
+    }
+
+    /// Add a new router to the topology with a custom AS number. This function returns the ID of
+    /// the router, which can be used to reference it while confiugring the network.
+    pub fn add_router_with_asn(
+        &mut self,
+        name: impl Into<String>,
+        asn: impl Into<ASN>,
+    ) -> RouterId {
+        let new_router = Router::new(name.into(), self.net.add_node(()), asn.into());
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router.into());
         self.ospf.add_router(router_id, true);
@@ -155,9 +172,9 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     pub fn add_external_router(
         &mut self,
         name: impl Into<String>,
-        as_id: impl Into<AsId>,
+        asn: impl Into<ASN>,
     ) -> RouterId {
-        let new_router = ExternalRouter::new(name.into(), self.net.add_node(()), as_id.into());
+        let new_router = ExternalRouter::new(name.into(), self.net.add_node(()), asn.into());
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router.into());
         self.ospf.add_router(router_id, false);
@@ -183,8 +200,8 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     }
 
     /// Set the AS ID of an external router.
-    pub fn set_as_id(&mut self, router: RouterId, as_id: AsId) -> Result<(), NetworkError> {
-        self.get_external_router_mut(router)?.set_as_id(as_id);
+    pub fn set_as_id(&mut self, router: RouterId, as_id: ASN) -> Result<(), NetworkError> {
+        self.get_external_router_mut(router)?.set_asn(as_id);
         Ok(())
     }
 
@@ -727,11 +744,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     ) -> Result<(), NetworkError>
     where
         A: IntoIterator,
-        A::Item: Into<AsId>,
+        A::Item: Into<ASN>,
         C: IntoIterator<Item = u32>,
     {
         let prefix: P = prefix.into();
-        let as_path: Vec<AsId> = as_path.into_iter().map(|id| id.into()).collect();
+        let as_path: Vec<ASN> = as_path.into_iter().map(|id| id.into()).collect();
 
         debug!(
             "Advertise {} on {}",
