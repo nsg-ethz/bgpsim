@@ -30,6 +30,7 @@ pub struct Properties {
     pub class: Option<Classes>,
     pub small: Option<bool>,
     pub help: Option<Html>,
+    pub full_width: Option<bool>,
 }
 
 impl Component for Element {
@@ -41,13 +42,21 @@ impl Component for Element {
     }
 
     fn view(&self, ctx: &Context<Self>) -> Html {
-        let class = classes! { "text-main", "text-right", "pr-4", &ctx.props().class };
-        let (d1class, d2class) = if ctx.props().small.unwrap_or(false) {
-            ("basis-1/5 flex-none", "basis-4/5 flex-none")
+        let (class, d1class, d2class) = if ctx.props().full_width.unwrap_or(false) {
+            let class = classes! { "text-main", "pr-4", "font-bold", "italic", &ctx.props().class };
+            let d1class = classes! {"flex-1", "flex", "space-x-2", "justify-start"};
+            let d2class = "flex-none";
+            (class, d1class, d2class)
         } else {
-            ("basis-1/3 flex-none", "basis-2/3 flex-none")
+            let class = classes! { "text-main", "text-right", "pr-4", &ctx.props().class };
+            let (d1class, d2class) = if ctx.props().small.unwrap_or(false) {
+                ("basis-1/5 flex-none", "basis-4/5 flex-none")
+            } else {
+                ("basis-1/3 flex-none", "basis-2/3 flex-none")
+            };
+            let d1class = classes!(d1class, "flex", "space-x-2", "justify-end");
+            (class, d1class, d2class)
         };
-        let d1class = classes!(d1class, "flex", "space-x-2", "justify-end");
 
         let help = if let Some(h) = ctx.props().help.clone() {
             html! {<div class="flex-1"><Help text={h} /></div>}

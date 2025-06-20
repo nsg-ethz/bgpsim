@@ -23,7 +23,7 @@ use bgpsim::{
         RouteMap, RouteMapBuilder,
         RouteMapDirection::{self, Incoming, Outgoing},
     },
-    types::{NetworkDeviceRef, RouterId},
+    types::{NetworkDeviceRef, RouterId, ASN},
 };
 use web_sys::Element as WebElement;
 use yew::prelude::*;
@@ -62,6 +62,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub router: RouterId,
+    pub asn: ASN,
     pub bgp_peers: Vec<(RouterId, String)>,
     pub disabled: Option<bool>,
 }
@@ -89,6 +90,7 @@ impl Component for RouteMapsCfg {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
+        let asn = ctx.props().asn;
         let disabled = ctx.props().disabled.unwrap_or(false);
         let n = &self.net.net();
         let r = if let Ok(r) = n.get_internal_router(router) {
@@ -181,7 +183,7 @@ impl Component for RouteMapsCfg {
                                     incoming_rms.into_iter().map(|(order, map)|  {
                                         let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Incoming));
                                         let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Incoming));
-                                        html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove} {disabled}/> }
+                                        html!{ <RouteMapCfg {router} {asn} {neighbor} {order} {map} existing={incoming_existing.clone()} {on_update} {on_remove} {disabled}/> }
                                     }).collect::<Html>()
                                 }
                             </div>
@@ -195,7 +197,7 @@ impl Component for RouteMapsCfg {
                                     outgoing_rms.into_iter().map(|(order, map)| {
                                         let on_update = ctx.link().callback(move |(order, map)| Msg::UpdateRM(neighbor, order, Some(map), Outgoing));
                                         let on_remove = ctx.link().callback(move |order| Msg::UpdateRM(neighbor, order, None, Outgoing));
-                                        html!{ <RouteMapCfg {router} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove} {disabled}/> }
+                                        html!{ <RouteMapCfg {router} {asn} {neighbor} {order} {map} existing={outgoing_existing.clone()} {on_update} {on_remove} {disabled}/> }
                                     }).collect::<Html>()
                                 }
                             </div>

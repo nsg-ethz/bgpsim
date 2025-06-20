@@ -18,7 +18,7 @@
 use std::{collections::HashSet, rc::Rc, str::FromStr};
 
 use bgpsim::{
-    bgp::BgpRoute,
+    bgp::{BgpRoute, Community},
     formatter::NetworkFormatter,
     prelude::BgpSessionType,
     types::{RouterId, ASN},
@@ -108,7 +108,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
         };
         prefix_input_correct.set(false);
         Dispatch::<Net>::new().reduce_mut(move |net| {
-            let _ = net.net_mut().advertise_external_route::<Option<ASN>, Option<u32>>(id, p, None, None, None);
+            let _ = net.net_mut().advertise_external_route::<Option<ASN>, _>(id, p, None, None, None);
         });
     });
     let on_route_update = callback!(move |(prefix, route): (Pfx, BgpRoute<Pfx>)| {
@@ -313,7 +313,7 @@ fn AdvertisedRouteCfg(props: &AdvertisedRouteProperties) -> Html {
             .split(';')
             .flat_map(|s| s.split(','))
             .map(|s| s.trim())
-            .filter_map(|s| s.parse::<u32>().ok())
+            .filter_map(|s| s.parse::<Community>().ok())
             .collect();
         on_update.emit((prefix, route));
     });

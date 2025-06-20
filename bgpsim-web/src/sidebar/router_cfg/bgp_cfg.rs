@@ -19,6 +19,7 @@ use std::{collections::HashSet, ops::Deref, rc::Rc};
 
 use bgpsim::{
     formatter::NetworkFormatter,
+    network::DEFAULT_INTERNAL_ASN,
     prelude::BgpSessionType,
     types::{NetworkDeviceRef, RouterId},
 };
@@ -65,6 +66,10 @@ impl Component for BgpCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let n = &self.net.net();
+        let asn = n
+            .get_device(router)
+            .map(|r| r.asn())
+            .unwrap_or(DEFAULT_INTERNAL_ASN);
         let disabled = ctx.props().disabled.unwrap_or(false);
 
         let bgp_sessions = get_sessions(router, &self.net);
@@ -107,7 +112,7 @@ impl Component for BgpCfg {
                         }
                     }).collect::<Html>()
                 }
-            <RouteMapsCfg {router} {bgp_peers} {disabled} />
+            <RouteMapsCfg {router} {asn} {bgp_peers} {disabled} />
             </>
         }
     }

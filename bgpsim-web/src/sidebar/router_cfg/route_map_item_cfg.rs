@@ -19,7 +19,7 @@ use std::{collections::HashSet, rc::Rc};
 
 use bgpsim::{
     route_map::{RouteMap, RouteMapFlow, RouteMapMatch, RouteMapSet, RouteMapState},
-    types::RouterId,
+    types::{RouterId, ASN},
 };
 use yew::prelude::*;
 
@@ -45,6 +45,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq)]
 pub struct Properties {
     pub router: RouterId,
+    pub asn: ASN,
     pub neighbor: RouterId,
     pub order: i16,
     pub map: RouteMap<Pfx>,
@@ -66,6 +67,7 @@ impl Component for RouteMapCfg {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let section_text = format!("Route Map {}", ctx.props().map.order);
+        let asn = ctx.props().asn;
 
         let order_text = ctx.props().order.to_string();
         let on_order_change = ctx.link().callback(Msg::OrderChange);
@@ -86,14 +88,16 @@ impl Component for RouteMapCfg {
 
         let add_match = {
             let n = ctx.props().map.conds.len();
-            ctx.link()
-                .callback(move |_| Msg::UpdateMatch((n, Some(RouteMapMatch::Community(0)))))
+            ctx.link().callback(move |_| {
+                Msg::UpdateMatch((n, Some(RouteMapMatch::Community((asn, 0).into()))))
+            })
         };
 
         let add_set = {
             let n = ctx.props().map.set.len();
-            ctx.link()
-                .callback(move |_| Msg::UpdateSet((n, Some(RouteMapSet::SetCommunity(0)))))
+            ctx.link().callback(move |_| {
+                Msg::UpdateSet((n, Some(RouteMapSet::SetCommunity((asn, 0).into()))))
+            })
         };
 
         let on_remove = {
@@ -135,7 +139,7 @@ impl Component for RouteMapCfg {
                             </div>
                         </div>
                     </Element>
-                    <Element text={"Match"} small={true}>
+                <Element text={"Match Statements"} small={true} full_width={true}>
                         <button class={add_btn_class.clone()} onclick={add_match} {disabled}>
                             <span class="flex items-center"> <yew_lucide::Plus class="w-3 h-3 mr-2 text-center" /> {"new match"} </span>
                         </button>
@@ -145,10 +149,10 @@ impl Component for RouteMapCfg {
                             let on_update = ctx.link().callback(Msg::UpdateMatch);
                             let router = ctx.props().router;
                             html! {
-                                <RouteMapMatchCfg {router} {index} {m} {on_update} {disabled}/>
+                                <RouteMapMatchCfg {router} {asn} {index} {m} {on_update} {disabled}/>
                             }}).collect::<Html>()
                     }
-                    <Element text={"Set"} small={true}>
+                    <Element text={"Set Statements"} small={true} full_width={true}>
                         <button class={add_btn_class} onclick={add_set} {disabled}>
                             <span class="flex items-center"> <yew_lucide::Plus class="w-3 h-3 mr-2 text-center" /> {"new set"} </span>
                         </button>
@@ -158,7 +162,7 @@ impl Component for RouteMapCfg {
                             let on_update = ctx.link().callback(Msg::UpdateSet);
                             let router = ctx.props().router;
                             html! {
-                                <RouteMapSetCfg {router} {index} {set} {on_update} {disabled}/>
+                                <RouteMapSetCfg {router} {asn} {index} {set} {on_update} {disabled}/>
                             }}).collect::<Html>()
                     }
                     <Element text={""}>

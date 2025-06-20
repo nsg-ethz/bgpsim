@@ -18,10 +18,11 @@
 use std::{collections::BTreeSet, iter::once, rc::Rc, str::FromStr};
 
 use bgpsim::{
+    bgp::Community,
     formatter::NetworkFormatter,
     prefix,
     route_map::{RouteMapMatch, RouteMapMatchAsPath, RouteMapMatchClause},
-    types::RouterId,
+    types::{RouterId, ASN},
 };
 use itertools::Itertools;
 use yew::prelude::*;
@@ -53,6 +54,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq)]
 pub struct Properties {
     pub router: RouterId,
+    pub asn: ASN,
     pub index: usize,
     pub disabled: Option<bool>,
     pub m: RouteMapMatch<Pfx>,
@@ -83,6 +85,8 @@ impl Component for RouteMapMatchCfg {
             .get_internal_router(ctx.props().router)
             .map(|r| r.bgp.get_sessions().keys().copied().collect())
             .unwrap_or_default();
+        let asn = ctx.props().asn;
+
         let disabled = ctx.props().disabled.unwrap_or(false);
 
         let kind_text = match_kind_text(&ctx.props().m);
@@ -117,8 +121,7 @@ impl Component for RouteMapMatchCfg {
 
         html! {
             <div class="w-full flex">
-                <div class="basis-1/5 flex-none"></div>
-                <div class="w-40 flex-none"><Select<RouteMapMatch<Pfx>> text={kind_text} options={match_kind_options()} {on_select} button_class={Classes::from("text-sm")} {disabled}/></div>
+                <div class="w-40 flex-none"><Select<RouteMapMatch<Pfx>> text={kind_text} options={match_kind_options(asn)} {on_select} button_class={Classes::from("text-sm")} {disabled}/></div>
                 <div class="w-full ml-2">
                   { value_html }
                 </div>
@@ -171,6 +174,7 @@ impl RouteMapMatchCfg {
 enum MatchValue {
     None,
     Integer(u32),
+    Community(Community),
     Router(RouterId),
     List(BTreeSet<u32>),
     PrefixList(BTreeSet<Pfx>),
@@ -180,37 +184,37 @@ enum MatchValue {
 impl MatchValue {
     fn parse(s: &str) -> Option<Self> {
         if let Ok(p) = Pfx::from_str(s) {
-            return Some(Self::PrefixList(once(p).collect()));
-        }
-        if let Ok(x) = s.parse::<u32>() {
-            return Some(Self::Integer(x));
-        }
-        if let Some(vs) = s
+            Some(Self::PrefixList(once(p).collect()))
+        } else if let Ok(x) = s.parse::<Community>() {
+            Some(Self::Community(x))
+        } else if let Ok(x) = s.parse::<u32>() {
+            Some(Self::Integer(x))
+        } else if let Some(vs) = s
             .split([',', ';'])
             .map(|x| Pfx::from_str(x.trim()).ok())
             .collect::<Option<BTreeSet<Pfx>>>()
         {
-            return Some(Self::PrefixList(vs));
-        }
-        if let Some(vs) = s
+            Some(Self::PrefixList(vs))
+        } else if let Some(vs) = s
             .split([',', ';'])
             .map(|x| x.trim().parse::<u32>().ok())
             .collect::<Option<BTreeSet<u32>>>()
         {
-            return Some(Self::List(vs));
-        }
-        if let Some((x, y)) = s
+            Some(Self::List(vs))
+        } else if let Some((x, y)) = s
             .split_once('-')
             .and_then(|(a, b)| Some((a.trim().parse::<u32>().ok()?, b.trim().parse::<u32>().ok()?)))
         {
-            return Some(Self::Range(x, y));
+            Some(Self::Range(x, y))
+        } else {
+            None
         }
-        None
     }
 
     fn fmt(&self, net: &Net) -> String {
         match self {
             MatchValue::None => String::new(),
+            MatchValue::Community(x) => x.to_string(),
             MatchValue::Integer(x) => x.to_string(),
             MatchValue::Router(r) => r.fmt(&net.net()).to_string(),
             MatchValue::List(x) => x.iter().join("; "),
@@ -231,7 +235,7 @@ fn match_kind_text(m: &RouteMapMatch<Pfx>) -> &'static str {
     }
 }
 
-fn match_kind_options() -> Vec<(RouteMapMatch<Pfx>, String)> {
+fn match_kind_options(asn: ASN) -> Vec<(RouteMapMatch<Pfx>, String)> {
     [
         RouteMapMatch::Prefix([prefix!("0.0.0.0/0" as Pfx)].into_iter().collect()),
         RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(0.into())),
@@ -239,8 +243,8 @@ fn match_kind_options() -> Vec<(RouteMapMatch<Pfx>, String)> {
             1, 10,
         ))),
         RouteMapMatch::NextHop(0.into()),
-        RouteMapMatch::Community(0),
-        RouteMapMatch::DenyCommunity(0),
+        RouteMapMatch::Community((asn, 0).into()),
+        RouteMapMatch::DenyCommunity((asn, 0).into()),
     ]
     .map(|kind| {
         let text = match_kind_text(&kind).to_string();
@@ -261,8 +265,8 @@ fn match_values(m: &RouteMapMatch<Pfx>) -> MatchValue {
             MatchValue::Range(*v1 as u32, *v2 as u32)
         }
         RouteMapMatch::NextHop(v) => MatchValue::Router(*v),
-        RouteMapMatch::Community(v) => MatchValue::Integer(*v),
-        RouteMapMatch::DenyCommunity(v) => MatchValue::Integer(*v),
+        RouteMapMatch::Community(v) => MatchValue::Community(*v),
+        RouteMapMatch::DenyCommunity(v) => MatchValue::Community(*v),
         _ => MatchValue::None,
     }
 }
@@ -286,8 +290,8 @@ fn match_update(m: &RouteMapMatch<Pfx>, val: MatchValue) -> Option<RouteMapMatch
             )))
         }
         (RouteMapMatch::NextHop(_), MatchValue::Router(r)) => RouteMapMatch::NextHop(r),
-        (RouteMapMatch::Community(_), MatchValue::Integer(x)) => RouteMapMatch::Community(x),
-        (RouteMapMatch::DenyCommunity(_), MatchValue::Integer(x)) => {
+        (RouteMapMatch::Community(_), MatchValue::Community(x)) => RouteMapMatch::Community(x),
+        (RouteMapMatch::DenyCommunity(_), MatchValue::Community(x)) => {
             RouteMapMatch::DenyCommunity(x)
         }
         _ => return None,

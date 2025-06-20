@@ -17,7 +17,12 @@
 
 use std::rc::Rc;
 
-use bgpsim::{formatter::NetworkFormatter, route_map::RouteMapSet, types::RouterId};
+use bgpsim::{
+    bgp::Community,
+    formatter::NetworkFormatter,
+    route_map::RouteMapSet,
+    types::{RouterId, ASN},
+};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -44,6 +49,7 @@ pub enum Msg {
 #[derive(Properties, PartialEq)]
 pub struct Properties {
     pub router: RouterId,
+    pub asn: ASN,
     pub index: usize,
     pub disabled: Option<bool>,
     pub set: RouteMapSet,
@@ -70,6 +76,8 @@ impl Component for RouteMapSetCfg {
         // first, get the network store.
         let kind_text = set_kind_text(&ctx.props().set);
         let disabled = ctx.props().disabled.unwrap_or(false);
+        let asn = ctx.props().asn;
+        let router = ctx.props().router;
 
         let is_nh = matches!(ctx.props().set, RouteMapSet::NextHop(_));
 
@@ -106,8 +114,7 @@ impl Component for RouteMapSetCfg {
 
         html! {
             <div class="w-full flex">
-                <div class="basis-1/5 flex-none"></div>
-                <div class="w-40 flex-none"><Select<RouteMapSet> text={kind_text} options={set_kind_options(ctx.props().router)} {on_select} button_class={Classes::from("text-sm")} {disabled}/></div>
+                <div class="w-40 flex-none"><Select<RouteMapSet> text={kind_text} options={set_kind_options(router, asn)} {on_select} button_class={Classes::from("text-sm")} {disabled}/></div>
                 <div class="w-full ml-2">
                     { value_html }
                 </div>
@@ -160,6 +167,7 @@ impl RouteMapSetCfg {
 #[derive(Clone, Copy, PartialEq, Debug)]
 enum SetValue {
     None,
+    Community(Community),
     Integer(u32),
     Float(f64),
     Router(RouterId),
@@ -170,12 +178,14 @@ impl SetValue {
         s.parse::<u32>()
             .map(Self::Integer)
             .ok()
+            .or_else(|| s.parse::<Community>().map(Self::Community).ok())
             .or_else(|| s.parse::<f64>().map(Self::Float).ok())
     }
 
     fn fmt(&self, net: &Net) -> String {
         match self {
             SetValue::None => String::new(),
+            SetValue::Community(x) => x.to_string(),
             SetValue::Integer(x) => x.to_string(),
             SetValue::Float(x) => x.to_string(),
             SetValue::Router(r) => r.fmt(&net.net()).to_string(),
@@ -198,7 +208,7 @@ fn set_kind_text(set: &RouteMapSet) -> &'static str {
     }
 }
 
-fn set_kind_options(router: RouterId) -> Vec<(RouteMapSet, String)> {
+fn set_kind_options(router: RouterId, asn: ASN) -> Vec<(RouteMapSet, String)> {
     [
         RouteMapSet::NextHop(router),
         RouteMapSet::LocalPref(Some(100)),
@@ -206,8 +216,8 @@ fn set_kind_options(router: RouterId) -> Vec<(RouteMapSet, String)> {
         RouteMapSet::Med(Some(100)),
         RouteMapSet::Med(None),
         RouteMapSet::IgpCost(1.0),
-        RouteMapSet::SetCommunity(0),
-        RouteMapSet::DelCommunity(0),
+        RouteMapSet::SetCommunity((asn, 0).into()),
+        RouteMapSet::DelCommunity((asn, 0).into()),
         RouteMapSet::Weight(Some(100)),
         RouteMapSet::Weight(None),
     ]
@@ -227,8 +237,8 @@ fn set_value(set: &RouteMapSet) -> SetValue {
         RouteMapSet::Med(Some(x)) => SetValue::Integer(*x),
         RouteMapSet::Med(None) => SetValue::None,
         RouteMapSet::IgpCost(x) => SetValue::Float(*x),
-        RouteMapSet::SetCommunity(x) => SetValue::Integer(*x),
-        RouteMapSet::DelCommunity(x) => SetValue::Integer(*x),
+        RouteMapSet::SetCommunity(x) => SetValue::Community(*x),
+        RouteMapSet::DelCommunity(x) => SetValue::Community(*x),
         RouteMapSet::Weight(Some(x)) => SetValue::Integer(*x),
         RouteMapSet::Weight(None) => SetValue::None,
     }
@@ -243,8 +253,8 @@ fn set_update(set: &RouteMapSet, val: SetValue) -> Option<RouteMapSet> {
         (RouteMapSet::Med(None), SetValue::None) => RouteMapSet::Med(None),
         (RouteMapSet::IgpCost(_), SetValue::Float(x)) => RouteMapSet::IgpCost(x),
         (RouteMapSet::IgpCost(_), SetValue::Integer(x)) => RouteMapSet::IgpCost(x as f64),
-        (RouteMapSet::SetCommunity(_), SetValue::Integer(x)) => RouteMapSet::SetCommunity(x),
-        (RouteMapSet::DelCommunity(_), SetValue::Integer(x)) => RouteMapSet::DelCommunity(x),
+        (RouteMapSet::SetCommunity(_), SetValue::Community(x)) => RouteMapSet::SetCommunity(x),
+        (RouteMapSet::DelCommunity(_), SetValue::Community(x)) => RouteMapSet::DelCommunity(x),
         (RouteMapSet::Weight(Some(_)), SetValue::Integer(x)) => RouteMapSet::Weight(Some(x)),
         (RouteMapSet::Weight(None), SetValue::None) => RouteMapSet::Weight(None),
         _ => return None,
