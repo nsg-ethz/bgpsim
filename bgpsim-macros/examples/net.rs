@@ -31,7 +31,7 @@ fn main() {
             r1 -> b1: client;
         };
         routes = {
-            e0 -> "10.0.0.0/8" as {path: [1, 3, 4], med: 100, community: 20};
+            e0 -> "10.0.0.0/8" as {path: [1, 3, 4], med: 100, community: (10, 10)};
             e1 -> "10.0.0.0/8" as {path: [2, 4]};
         };
         return ((b0, b1), (e0, e1))

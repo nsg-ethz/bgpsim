@@ -578,12 +578,57 @@ impl<T> MaybeExpr<T> {
     }
 }
 
+struct Community {
+    asn: LitInt,
+    num: LitInt,
+}
+
+impl quote::ToTokens for Community {
+    fn to_tokens(&self, tokens: &mut proc_macro2::TokenStream) {
+        let asn = &self.asn;
+        let num = &self.num;
+        tokens.extend(quote!(::bgpsim::bgp::Community::new(#asn, #num)))
+    }
+}
+
+impl TryFrom<&Expr> for Community {
+    type Error = syn::Error;
+
+    fn try_from(e: &Expr) -> Result<Self> {
+        let Expr::Tuple(tuple) = e else {
+            return Err(Error::new(e.span(), "Expected a tuple!"));
+        };
+        if tuple.elems.len() != 2 {
+            return Err(Error::new(
+                tuple.span(),
+                "Expected a tuple of two elements!",
+            ));
+        }
+        let mut elems = tuple.elems.clone().into_iter();
+        let first = elems.next().unwrap();
+        let second = elems.next().unwrap();
+        let Expr::Lit(ExprLit {
+            lit: Lit::Int(asn), ..
+        }) = first
+        else {
+            return Err(Error::new(first.span(), "Expected an ASN as a number"));
+        };
+        let Expr::Lit(ExprLit {
+            lit: Lit::Int(num), ..
+        }) = second
+        else {
+            return Err(Error::new(second.span(), "Expected a number"));
+        };
+        Ok(Community { asn, num })
+    }
+}
+
 struct Route<N> {
     src: N,
     prefix: Prefix,
     as_path: MaybeExpr<Vec<LitInt>>,
     med: MaybeExpr<Option<LitInt>>,
-    communities: MaybeExpr<Vec<LitInt>>,
+    communities: MaybeExpr<Vec<Community>>,
 }
 
 impl Parse for Route<Node> {
@@ -628,6 +673,21 @@ impl Parse for Route<Node> {
             }
         }
 
+        fn parse_community_list(expr: Expr) -> Result<MaybeExpr<Vec<Community>>> {
+            match expr {
+                Expr::Array(a) => a
+                    .elems
+                    .into_iter()
+                    .map(|e| Community::try_from(&e))
+                    .collect::<Result<Vec<Community>>>()
+                    .map(MaybeExpr::Other),
+                expr => Ok(Community::try_from(&expr)
+                    .map(|c| vec![c])
+                    .map(MaybeExpr::Other)
+                    .unwrap_or(MaybeExpr::Expr(expr))),
+            }
+        }
+
         fn parse_med(expr: Expr) -> MaybeExpr<Option<LitInt>> {
             match expr {
                 Expr::Lit(ExprLit {
@@ -647,7 +707,7 @@ impl Parse for Route<Node> {
                         med = parse_med(field.expr);
                     }
                     "community" | "communities" => {
-                        communities = parse_list_ints(field.expr)?;
+                        communities = parse_community_list(field.expr)?;
                     }
                     _ => {
                         return Err(Error::new(
