@@ -109,6 +109,7 @@ mod test_config;
 mod test_export;
 mod test_forwarding_state;
 mod test_link_failure;
+mod test_multi_as;
 mod test_network;
 mod test_network_complete;
 mod test_network_config;

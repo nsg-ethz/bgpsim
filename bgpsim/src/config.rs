@@ -1034,22 +1034,24 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
         let mut c = Config::new();
 
         // get all link weights and ospf areas
-        for (a, edges) in self.ospf.links.iter() {
-            for (b, (weight, area)) in edges.iter() {
-                if *weight != DEFAULT_LINK_WEIGHT {
-                    c.add(ConfigExpr::IgpLinkWeight {
-                        source: *a,
-                        target: *b,
-                        weight: *weight,
-                    })?;
-                }
-                // add the area, and ignore errors
-                if !area.is_backbone() {
-                    let _ = c.add(ConfigExpr::OspfArea {
-                        source: *a,
-                        target: *b,
-                        area: *area,
-                    });
+        for domain in self.ospf.domains.values() {
+            for (a, edges) in domain.links.iter() {
+                for (b, (weight, area)) in edges.iter() {
+                    if *weight != DEFAULT_LINK_WEIGHT {
+                        c.add(ConfigExpr::IgpLinkWeight {
+                            source: *a,
+                            target: *b,
+                            weight: *weight,
+                        })?;
+                    }
+                    // add the area, and ignore errors
+                    if !area.is_backbone() {
+                        let _ = c.add(ConfigExpr::OspfArea {
+                            source: *a,
+                            target: *b,
+                            area: *area,
+                        });
+                    }
                 }
             }
         }

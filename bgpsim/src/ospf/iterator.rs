@@ -27,10 +27,10 @@ use super::{LinkWeight, OspfArea};
 use crate::types::{NetworkError, RouterId};
 
 /// Iterator over internal edges.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 #[allow(clippy::type_complexity)]
 pub struct InternalEdges<'a> {
-    pub(super) outer: Option<MapIter<'a, RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>>,
+    pub(super) outer: Vec<MapIter<'a, RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>>,
     pub(super) inner: Option<(RouterId, MapIter<'a, RouterId, (LinkWeight, OspfArea)>)>,
 }
 
@@ -47,13 +47,13 @@ impl Iterator for InternalEdges<'_> {
                         weight: *weight,
                         area: *area,
                     });
-                } else {
-                    // clear the inner iterator.
-                    self.inner = None;
                 }
+
+                // go to the next, inner iterator
+                let _ = self.inner.take();
             }
             // get the next inner iterator
-            if let Some((src, inner)) = self.outer.as_mut().and_then(|x| x.next()) {
+            if let Some((src, inner)) = self.outer.last_mut().and_then(|x| x.next()) {
                 self.inner = Some((*src, inner.iter()));
             } else {
                 return None;
@@ -65,9 +65,9 @@ impl Iterator for InternalEdges<'_> {
 impl FusedIterator for InternalEdges<'_> {}
 
 /// Iterator over external edges.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct ExternalEdges<'a> {
-    pub(super) outer: Option<MapIter<'a, RouterId, HashSet<RouterId>>>,
+    pub(super) outer: Vec<MapIter<'a, RouterId, HashSet<RouterId>>>,
     pub(super) inner: Option<(RouterId, SetIter<'a, RouterId>)>,
 }
 
@@ -83,13 +83,13 @@ impl Iterator for ExternalEdges<'_> {
                         ext: *ext,
                         int_to_ext: true,
                     });
-                } else {
-                    // clear the inner iterator.
-                    self.inner = None;
                 }
+
+                // go to the next, inner iterator
+                let _ = self.inner.take();
             }
             // get the next inner iterator
-            if let Some((src, inner)) = self.outer.as_mut().and_then(|x| x.next()) {
+            if let Some((src, inner)) = self.outer.last_mut().and_then(|x| x.next()) {
                 self.inner = Some((*src, inner.iter()));
             } else {
                 return None;
@@ -102,7 +102,7 @@ impl FusedIterator for ExternalEdges<'_> {}
 
 /// Iterator over all internal and external edges. Internal edges will appear twice, external edges
 /// only once. The iterator will yield first all internal edges, and then all external edges.
-#[derive(Debug)]
+#[derive(Debug, Default)]
 pub struct Edges<'a> {
     pub(super) int: InternalEdges<'a>,
     pub(super) ext: ExternalEdges<'a>,
@@ -120,77 +120,6 @@ impl Iterator for Edges<'_> {
 }
 
 impl FusedIterator for Edges<'_> {}
-
-/// Iterator over all neighbors of an internal router. The iterator yields no element if the router
-/// does not exist.
-#[derive(Debug)]
-pub enum ExternalNeighbors<'a> {
-    /// Iterator over external neighbors of an internal router
-    Internal(ExternalEdges<'a>),
-    /// Iterator over internal neighbors of an external router
-    External(InternalNeighborsOfExternalNetwork<'a>),
-}
-
-impl Iterator for ExternalNeighbors<'_> {
-    type Item = ExternalEdge;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::Internal(i) => i.next(),
-            Self::External(i) => i.next(),
-        }
-    }
-}
-
-impl FusedIterator for ExternalNeighbors<'_> {}
-
-/// Iterator over all neighbors of an external netowrk.
-#[derive(Debug)]
-pub struct InternalNeighborsOfExternalNetwork<'a> {
-    pub(super) ext: RouterId,
-    pub(super) iter: MapIter<'a, RouterId, HashSet<RouterId>>,
-}
-
-impl Iterator for InternalNeighborsOfExternalNetwork<'_> {
-    type Item = ExternalEdge;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        for (int, x) in self.iter.by_ref() {
-            if x.contains(&self.ext) {
-                return Some(ExternalEdge {
-                    int: *int,
-                    ext: self.ext,
-                    int_to_ext: false,
-                });
-            }
-        }
-        None
-    }
-}
-
-impl FusedIterator for InternalNeighborsOfExternalNetwork<'_> {}
-
-/// Iterator over all neighbors of a router, both internal and external ones.
-#[derive(Debug)]
-pub enum Neighbors<'a> {
-    /// Iterator over neighbors of an internal router
-    Internal(Edges<'a>),
-    /// Iteraor over neighbors of an external router
-    External(InternalNeighborsOfExternalNetwork<'a>),
-}
-
-impl Iterator for Neighbors<'_> {
-    type Item = Edge;
-
-    fn next(&mut self) -> Option<Self::Item> {
-        match self {
-            Self::Internal(i) => i.next(),
-            Self::External(i) => i.next().map(Edge::External),
-        }
-    }
-}
-
-impl FusedIterator for Neighbors<'_> {}
 
 /// An external edge that connects an internal and an external router.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]

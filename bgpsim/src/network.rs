@@ -153,10 +153,11 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         name: impl Into<String>,
         asn: impl Into<ASN>,
     ) -> RouterId {
-        let new_router = Router::new(name.into(), self.net.add_node(()), asn.into());
+        let asn = asn.into();
+        let new_router = Router::new(name.into(), self.net.add_node(()), asn);
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router.into());
-        self.ospf.add_router(router_id, true);
+        self.ospf.add_router(router_id, asn);
 
         router_id
     }
@@ -169,10 +170,11 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         name: impl Into<String>,
         asn: impl Into<ASN>,
     ) -> RouterId {
-        let new_router = ExternalRouter::new(name.into(), self.net.add_node(()), asn.into());
+        let asn = asn.into();
+        let new_router = ExternalRouter::new(name.into(), self.net.add_node(()), asn);
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router.into());
-        self.ospf.add_router(router_id, false);
+        self.ospf.add_router(router_id, asn);
 
         router_id
     }
@@ -1016,10 +1018,10 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     }
 
     /// Swap the OSPF implementation. Only used internally.
-    fn swap_ospf<F, Ospf2>(mut self, convert: F) -> Result<Network<P, Q, Ospf2>, NetworkError>
+    fn swap_ospf<F, Ospf2>(mut self, mut convert: F) -> Result<Network<P, Q, Ospf2>, NetworkError>
     where
         Ospf2: OspfImpl,
-        F: FnOnce(
+        F: FnMut(
             Ospf::Coordinator,
             HashMap<RouterId, Ospf::Process>,
             &mut Ospf2::Coordinator,
@@ -1028,34 +1030,68 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     {
         self.simulate()?;
 
-        let (mut ospf, old_coordinator) = self.ospf.swap_coordinator();
-        let mut old_processes = HashMap::new();
-        let mut routers = HashMap::new();
+        let mut domains = HashMap::new();
+
+        // transform all routers
+        let mut old_processes: HashMap<ASN, HashMap<_, _>> = HashMap::new();
+        let mut domain_routers: HashMap<ASN, HashMap<_, _>> = HashMap::new();
         for (router_id, device) in self.routers {
+            let asn = device.asn();
             match device {
                 NetworkDevice::InternalRouter(r) => {
                     let (r, old_p) = r.swap_ospf();
-                    old_processes.insert(router_id, old_p);
-                    routers.insert(router_id, NetworkDevice::InternalRouter(r));
+                    old_processes
+                        .entry(asn)
+                        .or_default()
+                        .insert(router_id, old_p);
+                    domain_routers
+                        .entry(asn)
+                        .or_default()
+                        .insert(router_id, NetworkDevice::InternalRouter(r));
                 }
                 NetworkDevice::ExternalRouter(r) => {
-                    routers.insert(router_id, NetworkDevice::ExternalRouter(r));
+                    domain_routers
+                        .entry(asn)
+                        .or_default()
+                        .insert(router_id, NetworkDevice::ExternalRouter(r));
                 }
             }
         }
-        let new_processes = routers
-            .values_mut()
-            .filter_map(|d| d.internal_or_err().ok())
-            .map(|r| (r.router_id(), &mut r.ospf))
-            .collect();
 
-        // perform the conversion
-        convert(
-            old_coordinator,
-            old_processes,
-            &mut ospf.coordinator,
-            new_processes,
-        )?;
+        for (asn, domain) in self.ospf.domains.into_iter() {
+            let (mut ospf_domain, old_coordinator) = domain.swap_coordinator();
+
+            let Some(routers) = domain_routers.get_mut(&asn) else {
+                continue; // no routers in that domain; domain is empty
+            };
+            let old_processes = old_processes
+                .remove(&asn)
+                .expect("domain_routers is already present");
+
+            let new_processes = routers
+                .values_mut()
+                .filter_map(|d| d.internal_or_err().ok())
+                .map(|r| (r.router_id(), &mut r.ospf))
+                .collect();
+
+            // perform the conversion
+            convert(
+                old_coordinator,
+                old_processes,
+                &mut ospf_domain.coordinator,
+                new_processes,
+            )?;
+
+            domains.insert(asn, ospf_domain);
+        }
+
+        let ospf = OspfNetwork {
+            domains,
+            routers: self.ospf.routers,
+        };
+
+        // flatten the routers
+        let routers = domain_routers.into_values().flatten().collect();
 
         Ok(Network {
             net: self.net,

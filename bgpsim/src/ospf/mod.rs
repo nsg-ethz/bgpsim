@@ -35,7 +35,7 @@ use crate::{
     network::Network,
     types::{
         DeviceError, NetworkDevice, NetworkError, NetworkErrorOption, Prefix, PrefixMap, RouterId,
-        SimplePrefix,
+        SimplePrefix, ASN,
     },
 };
 
@@ -134,10 +134,9 @@ impl From<isize> for OspfArea {
     }
 }
 
-/// Structure that stores the global OSPF configuration.
+/// The OSPF network for each domain separately. A domain is all routers that belong to the same AS.
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
-pub struct OspfNetwork<Ospf = GlobalOspfCoordinator> {
-    externals: HashSet<RouterId>,
+pub struct OspfDomain<Ospf = GlobalOspfCoordinator> {
     #[serde(with = "As::<Vec<(Same, Same)>>")]
     external_links: HashMap<RouterId, HashSet<RouterId>>,
     #[serde(with = "As::<Vec<(Same, Vec<(Same, Same)>)>>")]
@@ -146,21 +145,20 @@ pub struct OspfNetwork<Ospf = GlobalOspfCoordinator> {
     pub(crate) coordinator: Ospf,
 }
 
-impl<Ospf> PartialEq for OspfNetwork<Ospf> {
+impl<Ospf> PartialEq for OspfDomain<Ospf> {
     fn eq(&self, other: &Self) -> bool {
         self.links == other.links && self.external_links == other.external_links
     }
 }
 
-impl<Ospf> OspfNetwork<Ospf>
+impl<Ospf> OspfDomain<Ospf>
 where
     Ospf: OspfCoordinator,
 {
     /// Swap the coordinator by replacing it with the default of the new type `Ospf2`.
-    pub(crate) fn swap_coordinator<Ospf2: OspfCoordinator>(self) -> (OspfNetwork<Ospf2>, Ospf) {
+    pub(crate) fn swap_coordinator<Ospf2: OspfCoordinator>(self) -> (OspfDomain<Ospf2>, Ospf) {
         (
-            OspfNetwork {
-                externals: self.externals,
+            OspfDomain {
                 external_links: self.external_links,
                 links: self.links,
                 failures: self.failures,
@@ -170,23 +168,18 @@ where
         )
     }
 
-    /// Add an internal or external router.
-    pub(crate) fn add_router(&mut self, id: RouterId, internal: bool) {
-        if internal {
-            self.links.insert(id, Default::default());
-            self.external_links.insert(id, Default::default());
-        } else {
-            self.externals.insert(id);
-        }
+    fn is_internal(&self, id: RouterId) -> bool {
+        self.links.contains_key(&id)
     }
 
-    pub(crate) fn add_link<P: Prefix, T: Default>(
-        &mut self,
-        a: RouterId,
-        b: RouterId,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
-    ) -> Result<Vec<Event<P, T>>, NetworkError> {
-        self.add_links_from([(a, b)], routers)
+    fn is_external(&self, id: RouterId) -> bool {
+        !self.is_internal(id)
+    }
+
+    /// Add a router. This router must have the same ASN.
+    fn add_router(&mut self, id: RouterId) {
+        self.links.insert(id, Default::default());
+        self.external_links.insert(id, Default::default());
     }
 
     pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
@@ -199,7 +192,8 @@ where
     {
         let mut deltas = Vec::new();
         for (a, b) in links {
-            if self.is_internal(a, b)? {
+            assert!(self.is_internal(a));
+            if self.is_internal(b) {
                 let area = OspfArea::BACKBONE;
                 let weight = DEFAULT_LINK_WEIGHT;
                 match self.links.entry(a).or_default().entry(b) {
@@ -233,16 +227,12 @@ where
                     }
                 }
             } else {
-                let (int, ext) = if self.externals.contains(&b) {
-                    (a, b)
-                } else {
-                    (b, a)
-                };
-                self.external_links.entry(int).or_default().insert(ext);
-                deltas.push(NeighborhoodChange::AddExternalNetwork { int, ext });
+                self.external_links.entry(a).or_default().insert(b);
+                deltas.push(NeighborhoodChange::AddExternalNetwork { int: a, ext: b });
             }
         }
-        self.coordinator.update(
+        OspfCoordinator::update(
+            &mut self.coordinator,
             NeighborhoodChange::Batch(deltas),
             routers,
             &self.links,
@@ -269,7 +259,8 @@ where
         let old_weight = *w;
         *w = weight;
 
-        let events = self.coordinator.update(
+        let events = OspfCoordinator::update(
+            &mut self.coordinator,
             NeighborhoodChange::Weight {
                 src,
                 dst,
@@ -314,7 +305,8 @@ where
             })
         }
 
-        let events = self.coordinator.update(
+        let events = OspfCoordinator::update(
+            &mut self.coordinator,
             NeighborhoodChange::Batch(deltas),
             routers,
             &self.links,
@@ -369,7 +361,8 @@ where
         *aa = area;
         let w_b_a = *w_b_a;
 
-        let events = self.coordinator.update(
+        let events = OspfCoordinator::update(
+            &mut self.coordinator,
             NeighborhoodChange::Area {
                 a,
                 b,
@@ -389,13 +382,15 @@ where
         self.links.get(&a).and_then(|x| x.get(&b)).map(|(_, a)| *a)
     }
 
+    /// a must be in the same AS, and b can be in a different AS
     pub(crate) fn remove_link<P: Prefix, T: Default>(
         &mut self,
         a: RouterId,
         b: RouterId,
         routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
-        let update = if self.is_internal(a, b)? {
+        assert!(self.is_internal(a));
+        let update = if self.is_internal(b) {
             let (w_a_b, area) = self
                 .links
                 .get_mut(&a)
@@ -416,11 +411,7 @@ where
                 weight: (w_a_b, w_b_a),
             }
         } else {
-            let (int, ext) = if self.externals.contains(&b) {
-                (a, b)
-            } else {
-                (b, a)
-            };
+            let (int, ext) = (a, b);
             self.external_links
                 .get_mut(&int)
                 .or_router_not_found(int)?
@@ -428,8 +419,13 @@ where
                 .or_link_not_found(int, ext)?;
             NeighborhoodChange::RemoveExternalNetwork { int, ext }
         };
-        self.coordinator
-            .update(update, routers, &self.links, &self.external_links)
+        OspfCoordinator::update(
+            &mut self.coordinator,
+            update,
+            routers,
+            &self.links,
+            &self.external_links,
+        )
     }
 
     pub(crate) fn remove_router<P: Prefix, T: Default>(
@@ -438,15 +434,15 @@ where
         routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut deltas = Vec::new();
-        if self.externals.contains(&r) {
-            // remove external router
-            self.externals.remove(&r);
+        if self.is_external(r) {
+            // remove all links to that external router
             for (int, x) in self.external_links.iter_mut() {
                 if x.remove(&r) {
                     deltas.push(NeighborhoodChange::RemoveExternalNetwork { int: *int, ext: r })
                 }
             }
         } else {
+            // is internal!
             for (b, (w_r_b, area)) in self.links.remove(&r).or_router_not_found(r)? {
                 // also remove the other link
                 let (w_b_r, _) = self
@@ -468,12 +464,372 @@ where
             }
         }
 
-        self.coordinator.update(
+        OspfCoordinator::update(
+            &mut self.coordinator,
             NeighborhoodChange::Batch(deltas),
             routers,
             &self.links,
             &self.external_links,
         )
+    }
+
+    /// Returns true if `a` can reach `b`, and vice-versa. `a` must be in this domain, while `b` can
+    /// be in another domain.
+    pub fn is_reachable<P: Prefix>(
+        &self,
+        a: RouterId,
+        b: RouterId,
+        routers: &HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> bool {
+        // `a` must be in that domain. otherwise, it is not reachable (from that domain)
+        if self.is_external(a) || !routers.contains_key(&a) || !routers.contains_key(&b) {
+            return false;
+        }
+
+        if self.is_external(b) {
+            // in that case, `a` can only reach `b` (and viceversa) if they are directly connected.
+            return self.external_links.get(&a).unwrap().contains(&b);
+        }
+
+        let is_reachable = |src, dst| {
+            routers
+                .get(&src)
+                .and_then(|r| r.as_ref().internal())
+                .map(|r| r.ospf.is_reachable(dst))
+                .unwrap_or(false)
+        };
+
+        is_reachable(a, b) && is_reachable(b, a)
+    }
+
+    /// Get a reference to the OSPF coordinator struct
+    pub fn coordinator(&self) -> &Ospf {
+        &self.coordinator
+    }
+
+    fn must_be_internal(&self, a: RouterId, b: RouterId) -> Result<(), NetworkError> {
+        if self.is_internal(a) && self.is_internal(b) {
+            Ok(())
+        } else {
+            Err(NetworkError::CannotConfigureExternalLink(a, b))
+        }
+    }
+
+    /// Get an iterator over all internal edges. Each link will appear twice, once in each
+    /// direction.
+    pub fn internal_edges(&self) -> InternalEdges<'_> {
+        InternalEdges {
+            outer: vec![self.links.iter()],
+            inner: None,
+        }
+    }
+
+    /// Get an iterator over all external edges (edges that connect to a different AS). Each link
+    /// will appear once, from the internal router to the external network.
+    pub fn external_edges(&self) -> ExternalEdges<'_> {
+        ExternalEdges {
+            outer: vec![self.external_links.iter()],
+            inner: None,
+        }
+    }
+
+    /// Get an iterator over all edges in the network. The iterator will yield first all internal
+    /// edges *twice* (once in both directions), and then yield all external edges *once* (from the
+    /// internal router to the external network). External edges connect this AS to another one.
+    pub fn edges(&self) -> Edges<'_> {
+        Edges {
+            int: self.internal_edges(),
+            ext: self.external_edges(),
+        }
+    }
+
+    /// Get an iterator over all internal neighbors of an internal router. The iterator is empty if
+    /// the router is an external router or does not exist.
+    fn internal_neighbors(&self, r: RouterId) -> InternalEdges<'_> {
+        self.is_internal(r)
+            .then(|| InternalEdges {
+                outer: Vec::new(),
+                inner: self.links.get(&r).map(|n| (r, n.iter())),
+            })
+            .unwrap_or_default()
+    }
+
+    /// Get an iterator over all external neighbors of an internal router, i.e., all neighbors that
+    /// have a different AS number.. The iterator is empty if the router does not exist.
+    fn external_neighbors(&self, r: RouterId) -> ExternalEdges<'_> {
+        self.is_internal(r)
+            .then(|| ExternalEdges {
+                outer: Vec::new(),
+                inner: self.external_links.get(&r).map(|n| (r, n.iter())),
+            })
+            .unwrap_or_default()
+    }
+
+    /// Get an iterator over all neighbors of a router. The iterator is empty if the router does not
+    /// exist. The iterator will first yield internal edges, and then external ones. The iterator is
+    /// empty if the router is not part of this AS.
+    fn neighbors(&self, r: RouterId) -> Edges<'_> {
+        self.is_internal(r)
+            .then(|| Edges {
+                int: self.internal_neighbors(r),
+                ext: self.external_neighbors(r),
+            })
+            .unwrap_or_default()
+    }
+}
+
+/// Structure that stores the global OSPF configuration.
+#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[serde(bound(
+    serialize = "Ospf: serde::Serialize",
+    deserialize = "Ospf: serde::Deserialize<'de>"
+))]
+pub struct OspfNetwork<Ospf = GlobalOspfCoordinator> {
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
+    pub(crate) domains: HashMap<ASN, OspfDomain<Ospf>>,
+    #[serde(with = "As::<Vec<(Same, Same)>>")]
+    pub(crate) routers: HashMap<RouterId, ASN>,
+}
+
+impl<Ospf> OspfNetwork<Ospf>
+where
+    Ospf: OspfCoordinator,
+{
+    /// Add an internal or external router.
+    pub(crate) fn add_router(&mut self, id: RouterId, asn: ASN) {
+        let old_asn = self.routers.insert(id, asn);
+        assert_eq!(
+            old_asn,
+            Some(asn),
+            "Added a router that already exists in a different ASN"
+        );
+        self.domains.entry(asn).or_default().add_router(id);
+    }
+
+    /// Add an internal or external router.
+    pub(crate) fn set_router_asn<P: Prefix, T: Default>(
+        &mut self,
+        id: RouterId,
+        new_asn: ASN,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        let mut events = Vec::new();
+        let stored_asn = self
+            .routers
+            .get_mut(&id)
+            .ok_or(NetworkError::DeviceNotFound(id))?;
+        let old_asn = *stored_asn;
+        if old_asn == new_asn {
+            // nothing to do
+            return Ok(events);
+        }
+        *stored_asn = new_asn;
+
+        // store all link information of the old ASN.
+        let old_domain = self.domains.get_mut(&old_asn).unwrap();
+        let links: Vec<_> = old_domain
+            .links
+            .get(&id)
+            .into_iter()
+            .flat_map(|x| x.keys())
+            .chain(old_domain.external_links.get(&id).into_iter().flatten())
+            .map(|n| (id, *n))
+            .collect();
+
+        // remove the router from the old domain
+        events.extend(old_domain.remove_router(id, routers)?);
+
+        // get the new domain
+        let new_domain = self.domains.entry(new_asn).or_default();
+
+        // remove the router from the new domain, just to be sure that it is not in there.
+        events.extend(new_domain.remove_router(id, routers)?);
+        // add the router again
+        new_domain.add_router(id);
+        // add all links
+        events.extend(new_domain.add_links_from(links, routers)?);
+
+        Ok(events)
+    }
+
+    pub(crate) fn add_link<P: Prefix, T: Default>(
+        &mut self,
+        a: RouterId,
+        b: RouterId,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        self.add_links_from([(a, b)], routers)
+    }
+
+    pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
+        &mut self,
+        links: I,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError>
+    where
+        I: IntoIterator<Item = (RouterId, RouterId)>,
+    {
+        let mut domain_links: HashMap<ASN, Vec<(RouterId, RouterId)>> = HashMap::new();
+
+        for (a, b) in links.into_iter() {
+            let a_asn = self
+                .routers
+                .get(&a)
+                .ok_or(NetworkError::DeviceNotFound(a))?;
+            let b_asn = self
+                .routers
+                .get(&b)
+                .ok_or(NetworkError::DeviceNotFound(b))?;
+            domain_links.entry(*a_asn).or_default().push((a, b));
+            if a_asn != b_asn {
+                domain_links.entry(*b_asn).or_default().push((b, a))
+            }
+        }
+
+        Ok(domain_links
+            .into_iter()
+            .map(|(asn, links)| {
+                self.domains
+                    .entry(asn)
+                    .or_default()
+                    .add_links_from(links, routers)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect())
+    }
+
+    pub(crate) fn set_weight<P: Prefix, T: Default>(
+        &mut self,
+        src: RouterId,
+        dst: RouterId,
+        weight: LinkWeight,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<(Vec<Event<P, T>>, LinkWeight), NetworkError> {
+        let asn = self
+            .routers
+            .get(&src)
+            .ok_or(NetworkError::DeviceNotFound(src))?;
+        self.domains
+            .entry(*asn)
+            .or_default()
+            .set_weight(src, dst, weight, routers)
+    }
+
+    pub(crate) fn set_link_weights_from<P: Prefix, T: Default, I>(
+        &mut self,
+        weights: I,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError>
+    where
+        I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
+    {
+        let mut domain_weights: HashMap<ASN, Vec<(RouterId, RouterId, LinkWeight)>> =
+            HashMap::new();
+        for (src, dst, weight) in weights {
+            let asn = self
+                .routers
+                .get(&src)
+                .ok_or(NetworkError::DeviceNotFound(src))?;
+            domain_weights
+                .entry(*asn)
+                .or_default()
+                .push((src, dst, weight));
+        }
+
+        Ok(domain_weights
+            .into_iter()
+            .map(|(asn, weights)| {
+                self.domains
+                    .entry(asn)
+                    .or_default()
+                    .set_link_weights_from(weights, routers)
+            })
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect())
+    }
+
+    /// Return the OSPF weight of a link (or `LinkWeight::INFINITY` if the link does not exist).
+    pub fn get_weight(&self, a: RouterId, b: RouterId) -> LinkWeight {
+        self.routers
+            .get(&a)
+            .and_then(|asn| self.domains.get(asn))
+            .map(|x| x.get_weight(a, b))
+            .unwrap_or(LinkWeight::INFINITY)
+    }
+
+    pub(crate) fn set_area<P: Prefix, T: Default>(
+        &mut self,
+        a: RouterId,
+        b: RouterId,
+        area: OspfArea,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<(Vec<Event<P, T>>, OspfArea), NetworkError> {
+        let asn = self
+            .routers
+            .get(&a)
+            .ok_or(NetworkError::DeviceNotFound(a))?;
+        self.domains
+            .entry(*asn)
+            .or_default()
+            .set_area(a, b, area, routers)
+    }
+
+    /// Return the OSPF area of a link.
+    pub fn get_area(&self, a: RouterId, b: RouterId) -> Option<OspfArea> {
+        self.routers
+            .get(&a)
+            .and_then(|asn| self.domains.get(asn))
+            .and_then(|x| x.get_area(a, b))
+    }
+
+    pub(crate) fn remove_link<P: Prefix, T: Default>(
+        &mut self,
+        a: RouterId,
+        b: RouterId,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        let a_asn = self
+            .routers
+            .get(&a)
+            .ok_or(NetworkError::DeviceNotFound(a))?;
+        let b_asn = self
+            .routers
+            .get(&a)
+            .ok_or(NetworkError::DeviceNotFound(a))?;
+        let mut events = self
+            .domains
+            .entry(*a_asn)
+            .or_default()
+            .remove_link(a, b, routers)?;
+        if a_asn != b_asn {
+            events.extend(
+                self.domains
+                    .entry(*b_asn)
+                    .or_default()
+                    .remove_link(a, b, routers)?,
+            );
+        }
+        Ok(events)
+    }
+
+    pub(crate) fn remove_router<P: Prefix, T: Default>(
+        &mut self,
+        r: RouterId,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        // remove the router from all domains
+        Ok(self
+            .domains
+            .values_mut()
+            .map(|domain| domain.remove_router(r, routers))
+            .collect::<Result<Vec<_>, _>>()?
+            .into_iter()
+            .flatten()
+            .collect())
     }
 
     /// Returns true if `a` can reach `b`, and vice-versa
@@ -483,33 +839,28 @@ where
         b: RouterId,
         routers: &HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> bool {
-        let a_ext = self.externals.contains(&a);
-        let b_ext = self.externals.contains(&b);
-        if a_ext && b_ext {
-            false
-        } else {
-            let is_reachable = |src, dst| {
-                routers
-                    .get(&src)
-                    .and_then(|r| r.as_ref().internal())
-                    .map(|r| r.ospf.is_reachable(dst))
-                    .unwrap_or(false)
-            };
+        let Some(a_asn) = self.routers.get(&a) else {
+            return false;
+        };
+        let Some(b_asn) = self.routers.get(&a) else {
+            return false;
+        };
 
-            let a_reaches_b = if a_ext {
-                // self.external_neighbors(a).any(|e| is_reachable(e.int, b))
-                true
-            } else {
-                is_reachable(a, b)
-            };
-            let b_reaches_a = if b_ext {
-                // self.external_neighbors(b).any(|e| is_reachable(e.int, a))
-                true
-            } else {
-                is_reachable(b, a)
-            };
-            a_reaches_b && b_reaches_a
-        }
+        let reachable_a_asn = self
+            .domains
+            .get(a_asn)
+            .map(|x| x.is_reachable(a, b, routers))
+            .unwrap_or(false);
+        let reachable_b_asn = if a_asn == b_asn {
+            reachable_a_asn
+        } else {
+            self.domains
+                .get(b_asn)
+                .map(|x| x.is_reachable(a, b, routers))
+                .unwrap_or(false)
+        };
+
+        reachable_a_asn && reachable_b_asn
     }
 
     /// Generate a forwarding state that represents the OSPF routing state. Each router with
@@ -525,18 +876,18 @@ where
         ForwardingState<SimplePrefix>,
         HashMap<RouterId, SimplePrefix>,
     ) {
-        let n = self.links.len();
+        let n = self.routers.len();
         let mut lut: HashMap<RouterId, SimplePrefix> = HashMap::with_capacity(n);
         let mut state: HashMap<RouterId, <SimplePrefix as Prefix>::Map<Vec<RouterId>>> =
             HashMap::with_capacity(n);
         let mut reversed: HashMap<RouterId, <SimplePrefix as Prefix>::Map<HashSet<RouterId>>> =
             HashMap::with_capacity(n);
 
-        for dst in self.links.keys() {
+        for dst in self.routers.keys() {
             let p: SimplePrefix = dst.index().into();
             lut.insert(*dst, p);
 
-            for src in self.links.keys() {
+            for src in self.routers.keys() {
                 if src == dst {
                     state.entry(*dst).or_default().insert(p, vec![*TO_DST]);
                     reversed
@@ -545,13 +896,10 @@ where
                         .get_mut_or_default(p)
                         .insert(*dst);
                 } else {
-                    let nhs = routers
-                        .get(src)
-                        .unwrap()
-                        .as_ref()
-                        .unwrap_internal()
-                        .ospf
-                        .get(*dst);
+                    let Some(NetworkDevice::InternalRouter(r)) = routers.get(src) else {
+                        continue;
+                    };
+                    let nhs = r.ospf.get(*dst);
                     for nh in nhs.iter() {
                         reversed
                             .entry(*nh)
@@ -567,32 +915,21 @@ where
         (ForwardingState::from_raw(state, reversed), lut)
     }
 
-    /// Get a reference to the OSPF coordinator struct
-    pub fn coordinator(&self) -> &Ospf {
-        &self.coordinator
+    /// Get a reference to the OSPF coordinator struct for the given AS number
+    pub fn domain(&self, asn: ASN) -> Option<&OspfDomain<Ospf>> {
+        self.domains.get(&asn)
     }
 
-    fn is_internal(&self, a: RouterId, b: RouterId) -> Result<bool, NetworkError> {
-        match (self.links.contains_key(&a), self.links.contains_key(&b)) {
-            (true, true) => Ok(true),
-            (false, true) | (true, false) => Ok(false),
-            (false, false) => Err(NetworkError::CannotConnectExternalRouters(a, b)),
-        }
+    /// Get a reference to the OSPF coordinator struct for the given AS number
+    pub fn coordinator(&self, asn: ASN) -> Option<&Ospf> {
+        self.domains.get(&asn).map(|x| &x.coordinator)
     }
 
-    fn must_be_internal(&self, a: RouterId, b: RouterId) -> Result<(), NetworkError> {
-        if !self.is_internal(a, b)? {
-            Err(NetworkError::CannotConfigureExternalLink(a, b))
-        } else {
-            Ok(())
-        }
-    }
-
-    /// Get an iterator over all internal edges. Each link will appear twice, once in each
-    /// direction.
+    /// Get an iterator over all internal edges of all ASes. Each link will appear twice, once in
+    /// each direction.
     pub fn internal_edges(&self) -> InternalEdges<'_> {
         InternalEdges {
-            outer: Some(self.links.iter()),
+            outer: self.domains.values().map(|x| x.links.iter()).collect(),
             inner: None,
         }
     }
@@ -601,7 +938,11 @@ where
     /// router to the external network.
     pub fn external_edges(&self) -> ExternalEdges<'_> {
         ExternalEdges {
-            outer: Some(self.external_links.iter()),
+            outer: self
+                .domains
+                .values()
+                .map(|x| x.external_links.iter())
+                .collect(),
             inner: None,
         }
     }
@@ -619,48 +960,31 @@ where
     /// Get an iterator over all internal neighbors of an internal router. The iterator is empty if
     /// the router is an external router or does not exist.
     pub fn internal_neighbors(&self, r: RouterId) -> InternalEdges<'_> {
-        InternalEdges {
-            outer: None,
-            inner: self.links.get(&r).map(|n| (r, n.iter())),
-        }
+        self.routers
+            .get(&r)
+            .and_then(|asn| self.domains.get(asn))
+            .map(|d| d.internal_neighbors(r))
+            .unwrap_or_default()
     }
 
     /// Get an iterator over all external neighbors of an internal router. The iterator is empty if
     /// the router does not exist.
-    pub fn external_neighbors(&self, r: RouterId) -> ExternalNeighbors<'_> {
-        if self.externals.contains(&r) {
-            ExternalNeighbors::External(InternalNeighborsOfExternalNetwork {
-                ext: r,
-                iter: self.external_links.iter(),
-            })
-        } else {
-            ExternalNeighbors::Internal(ExternalEdges {
-                outer: None,
-                inner: self.external_links.get(&r).map(|n| (r, n.iter())),
-            })
-        }
+    pub fn external_neighbors(&self, r: RouterId) -> ExternalEdges<'_> {
+        self.routers
+            .get(&r)
+            .and_then(|asn| self.domains.get(asn))
+            .map(|d| d.external_neighbors(r))
+            .unwrap_or_default()
     }
 
     /// Get an iterator over all neighbors of a router. The iterator is empty if the router does not
     /// exist. The iterator will first yield internal edges, and then external ones.
-    pub fn neighbors(&self, r: RouterId) -> Neighbors<'_> {
-        if self.externals.contains(&r) {
-            Neighbors::External(InternalNeighborsOfExternalNetwork {
-                ext: r,
-                iter: self.external_links.iter(),
-            })
-        } else {
-            Neighbors::Internal(Edges {
-                int: InternalEdges {
-                    outer: None,
-                    inner: self.links.get(&r).map(|n| (r, n.iter())),
-                },
-                ext: ExternalEdges {
-                    outer: None,
-                    inner: self.external_links.get(&r).map(|n| (r, n.iter())),
-                },
-            })
-        }
+    pub fn neighbors(&self, r: RouterId) -> Edges<'_> {
+        self.routers
+            .get(&r)
+            .and_then(|asn| self.domains.get(asn))
+            .map(|d| d.neighbors(r))
+            .unwrap_or_default()
     }
 }
 
