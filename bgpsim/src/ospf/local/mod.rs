@@ -234,12 +234,16 @@ impl OspfCoordinator for LocalOspfCoordinator {
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut events = Vec::new();
 
-        for (r, change) in LocalNeighborhoodChange::from_global(delta) {
-            let mut r_events = routers
-                .get_mut(&r)
-                .or_router_not_found(r)?
-                .internal_or_err()?
-                .update_ospf(|ospf| ospf.handle_neighborhood_change(change))?;
+        for (id, change) in LocalNeighborhoodChange::from_global(delta) {
+            let Ok(r) = routers
+                .get_mut(&id)
+                .or_router_not_found(id)?
+                .internal_or_err()
+            else {
+                // in case of an external router, just ignore it
+                continue;
+            };
+            let mut r_events = r.update_ospf(|ospf| ospf.handle_neighborhood_change(change))?;
             events.append(&mut r_events);
         }
 

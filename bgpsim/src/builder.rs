@@ -566,12 +566,12 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             .into_iter()
             .map(|neighbor| {
                 let neighbor_name = self.get_device(neighbor)?.name().to_owned();
-                let id = self.add_external_router("tmp", ASN(42));
-                let r = self.get_external_router_mut(id)?;
-                r.set_asn(ASN(id.index() as u32));
-                r.set_name(format!("{}_ext_{}", neighbor_name, id.index()));
-                new_links.push((id, neighbor));
-                Ok(id)
+                let router_id = self._prepare_node();
+                let name = format!("{}_ext_{}", neighbor_name, router_id.index());
+                let asn = ASN(router_id.index() as u32);
+                self._add_external_router_with_router_id(router_id, name, asn);
+                new_links.push((router_id, neighbor));
+                Ok(router_id)
             })
             .collect::<Result<Vec<RouterId>, NetworkError>>()?;
 

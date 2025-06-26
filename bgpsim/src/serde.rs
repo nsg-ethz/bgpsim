@@ -45,7 +45,7 @@ const JSON_FIELD_NAME_CONFIG: &str = "config_nodes_routes";
 
 type ExportRoutes<P> = (RouterId, P, Vec<ASN>, Option<u32>, BTreeSet<Community>);
 type ExportConfig<P> = Vec<ConfigExpr<P>>;
-type ExportRouters = Vec<(RouterId, String, Option<ASN>)>;
+type ExportRouters = Vec<(RouterId, String, ASN, bool)>;
 type ExportLinks = Vec<(RouterId, RouterId)>;
 type ExportTuple<P> = (
     ExportConfig<P>,
@@ -96,18 +96,20 @@ where
     /// Create a json value containing the configuration.
     fn as_config_node_routes(&self) -> ExportTuple<P> {
         let config = Vec::from_iter(self.get_config().unwrap().iter().cloned());
-        let mut nodes: Vec<(RouterId, String, Option<ASN>)> = self
+        let mut nodes: ExportRouters = self
             .devices()
             .map(|r| match r {
-                NetworkDeviceRef::InternalRouter(r) => (r.router_id(), r.name().to_string(), None),
+                NetworkDeviceRef::InternalRouter(r) => {
+                    (r.router_id(), r.name().to_string(), r.asn(), true)
+                }
                 NetworkDeviceRef::ExternalRouter(r) => {
-                    (r.router_id(), r.name().to_string(), Some(r.asn()))
+                    (r.router_id(), r.name().to_string(), r.asn(), false)
                 }
             })
             .collect();
-        nodes.sort_by_key(|(r, _, _)| *r);
+        nodes.sort_by_key(|(r, _, _, _)| *r);
 
-        let links: Vec<(RouterId, RouterId)> = self
+        let links: ExportLinks = self
             .ospf
             .edges()
             .map(|e| (e.src(), e.dst()))
@@ -396,17 +398,17 @@ where
         F: FnOnce() -> Q,
     {
         let config: Vec<ConfigExpr<P>> = serde_json::from_value(config)?;
-        let nodes: Vec<(RouterId, String, Option<ASN>)> = serde_json::from_value(nodes)?;
-        let links: Vec<(RouterId, RouterId)> = serde_json::from_value(links)?;
+        let nodes: ExportRouters = serde_json::from_value(nodes)?;
+        let links: ExportLinks = serde_json::from_value(links)?;
         let routes: Vec<ExportRoutes<P>> = serde_json::from_value(routes)?;
         let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();
         let mut net = Network::new(default_queue());
         // add all nodes and create the lut
-        for (id, name, as_id) in nodes.into_iter() {
-            let new_id = if let Some(as_id) = as_id {
-                net.add_external_router(name, as_id)
+        for (id, name, asn, is_internal) in nodes.into_iter() {
+            let new_id = if is_internal {
+                net.add_router_with_asn(name, asn)
             } else {
-                net.add_router(name)
+                net.add_external_router(name, asn)
             };
             nodes_lut.insert(id, new_id);
         }

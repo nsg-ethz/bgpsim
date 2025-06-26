@@ -78,7 +78,10 @@ use crate::{
     ospf::{LinkWeight, OspfArea, OspfImpl, DEFAULT_LINK_WEIGHT},
     route_map::{RouteMap, RouteMapDirection},
     router::StaticRoute,
-    types::{ConfigError, NetworkDeviceRef, NetworkError, Prefix, PrefixMap, RouterId},
+    types::{
+        ConfigError, IntoIpv4Prefix, Ipv4Prefix, NetworkDeviceRef, NetworkError, Prefix, PrefixMap,
+        RouterId,
+    },
 };
 
 use petgraph::algo::FloatMeasure;
@@ -119,11 +122,17 @@ impl<P: Prefix> Config<P> {
     }
 
     /// Add a single configuration expression. This fails if a similar expression already exists.
-    pub fn add(&mut self, expr: ConfigExpr<P>) -> Result<(), ConfigError> {
+    pub fn add(&mut self, expr: ConfigExpr<P>) -> Result<(), ConfigError>
+    where
+        P: Clone,
+    {
         // check if there is an expression which this one would overwrite
         if let Some(old_expr) = self.expr.insert(expr.key(), expr) {
-            self.expr.insert(old_expr.key(), old_expr);
-            Err(ConfigError::ConfigExprOverload)
+            let expr = self.expr.insert(old_expr.key(), old_expr.clone()).unwrap();
+            Err(ConfigError::ConfigExprOverload {
+                old: Box::new(old_expr.into_ipv4_prefix()),
+                new: Box::new(expr.into_ipv4_prefix()),
+            })
         } else {
             Ok(())
         }
@@ -138,20 +147,32 @@ impl<P: Prefix> Config<P> {
     /// need to match the existing config expression. It just needs to have the same `ConfigExprKey`
     /// as the already existing expression. Also, both expressions in `ConfigModifier::Update` must
     /// produce the same `ConfigExprKey`.
-    pub fn apply_modifier(&mut self, modifier: &ConfigModifier<P>) -> Result<(), ConfigError> {
+    pub fn apply_modifier(&mut self, modifier: &ConfigModifier<P>) -> Result<(), ConfigError>
+    where
+        P: Clone,
+    {
         match modifier {
             ConfigModifier::Insert(expr) => {
                 if let Some(old_expr) = self.expr.insert(expr.key(), expr.clone()) {
-                    self.expr.insert(old_expr.key(), old_expr);
-                    return Err(ConfigError::ConfigModifier);
+                    self.expr.insert(old_expr.key(), old_expr.clone());
+                    return Err(ConfigError::ConfigExprOverload {
+                        old: Box::new(old_expr.into_ipv4_prefix()),
+                        new: Box::new(expr.clone().into_ipv4_prefix()),
+                    });
                 }
             }
             ConfigModifier::Remove(expr) => match self.expr.remove(&expr.key()) {
                 Some(old_expr) if &old_expr != expr => {
                     self.expr.insert(old_expr.key(), old_expr);
-                    return Err(ConfigError::ConfigModifier);
+                    return Err(ConfigError::ConfigModifier(Box::new(
+                        modifier.clone().into_ipv4_prefix(),
+                    )));
                 }
-                None => return Err(ConfigError::ConfigModifier),
+                None => {
+                    return Err(ConfigError::ConfigModifier(Box::new(
+                        modifier.clone().into_ipv4_prefix(),
+                    )))
+                }
                 _ => {}
             },
             ConfigModifier::Update {
@@ -161,14 +182,22 @@ impl<P: Prefix> Config<P> {
                 // check if both are similar
                 let key = expr_a.key();
                 if key != expr_b.key() {
-                    return Err(ConfigError::ConfigModifier);
+                    return Err(ConfigError::ConfigModifier(Box::new(
+                        modifier.clone().into_ipv4_prefix(),
+                    )));
                 }
                 match self.expr.remove(&key) {
                     Some(old_expr) if &old_expr != expr_a => {
                         self.expr.insert(key, old_expr);
-                        return Err(ConfigError::ConfigModifier);
+                        return Err(ConfigError::ConfigModifier(Box::new(
+                            modifier.clone().into_ipv4_prefix(),
+                        )));
                     }
-                    None => return Err(ConfigError::ConfigModifier),
+                    None => {
+                        return Err(ConfigError::ConfigModifier(Box::new(
+                            modifier.clone().into_ipv4_prefix(),
+                        )))
+                    }
                     _ => {}
                 }
                 self.expr.insert(key, expr_b.clone());
@@ -819,7 +848,10 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
             self.apply_modifier_unchecked(modifier)
         } else {
             log::warn!("Cannot apply mod.: {}", modifier.fmt(self));
-            Err(ConfigError::ConfigModifier)?
+            println!("foo");
+            Err(ConfigError::ConfigModifier(Box::new(
+                modifier.clone().into_ipv4_prefix(),
+            )))?
         }
     }
 
@@ -1072,7 +1104,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                 target_is_client,
             }) {
                 Ok(_) => {}
-                Err(ConfigError::ConfigExprOverload) => {
+                Err(ConfigError::ConfigExprOverload { .. }) => {
                     let Some(ConfigExpr::BgpSession {
                         source,
                         target,
@@ -1092,7 +1124,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                         return Err(NetworkError::InconsistentBgpSession(src, dst));
                     }
                 }
-                Err(ConfigError::ConfigModifier) => unreachable!(),
+                Err(ConfigError::ConfigModifier(_)) => unreachable!(),
             }
         }
 
@@ -1140,5 +1172,95 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
         }
 
         Ok(c)
+    }
+}
+
+impl<P: Prefix> IntoIpv4Prefix for ConfigModifier<P> {
+    type T = ConfigModifier<Ipv4Prefix>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        match self {
+            ConfigModifier::Insert(e) => ConfigModifier::Insert(e.into_ipv4_prefix()),
+            ConfigModifier::Remove(e) => ConfigModifier::Remove(e.into_ipv4_prefix()),
+            ConfigModifier::Update { from, to } => ConfigModifier::Update {
+                from: from.into_ipv4_prefix(),
+                to: to.into_ipv4_prefix(),
+            },
+            ConfigModifier::BatchRouteMapEdit { router, updates } => {
+                ConfigModifier::BatchRouteMapEdit {
+                    router,
+                    updates: updates.into_iter().map(|e| e.into_ipv4_prefix()).collect(),
+                }
+            }
+        }
+    }
+}
+
+impl<P: Prefix> IntoIpv4Prefix for RouteMapEdit<P> {
+    type T = RouteMapEdit<Ipv4Prefix>;
+
+    fn into_ipv4_prefix(self) -> Self::T {
+        RouteMapEdit {
+            neighbor: self.neighbor,
+            direction: self.direction,
+            old: self.old.map(|x| x.into_ipv4_prefix()),
+            new: self.new.map(|x| x.into_ipv4_prefix()),
+        }
+    }
+}
+
+impl<P: Prefix> IntoIpv4Prefix for ConfigExpr<P> {
+    type T = ConfigExpr<Ipv4Prefix>;
+    fn into_ipv4_prefix(self) -> Self::T {
+        match self {
+            ConfigExpr::IgpLinkWeight {
+                source,
+                target,
+                weight,
+            } => ConfigExpr::IgpLinkWeight {
+                source,
+                target,
+                weight,
+            },
+            ConfigExpr::OspfArea {
+                source,
+                target,
+                area,
+            } => ConfigExpr::OspfArea {
+                source,
+                target,
+                area,
+            },
+            ConfigExpr::BgpSession {
+                source,
+                target,
+                target_is_client,
+            } => ConfigExpr::BgpSession {
+                source,
+                target,
+                target_is_client,
+            },
+            ConfigExpr::BgpRouteMap {
+                router,
+                neighbor,
+                direction,
+                map,
+            } => ConfigExpr::BgpRouteMap {
+                router,
+                neighbor,
+                direction,
+                map: map.clone().into_ipv4_prefix(),
+            },
+            ConfigExpr::StaticRoute {
+                router,
+                prefix,
+                target,
+            } => ConfigExpr::StaticRoute {
+                router,
+                prefix: prefix.into_ipv4_prefix(),
+                target,
+            },
+            ConfigExpr::LoadBalancing { router } => ConfigExpr::LoadBalancing { router },
+        }
     }
 }

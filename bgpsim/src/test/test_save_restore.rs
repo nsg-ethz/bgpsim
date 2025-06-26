@@ -26,6 +26,7 @@ mod t {
             uniform_integer_link_weight, NetworkBuilder,
         },
         event::BasicEventQueue,
+        formatter::NetworkFormatter,
         network::Network,
         ospf::{GlobalOspf, LocalOspf, OspfImpl},
         topology_zoo::TopologyZoo,
@@ -78,6 +79,10 @@ mod t {
     #[test]
     fn import_with_config<P: Prefix, Ospf: OspfImpl>() {
         let net = get_net::<P, Ospf>();
+        for e in net.ospf.edges() {
+            println!("{}", e.fmt(&net));
+        }
+        assert_eq!(net.ospf.edges().count(), (14 + 3) * 2);
         let json_str = net.as_json_str();
         let mut json_obj: Value = serde_json::from_str(&json_str).unwrap();
         let _ = json_obj["net"].take();

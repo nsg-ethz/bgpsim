@@ -28,7 +28,7 @@ use crate::{
     ospf::{
         global::GlobalOspfProcess,
         local::{LocalOspfProcess, OspfRibEntry},
-        OspfImpl, OspfProcess,
+        Edge, ExternalEdge, InternalEdge, OspfImpl, OspfProcess,
     },
     policies::{FwPolicy, PathCondition, PathConditionCNF, PolicyError, Waypoint},
     record::{ConvergenceRecording, ConvergenceTrace, FwDelta},
@@ -914,6 +914,33 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for FwPo
     }
 }
 
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Edge {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+        match self {
+            Edge::Internal(i) => i.fmt(net),
+            Edge::External(e) => e.fmt(net),
+        }
+    }
+}
+
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for InternalEdge {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+        format!(
+            "{} -> {} (weight {}, area {})",
+            self.src.fmt(net),
+            self.dst.fmt(net),
+            self.weight,
+            self.area
+        )
+    }
+}
+
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for ExternalEdge {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+        format!("{} -> {}", self.int.fmt(net), self.ext.fmt(net))
+    }
+}
+
 impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for PathCondition {
     fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
         match self {
@@ -1092,13 +1119,15 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Devi
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for ConfigError {
+impl<'n, P: Prefix + std::fmt::Debug, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf>
+    for ConfigError
+{
     fn fmt(&self, _net: &'n Network<P, Q, Ospf>) -> String {
         match self {
-            ConfigError::ConfigExprOverload => {
-                "Adding this config expression would overwrite an old expression!".to_string()
+            ConfigError::ConfigExprOverload { old, new } => {
+                format!("Adding `{old:?}` would overwrite `{new:?}`!",)
             }
-            ConfigError::ConfigModifier => "Could not apply modifier!".to_string(),
+            ConfigError::ConfigModifier(m) => format!("Could not apply modifier: {m:?}"),
         }
     }
 }

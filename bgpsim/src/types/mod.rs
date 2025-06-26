@@ -205,14 +205,18 @@ impl<P: Prefix> StepUpdate<P> {
 #[derive(Error, Debug, PartialEq, Serialize, Deserialize)]
 pub enum ConfigError {
     /// The added expression would overwrite an existing expression
-    #[error("The new ConfigExpr would overwrite an existing one!")]
-    ConfigExprOverload,
+    #[error("The new ConfigExpr `{old:?}` would overwrite the existing `{new:?}`!")]
+    ConfigExprOverload {
+        /// The expression that was already present
+        old: Box<crate::config::ConfigExpr<Ipv4Prefix>>,
+        /// The expression that was supposed to be applied.
+        new: Box<crate::config::ConfigExpr<Ipv4Prefix>>,
+    },
     /// The ConfigModifier cannot be applied. There are three cases why this is the case:
-    /// 1. The ConfigModifier::Insert would insert an already existing expression
     /// 2. The ConfigModifier::Remove would remove an non-existing expression
     /// 3. The ConfigModifier::Update would update an non-existing expression
-    #[error("The ConfigModifier cannot be applied.")]
-    ConfigModifier,
+    #[error("The ConfigModifier `{0:?}` cannot be applied.")]
+    ConfigModifier(Box<crate::config::ConfigModifier<Ipv4Prefix>>),
 }
 
 /// Static dispatch: either an internal or an external router.

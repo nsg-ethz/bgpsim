@@ -38,7 +38,7 @@ impl Iterator for InternalEdges<'_> {
     type Item = InternalEdge;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
+        'main_loop: loop {
             if let Some((src, inner)) = self.inner.as_mut() {
                 if let Some((dst, (weight, area))) = inner.next() {
                     return Some(InternalEdge {
@@ -53,11 +53,17 @@ impl Iterator for InternalEdges<'_> {
                 let _ = self.inner.take();
             }
             // get the next inner iterator
-            if let Some((src, inner)) = self.outer.last_mut().and_then(|x| x.next()) {
-                self.inner = Some((*src, inner.iter()));
-            } else {
-                return None;
+            while let Some(mut outer) = self.outer.pop() {
+                // get the next element
+                if let Some((src, inner)) = outer.next() {
+                    // put it back
+                    self.outer.push(outer);
+                    self.inner = Some((*src, inner.iter()));
+                    continue 'main_loop;
+                }
             }
+            // if we reach this point, there are no outer iterators left
+            return None;
         }
     }
 }
@@ -75,7 +81,7 @@ impl Iterator for ExternalEdges<'_> {
     type Item = ExternalEdge;
 
     fn next(&mut self) -> Option<Self::Item> {
-        loop {
+        'main_loop: loop {
             if let Some((int, inner)) = self.inner.as_mut() {
                 if let Some(ext) = inner.next() {
                     return Some(ExternalEdge {
@@ -89,11 +95,17 @@ impl Iterator for ExternalEdges<'_> {
                 let _ = self.inner.take();
             }
             // get the next inner iterator
-            if let Some((src, inner)) = self.outer.last_mut().and_then(|x| x.next()) {
-                self.inner = Some((*src, inner.iter()));
-            } else {
-                return None;
+            while let Some(mut outer) = self.outer.pop() {
+                // get the next element
+                if let Some((src, inner)) = outer.next() {
+                    // put it back
+                    self.outer.push(outer);
+                    self.inner = Some((*src, inner.iter()));
+                    continue 'main_loop;
+                }
             }
+            // if we reach this point, there are no outer iterators left
+            return None;
         }
     }
 }

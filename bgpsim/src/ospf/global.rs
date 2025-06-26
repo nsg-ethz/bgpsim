@@ -350,10 +350,14 @@ impl GlobalOspfCoordinator {
         for &router in &modified_tables {
             let rib = self.ribs.get(&router).unwrap_or(&empty);
             // send the table to the process
-            let r = routers
+            let Ok(r) = routers
                 .get_mut(&router)
                 .or_router_not_found(router)?
-                .internal_or_err()?;
+                .internal_or_err()
+            else {
+                // nothing to change if it is an external router. This one has no OSPF table.
+                continue;
+            };
             events.append(&mut r.update_ospf(|ospf| {
                 ospf.update_table(rib, links, external_links);
                 Ok((true, Vec::new()))
