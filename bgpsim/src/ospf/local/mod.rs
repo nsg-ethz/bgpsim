@@ -249,11 +249,6 @@ impl OspfCoordinator for LocalOspfCoordinator {
             };
             log::trace!("{}: {id:?} processes update {change:?}", self.0);
             let mut r_events = r.update_ospf(|ospf| ospf.handle_neighborhood_change(change))?;
-            log::trace!(
-                "{}: After processing, {id:?} has the following OSPF data:",
-                self.0,
-            );
-            log::trace!("{:#?}", r.ospf.areas);
             events.append(&mut r_events);
         }
 

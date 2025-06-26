@@ -261,7 +261,7 @@ impl GlobalOspfCoordinator {
                 }
             }
         }
-        println!("{}: global OSPF {actions:?}", self.asn);
+        log::trace!("{}: global OSPF {actions:?}", self.asn);
         actions
     }
 

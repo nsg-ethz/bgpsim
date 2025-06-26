@@ -750,6 +750,8 @@ fn modify<Ospf: OspfImpl, R, F: Fn(&mut Net<Ospf>) -> Result<R, NetworkError>>(
 /// test the conversion between global and local
 #[test]
 fn test_conversion() {
+    let _ = env_logger::try_init();
+
     // create the networks
     let mut net_g = Network::<Prefix, BasicEventQueue<Prefix>, GlobalOspf>::default();
     let mut net_l = Network::<Prefix, BasicEventQueue<Prefix>, LocalOspf>::default();
@@ -810,6 +812,8 @@ fn test_conversion() {
     do_clone(&mut nets_g, &mut nets_l);
     check(&nets_g, &nets_l, false);
 
+    println!("\n\n\n\nModify Areas\n");
+
     // modify areas
     modify(&mut nets_g, |net| net.set_ospf_area(0.into(), 1.into(), 1));
     modify(&mut nets_l, |net| net.set_ospf_area(0.into(), 1.into(), 1));
@@ -845,7 +849,7 @@ fn test_conversion() {
 
 /// test the conversion between global and local
 #[test]
-fn test_conversion_disconnected() {
+fn test_disconnected_conversion() {
     // create the networks
     let mut net_g = Network::<Prefix, BasicEventQueue<Prefix>, GlobalOspf>::default();
     let mut net_l = Network::<Prefix, BasicEventQueue<Prefix>, LocalOspf>::default();

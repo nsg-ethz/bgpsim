@@ -220,10 +220,9 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
             .map(|e| (e.src(), e.dst()))
             .collect::<Vec<_>>();
 
-        // remove the router from OSPF
-        let events = self.ospf.remove_router(router_id, &mut self.routers)?;
-        self.enqueue_events(events);
-        self.do_queue_maybe_skip()?;
+        // remove the router from OSPF. Ignore all events!
+        self.ospf
+            .remove_router::<P, ()>(router_id, &mut self.routers)?;
 
         // change the AS number
         let new_asn = asn.into();
@@ -235,8 +234,12 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         // add the router back into OSPF
         self.ospf.add_router(router_id, new_asn);
 
-        // add all links
-        let events = self.ospf.add_links_from(links, &mut self.routers)?;
+        // add all links. Ignore all events!
+        self.ospf
+            .add_links_from::<P, (), _>(links, &mut self.routers)?;
+
+        // reset OSPF
+        let events = self.ospf.reset(&mut self.routers)?;
         self.enqueue_events(events);
         self.do_queue_maybe_skip()?;
 

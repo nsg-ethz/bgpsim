@@ -142,7 +142,6 @@ pub struct OspfDomain<Ospf = GlobalOspfCoordinator> {
     pub(crate) external_links: HashMap<RouterId, HashSet<RouterId>>,
     #[serde(with = "As::<Vec<(Same, Vec<(Same, Same)>)>>")]
     pub(crate) links: HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
-    failures: HashSet<(RouterId, RouterId)>,
     pub(crate) coordinator: Ospf,
 }
 
@@ -162,7 +161,6 @@ where
             asn,
             external_links: Default::default(),
             links: Default::default(),
-            failures: Default::default(),
             coordinator: Ospf::new(asn),
         }
     }
@@ -174,7 +172,6 @@ where
                 asn: self.asn,
                 external_links: self.external_links,
                 links: self.links,
-                failures: self.failures,
                 coordinator: Ospf2::new(self.asn),
             },
             self.coordinator,
@@ -193,6 +190,50 @@ where
     fn add_router(&mut self, id: RouterId) {
         self.links.insert(id, Default::default());
         self.external_links.insert(id, Default::default());
+    }
+
+    pub(crate) fn reset<P: Prefix, T: Default>(
+        &mut self,
+        mut routers: HashMap<RouterId, &mut NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        // first, reset all processes
+        routers
+            .values_mut()
+            .filter_map(|r| r.internal_or_err().ok())
+            .for_each(|r| r.ospf = Ospf::Process::new(r.router_id()));
+        self.coordinator = Ospf::new(self.asn);
+
+        // create all events
+        let mut deltas = Vec::new();
+        // add external links
+        for (r, ext) in &self.external_links {
+            for n in ext {
+                deltas.push(NeighborhoodChange::AddExternalNetwork { int: *r, ext: *n });
+            }
+        }
+        // add internal links
+        for (r, int) in &self.links {
+            for (n, (weight, area)) in int {
+                if *r > *n {
+                    continue;
+                }
+                let weight_rev = self.links[n][r].0;
+                deltas.push(NeighborhoodChange::AddLink {
+                    a: *r,
+                    b: *n,
+                    area: *area,
+                    weight: (*weight, weight_rev),
+                });
+            }
+        }
+
+        OspfCoordinator::update(
+            &mut self.coordinator,
+            NeighborhoodChange::Batch(deltas),
+            routers,
+            &self.links,
+            &self.external_links,
+        )
     }
 
     pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
@@ -652,6 +693,20 @@ where
             result.entry(asn).or_default().insert(*router_id, device);
         }
         result
+    }
+
+    /// Reset all OSPF data and computations
+    pub(crate) fn reset<P: Prefix, T: Default>(
+        &mut self,
+        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        let mut events = Vec::new();
+        let mut routers = self.split_all(routers);
+        for (asn, domain) in &mut self.domains {
+            let routers = routers.remove(asn).unwrap_or_default();
+            events.extend(domain.reset(routers)?);
+        }
+        Ok(events)
     }
 
     /// Add an internal or external router.
