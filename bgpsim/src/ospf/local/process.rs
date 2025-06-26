@@ -56,6 +56,7 @@ pub struct LocalOspfProcess {
 }
 
 /// Neighborhood change event local to a specific router.
+#[derive(Debug)]
 pub(crate) enum LocalNeighborhoodChange {
     AddNeighbor {
         neighbor: RouterId,
@@ -662,6 +663,16 @@ struct ProcessActions<P: Prefix, T: Default> {
     /// The new keys to track their max-age, and the corresponding LSA to put into the database once
     /// the old LSA was acknowledged.
     pub track_max_age: BTreeMap<Option<OspfArea>, Vec<(LsaKey, Option<Lsa>)>>,
+}
+
+impl<P: Prefix, T: Default> std::fmt::Debug for ProcessActions<P, T> {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("ProcessActions")
+            .field("events", &self.events.len())
+            .field("flood", &self.flood)
+            .field("track_max_age", &self.track_max_age)
+            .finish()
+    }
 }
 
 #[allow(dead_code)]

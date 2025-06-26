@@ -35,7 +35,7 @@ use serde::{Deserialize, Serialize};
 use crate::{
     event::Event,
     formatter::NetworkFormatter,
-    types::{NetworkDevice, NetworkError, NetworkErrorOption, Prefix, RouterId},
+    types::{NetworkDevice, NetworkError, NetworkErrorOption, Prefix, RouterId, ASN},
 };
 
 use self::{database::AreaDataStructure, neighbor::Neighbor};
@@ -219,16 +219,20 @@ impl OspfImpl for LocalOspf {
 }
 
 /// The local OSPF oracle that simply forwards all requests to the appropriate routers.
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-pub struct LocalOspfCoordinator;
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+pub struct LocalOspfCoordinator(ASN);
 
 impl OspfCoordinator for LocalOspfCoordinator {
     type Process = LocalOspfProcess;
 
+    fn new(asn: crate::prelude::ASN) -> Self {
+        Self(asn)
+    }
+
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Self::Process>>,
+        mut routers: HashMap<RouterId, &mut NetworkDevice<P, Self::Process>>,
         _links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         _external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {

@@ -35,7 +35,7 @@ use crate::{
         LinkWeight, NeighborhoodChange, OspfArea, OspfCoordinator, OspfImpl, OspfProcess,
         EXTERNAL_LINK_WEIGHT,
     },
-    types::{DeviceError, NetworkDevice, NetworkError, NetworkErrorOption, Prefix, RouterId},
+    types::{DeviceError, NetworkDevice, NetworkError, Prefix, RouterId, ASN},
 };
 
 /// Global OSPF is the OSPF implementation that computes the resulting forwarding state atomically
@@ -74,8 +74,10 @@ impl OspfImpl for GlobalOspf {
 }
 
 /// Data struture capturing the distributed OSPF state.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct GlobalOspfCoordinator {
+    /// The AS number
+    asn: ASN,
     /// Area membership
     pub(super) membership: HashMap<RouterId, BTreeSet<OspfArea>>,
     /// The set of all LSAs known in all areas, excluding external-lsas
@@ -95,7 +97,7 @@ pub struct GlobalOspfCoordinator {
 }
 
 /// The actions that must be performed when some updates occurr.
-#[derive(Default)]
+#[derive(Default, Debug)]
 struct Actions {
     /// Whether to recompute all inter-area routes.
     recompute_intra_area_routes: BTreeSet<OspfArea>,
@@ -160,10 +162,22 @@ impl PartialEq for GlobalOspfCoordinator {
 impl OspfCoordinator for GlobalOspfCoordinator {
     type Process = GlobalOspfProcess;
 
+    fn new(asn: ASN) -> Self {
+        Self {
+            asn,
+            membership: Default::default(),
+            lsa_lists: Default::default(),
+            external_lsas: Default::default(),
+            spts: Default::default(),
+            ribs: Default::default(),
+            redistributed_paths: Default::default(),
+        }
+    }
+
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, GlobalOspfProcess>>,
+        routers: HashMap<RouterId, &mut NetworkDevice<P, GlobalOspfProcess>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
@@ -247,6 +261,7 @@ impl GlobalOspfCoordinator {
                 }
             }
         }
+        println!("{}: global OSPF {actions:?}", self.asn);
         actions
     }
 
@@ -255,7 +270,7 @@ impl GlobalOspfCoordinator {
     fn perform_actions<P: Prefix, T: Default>(
         &mut self,
         actions: Actions,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, GlobalOspfProcess>>,
+        mut routers: HashMap<RouterId, &mut NetworkDevice<P, GlobalOspfProcess>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
@@ -344,17 +359,18 @@ impl GlobalOspfCoordinator {
             }
         }
 
+        println!("{}: modified tables: {modified_tables:?}", self.asn);
+
         // Step 8: update the BGP tables wherever necessary
         let mut events = Vec::new();
         let empty = HashMap::new();
         for &router in &modified_tables {
             let rib = self.ribs.get(&router).unwrap_or(&empty);
+            let Some(r) = routers.get_mut(&router) else {
+                continue;
+            };
             // send the table to the process
-            let Ok(r) = routers
-                .get_mut(&router)
-                .or_router_not_found(router)?
-                .internal_or_err()
-            else {
+            let Ok(r) = r.internal_or_err() else {
                 // nothing to change if it is an external router. This one has no OSPF table.
                 continue;
             };

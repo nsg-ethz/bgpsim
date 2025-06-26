@@ -182,9 +182,12 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     where
         Q: EventQueue<P>,
     {
-        self.simulate()?;
-        let skip_queue = self.skip_queue;
+        let old_skip = self.skip_queue;
+        let old_stop_after = self.stop_after;
         self.skip_queue = false;
+        self.stop_after = Some(10_000_000);
+
+        self.do_queue_maybe_skip()?;
 
         // remember all BGP sessions
         let sessions = self
@@ -210,6 +213,18 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         // remove all BGP sessions
         self.set_bgp_session_from(sessions.iter().map(|(a, b, _)| (*a, *b, None)))?;
 
+        // remamber all links
+        let links = self
+            .ospf
+            .neighbors(router_id)
+            .map(|e| (e.src(), e.dst()))
+            .collect::<Vec<_>>();
+
+        // remove the router from OSPF
+        let events = self.ospf.remove_router(router_id, &mut self.routers)?;
+        self.enqueue_events(events);
+        self.do_queue_maybe_skip()?;
+
         // change the AS number
         let new_asn = asn.into();
         let old_asn = match self.routers.get_mut(&router_id).expect("already checked") {
@@ -217,21 +232,22 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
             NetworkDevice::ExternalRouter(r) => r.set_asn(new_asn),
         };
 
-        // let OSPF converge
-        let events = self
-            .ospf
-            .set_router_asn(router_id, new_asn, &mut self.routers)?;
+        // add the router back into OSPF
+        self.ospf.add_router(router_id, new_asn);
 
-        // process all events
+        // add all links
+        let events = self.ospf.add_links_from(links, &mut self.routers)?;
         self.enqueue_events(events);
-        self.refresh_bgp_sessions()?;
         self.do_queue_maybe_skip()?;
 
-        // add all BPG sessions again
+        // add all BGP sessions again
         self.set_bgp_session_from(sessions.into_iter().map(|(a, b, t)| (a, b, Some(t))))?;
 
+        // reset the network mode
+        self.skip_queue = old_skip;
+        self.stop_after = old_stop_after;
+
         // restore the state
-        self.skip_queue = skip_queue;
         Ok(old_asn)
     }
 

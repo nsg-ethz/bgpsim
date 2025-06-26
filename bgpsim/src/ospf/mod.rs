@@ -135,8 +135,9 @@ impl From<isize> for OspfArea {
 }
 
 /// The OSPF network for each domain separately. A domain is all routers that belong to the same AS.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct OspfDomain<Ospf = GlobalOspfCoordinator> {
+    asn: ASN,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
     pub(crate) external_links: HashMap<RouterId, HashSet<RouterId>>,
     #[serde(with = "As::<Vec<(Same, Vec<(Same, Same)>)>>")]
@@ -155,14 +156,26 @@ impl<Ospf> OspfDomain<Ospf>
 where
     Ospf: OspfCoordinator,
 {
+    fn new(asn: &ASN) -> Self {
+        let asn = *asn;
+        Self {
+            asn,
+            external_links: Default::default(),
+            links: Default::default(),
+            failures: Default::default(),
+            coordinator: Ospf::new(asn),
+        }
+    }
+
     /// Swap the coordinator by replacing it with the default of the new type `Ospf2`.
     pub(crate) fn swap_coordinator<Ospf2: OspfCoordinator>(self) -> (OspfDomain<Ospf2>, Ospf) {
         (
             OspfDomain {
+                asn: self.asn,
                 external_links: self.external_links,
                 links: self.links,
                 failures: self.failures,
-                coordinator: Ospf2::default(),
+                coordinator: Ospf2::new(self.asn),
             },
             self.coordinator,
         )
@@ -185,7 +198,7 @@ where
     pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
         &mut self,
         links: I,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+        routers: HashMap<RouterId, &mut NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId)>,
@@ -231,6 +244,7 @@ where
                 deltas.push(NeighborhoodChange::AddExternalNetwork { int: a, ext: b });
             }
         }
+
         OspfCoordinator::update(
             &mut self.coordinator,
             NeighborhoodChange::Batch(deltas),
@@ -245,7 +259,7 @@ where
         src: RouterId,
         dst: RouterId,
         weight: LinkWeight,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+        routers: HashMap<RouterId, &mut NetworkDevice<P, Ospf::Process>>,
     ) -> Result<(Vec<Event<P, T>>, LinkWeight), NetworkError> {
         self.must_be_internal(src, dst)?;
 
@@ -278,7 +292,7 @@ where
     pub(crate) fn set_link_weights_from<P: Prefix, T: Default, I>(
         &mut self,
         weights: I,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+        routers: HashMap<RouterId, &mut NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
@@ -339,7 +353,7 @@ where
         a: RouterId,
         b: RouterId,
         area: OspfArea,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+        routers: HashMap<RouterId, &mut NetworkDevice<P, Ospf::Process>>,
     ) -> Result<(Vec<Event<P, T>>, OspfArea), NetworkError> {
         self.must_be_internal(a, b)?;
 
@@ -387,7 +401,7 @@ where
         &mut self,
         a: RouterId,
         b: RouterId,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+        routers: HashMap<RouterId, &mut NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         assert!(self.is_internal(a));
         let update = if self.is_internal(b) {
@@ -431,7 +445,7 @@ where
     pub(crate) fn remove_router<P: Prefix, T: Default>(
         &mut self,
         r: RouterId,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+        routers: HashMap<RouterId, &mut NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut deltas = Vec::new();
         if self.is_external(r) {
@@ -579,7 +593,7 @@ where
 }
 
 /// Structure that stores the global OSPF configuration.
-#[derive(Debug, Clone, Default, PartialEq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Serialize, Deserialize)]
 #[serde(bound(
     serialize = "Ospf: serde::Serialize",
     deserialize = "Ospf: serde::Deserialize<'de>"
@@ -591,10 +605,55 @@ pub struct OspfNetwork<Ospf = GlobalOspfCoordinator> {
     pub(crate) routers: HashMap<RouterId, ASN>,
 }
 
+impl<Ospf> Default for OspfNetwork<Ospf> {
+    fn default() -> Self {
+        Self {
+            domains: HashMap::new(),
+            routers: HashMap::new(),
+        }
+    }
+}
+
 impl<Ospf> OspfNetwork<Ospf>
 where
     Ospf: OspfCoordinator,
 {
+    fn split<'a, P: Prefix>(
+        &self,
+        asn: ASN,
+        routers: &'a mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> HashMap<RouterId, &'a mut NetworkDevice<P, Ospf::Process>> {
+        routers
+            .iter_mut()
+            .map(|(router_id, device)| {
+                let backup_asn = device.asn();
+                (
+                    router_id,
+                    device,
+                    self.routers.get(router_id).copied().unwrap_or(backup_asn),
+                )
+            })
+            .filter(|(_, _, d_asn)| *d_asn == asn)
+            .map(|(r, device, _)| (*r, device))
+            .collect()
+    }
+
+    fn split_all<'a, P: Prefix>(
+        &self,
+        routers: &'a mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
+    ) -> HashMap<ASN, HashMap<RouterId, &'a mut NetworkDevice<P, Ospf::Process>>> {
+        let mut result: HashMap<_, HashMap<_, _>> = HashMap::new();
+        for (router_id, device) in routers.iter_mut() {
+            let asn = self
+                .routers
+                .get(router_id)
+                .copied()
+                .unwrap_or_else(|| device.asn());
+            result.entry(asn).or_default().insert(*router_id, device);
+        }
+        result
+    }
+
     /// Add an internal or external router.
     pub(crate) fn add_router(&mut self, id: RouterId, asn: ASN) {
         let old_asn = self.routers.insert(id, asn);
@@ -604,58 +663,10 @@ where
                 "Added a router that already exists in a different ASN"
             );
         }
-        self.domains.entry(asn).or_default().add_router(id);
-    }
-
-    /// Add an internal or external router.
-    pub(crate) fn set_router_asn<P: Prefix, T: Default>(
-        &mut self,
-        id: RouterId,
-        new_asn: ASN,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
-    ) -> Result<Vec<Event<P, T>>, NetworkError> {
-        let mut events = Vec::new();
-        let stored_asn = self
-            .routers
-            .get_mut(&id)
-            .ok_or(NetworkError::DeviceNotFound(id))?;
-        let old_asn = *stored_asn;
-        if old_asn == new_asn {
-            // nothing to do
-            return Ok(events);
-        }
-        *stored_asn = new_asn;
-
-        // store all link information of the old ASN.
-        let old_domain = self.domains.get_mut(&old_asn).unwrap();
-        let links: Vec<_> = old_domain
-            .links
-            .get(&id)
-            .into_iter()
-            .flat_map(|x| x.keys())
-            .chain(old_domain.external_links.get(&id).into_iter().flatten())
-            .map(|n| (id, *n))
-            .collect();
-
-        // remove the router from the old domain
-        events.extend(old_domain.remove_router(id, routers)?);
-
-        // delete the old domain if it is now empty
-        if old_domain.links.is_empty() {
-            self.domains.remove(&old_asn);
-        }
-
-        // get the new domain
-        let new_domain = self.domains.entry(new_asn).or_default();
-
-        // remove the router from the new domain, just to be sure that it is not in there.
-        events.extend(new_domain.remove_router(id, routers)?);
-        // add the router again
-        new_domain.add_router(id);
-        // add all links
-        events.extend(new_domain.add_links_from(links, routers)?);
-
-        Ok(events)
+        self.domains
+            .entry(asn)
+            .or_insert_with_key(OspfDomain::new)
+            .add_router(id);
     }
 
     pub(crate) fn add_link<P: Prefix, T: Default>(
@@ -695,9 +706,10 @@ where
         Ok(domain_links
             .into_iter()
             .map(|(asn, links)| {
+                let routers = self.split(asn, routers);
                 self.domains
                     .entry(asn)
-                    .or_default()
+                    .or_insert_with_key(OspfDomain::new)
                     .add_links_from(links, routers)
             })
             .collect::<Result<Vec<_>, _>>()?
@@ -717,9 +729,10 @@ where
             .routers
             .get(&src)
             .ok_or(NetworkError::DeviceNotFound(src))?;
+        let routers = self.split(*asn, routers);
         self.domains
             .entry(*asn)
-            .or_default()
+            .or_insert_with_key(OspfDomain::new)
             .set_weight(src, dst, weight, routers)
     }
 
@@ -747,9 +760,10 @@ where
         Ok(domain_weights
             .into_iter()
             .map(|(asn, weights)| {
+                let routers = self.split(asn, routers);
                 self.domains
                     .entry(asn)
-                    .or_default()
+                    .or_insert_with_key(OspfDomain::new)
                     .set_link_weights_from(weights, routers)
             })
             .collect::<Result<Vec<_>, _>>()?
@@ -778,9 +792,10 @@ where
             .routers
             .get(&a)
             .ok_or(NetworkError::DeviceNotFound(a))?;
+        let routers = self.split(*asn, routers);
         self.domains
             .entry(*asn)
-            .or_default()
+            .or_insert_with_key(OspfDomain::new)
             .set_area(a, b, area, routers)
     }
 
@@ -806,17 +821,19 @@ where
             .routers
             .get(&b)
             .ok_or(NetworkError::DeviceNotFound(b))?;
+        let a_routers = self.split(*a_asn, routers);
         let mut events = self
             .domains
             .entry(*a_asn)
-            .or_default()
-            .remove_link(a, b, routers)?;
+            .or_insert_with_key(OspfDomain::new)
+            .remove_link(a, b, a_routers)?;
         if a_asn != b_asn {
+            let b_routers = self.split(*b_asn, routers);
             events.extend(
                 self.domains
                     .entry(*b_asn)
-                    .or_default()
-                    .remove_link(b, a, routers)?,
+                    .or_insert_with_key(OspfDomain::new)
+                    .remove_link(b, a, b_routers)?,
             );
         }
         Ok(events)
@@ -827,11 +844,13 @@ where
         r: RouterId,
         routers: &mut HashMap<RouterId, NetworkDevice<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
+        let mut routers = self.split_all(routers);
         // remove the router from all domains
         let events = self
             .domains
-            .values_mut()
-            .map(|domain| domain.remove_router(r, routers))
+            .iter_mut()
+            .filter_map(|(asn, domain)| routers.remove(asn).map(|routers| (asn, domain, routers)))
+            .map(|(_, domain, routers)| domain.remove_router(r, routers))
             .collect::<Result<Vec<_>, _>>()?
             .into_iter()
             .flatten()
@@ -1097,17 +1116,18 @@ pub enum NeighborhoodChange {
 }
 
 /// OSPF coordinator that pushes changes to each OSPF process.
-pub trait OspfCoordinator:
-    std::fmt::Debug + Default + Clone + for<'de> Deserialize<'de> + Serialize
-{
+pub trait OspfCoordinator: std::fmt::Debug + Clone + for<'de> Deserialize<'de> + Serialize {
     /// The associated OSPF process
     type Process: OspfProcess;
+
+    /// Create a new coordinator
+    fn new(asn: ASN) -> Self;
 
     /// Handle a neighborhood change
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: &mut HashMap<RouterId, NetworkDevice<P, Self::Process>>,
+        routers: HashMap<RouterId, &mut NetworkDevice<P, Self::Process>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>;
@@ -1274,14 +1294,19 @@ impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Os
         for (asn, domain) in self.ospf.domains.into_iter() {
             let (mut ospf_domain, old_coordinator) = domain.swap_coordinator();
 
-            let routers = domain_routers
-                .get_mut(&asn)
-                .expect("OSPF domain cannot be empty!");
+            // transform the type
 
             let Some(old_processes) = old_processes.remove(&asn) else {
                 // AS that does not contain any internal routers!
                 for (r, neighbors) in ospf_domain.external_links.clone() {
                     for n in neighbors {
+                        let routers = domain_routers
+                            .get_mut(&asn)
+                            .unwrap()
+                            .iter_mut()
+                            .map(|(r, d)| (*r, d))
+                            .collect::<HashMap<_, _>>();
+
                         let events = OspfCoordinator::update::<P, ()>(
                             &mut ospf_domain.coordinator,
                             NeighborhoodChange::AddExternalNetwork { int: r, ext: n },
@@ -1298,6 +1323,13 @@ impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Os
                 let links = ospf_domain.links.clone();
                 for (&a, neighbors) in &links {
                     for (&b, &(weight, area)) in neighbors {
+                        let routers = domain_routers
+                            .get_mut(&asn)
+                            .unwrap()
+                            .iter_mut()
+                            .map(|(r, d)| (*r, d))
+                            .collect::<HashMap<_, _>>();
+
                         let weight_rev = links[&b][&a].0;
                         let events = OspfCoordinator::update::<P, ()>(
                             &mut ospf_domain.coordinator,
@@ -1321,7 +1353,9 @@ impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Os
                 continue; // no routers in that domain; domain is empty
             };
 
-            let new_processes = routers
+            let new_processes = domain_routers
+                .get_mut(&asn)
+                .unwrap()
                 .values_mut()
                 .filter_map(|d| d.internal_or_err().ok())
                 .map(|r| (r.router_id(), &mut r.ospf))
