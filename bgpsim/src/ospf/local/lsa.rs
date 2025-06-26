@@ -378,20 +378,20 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for LsaH
         let max_age = if self.is_max_age() { " MaxAge" } else { "" };
         match self.lsa_type {
             LsaType::Router => format!(
-                "RouterLSA({} [{}]{})",
+                "RouterLSA({} [seq={}]{})",
                 self.router.fmt(net),
                 self.seq,
                 max_age
             ),
             LsaType::Summary => format!(
-                "SummaryLSA({} --> {} [{}]{})",
+                "SummaryLSA({} --> {} [seq={}]{})",
                 self.router.fmt(net),
                 self.target.unwrap().fmt(net),
                 self.seq,
                 max_age
             ),
             LsaType::External => format!(
-                "ExternalLSA({} --> {} [{}]{})",
+                "ExternalLSA({} --> {} [seq={}]{})",
                 self.router.fmt(net),
                 self.target.unwrap().fmt(net),
                 self.seq,
@@ -407,14 +407,14 @@ impl std::fmt::Debug for LsaHeader {
         match self.lsa_type {
             LsaType::Router => write!(
                 f,
-                "RouterLSA({} [{}]{})",
+                "RouterLSA({} [seq={}]{})",
                 self.router.index(),
                 self.seq,
                 max_age
             ),
             LsaType::Summary => write!(
                 f,
-                "SummaryLSA({} --> {} [{}]{})",
+                "SummaryLSA({} --> {} [seq={}]{})",
                 self.router.index(),
                 self.target.unwrap().index(),
                 self.seq,
@@ -422,7 +422,7 @@ impl std::fmt::Debug for LsaHeader {
             ),
             LsaType::External => write!(
                 f,
-                "ExternalLSA({} --> {} [{}]{})",
+                "ExternalLSA({} --> {} [seq={}]{})",
                 self.router.index(),
                 self.target.unwrap().index(),
                 self.seq,
