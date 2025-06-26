@@ -97,6 +97,14 @@ impl<P: Prefix> BgpProcess<P> {
         }
     }
 
+    /// Change the AS number. This function will panic if the router maintains active BGP sessions.
+    pub(crate) fn set_asn(&mut self, asn: ASN) {
+        assert!(self.sessions.is_empty(),);
+        assert!(self.rib_in.values().all(|x| x.is_empty()));
+        assert!(self.rib_out.values().all(|x| x.is_empty()));
+        self.asn = asn;
+    }
+
     /*
      * Getter Functions
      */

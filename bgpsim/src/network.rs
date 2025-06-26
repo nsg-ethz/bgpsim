@@ -173,6 +173,68 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         router_id
     }
 
+    /// Modify the AS number of an existing router. This operation first removes all BGP sessions of
+    /// that router, then changes the AS number (letting OSPF reconverge), and adds back all BGP
+    /// sessions.
+    ///
+    /// *Warning*: The network will simulate all enqueued events.
+    pub fn set_asn(&mut self, router_id: RouterId, asn: impl Into<ASN>) -> Result<ASN, NetworkError>
+    where
+        Q: EventQueue<P>,
+    {
+        self.simulate()?;
+        let skip_queue = self.skip_queue;
+        self.skip_queue = false;
+
+        // remember all BGP sessions
+        let sessions = self
+            .get_device(router_id)?
+            .bgp_sessions()
+            .into_iter()
+            .filter_map(|(n, _)| {
+                match (
+                    self.bgp_sessions.get(&(router_id, n)).copied().flatten(),
+                    self.bgp_sessions.get(&(n, router_id)).copied().flatten(),
+                ) {
+                    (Some(_), None) | (None, Some(_)) | (Some(true), Some(true)) => {
+                        unreachable!("Inconsistent BGP session state.")
+                    }
+                    (Some(true), Some(false)) => Some((router_id, n, true)),
+                    (Some(false), Some(true)) => Some((n, router_id, true)),
+                    (Some(false), Some(false)) => Some((router_id, n, false)),
+                    (None, None) => None,
+                }
+            })
+            .collect::<Vec<_>>();
+
+        // remove all BGP sessions
+        self.set_bgp_session_from(sessions.iter().map(|(a, b, _)| (*a, *b, None)))?;
+
+        // change the AS number
+        let new_asn = asn.into();
+        let old_asn = match self.routers.get_mut(&router_id).expect("already checked") {
+            NetworkDevice::InternalRouter(r) => r.set_asn(new_asn),
+            NetworkDevice::ExternalRouter(r) => r.set_asn(new_asn),
+        };
+
+        // let OSPF converge
+        let events = self
+            .ospf
+            .set_router_asn(router_id, new_asn, &mut self.routers)?;
+
+        // process all events
+        self.enqueue_events(events);
+        self.refresh_bgp_sessions()?;
+        self.do_queue_maybe_skip()?;
+
+        // add all BPG sessions again
+        self.set_bgp_session_from(sessions.into_iter().map(|(a, b, t)| (a, b, Some(t))))?;
+
+        // restore the state
+        self.skip_queue = skip_queue;
+        Ok(old_asn)
+    }
+
     pub(crate) fn _add_router_with_asn_and_router_id(
         &mut self,
         router_id: RouterId,

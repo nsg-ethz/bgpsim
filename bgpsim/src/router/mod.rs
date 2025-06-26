@@ -118,6 +118,14 @@ impl<P: Prefix, Ospf> Router<P, Ospf> {
         self.asn
     }
 
+    /// Set the AS Id. This function panics if the router has any established BGP sessions.
+    pub(crate) fn set_asn(&mut self, asn: ASN) -> ASN {
+        let old_asn = self.asn;
+        self.asn = asn;
+        self.bgp.set_asn(asn);
+        old_asn
+    }
+
     /// Check if load balancing is enabled
     pub fn get_load_balancing(&self) -> bool {
         self.do_load_balancing

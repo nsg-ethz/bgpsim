@@ -245,7 +245,9 @@ impl<P: Prefix> ExternalRouter<P> {
     }
 
     /// Set the AS Id
-    pub(crate) fn set_asn(&mut self, as_id: ASN) {
-        self.asn = as_id;
+    pub(crate) fn set_asn(&mut self, asn: ASN) -> ASN {
+        let old_asn = self.asn;
+        self.asn = asn;
+        old_asn
     }
 }
