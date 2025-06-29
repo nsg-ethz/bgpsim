@@ -18,6 +18,7 @@
 use std::{
     cmp::Ordering,
     collections::{hash_map::Entry, HashMap},
+    sync::Arc,
 };
 
 use bgpsim::{
@@ -27,7 +28,7 @@ use bgpsim::{
         local::{Lsa, LsaData},
         Edge, ExternalEdge, InternalEdge, LinkWeight, OspfArea,
     },
-    types::RouterId,
+    types::{RouterId, ASN},
 };
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -50,42 +51,80 @@ pub const LINK_COLORS: [&str; NUM_LINK_COLORS] = [
     "text-orange",
 ];
 
-fn expected_state(net: &Net) -> GlobalOspfCoordinator {
+#[function_component(OspfState)]
+pub fn ospf_state() -> Html {
+    let (net, _) = use_store::<Net>();
+    expected_state(&net)
+        .into_iter()
+        .map(|(asn, global_state)| {
+            let global_state = Arc::new(global_state);
+            html! { <DistributedOspfState {asn} {global_state} /> }
+        })
+        .collect()
+}
+
+fn expected_state(net: &Net) -> HashMap<ASN, GlobalOspfCoordinator> {
     let mut net = net.net().clone();
     net.auto_simulation();
     net.simulate().unwrap();
     net.into_global_ospf()
         .unwrap()
         .ospf_network()
-        .coordinator()
-        .clone()
+        .domains()
+        .iter()
+        .map(|(asn, dom)| (*asn, dom.coordinator().clone()))
+        .collect()
+}
+
+#[derive(Properties, PartialEq)]
+pub struct DistributedOspfStateProps {
+    pub asn: ASN,
+    pub global_state: Arc<GlobalOspfCoordinator>,
 }
 
 #[function_component(DistributedOspfState)]
-pub fn distribute_ospf_state() -> Html {
+fn distribute_ospf_state_per_area(props: &DistributedOspfStateProps) -> Html {
     let hover = use_selector(|s: &State| s.hover());
     let layer = use_selector(|s: &State| s.layer());
+    let asn = props.asn;
+    let global_state = props.global_state.clone();
     let (net, _) = use_store::<Net>();
 
     if matches!(*layer, Layer::Ospf) {
         if let Hover::Router(router) = *hover {
             let is_external = net.net().get_device(router).unwrap().is_external();
             if is_external {
-                html! { <GlobalOspfState /> }
+                html! { <GlobalOspfState {asn} {global_state}/> }
             } else {
-                html! { <LocalOspfState {router} /> }
+                html! { <LocalOspfState {router} {asn} {global_state} /> }
             }
         } else {
-            html! { <GlobalOspfState /> }
+            html! { <GlobalOspfState {asn} {global_state}/> }
         }
     } else {
         html! {}
     }
 }
 
+#[derive(Properties, PartialEq)]
+pub struct GlobalOspfStateProps {
+    pub asn: ASN,
+    pub global_state: Arc<GlobalOspfCoordinator>,
+}
+
 #[function_component(GlobalOspfState)]
-fn global_ospf_state() -> Html {
-    let edges = use_selector(|net: &Net| net.net().ospf_network().edges().collect::<Vec<_>>());
+fn global_ospf_state(props: &GlobalOspfStateProps) -> Html {
+    let asn = props.asn;
+    let edges = use_selector_with_deps(
+        |net: &Net, asn: &ASN| {
+            net.net()
+                .ospf_network()
+                .domain(*asn)
+                .map(|d| d.edges().collect::<Vec<_>>())
+                .unwrap_or_default()
+        },
+        asn,
+    );
 
     let links = edges
         .iter()
@@ -118,15 +157,17 @@ fn global_ospf_state() -> Html {
     html! {<> {links} {weights} </>}
 }
 
-#[derive(Properties, Debug, PartialEq, Eq, Clone, Copy)]
+#[derive(Properties, Debug, PartialEq, Clone)]
 struct LocalOspfStateProps {
     router: RouterId,
+    asn: ASN,
+    global_state: Arc<GlobalOspfCoordinator>,
 }
 
 #[function_component(LocalOspfState)]
 fn local_ospf_state(props: &LocalOspfStateProps) -> Html {
     let (net, _) = use_store::<Net>();
-    let expected_state = expected_state(&net);
+    let global_state = props.global_state.clone();
     let router_state = net
         .net()
         .get_internal_router(props.router)
@@ -192,7 +233,7 @@ fn local_ospf_state(props: &LocalOspfStateProps) -> Html {
     let weights = router_view
         .into_iter()
         .map(|((src, dst), (_, weight, logical))| {
-            let expected = expected_state
+            let expected = global_state
                 .get_ribs()
                 .get(&src)
                 .and_then(|x| x.get(&dst))

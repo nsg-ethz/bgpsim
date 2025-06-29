@@ -17,7 +17,6 @@
 
 use bgpsim::{
     bgp::BgpRoute,
-    prelude::BgpSessionType,
     route_map::{RouteMap, RouteMapDirection},
     types::RouterId,
 };
@@ -415,7 +414,7 @@ impl Hover {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Connection {
     Link,
-    BgpSession(BgpSessionType),
+    BgpSession(bool),
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, EnumIter, Deserialize, Serialize)]

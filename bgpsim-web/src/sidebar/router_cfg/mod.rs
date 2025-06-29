@@ -27,7 +27,10 @@ mod static_routes_cfg;
 
 use std::rc::Rc;
 
-use bgpsim::{formatter::NetworkFormatter, types::RouterId};
+use bgpsim::{
+    formatter::NetworkFormatter,
+    types::{RouterId, ASN},
+};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -52,6 +55,7 @@ pub struct RouterCfg {
     state: Rc<State>,
     _state_dispatch: Dispatch<State>,
     name_input_correct: bool,
+    asn_input_correct: bool,
 }
 
 pub enum Msg {
@@ -60,6 +64,8 @@ pub enum Msg {
     OnNameChange(String),
     OnNameSet(String),
     ChangeLoadBalancing(bool),
+    OnAsnChange(String),
+    OnAsnSet(String),
 }
 
 #[derive(Properties, PartialEq, Eq)]
@@ -80,6 +86,7 @@ impl Component for RouterCfg {
             state: Default::default(),
             _state_dispatch,
             name_input_correct: true,
+            asn_input_correct: true,
         }
     }
 
@@ -93,13 +100,16 @@ impl Component for RouterCfg {
         };
 
         let name_text = router.fmt(n).to_string();
-        let as_text = format!("AS{}", r.asn().0);
         let on_name_change = ctx.link().callback(Msg::OnNameChange);
         let on_name_set = ctx.link().callback(Msg::OnNameSet);
 
         let change_lb = ctx.link().callback(Msg::ChangeLoadBalancing);
         let lb_enabled = r.get_load_balancing();
         let lb_text = if lb_enabled { "enabled" } else { "disabled" };
+
+        let asn_text = format!("AS{}", r.asn().0);
+        let on_asn_change = ctx.link().callback(Msg::OnAsnChange);
+        let on_asn_set = ctx.link().callback(Msg::OnAsnSet);
 
         let disabled = self.state.replay;
 
@@ -110,7 +120,7 @@ impl Component for RouterCfg {
                     <TextField text={name_text} on_change={on_name_change} on_set={on_name_set} correct={self.name_input_correct} {disabled}/>
                 </Element>
                 <Element text={"AS Number"}>
-                    {as_text}
+                    <TextField text={asn_text} on_change={on_asn_change} on_set={on_asn_set} correct={self.asn_input_correct} {disabled}/>
                 </Element>
                 if self.state.features().load_balancing {
                     <Element text={"load balancing"}>
@@ -167,6 +177,26 @@ impl Component for RouterCfg {
                 self.net_dispatch
                     .reduce_mut(move |n| n.net_mut().set_load_balancing(router, value).unwrap());
                 false
+            }
+            Msg::OnAsnChange(new_asn) => {
+                self.asn_input_correct = new_asn
+                    .to_lowercase()
+                    .trim_start_matches("as")
+                    .parse::<u32>()
+                    .is_ok();
+                true
+            }
+            Msg::OnAsnSet(new_asn) => {
+                let new_asn = ASN::from(
+                    new_asn
+                        .to_lowercase()
+                        .trim_start_matches("as")
+                        .parse::<u32>()
+                        .unwrap(),
+                );
+                self.net_dispatch
+                    .reduce_mut(move |n| n.net_mut().set_asn(router, new_asn).unwrap());
+                true
             }
         }
     }

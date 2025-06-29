@@ -18,10 +18,8 @@
 use std::{collections::HashSet, ops::Deref, rc::Rc};
 
 use bgpsim::{
-    formatter::NetworkFormatter,
-    network::DEFAULT_INTERNAL_ASN,
-    prelude::BgpSessionType,
-    types::{NetworkDeviceRef, RouterId},
+    formatter::NetworkFormatter, network::DEFAULT_INTERNAL_ASN, prelude::BgpSessionType,
+    types::RouterId,
 };
 use yew::prelude::*;
 use yewdux::prelude::*;
@@ -75,11 +73,11 @@ impl Component for BgpCfg {
         let bgp_sessions = get_sessions(router, &self.net);
         let bgp_peers = bgp_sessions
             .iter()
-            .map(|(x, name, _)| (*x, name.clone()))
+            .map(|s| (s.neighbor, s.neighbor_name.clone()))
             .collect::<Vec<_>>();
         let sessions_dict = bgp_sessions
             .iter()
-            .map(|(r, _, _)| *r)
+            .map(|s| s.neighbor)
             .collect::<HashSet<RouterId>>();
 
         let bgp_options = n
@@ -103,11 +101,14 @@ impl Component for BgpCfg {
                     <MultiSelect<RouterId> options={bgp_options} on_add={on_session_add} on_remove={on_session_remove} {disabled}/>
                 </Element>
                 {
-                    bgp_sessions.into_iter().map(|(dst, text, session_type)| {
-                        let on_select = ctx.link().callback(move |t| Msg::UpdateBgpSession(dst, t));
+                    bgp_sessions.into_iter().map(|s| {
+                        let options = s.options();
+                        let neighbor = s.neighbor;
+                        let text = s.neighbor_name;
+                        let on_select = ctx.link().callback(move |t| Msg::UpdateBgpSession(neighbor, t));
                         html!{
                             <Element {text} class={Classes::from("mt-0.5")} >
-                                <Select<BgpSessionTypeSymmetric> text={session_type.text()} options={session_type.options()} {on_select} {disabled}/>
+                                <Select<BgpSessionTypeSymmetric> text={s.session_type.text()} {options} {on_select} {disabled}/>
                             </Element>
                         }
                     }).collect::<Html>()
@@ -125,14 +126,9 @@ impl Component for BgpCfg {
                 true
             }
             Msg::AddBgpSession(dst) => {
-                let session_type = match self.net.net().get_device(dst) {
-                    Ok(NetworkDeviceRef::InternalRouter(_)) => BgpSessionType::IBgpPeer,
-                    Ok(NetworkDeviceRef::ExternalRouter(_)) => BgpSessionType::EBgp,
-                    Err(_) => unreachable!(),
-                };
                 self.net_dispatch.reduce_mut(move |n| {
                     n.net_mut()
-                        .set_bgp_session(router, dst, Some(session_type))
+                        .set_bgp_session(router, dst, Some(false))
                         .unwrap()
                 });
                 false
@@ -144,30 +140,16 @@ impl Component for BgpCfg {
             }
             Msg::UpdateBgpSession(neighbor, ty) => {
                 match ty {
-                    BgpSessionTypeSymmetric::EBgp => self.net_dispatch.reduce_mut(move |n| {
-                        n.net_mut()
-                            .set_bgp_session(router, neighbor, Some(BgpSessionType::EBgp))
+                    BgpSessionTypeSymmetric::Peer => self.net_dispatch.reduce_mut(move |n| {
+                        n.net_mut().set_bgp_session(router, neighbor, Some(false))
                     }),
-                    BgpSessionTypeSymmetric::IBgpPeer => self.net_dispatch.reduce_mut(move |n| {
-                        n.net_mut().set_bgp_session(
-                            router,
-                            neighbor,
-                            Some(BgpSessionType::IBgpPeer),
-                        )
-                    }),
-                    BgpSessionTypeSymmetric::IBgpRR => self.net_dispatch.reduce_mut(move |n| {
-                        n.net_mut().set_bgp_session(
-                            router,
-                            neighbor,
-                            Some(BgpSessionType::IBgpClient),
-                        )
-                    }),
-                    BgpSessionTypeSymmetric::IBgpClient => self.net_dispatch.reduce_mut(move |n| {
-                        n.net_mut().set_bgp_session(
-                            neighbor,
-                            router,
-                            Some(BgpSessionType::IBgpClient),
-                        )
+                    BgpSessionTypeSymmetric::RouteReflector => {
+                        self.net_dispatch.reduce_mut(move |n| {
+                            n.net_mut().set_bgp_session(router, neighbor, Some(true))
+                        })
+                    }
+                    BgpSessionTypeSymmetric::Client => self.net_dispatch.reduce_mut(move |n| {
+                        n.net_mut().set_bgp_session(neighbor, router, Some(true))
                     }),
                 }
                 false
@@ -176,73 +158,103 @@ impl Component for BgpCfg {
     }
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+struct BgpSession {
+    neighbor: RouterId,
+    neighbor_name: String,
+    is_ebgp: bool,
+    session_type: BgpSessionTypeSymmetric,
+}
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum BgpSessionTypeSymmetric {
-    EBgp,
-    IBgpPeer,
-    IBgpRR,
-    IBgpClient,
+    Peer,
+    RouteReflector,
+    Client,
 }
 
 impl BgpSessionTypeSymmetric {
     pub fn text(&self) -> String {
         String::from(match self {
-            Self::EBgp => "eBGP",
-            Self::IBgpPeer => "iBGP (Peer)",
-            Self::IBgpRR => "iBGP (Client)",
-            Self::IBgpClient => "iBGP (Reflector)",
+            Self::Peer => "BGP Peer",
+            Self::RouteReflector => "iBGP Client",
+            Self::Client => "iBGP Reflector",
         })
     }
+}
 
-    pub fn options(&self) -> Vec<(Self, String)> {
-        match self {
-            Self::EBgp => vec![(Self::EBgp, Self::EBgp.text())],
-            Self::IBgpPeer | Self::IBgpRR | Self::IBgpClient => vec![
-                (Self::IBgpPeer, Self::IBgpPeer.text()),
-                (Self::IBgpRR, Self::IBgpRR.text()),
-                (Self::IBgpClient, Self::IBgpClient.text()),
-            ],
+impl BgpSession {
+    pub fn options(&self) -> Vec<(BgpSessionTypeSymmetric, String)> {
+        if self.is_ebgp {
+            vec![(
+                BgpSessionTypeSymmetric::Peer,
+                BgpSessionTypeSymmetric::Peer.text(),
+            )]
+        } else {
+            vec![
+                (
+                    BgpSessionTypeSymmetric::Peer,
+                    BgpSessionTypeSymmetric::Peer.text(),
+                ),
+                (
+                    BgpSessionTypeSymmetric::RouteReflector,
+                    BgpSessionTypeSymmetric::RouteReflector.text(),
+                ),
+                (
+                    BgpSessionTypeSymmetric::Client,
+                    BgpSessionTypeSymmetric::Client.text(),
+                ),
+            ]
         }
     }
 }
 
-fn get_sessions(
-    router: RouterId,
-    net: &Rc<Net>,
-) -> Vec<(RouterId, String, BgpSessionTypeSymmetric)> {
+fn get_sessions(router: RouterId, net: &Rc<Net>) -> Vec<BgpSession> {
     let net_borrow = net.net();
     let n = net_borrow.deref();
-    let mut bgp_sessions: Vec<(RouterId, String, BgpSessionTypeSymmetric)> = net
+    let mut bgp_sessions: Vec<BgpSession> = net
         .get_bgp_sessions()
         .into_iter()
         .filter_map(|(src, dst, ty, _)| match ty {
-            BgpSessionType::IBgpPeer if src == router => Some((
-                dst,
-                dst.fmt(n).to_string(),
-                BgpSessionTypeSymmetric::IBgpPeer,
-            )),
-            BgpSessionType::IBgpPeer if dst == router => Some((
-                src,
-                src.fmt(n).to_string(),
-                BgpSessionTypeSymmetric::IBgpPeer,
-            )),
-            BgpSessionType::IBgpClient if src == router => {
-                Some((dst, dst.fmt(n).to_string(), BgpSessionTypeSymmetric::IBgpRR))
-            }
-            BgpSessionType::IBgpClient if dst == router => Some((
-                src,
-                src.fmt(n).to_string(),
-                BgpSessionTypeSymmetric::IBgpClient,
-            )),
-            BgpSessionType::EBgp if src == router => {
-                Some((dst, dst.fmt(n).to_string(), BgpSessionTypeSymmetric::EBgp))
-            }
-            BgpSessionType::EBgp if dst == router => {
-                Some((src, src.fmt(n).to_string(), BgpSessionTypeSymmetric::EBgp))
-            }
+            BgpSessionType::IBgpPeer if src == router => Some(BgpSession {
+                neighbor: dst,
+                neighbor_name: dst.fmt(n).to_string(),
+                is_ebgp: false,
+                session_type: BgpSessionTypeSymmetric::Peer,
+            }),
+            BgpSessionType::IBgpPeer if dst == router => Some(BgpSession {
+                neighbor: src,
+                neighbor_name: src.fmt(n).to_string(),
+                is_ebgp: false,
+                session_type: BgpSessionTypeSymmetric::Peer,
+            }),
+            BgpSessionType::IBgpClient if src == router => Some(BgpSession {
+                neighbor: dst,
+                neighbor_name: dst.fmt(n).to_string(),
+                is_ebgp: false,
+                session_type: BgpSessionTypeSymmetric::RouteReflector,
+            }),
+            BgpSessionType::IBgpClient if dst == router => Some(BgpSession {
+                neighbor: src,
+                neighbor_name: src.fmt(n).to_string(),
+                is_ebgp: false,
+                session_type: BgpSessionTypeSymmetric::Client,
+            }),
+            BgpSessionType::EBgp if src == router => Some(BgpSession {
+                neighbor: dst,
+                neighbor_name: dst.fmt(n).to_string(),
+                is_ebgp: true,
+                session_type: BgpSessionTypeSymmetric::Peer,
+            }),
+            BgpSessionType::EBgp if dst == router => Some(BgpSession {
+                neighbor: src,
+                neighbor_name: src.fmt(n).to_string(),
+                is_ebgp: true,
+                session_type: BgpSessionTypeSymmetric::Peer,
+            }),
             _ => None,
         })
         .collect();
-    bgp_sessions.sort_by(|(_, n1, _), (_, n2, _)| n1.cmp(n2));
+    bgp_sessions.sort_by(|a, b| a.neighbor_name.cmp(&b.neighbor_name));
     bgp_sessions
 }

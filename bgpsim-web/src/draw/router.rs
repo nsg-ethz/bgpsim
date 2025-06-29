@@ -18,7 +18,7 @@
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use bgpsim::{prelude::BgpSessionType, types::NetworkDeviceRef, types::RouterId};
+use bgpsim::{types::NetworkDeviceRef, types::RouterId};
 use gloo_events::EventListener;
 use gloo_utils::window;
 use itertools::Itertools;
@@ -239,28 +239,26 @@ fn prepare_onclick(
                     return (clear_selection.reform(update_net), true);
                 }
             }
-            Connection::BgpSession(BgpSessionType::EBgp) => {
-                // check if the two are not already connected, and that one of them is external while the other is not.
-                if r.bgp_neighbors.binary_search(&src).is_err() && external != src_external {
+            Connection::BgpSession(false) => {
+                // check if the two are not already connected:
+                if r.bgp_neighbors.binary_search(&src).is_err() {
                     let clear_selection =
                         state.reduce_mut_callback(move |s| s.set_selected(Selected::None));
                     let update_net = move |_: MouseEvent| {
                         Dispatch::<Net>::new().reduce_mut(move |n| {
-                            let _ =
-                                n.net_mut()
-                                    .set_bgp_session(src, id, Some(BgpSessionType::EBgp));
+                            let _ = n.net_mut().set_bgp_session(src, id, Some(false));
                         })
                     };
                     return (clear_selection.reform(update_net), true);
                 }
             }
-            Connection::BgpSession(session_type) => {
+            Connection::BgpSession(true) => {
                 if r.bgp_neighbors.binary_search(&src).is_err() && !external && !src_external {
                     let clear_selection =
                         state.reduce_mut_callback(move |s| s.set_selected(Selected::None));
                     let update_net = move |_: MouseEvent| {
                         Dispatch::<Net>::new().reduce_mut(move |n| {
-                            let _ = n.net_mut().set_bgp_session(src, id, Some(session_type));
+                            let _ = n.net_mut().set_bgp_session(src, id, Some(true));
                         })
                     };
                     return (clear_selection.reform(update_net), true);

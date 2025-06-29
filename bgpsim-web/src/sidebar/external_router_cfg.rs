@@ -20,7 +20,6 @@ use std::{collections::HashSet, rc::Rc, str::FromStr};
 use bgpsim::{
     bgp::{BgpRoute, Community},
     formatter::NetworkFormatter,
-    prelude::BgpSessionType,
     types::{RouterId, ASN},
 };
 use itertools::join;
@@ -49,7 +48,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
     let id = props.router;
     let info = use_selector_with_deps(|net, id| RouterInfo::new(*id, net), id);
     let name_input_correct = use_state(|| true);
-    let asid_input_correct = use_state(|| true);
+    let asn_input_correct = use_state(|| true);
     let prefix_input_correct = use_state(|| true);
     let simple = use_selector(|state: &State| state.features().simple);
     let show_ospf = use_selector(|state: &State| state.features().ospf);
@@ -68,10 +67,10 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
         });
     });
 
-    let on_asid_change = callback!(asid_input_correct -> move |new_asid: String| {
-        asid_input_correct.set(new_asid.to_lowercase().trim_start_matches("as").parse::<u32>().is_ok());
+    let on_asn_change = callback!(asn_input_correct -> move |new_asid: String| {
+        asn_input_correct.set(new_asid.to_lowercase().trim_start_matches("as").parse::<u32>().is_ok());
     });
-    let on_asid_set = callback!(move |new_asid: String| {
+    let on_asn_set = callback!(move |new_asid: String| {
         let new_asid = ASN::from(
             new_asid
                 .to_lowercase()
@@ -80,15 +79,13 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
                 .unwrap(),
         );
         Dispatch::<Net>::new().reduce_mut(move |n| {
-            let _ = n.net_mut().set_as_id(id, new_asid);
+            let _ = n.net_mut().set_asn(id, new_asid);
         });
     });
 
     let on_session_add = callback!(move |peer| {
         Dispatch::<Net>::new().reduce_mut(move |net| {
-            let _ = net
-                .net_mut()
-                .set_bgp_session(id, peer, Some(BgpSessionType::EBgp));
+            let _ = net.net_mut().set_bgp_session(id, peer, Some(false));
         });
     });
     let on_session_remove = callback!(move |peer: RouterId| {
@@ -141,7 +138,7 @@ pub fn ExternalRouterCfg(props: &Properties) -> Html {
                 <TextField text={info.name.clone()} on_change={on_name_change} on_set={on_name_set} correct={*name_input_correct} {disabled}/>
             </Element>
             <Element text={"AS Number"}>
-                <TextField text={as_text} on_change={on_asid_change} on_set={on_asid_set} correct={*asid_input_correct} {disabled}/>
+                <TextField text={as_text} on_change={on_asn_change} on_set={on_asn_set} correct={*asn_input_correct} {disabled}/>
             </Element>
             if *show_ospf {
                 <TopologyCfg router={id} only_internal={true} {disabled}/>

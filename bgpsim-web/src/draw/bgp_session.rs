@@ -69,7 +69,7 @@ pub fn BgpSession(props: &Properties) -> Html {
         })
     };
 
-    let bidirectional = props.session_type == BgpSessionType::IBgpPeer;
+    let bidirectional = props.session_type != BgpSessionType::IBgpClient;
 
     html! {
         <>

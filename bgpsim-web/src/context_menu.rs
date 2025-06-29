@@ -15,7 +15,6 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::prelude::BgpSessionType;
 use gloo_utils::window;
 use web_sys::HtmlElement;
 use yew::prelude::*;
@@ -67,20 +66,12 @@ pub fn Menu() -> Html {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(router, false, Connection::Link));
             });
-            let add_ebgp = dispatch.reduce_mut_callback(move |s| {
+            let add_bgp = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(
                     router,
                     false,
-                    Connection::BgpSession(BgpSessionType::EBgp),
-                ));
-            });
-            let add_ibgp_peer = dispatch.reduce_mut_callback(move |s| {
-                s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(
-                    router,
-                    false,
-                    Connection::BgpSession(BgpSessionType::IBgpPeer),
+                    Connection::BgpSession(false),
                 ));
             });
             let add_ibgp_client = dispatch.reduce_mut_callback(move |s| {
@@ -88,14 +79,13 @@ pub fn Menu() -> Html {
                 s.set_selected(Selected::CreateConnection(
                     router,
                     false,
-                    Connection::BgpSession(BgpSessionType::IBgpClient),
+                    Connection::BgpSession(true),
                 ));
             });
             html! {
                 <>
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_link}>{"Add Link"}</button>
-                    <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ebgp}>{"Add eBGP session"}</button>
-                    <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ibgp_peer}>{"Add iBGP session"}</button>
+                    <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_bgp}>{"Add BGP session"}</button>
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ibgp_client}>{"Add iBGP client"}</button>
                 </>
             }
@@ -110,13 +100,13 @@ pub fn Menu() -> Html {
                 s.set_selected(Selected::CreateConnection(
                     router,
                     true,
-                    Connection::BgpSession(BgpSessionType::EBgp),
+                    Connection::BgpSession(false),
                 ));
             });
             html! {
                 <>
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_link}>{"Add Link"}</button>
-                    <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ebgp}>{"Add eBGP session"}</button>
+                    <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ebgp}>{"Add BGP session"}</button>
                 </>
             }
         }

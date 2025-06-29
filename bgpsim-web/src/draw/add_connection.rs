@@ -15,7 +15,6 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
-use bgpsim::prelude::BgpSessionType;
 use gloo_events::EventListener;
 use gloo_utils::{document, window};
 use wasm_bindgen::JsCast;
@@ -82,11 +81,11 @@ pub fn AddConnection() -> Html {
                 <line class="stroke-current stroke-2 text-main pointer-events-none" x1={p1.x()} y1={p1.y()} x2={p2.x()} y2={p2.y()} />
             }
         }
-        Connection::BgpSession(kind) => {
-            let (color, bidirectional) = match kind {
-                BgpSessionType::IBgpPeer => (SvgColor::BlueLight, true),
-                BgpSessionType::IBgpClient => (SvgColor::PurpleLight, false),
-                BgpSessionType::EBgp => (SvgColor::RedLight, false),
+        Connection::BgpSession(is_client) => {
+            let (color, bidirectional) = if is_client {
+                (SvgColor::PurpleLight, false)
+            } else {
+                (SvgColor::BlueLight, true)
             };
             html! {
                 <CurvedArrow {color} {p1} {p2} angle={15.0} sub_radius={true} {bidirectional}/>

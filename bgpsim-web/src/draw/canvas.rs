@@ -35,7 +35,7 @@ use super::events::BgpSessionQueue;
 use super::forwarding_path::PathKind;
 use super::link::Link;
 use super::next_hop::NextHop;
-use super::ospf_state::DistributedOspfState;
+use super::ospf_state::OspfState;
 use super::router::Router;
 use crate::callback;
 use crate::draw::add_connection::AddConnection;
@@ -130,7 +130,7 @@ pub fn Canvas(props: &Properties) -> Html {
                 <CanvasBgpConfig />
                 <CanvasRouteProp />
                 <CanvasHighlightPath />
-                <DistributedOspfState />
+                <OspfState />
                 <CanvasEventQueue />
                 <AddConnection />
             </svg>

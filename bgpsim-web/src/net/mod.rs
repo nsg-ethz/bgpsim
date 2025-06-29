@@ -26,12 +26,10 @@ use std::{
 pub use bgpsim::types::Ipv4Prefix as Pfx;
 use bgpsim::{
     bgp::{BgpRoute, BgpSessionType},
-    config::ConfigExpr,
     event::{Event, EventQueue},
     network::Network,
     ospf::{LocalOspf, OspfProcess},
     policies::{FwPolicy, PolicyError},
-    prelude::NetworkConfig,
     topology_zoo::TopologyZoo,
     types::{NetworkDevice, NetworkDeviceRef, PhysicalNetwork, RouterId},
 };
@@ -209,30 +207,7 @@ impl Net {
     pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType, bool)> {
         let net_borrow = self.net.borrow();
         let net = net_borrow.deref();
-        let config = net.get_config().unwrap();
-        config
-            .expr
-            .into_values()
-            .filter_map(|e| match e {
-                ConfigExpr::BgpSession {
-                    source,
-                    target,
-                    session_type,
-                } => Some((source, target, session_type)),
-                _ => None,
-            })
-            .map(|(src, dst, ty)| {
-                (
-                    src,
-                    dst,
-                    ty,
-                    net.get_device(src)
-                        .ok()
-                        .and_then(|r| r.bgp_session_type(dst))
-                        .is_some(),
-                )
-            })
-            .collect()
+        net.get_bgp_sessions()
     }
 
     pub fn get_route_propagation(&self, prefix: Pfx) -> Vec<(RouterId, RouterId, BgpRoute<Pfx>)> {
