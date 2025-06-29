@@ -1,6 +1,6 @@
 [package]
 name = "bgpsim"
-version = "0.18.6"
+version = "0.20.0"
 edition = "2021"
 license-file = "LICENSE"
 description = "A network control-plane simulator"
@@ -42,7 +42,7 @@ topology_zoo = ["dep:xmltree", "dep:geoutils", "dep:include-flate", "dep:mapproj
 export = ["dep:bimap"]
 
 [dependencies]
-bgpsim-macros = {path = "../bgpsim-macros", version = "0.18.1"}
+bgpsim-macros = {path = "../bgpsim-macros", version = "0.20.0"}
 prefix-trie = { version = "0.8.1", features = ["serde", "ipnet"] }
 thiserror = "1"
 petgraph = { version = "0.6", features = [ "serde-1" ]}
