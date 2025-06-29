@@ -1004,6 +1004,11 @@ where
     }
 
     /// Get a reference to the OSPF coordinator struct for the given AS number
+    pub fn domains(&self) -> &HashMap<ASN, OspfDomain<Ospf>> {
+        &self.domains
+    }
+
+    /// Get a reference to the OSPF coordinator struct for the given AS number
     pub fn domain(&self, asn: ASN) -> Option<&OspfDomain<Ospf>> {
         self.domains.get(&asn)
     }
