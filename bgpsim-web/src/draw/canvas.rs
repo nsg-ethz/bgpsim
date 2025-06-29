@@ -30,6 +30,7 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use super::arrows::ArrowMarkers;
+use super::as_boundaries::AsBoundaries;
 use super::bgp_session::BgpSession;
 use super::events::BgpSessionQueue;
 use super::forwarding_path::PathKind;
@@ -124,6 +125,7 @@ pub fn Canvas(props: &Properties) -> Html {
         <div class="flex-1 h-full overflow-hidden" ref={div_ref}>
             <svg width="100%" height="100%" {onmousedown} {onmouseup} {onwheel} {ontouchmove} {ontouchend}>
                 <ArrowMarkers />
+                <AsBoundaries />
                 <CanvasLinks />
                 <CanvasRouters />
                 <CanvasFwState />

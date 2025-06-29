@@ -20,6 +20,7 @@ use yew::{classes, Classes};
 
 pub mod add_connection;
 pub mod arrows;
+pub mod as_boundaries;
 pub mod bgp_session;
 pub mod canvas;
 pub mod events;

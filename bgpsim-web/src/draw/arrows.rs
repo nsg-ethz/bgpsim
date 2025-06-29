@@ -214,5 +214,5 @@ pub fn get_curve_point(p1: Point, p2: Point, angle: f64) -> Point {
     let delta = p2 - p1;
     let h = (angle * std::f64::consts::PI / 180.0).tan() * 0.5;
     let m = p1.mid(p2);
-    m + delta.rotate() * h
+    m + delta.rotate_ccw() * h
 }

@@ -138,10 +138,28 @@ impl Point {
     }
 
     /// Rotate the vector by 90 degrees counter-clockwise
-    pub fn rotate(self) -> Point {
+    pub fn rotate_ccw(self) -> Point {
         Point {
             x: -self.y,
             y: self.x,
+        }
+    }
+
+    /// Rotate the vector by 90 degrees counter-clockwise
+    pub fn rotate_cw(self) -> Point {
+        Point {
+            x: self.y,
+            y: -self.x,
+        }
+    }
+
+    /// normalize the point to have length of 1
+    pub fn normalize(self) -> Point {
+        let norm2 = self.x * self.x + self.y * self.y;
+        let norm = norm2.sqrt();
+        Point {
+            x: self.x / norm,
+            y: self.y / norm,
         }
     }
 
