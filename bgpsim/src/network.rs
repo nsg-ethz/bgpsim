@@ -19,7 +19,7 @@
 //! network.
 
 use crate::{
-    bgp::{BgpState, BgpStateRef, Community},
+    bgp::{BgpSessionType, BgpState, BgpStateRef, Community},
     config::{NetworkConfig, RouteMapEdit},
     event::{BasicEventQueue, Event, EventQueue},
     external_router::ExternalRouter,
@@ -299,12 +299,6 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
             NetworkDevice::InternalRouter(r) => r.set_name(name.into()),
             NetworkDevice::ExternalRouter(r) => r.set_name(name.into()),
         }
-        Ok(())
-    }
-
-    /// Set the AS ID of an external router.
-    pub fn set_as_id(&mut self, router: RouterId, as_id: ASN) -> Result<(), NetworkError> {
-        self.get_external_router_mut(router)?.set_asn(as_id);
         Ok(())
     }
 
@@ -963,6 +957,41 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
         // Refresh BGP sessions
 
         Ok(())
+    }
+
+    /// Get all configured BGP sessions. Each session will appear exactly once. The last boolean
+    /// describes whether the session is currently active or not.
+    pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType, bool)> {
+        self.bgp_sessions
+            .iter()
+            .filter_map(|((src, dst), ty)| ty.map(|ty| (*src, *dst, ty)))
+            .filter_map(|(src, dst, is_client)| {
+                let reverse_is_client = self
+                    .bgp_sessions
+                    .get(&(dst, src))
+                    .copied()
+                    .flatten()
+                    .unwrap_or(false);
+                let src_asn = self.routers.get(&src)?.asn();
+                let dst_asn = self.routers.get(&dst)?.asn();
+                let reachable = self.ospf.is_reachable(src, dst, &self.routers);
+                if src_asn == dst_asn {
+                    if is_client {
+                        Some((src, dst, BgpSessionType::IBgpClient, reachable))
+                    } else if reverse_is_client {
+                        None
+                    } else if src.index() <= dst.index() {
+                        Some((src, dst, BgpSessionType::IBgpPeer, reachable))
+                    } else {
+                        None
+                    }
+                } else if src.index() <= dst.index() {
+                    Some((src, dst, BgpSessionType::EBgp, reachable))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 
     // *******************
