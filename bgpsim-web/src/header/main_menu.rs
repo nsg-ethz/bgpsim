@@ -82,8 +82,9 @@ pub fn MainMenu(props: &Properties) -> Html {
     let export_latex = net_dispatch.reduce_mut_callback(|n| n.export_latex());
     let export_copy_url = callback!(url_network -> move |_| {
         let mut url = export_url();
-        if url.len() > 2000 {
-            url = format!("Cannot export the network to URL! (length is {} > 2000)", url.len());
+        log::debug!("{url}");
+        if url.len() > 8000 {
+            url = format!("Cannot export the network to URL! (length is {} > 8000)", url.len());
         }
         url_network.set(Some(url));
     });

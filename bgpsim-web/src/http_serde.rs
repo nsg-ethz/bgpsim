@@ -17,6 +17,7 @@
 
 use std::{collections::HashMap, ops::Deref};
 
+use base64::prelude::*;
 use bgpsim::{
     event::{Event, EventQueue},
     ospf::GlobalOspf,
@@ -73,7 +74,7 @@ pub fn import_url(s: impl AsRef<str>) {
     log::debug!("Import http arguments");
 
     let data = s.as_ref();
-    let decoded_compressed = match base64::decode_config(data.as_bytes(), base64_config()) {
+    let decoded_compressed = match BASE64_URL_SAFE.decode(data) {
         Ok(d) => d,
         Err(e) => {
             log::error!("Could not decode base64 data: {}", e);
@@ -163,12 +164,24 @@ pub fn import_json_str(json_data: impl AsRef<str>) {
 pub fn export_url() -> String {
     let json_data = export_json_str(true);
     let compressed_data = miniz_oxide::deflate::compress_to_vec(json_data.as_bytes(), 8);
-    let encoded_data = base64::encode_config(compressed_data, base64_config());
-    let url = window()
+    let encoded_data = BASE64_URL_SAFE.encode(compressed_data);
+    let mut url = window()
         .location()
         .href()
-        .unwrap_or_else(|_| String::from("bgpsim.org/"));
-    format!("{url}?data={encoded_data}")
+        .ok()
+        .and_then(|url| url::Url::parse(&url).ok())
+        .unwrap_or_else(|| url::Url::parse("https://bgpsim.github.io/").unwrap());
+    // get all current options
+    let options = url
+        .query_pairs()
+        .filter(|(k, _)| k != "data")
+        .map(|(k, v)| (k.to_string(), v.to_string()))
+        .collect::<Vec<_>>();
+    url.query_pairs_mut()
+        .clear()
+        .extend_pairs(options)
+        .append_pair("data", &encoded_data);
+    url.into()
 }
 
 #[derive(Default, Deserialize, Serialize)]
@@ -366,10 +379,6 @@ fn rand_uniform() -> f64 {
     let x = ((((((bytes[0] as u32) << 8) + bytes[1] as u32) << 8) + bytes[2] as u32) << 8)
         + bytes[3] as u32;
     x as f64 / (u32::MAX as f64)
-}
-
-fn base64_config() -> base64::Config {
-    base64::Config::new(base64::CharacterSet::UrlSafe, false)
 }
 
 /// download a textfile
