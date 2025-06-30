@@ -53,14 +53,20 @@ pub const LINK_COLORS: [&str; NUM_LINK_COLORS] = [
 
 #[function_component(OspfState)]
 pub fn ospf_state() -> Html {
+    let layer = use_selector(|s: &State| s.layer());
     let (net, _) = use_store::<Net>();
-    expected_state(&net)
-        .into_iter()
-        .map(|(asn, global_state)| {
-            let global_state = Arc::new(global_state);
-            html! { <DistributedOspfState {asn} {global_state} /> }
-        })
-        .collect()
+
+    if matches!(*layer, Layer::Ospf) {
+        expected_state(&net)
+            .into_iter()
+            .map(|(asn, global_state)| {
+                let global_state = Arc::new(global_state);
+                html! { <DistributedOspfState {asn} {global_state} /> }
+            })
+            .collect()
+    } else {
+        html! {}
+    }
 }
 
 fn expected_state(net: &Net) -> HashMap<ASN, GlobalOspfCoordinator> {
@@ -85,24 +91,19 @@ pub struct DistributedOspfStateProps {
 #[function_component(DistributedOspfState)]
 fn distribute_ospf_state_per_area(props: &DistributedOspfStateProps) -> Html {
     let hover = use_selector(|s: &State| s.hover());
-    let layer = use_selector(|s: &State| s.layer());
     let asn = props.asn;
     let global_state = props.global_state.clone();
     let (net, _) = use_store::<Net>();
 
-    if matches!(*layer, Layer::Ospf) {
-        if let Hover::Router(router) = *hover {
-            let is_external = net.net().get_device(router).unwrap().is_external();
-            if is_external {
-                html! { <GlobalOspfState {asn} {global_state}/> }
-            } else {
-                html! { <LocalOspfState {router} {asn} {global_state} /> }
-            }
-        } else {
+    if let Hover::Router(router) = *hover {
+        let is_external = net.net().get_device(router).unwrap().is_external();
+        if is_external {
             html! { <GlobalOspfState {asn} {global_state}/> }
+        } else {
+            html! { <LocalOspfState {router} {asn} {global_state} /> }
         }
     } else {
-        html! {}
+        html! { <GlobalOspfState {asn} {global_state}/> }
     }
 }
 
