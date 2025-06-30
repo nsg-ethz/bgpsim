@@ -20,7 +20,7 @@ use std::{collections::HashSet, rc::Rc};
 use bgpsim::{
     formatter::NetworkFormatter,
     ospf::{LinkWeight, OspfArea},
-    types::RouterId,
+    types::{RouterId, ASN},
 };
 use web_sys::Element as WebElement;
 use yew::prelude::*;
@@ -149,7 +149,7 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
     let disabled = props.disabled.unwrap_or(false);
 
     // early exit if one of the links is towards an external router.
-    if info.src_external || info.dst_external {
+    if info.src_asn.is_none() || info.dst_asn.is_none() || info.src_asn != info.dst_asn {
         return html!();
     }
 
@@ -218,8 +218,8 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
 #[derive(PartialEq)]
 struct LinkWeightInfo {
     element_text: String,
-    src_external: bool,
-    dst_external: bool,
+    src_asn: Option<ASN>,
+    dst_asn: Option<ASN>,
     area: OspfArea,
     weight: LinkWeight,
 }
@@ -229,8 +229,8 @@ impl LinkWeightInfo {
         let net = &net.net();
         Self {
             element_text: format!("→ {}", dst.fmt(net)),
-            src_external: net.get_external_router(src).is_ok(),
-            dst_external: net.get_external_router(dst).is_ok(),
+            src_asn: net.get_device(src).ok().map(|x| x.asn()),
+            dst_asn: net.get_device(dst).ok().map(|x| x.asn()),
             area: net
                 .get_ospf_area(src, dst)
                 .unwrap_or_else(|_| OspfArea::backbone()),
