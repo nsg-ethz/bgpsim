@@ -150,7 +150,8 @@ mod t {
         net.add_link(rr, *R3).unwrap();
         net.build_link_weights(link_weights, ()).unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.build_ibgp_route_reflection(|_, rr| [rr], rr).unwrap();
+        net.build_ibgp_route_reflection(|_, _, rr| [*rr], rr)
+            .unwrap();
 
         let p = P::from(0);
         net.advertise_external_route(*E1, p, [1], None, None)
@@ -252,7 +253,8 @@ mod t {
         net.add_link(rr, *R3).unwrap();
         net.build_link_weights(link_weights, ()).unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.build_ibgp_route_reflection(|_, rr| [rr], rr).unwrap();
+        net.build_ibgp_route_reflection(|_, _, rr| [*rr], rr)
+            .unwrap();
 
         let p = P::from(0);
         net.advertise_external_route(*E1, p, [1], None, None)

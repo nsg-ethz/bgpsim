@@ -18,7 +18,7 @@ use crate::{
     event::BasicEventQueue,
     network::Network,
     ospf::{GlobalOspf, LocalOspf, OspfImpl},
-    types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
+    types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix, ASN},
 };
 use serde_json::{from_str, to_string_pretty};
 
@@ -30,8 +30,9 @@ mod t {
     #[test]
     fn serialization_small<P: Prefix, Ospf: OspfImpl>() {
         let mut net: Network<P, BasicEventQueue<P>, Ospf> =
-            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 10);
-        net.build_ibgp_route_reflection(k_random_nodes, 3).unwrap();
+            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 10, ASN(65500));
+        net.build_ibgp_route_reflection(k_random_nodes_in_as, 3)
+            .unwrap();
         net.build_external_routers(k_random_nodes, 5).unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_link_weights(uniform_integer_link_weight, (10, 100))

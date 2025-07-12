@@ -37,7 +37,7 @@ use crate::{
 use log::*;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 
 static DEFAULT_STOP_AFTER: usize = 1_000_000;
 /// The default AS number assigned to internal routers.
@@ -359,6 +359,14 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         }
     }
 
+    /// Get a list of all router indices (both internal and external) in a given AS
+    pub fn indices_in_as(&self, asn: ASN) -> IndicesInAs<'_> {
+        IndicesInAs {
+            i: self.ospf.routers.iter(),
+            asn,
+        }
+    }
+
     /// Return an iterator over all external router indices.
     pub fn external_indices(&self) -> ExternalIndices<'_, P, Ospf::Process> {
         ExternalIndices {
@@ -384,6 +392,19 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     pub fn external_routers(&self) -> ExternalRoutersIter<'_, P, Ospf::Process> {
         ExternalRoutersIter {
             i: self.routers.values(),
+        }
+    }
+
+    /// Get all ASes found in the network.
+    pub fn ases(&self) -> BTreeSet<ASN> {
+        self.ospf.domains.keys().copied().collect()
+    }
+
+    /// Get a list of all routers (both internal and external) in a given AS
+    pub fn routers_in_as(&self, asn: ASN) -> RoutersInAs<'_, P, Ospf::Process> {
+        RoutersInAs {
+            i: self.routers.values(),
+            asn,
         }
     }
 
@@ -1319,6 +1340,33 @@ impl<P: Prefix, Ospf> InternalIndices<'_, P, Ospf> {
     }
 }
 
+/// Iterator of all routers in a given as.
+#[derive(Debug)]
+pub struct IndicesInAs<'a> {
+    i: std::collections::hash_map::Iter<'a, RouterId, ASN>,
+    asn: ASN,
+}
+
+impl Iterator for IndicesInAs<'_> {
+    type Item = RouterId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for (id, asn) in self.i.by_ref() {
+            if *asn == self.asn {
+                return Some(*id);
+            }
+        }
+        None
+    }
+}
+
+impl IndicesInAs<'_> {
+    /// Detach the iterator from the network itself
+    pub fn detach(self) -> std::vec::IntoIter<RouterId> {
+        self.collect::<Vec<RouterId>>().into_iter()
+    }
+}
+
 /// Iterator of all external routers in the network.
 #[derive(Debug)]
 pub struct ExternalIndices<'a, P: Prefix, Ospf> {
@@ -1372,6 +1420,26 @@ impl<'a, P: Prefix, Ospf> Iterator for InternalRoutersIter<'a, P, Ospf> {
         for r in self.i.by_ref() {
             if let NetworkDevice::InternalRouter(r) = r {
                 return Some(r);
+            }
+        }
+        None
+    }
+}
+
+/// Iterator of all external routers in the network.
+#[derive(Debug)]
+pub struct RoutersInAs<'a, P: Prefix, Ospf> {
+    i: std::collections::hash_map::Values<'a, RouterId, NetworkDevice<P, Ospf>>,
+    asn: ASN,
+}
+
+impl<'a, P: Prefix, Ospf> Iterator for RoutersInAs<'a, P, Ospf> {
+    type Item = NetworkDeviceRef<'a, P, Ospf>;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        for r in self.i.by_ref() {
+            if r.asn() == self.asn {
+                return Some(r.as_ref());
             }
         }
         None

@@ -20,8 +20,8 @@ use std::iter::repeat_n;
 
 use crate::{
     builder::{
-        extend_to_k_external_routers, k_highest_degree_nodes, uniform_link_weight,
-        unique_preferences, NetworkBuilder,
+        extend_to_k_external_routers, k_highest_degree_nodes, k_highest_degree_nodes_in_as,
+        uniform_link_weight, unique_preferences, NetworkBuilder,
     },
     event::{EventQueue, ModelParams, SimpleTimingModel},
     interactive::InteractiveNetwork,
@@ -48,7 +48,7 @@ fn roland_pacificwave() {
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes, 2)
+        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
@@ -63,7 +63,8 @@ fn roland_pacificwave() {
     // create the policies
     let policies = Vec::from_iter(
         route_reflectors
-            .into_iter()
+            .into_values()
+            .flatten()
             .map(|r| FwPolicy::LoopFree(r, prefix)),
     );
 
@@ -104,7 +105,7 @@ fn roland_pacificwave_manual() {
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes, 2)
+        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
@@ -119,7 +120,8 @@ fn roland_pacificwave_manual() {
     // create the policies
     let policies = Vec::from_iter(
         route_reflectors
-            .into_iter()
+            .into_values()
+            .flatten()
             .map(|r| FwPolicy::LoopFree(r, prefix)),
     );
 
@@ -200,7 +202,7 @@ fn roland_arpanet() {
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes, 2)
+        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
@@ -215,7 +217,8 @@ fn roland_arpanet() {
     // create the policies
     let policies = Vec::from_iter(
         route_reflectors
-            .into_iter()
+            .into_values()
+            .flatten()
             .map(|r| FwPolicy::LoopFree(r, prefix)),
     );
 
@@ -256,7 +259,7 @@ fn roland_arpanet_manual() {
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes, 2)
+        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
@@ -271,7 +274,8 @@ fn roland_arpanet_manual() {
     // create the policies
     let policies = Vec::from_iter(
         route_reflectors
-            .into_iter()
+            .into_values()
+            .flatten()
             .map(|r| FwPolicy::LoopFree(r, prefix)),
     );
 
@@ -367,7 +371,7 @@ fn roland_arpanet_complete() {
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes, 2)
+        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
@@ -447,7 +451,8 @@ fn roland_arpanet_complete() {
 
     // policy: route reflectors strictly loopfree
     let transient_policies: Vec<_> = route_reflectors
-        .iter()
+        .values()
+        .flatten()
         .map(|&x| FwPolicy::LoopFree(x, prefix))
         .collect();
 

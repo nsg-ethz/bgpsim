@@ -1030,6 +1030,7 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Netw
         match self {
             NetworkError::DeviceError(e) => e.fmt(net),
             NetworkError::ConfigError(e) => e.fmt(net).to_string(),
+            NetworkError::UnknownAS(asn) => format!("No router in {asn} exists."),
             NetworkError::DeviceNotFound(r) => format!("Device with id={} not found!", r.index()),
             NetworkError::DeviceNameNotFound(n) => format!("Device with name={n} not found!"),
             NetworkError::DeviceIsExternalRouter(r) => {

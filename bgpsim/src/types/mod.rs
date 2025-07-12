@@ -525,6 +525,9 @@ pub enum NetworkError {
     /// Configuration error
     #[error("Configuration Error: {0}")]
     ConfigError(#[from] ConfigError),
+    /// The given AS does not exist in the network
+    #[error("The given AS does not exist in the network: {0:?}")]
+    UnknownAS(ASN),
     /// Device is not present in the topology
     #[error("Network device was not found in topology: {0:?}")]
     DeviceNotFound(RouterId),

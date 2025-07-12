@@ -25,7 +25,7 @@ use crate::{
     network::Network,
     ospf::OspfImpl,
     route_map::{RouteMapBuilder, RouteMapDirection},
-    types::{NonOverlappingPrefix, Prefix, SimplePrefix},
+    types::{NonOverlappingPrefix, Prefix, SimplePrefix, ASN},
 };
 
 mod cisco;
@@ -53,7 +53,7 @@ fn addressor<P: Prefix, Q, Ospf: OspfImpl>(
 
 fn generate_internal_config_full_mesh(target: Target) -> String {
     let mut net: Network<SimplePrefix, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();
@@ -68,11 +68,11 @@ fn generate_internal_config_full_mesh(target: Target) -> String {
 
 fn generate_internal_config_route_reflector(target: Target) -> String {
     let mut net: Network<SimplePrefix, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();
-    net.build_ibgp_route_reflection(|_, _| vec![0.into()], ())
+    net.build_ibgp_route_reflection(|_, _, _| vec![0.into()], ())
         .unwrap();
     net.build_ebgp_sessions().unwrap();
 
@@ -83,7 +83,8 @@ fn generate_internal_config_route_reflector(target: Target) -> String {
 }
 
 fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
-    let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+    let mut net: Network<P, _> =
+        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();
@@ -170,7 +171,8 @@ fn generate_internal_config_route_maps<P: Prefix>(target: Target) -> String {
 }
 
 fn net_for_route_maps_pec<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
-    let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+    let mut net: Network<P, _> =
+        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();
@@ -243,7 +245,8 @@ fn generate_internal_config_route_maps_with_pec<P: Prefix + NonOverlappingPrefix
 }
 
 fn generate_external_config<P: Prefix>(target: Target) -> String {
-    let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+    let mut net: Network<P, _> =
+        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();
@@ -259,7 +262,8 @@ fn generate_external_config<P: Prefix>(target: Target) -> String {
 }
 
 fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(target: Target) -> String {
-    let mut net: Network<P, _> = NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+    let mut net: Network<P, _> =
+        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();
@@ -287,7 +291,7 @@ fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(target: Target
 
 fn generate_external_config_withdraw(target: Target) -> (String, String) {
     let mut net: Network<SimplePrefix, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
     net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
         .unwrap();
     net.build_link_weights(constant_link_weight, 100.0).unwrap();

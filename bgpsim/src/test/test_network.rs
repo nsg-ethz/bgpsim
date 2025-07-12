@@ -936,7 +936,7 @@ mod t {
     fn bgp_state_incoming<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
-        net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        net.build_ibgp_route_reflection(|_, _, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_advertisements(p, equal_preferences, 2).unwrap();
@@ -1011,7 +1011,7 @@ mod t {
     fn bgp_state_incoming_2<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
-        net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        net.build_ibgp_route_reflection(|_, _, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(100)], None, None)
@@ -1080,7 +1080,7 @@ mod t {
     fn bgp_state_peers_incoming<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
-        net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        net.build_ibgp_route_reflection(|_, _, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_advertisements(p, equal_preferences, 2).unwrap();
@@ -1110,7 +1110,7 @@ mod t {
     fn bgp_state_outgoing<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
-        net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        net.build_ibgp_route_reflection(|_, _, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_advertisements(p, equal_preferences, 2).unwrap();
@@ -1188,7 +1188,7 @@ mod t {
     fn bgp_state_outgoing_2<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
-        net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        net.build_ibgp_route_reflection(|_, _, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(100)], None, None)
@@ -1254,7 +1254,7 @@ mod t {
     fn bgp_state_peers_outgoing<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
-        net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        net.build_ibgp_route_reflection(|_, _, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_advertisements(p, equal_preferences, 2).unwrap();
@@ -1287,7 +1287,7 @@ mod t {
     fn bgp_state_reach<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
-        net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        net.build_ibgp_route_reflection(|_, _, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_advertisements(p, equal_preferences, 2).unwrap();
@@ -1311,7 +1311,7 @@ mod t {
     fn bgp_state_propagation_path<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
-        net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        net.build_ibgp_route_reflection(|_, _, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_advertisements(p, equal_preferences, 2).unwrap();
@@ -1329,7 +1329,7 @@ mod t {
     fn bgp_state_transform<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_net_igp::<P, Ospf>();
         let p = P::from(1);
-        net.build_ibgp_route_reflection(|_, _| vec![*R2], ())
+        net.build_ibgp_route_reflection(|_, _, _| vec![*R2], ())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_advertisements(p, equal_preferences, 2).unwrap();

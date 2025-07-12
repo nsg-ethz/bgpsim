@@ -508,7 +508,7 @@ mod test {
         event::BasicEventQueue,
         export::{Addressor, DefaultAddressorBuilder},
         network::Network,
-        types::SinglePrefix as P,
+        types::{SinglePrefix as P, ASN},
     };
 
     use ipnet::Ipv4Net;
@@ -564,7 +564,7 @@ mod test {
     #[test]
     fn ip_addressor() {
         let mut net: Network<P, _> =
-            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
         net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
             .unwrap();
 
@@ -615,7 +615,7 @@ mod test {
     #[test]
     fn reverse_ip_addressor() {
         let mut net: Network<P, _> =
-            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4);
+            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
         net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
             .unwrap();
 

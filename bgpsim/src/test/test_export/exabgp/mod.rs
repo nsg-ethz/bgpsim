@@ -27,7 +27,7 @@ use std::time::Duration;
 use super::addressor;
 
 fn get_test_net<P: Prefix>(num_neighbors: usize) -> Network<P, BasicEventQueue<P>> {
-    let mut net = Network::build_complete_graph(BasicEventQueue::new(), num_neighbors);
+    let mut net = Network::build_complete_graph(BasicEventQueue::new(), num_neighbors, ASN(65500));
     let ext = net.add_external_router("external_router", ASN(100));
     net.internal_indices()
         .detach()

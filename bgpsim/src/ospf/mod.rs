@@ -21,8 +21,9 @@ pub mod global;
 mod iterator;
 pub mod local;
 pub use iterator::*;
+use petgraph::{prelude::StableGraph, Directed};
 
-use std::collections::{hash_map::Entry, HashMap, HashSet};
+use std::collections::{hash_map::Entry, BTreeSet, HashMap, HashSet};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -34,8 +35,8 @@ use crate::{
     forwarding_state::{ForwardingState, TO_DST},
     network::Network,
     types::{
-        DeviceError, NetworkDevice, NetworkError, NetworkErrorOption, Prefix, PrefixMap, RouterId,
-        SimplePrefix, ASN,
+        DeviceError, IndexType, NetworkDevice, NetworkError, NetworkErrorOption, Prefix, PrefixMap,
+        RouterId, SimplePrefix, ASN,
     },
 };
 
@@ -370,6 +371,39 @@ where
         Ok(events)
     }
 
+    /// Iterate over all router indices in that domain
+    pub fn indices(&self) -> DomainIndices<'_> {
+        DomainIndices(self.links.keys())
+    }
+
+    /// Generate a graph for only the given domain.
+    pub fn graph(&self) -> StableGraph<(), (LinkWeight, OspfArea), Directed, IndexType> {
+        let mut g = StableGraph::new();
+        let routers: BTreeSet<_> = self.links.keys().copied().collect();
+        let Some(max_router_id) = routers.last().copied() else {
+            return g;
+        };
+
+        // add all routers until we reach the maximum router id
+        while g.add_node(()) < max_router_id {}
+
+        // remove all indices that are not found in routers.
+        for r in (0..max_router_id.index() as u32).map(RouterId::from) {
+            if !routers.contains(&r) {
+                g.remove_node(r);
+            }
+        }
+
+        // add all internal links
+        for (r, neighbors) in &self.links {
+            for (neighbor, (weight, area)) in neighbors {
+                g.add_edge(*r, *neighbor, (*weight, *area));
+            }
+        }
+
+        g
+    }
+
     /// Return the OSPF weight of a link (or `LinkWeight::INFINITY` if the link does not exist).
     pub fn get_weight(&self, a: RouterId, b: RouterId) -> LinkWeight {
         self.links
@@ -630,6 +664,20 @@ where
                 ext: self.external_neighbors(r),
             })
             .unwrap_or_default()
+    }
+}
+
+/// Iterator over all router indices in a given domain (AS).
+#[derive(Debug, Clone, Default)]
+pub struct DomainIndices<'a>(
+    std::collections::hash_map::Keys<'a, RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
+);
+
+impl Iterator for DomainIndices<'_> {
+    type Item = RouterId;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        self.0.next().copied()
     }
 }
 
@@ -1009,8 +1057,8 @@ where
     }
 
     /// Get a reference to the OSPF coordinator struct for the given AS number
-    pub fn domain(&self, asn: ASN) -> Option<&OspfDomain<Ospf>> {
-        self.domains.get(&asn)
+    pub fn domain(&self, asn: ASN) -> Result<&OspfDomain<Ospf>, NetworkError> {
+        self.domains.get(&asn).ok_or(NetworkError::UnknownAS(asn))
     }
 
     /// Get a reference to the OSPF coordinator struct for the given AS number
@@ -1027,8 +1075,7 @@ where
         }
     }
 
-    /// Get an iterator over all external edges. Each link will appear once, from the internal
-    /// router to the external network.
+    /// Get an iterator over all external edges. Each link will appear exactly twice.
     pub fn external_edges(&self) -> ExternalEdges<'_> {
         ExternalEdges {
             outer: self

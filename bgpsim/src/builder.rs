@@ -69,14 +69,17 @@ use crate::{
 /// only after building the internal network.
 pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     /// Setup an iBGP full-mesh. This function will create a BGP peering session between every pair
-    /// of internal router, removing old sessions in the process.
+    /// of router in the same AS, removing old sessions in the process.
     fn build_ibgp_full_mesh(&mut self) -> Result<(), NetworkError>;
 
-    /// Setup an iBGP route-reflector topology. Every non-route-reflector in the network will be a
-    /// client of every route-reflector, and all route-reflectors will establish a full-mesh Peering
-    /// between each other. In the process of establishing the session, this function will remove
-    /// any iBGP session between internal routers. This function will return the route selected
-    /// route reflectors.
+    /// Setup an iBGP full-mesh in a given AS.
+    fn build_ibgp_full_mesh_in_as(&mut self, asn: ASN) -> Result<(), NetworkError>;
+
+    /// Setup an iBGP route-reflector topology in each AS separately. Every non-route-reflector in
+    /// the network will be a client of every route-reflector, and all route-reflectors will
+    /// establish a full-mesh Peering between each other. In the process of establishing the
+    /// session, this function will remove any iBGP session between internal routers. This function
+    /// will return the route selected route reflectors.
     ///
     /// The set of route reflectors are chosen by the function `rotue-reflectors`, which takes as an
     /// input the network topology, and returns a collection of router. The argument `a` will be
@@ -108,19 +111,60 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
         &mut self,
         route_reflectors: F,
         a: A,
-    ) -> Result<HashSet<RouterId>, NetworkError>
+    ) -> Result<HashMap<ASN, HashSet<RouterId>>, NetworkError>
     where
-        F: FnOnce(&Self, A) -> R,
+        F: FnMut(&Self, ASN, &mut A) -> R,
         R: IntoIterator<Item = RouterId>;
 
-    /// Establish all eBGP sessions between internal and external routerse that are connected by an
-    /// edge.
+    /// Setup an iBGP route-reflector topology in the given AS. Every non-route-reflector in the AS
+    /// will be a client of every route-reflector, and all route-reflectors will establish a
+    /// full-mesh Peering between each other. In the process of establishing the session, this
+    /// function will remove any iBGP session between internal routers. This function will return
+    /// the route selected route reflectors.
+    ///
+    /// The set of route reflectors are chosen by the function `rotue-reflectors`, which takes as an
+    /// input the network topology, and returns a collection of router. The argument `a` will be
+    /// passed as an additional argument to the function in order to influence its decision. See
+    /// [`k_random_nodes`] (requires the feature `rand`) and [`k_highest_degree_nodes`].
+    ///
+    /// This function will remove all internal bgp sessions if `route_reflectors` returns an empty
+    /// iterator.
+    ///
+    /// ```
+    /// # #[cfg(feature = "topology_zoo")]
+    /// # {
+    /// use bgpsim::prelude::*;
+    /// # use bgpsim::prelude::SimplePrefix as P;
+    /// # use bgpsim::topology_zoo::TopologyZoo;
+    /// # use bgpsim::event::BasicEventQueue as Queue;
+    /// use bgpsim::builder::{NetworkBuilder, k_highest_degree_nodes};
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let mut net: Network<SimplePrefix, _, GlobalOspf> = TopologyZoo::Abilene.build(Queue::new());
+    ///
+    /// // let mut net = ...
+    ///
+    /// net.build_ibgp_route_reflection_in_as(ASN(1), k_highest_degree_nodes, 2)?;
+    /// # Ok(())
+    /// # }
+    /// # }
+    /// ```
+    fn build_ibgp_route_reflection_in_as<F, A, R>(
+        &mut self,
+        asn: ASN,
+        route_reflectors: F,
+        a: A,
+    ) -> Result<HashSet<RouterId>, NetworkError>
+    where
+        F: FnOnce(&Self, ASN, &mut A) -> R,
+        R: IntoIterator<Item = RouterId>;
+
+    /// Establish all eBGP sessions on each link that connects two different ASes.
     fn build_ebgp_sessions(&mut self) -> Result<(), NetworkError>;
 
-    /// Set all link weights according to the function `link_weight`. For each pair of nodes
-    /// connected by a link, the function `link_weight` will be called. This function first takes
-    /// the source and destination `RouterId`, but also a reference to the network itself and the
-    /// arguments `a`, and returns the link weight for that link (directional). See
+    /// Set all internal link weights in all ASes according to the function `link_weight`. For each
+    /// pair of nodes connected by a link, the function `link_weight` will be called. This function
+    /// first takes the source and destination `RouterId`, but also a reference to the network
+    /// itself and the arguments `a`, and returns the link weight for that link (directional). See
     /// [`constant_link_weight`], [`uniform_link_weight`] (requires the feature `rand`), or
     /// [`uniform_integer_link_weight`] (requires the feature `rand`).
     ///
@@ -147,12 +191,47 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
         A: Clone,
         F: FnMut(RouterId, RouterId, &Self, A) -> LinkWeight;
 
-    /// Set all link weights according to the function `link_weight`. For each pair of nodes
-    /// connected by a link, the function `link_weight` will be called. This function first takes
-    /// the source and destination `RouterId`, but also a reference to the network itself and the
-    /// arguments `a`, and returns the link weight for that link (directional). In addition, the
-    /// function takes a mutable reference to the RNG, such that the result is deterministic. See
-    /// [`uniform_link_weight_seeded`] or [`uniform_integer_link_weight_seeded`].
+    /// Set all link weights in a single AS according to the function `link_weight`. For each pair
+    /// of nodes connected by a link, the function `link_weight` will be called. This function first
+    /// takes the source and destination `RouterId`, but also a reference to the network itself and
+    /// the arguments `a`, and returns the link weight for that link (directional). See
+    /// [`constant_link_weight`], [`uniform_link_weight`] (requires the feature `rand`), or
+    /// [`uniform_integer_link_weight`] (requires the feature `rand`).
+    ///
+    /// ```
+    /// # #[cfg(feature = "topology_zoo")]
+    /// # {
+    /// use bgpsim::prelude::*;
+    /// use bgpsim::prelude::SimplePrefix as P;
+    /// # use bgpsim::topology_zoo::TopologyZoo;
+    /// # use bgpsim::event::BasicEventQueue as Queue;
+    /// use bgpsim::builder::{NetworkBuilder, constant_link_weight};
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let mut net: Network<SimplePrefix, _, GlobalOspf> = TopologyZoo::Abilene.build(Queue::new());
+    ///
+    /// // let mut net = ...
+    ///
+    /// net.build_link_weights_in_as(ASN(1), constant_link_weight, 1.0)?;
+    /// # Ok(())
+    /// # }
+    /// # }
+    /// ```
+    fn build_link_weights_in_as<F, A>(
+        &mut self,
+        asn: ASN,
+        link_weight: F,
+        a: A,
+    ) -> Result<(), NetworkError>
+    where
+        A: Clone,
+        F: FnMut(RouterId, RouterId, &Self, A) -> LinkWeight;
+
+    /// Set all internal link weights in all ASes according to the function `link_weight`. For each
+    /// pair of nodes connected by a link, the function `link_weight` will be called. This function
+    /// first takes the source and destination `RouterId`, but also a reference to the network
+    /// itself and the arguments `a`, and returns the link weight for that link (directional). In
+    /// addition, the function takes a mutable reference to the RNG, such that the result is
+    /// deterministic. See [`uniform_link_weight_seeded`] or [`uniform_integer_link_weight_seeded`].
     ///
     /// ```
     /// # #[cfg(all(feature = "topology_zoo", feature = "rand"))]
@@ -178,6 +257,47 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
     fn build_link_weights_seeded<F, A, Rng>(
         &mut self,
+        rng: &mut Rng,
+        link_weight: F,
+        a: A,
+    ) -> Result<(), NetworkError>
+    where
+        A: Clone,
+        F: FnMut(RouterId, RouterId, &Self, &mut Rng, A) -> LinkWeight,
+        Rng: RngCore;
+
+    /// Set all link weights in a specific AS according to the function `link_weight`. For each pair
+    /// of nodes connected by a link, the function `link_weight` will be called. This function first
+    /// takes the source and destination `RouterId`, but also a reference to the network itself and
+    /// the arguments `a`, and returns the link weight for that link (directional). In addition, the
+    /// function takes a mutable reference to the RNG, such that the result is deterministic. See
+    /// [`uniform_link_weight_seeded`] or [`uniform_integer_link_weight_seeded`].
+    ///
+    /// ```
+    /// # #[cfg(all(feature = "topology_zoo", feature = "rand"))]
+    /// # {
+    /// use bgpsim::prelude::*;
+    /// use bgpsim::prelude::SimplePrefix as P;
+    /// # use bgpsim::topology_zoo::TopologyZoo;
+    /// # use bgpsim::event::BasicEventQueue as Queue;
+    /// use bgpsim::builder::{NetworkBuilder, uniform_link_weight_seeded};
+    /// use rand::prelude::*;
+    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
+    /// # let mut net: Network<SimplePrefix, _, GlobalOspf> = TopologyZoo::Abilene.build(Queue::new());
+    ///
+    /// let mut rng = StdRng::seed_from_u64(42);
+    /// // let mut net = ...
+    ///
+    /// net.build_link_weights_seeded_in_as(&mut rng, ASN(1), uniform_link_weight_seeded, (10.0, 100.0))?;
+    /// # Ok(())
+    /// # }
+    /// # }
+    /// ```
+    #[cfg(feature = "rand")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    fn build_link_weights_seeded_in_as<F, A, Rng>(
+        &mut self,
+        asn: ASN,
         rng: &mut Rng,
         link_weight: F,
         a: A,
@@ -286,55 +406,69 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
         R: IntoIterator<Item = RouterId>;
 
     /// Generate a complete graph with `n` nodes. Each router will be called `"R{x}"`, where `x`
-    /// is the router id.
-    fn build_complete_graph(queue: Q, n: usize) -> Self;
+    /// is the router id. Each router will be in the given AS.
+    fn build_complete_graph(queue: Q, n: usize, asn: ASN) -> Self;
 
     /// Generate a random graph with `n` nodes. Two nodes are connected with probability `p`. This
-    /// function will only create internal routers. Each router will be called `"R{x}"`, where `x`
-    /// is the router id. By setting `p = 1.0`, you will get a complete graph.
+    /// function will only create internal routers. Each router will have the given AS number, and
+    /// be called `"R{x}"`, where `x` is the router id. By setting `p = 1.0`, you will get a
+    /// complete graph.
     ///
     /// **Warning** This may not create a connected graph! Use `GraphBuilder::build_connected_graph`
     /// after calling this function to ensure that the resulting graph is connected.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_gnp(queue: Q, n: usize, p: f64) -> Self;
+    fn build_gnp(queue: Q, n: usize, p: f64, asn: ASN) -> Self;
 
     /// Generate a random graph with `n` nodes and `m` edges. The graph is chosen uniformly at
-    /// random from the set of all graphs with `n` nodes and `m` edges. Each router will be called
-    /// `"R{x}"`, where `x` is the router id.
+    /// random from the set of all graphs with `n` nodes and `m` edges. Each router will have the
+    /// given AS number and will be called `"R{x}"`, where `x` is the router id.
     ///
     /// **Warning** This may not create a connected graph! Use `GraphBuilder::build_connected_graph`
     /// after calling this function to ensure that the resulting graph is connected.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_gnm(queue: Q, n: usize, m: usize) -> Self;
+    fn build_gnm(queue: Q, n: usize, m: usize, asn: ASN) -> Self;
 
     /// Generate a random graph with `n` nodes. Then, place them randomly on a `dim`-dimensional
     /// euclidean space, where each component is within the range `0.0` to `1.0`. Then, connect two
-    /// nodes if and only if their euclidean distance is less than `dist`. Each router will be
-    /// called `"R{x}"`, where `x` is the router id.
+    /// nodes if and only if their euclidean distance is less than `dist`. Each router will have the
+    /// given AS number and will be called `"R{x}"`, where `x` is the router id.
     ///
     /// **Warning** This may not create a connected graph! Use `GraphBuilder::build_connected_graph`
     /// after calling this function to ensure that the resulting graph is connected.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize) -> Self;
+    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize, asn: ASN) -> Self;
 
     /// Generate a random graph using Barabási-Albert preferential attachment. A complete graph with
     /// `m` nodes is grown by attaching new nodes each with `m` edges that are preferentially
-    /// attached to existing nodes with high degree. Each router will be called `"R{x}"`, where `x`
-    /// is the router id. The resulting graph will always be connected.
+    /// attached to existing nodes with high degree. Each router will have the given AS number and
+    /// will be called `"R{x}"`, where `x` is the router id. The resulting graph will always be
+    /// connected.
     #[cfg(feature = "rand")]
     #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
-    fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Self;
+    fn build_barabasi_albert(queue: Q, n: usize, m: usize, asn: ASN) -> Self;
 
-    /// Make sure the graph is connected. This is done by first computing the set of all connected
-    /// components. Then, it iterates over all components (skipping the first one), and adds an edge
-    /// between a node of the current component and a node of any of the previous components. If the
-    /// feature `rand` is enabled, the nodes will be picked at random.
+    /// Make sure the graph in each individual AS is connected. This is done by first computing the
+    /// set of all connected components. Then, it iterates over all components (skipping the first
+    /// one), and adds an edge between a node of the current component and a node of any of the
+    /// previous components. If the feature `rand` is enabled, the nodes will be picked at random.
+    ///
+    /// **Warning**: Only adges within ASes are added.
     fn build_connected_graph(&mut self);
 
-    /// Build Gao-Rexford routing policies by assigning a peer type to each external network and
+    /// Make sure the graph in each individual AS is connected. This is done by first computing the
+    /// set of all connected components. Then, it iterates over all components (skipping the first
+    /// one), and adds an edge between a node of the current component and a node of any of the
+    /// previous components. If the feature `rand` is enabled, the nodes will be picked at random.
+    ///
+    /// **Warning**: Only adges within ASes are added.
+    fn build_connected_graph_in_as(&mut self, asn: ASN);
+
+    /// Build Gao-Rexford routing policies by generating a non-cyclic inter-domain business
+    /// relationship graph. Then, it configures each AS to follow the customer-peer-provider rules
+    /// as defined by Gao-Rexford. assigning a peer type to each external network and
     /// configuring route-maps accordingly. The roles are described in [`GaoRexfordPeerType`].
     /// The following table describes the export rules:
     ///
@@ -343,37 +477,6 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     /// | from customer | yes         | yes     | yes         |
     /// | from peer     | yes         | no      | no          |
     /// | from provider | yes         | no      | no          |
-    ///
-    /// The peer types are chosen according to the function `peer_type`. This is called for each
-    /// external network. Its arguments are `(external_network, net, a)`. We provide two functions
-    /// to use: [`GaoRexfordPeerType::random`] or [`GaoRexfordPeerType::lookup`].
-    ///
-    /// The following example shows how to create a network using gao-rexford policies
-    ///
-    /// ```
-    /// # #[cfg(feature = "topology_zoo, rand")]
-    /// # {
-    /// use bgpsim::prelude::*;
-    /// # use bgpsim::prelude::SimplePrefix as P;
-    /// # use bgpsim::event::BasicEventQueue as Queue;
-    /// use bgpsim::topology_zoo::TopologyZoo;
-    /// use bgpsim::builder::*;
-    /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
-    ///
-    /// # let mut net: Network<SimplePrefix, _, GlobalOspf> = TopologyZoo::Abilene.build(Queue::new());
-    /// # net.build_external_routers(extend_to_k_external_routers, 5)?;
-    /// # net.build_link_weights(constant_link_weight, 10.0)?;
-    /// # net.build_ibgp_full_mesh()?;
-    /// # net.build_ebgp_sessions()?;
-    /// // let mut net = ...
-    ///
-    /// // Use the `random` function to generate random peer types, with 20% change of assigning a
-    /// // customer, 30% chance of assigning a peer, and 50% chace of assigning a provider.
-    /// let lut = net.build_gao_rexford_policies(GaoRexfordPeerType::random, (0.2, 0.3))?;
-    /// # Ok(())
-    /// # }
-    /// # }
-    /// ```
     fn build_gao_rexford_policies<F, A>(
         &mut self,
         peer_type: F,
@@ -415,27 +518,99 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
 {
     fn build_ibgp_full_mesh(&mut self) -> Result<(), NetworkError> {
         let sessions = self
-            .internal_indices()
-            .detach()
+            .ospf
+            .domains()
+            .values()
+            .flat_map(|d| d.indices().tuple_combinations())
+            .map(|(a, b)| (a, b, Some(false)))
+            .collect::<Vec<_>>();
+
+        self.set_bgp_session_from(sessions)
+    }
+
+    fn build_ibgp_full_mesh_in_as(&mut self, asn: ASN) -> Result<(), NetworkError> {
+        let sessions = self
+            .ospf
+            .domain(asn)?
+            .indices()
             .tuple_combinations()
-            .map(|(a, b)| (a, b, Some(false)));
+            .map(|(a, b)| (a, b, Some(false)))
+            .collect::<Vec<_>>();
 
         self.set_bgp_session_from(sessions)
     }
 
     fn build_ibgp_route_reflection<F, A, R>(
         &mut self,
-        route_reflectors: F,
-        a: A,
-    ) -> Result<HashSet<RouterId>, NetworkError>
+        mut route_reflectors: F,
+        mut a: A,
+    ) -> Result<HashMap<ASN, HashSet<RouterId>>, NetworkError>
     where
-        F: FnOnce(&Self, A) -> R,
+        F: FnMut(&Self, ASN, &mut A) -> R,
         R: IntoIterator<Item = RouterId>,
     {
-        let route_reflectors: HashSet<RouterId> = route_reflectors(self, a).into_iter().collect();
+        let domains = self
+            .ospf
+            .routers
+            .iter()
+            .map(|(r, asn)| (*asn, *r))
+            .into_group_map();
+
         let mut sessions = Vec::new();
-        for src in self.internal_indices().detach() {
-            for dst in self.internal_indices().detach() {
+        let mut all_route_reflectors = HashMap::new();
+
+        for (asn, routers) in domains {
+            if routers.len() <= 1 {
+                continue;
+            }
+
+            let route_reflectors: HashSet<RouterId> =
+                route_reflectors(self, asn, &mut a).into_iter().collect();
+            for src in self.indices_in_as(asn).detach() {
+                for dst in self.indices_in_as(asn).detach() {
+                    if src.index() <= dst.index() {
+                        continue;
+                    }
+                    let src_is_rr = route_reflectors.contains(&src);
+                    let dst_is_rr = route_reflectors.contains(&dst);
+                    match (src_is_rr, dst_is_rr) {
+                        (true, true) => sessions.push((src, dst, Some(false))),
+                        (true, false) => sessions.push((src, dst, Some(true))),
+                        (false, true) => sessions.push((dst, src, Some(true))),
+                        (false, false) => sessions.push((src, dst, None)),
+                    }
+                }
+            }
+            all_route_reflectors.insert(asn, route_reflectors);
+        }
+
+        self.set_bgp_session_from(sessions)?;
+        Ok(all_route_reflectors)
+    }
+
+    fn build_ibgp_route_reflection_in_as<F, A, R>(
+        &mut self,
+        asn: ASN,
+        route_reflectors: F,
+        mut a: A,
+    ) -> Result<HashSet<RouterId>, NetworkError>
+    where
+        F: FnOnce(&Self, ASN, &mut A) -> R,
+        R: IntoIterator<Item = RouterId>,
+    {
+        let mut sessions = Vec::new();
+
+        let domain = self.ospf.domain(asn)?;
+        let routers: BTreeSet<_> = domain.indices().collect();
+
+        if routers.len() <= 1 {
+            return Ok(routers.into_iter().collect());
+        }
+
+        let route_reflectors: HashSet<RouterId> =
+            route_reflectors(self, asn, &mut a).into_iter().collect();
+        for src in self.indices_in_as(asn).detach() {
+            for dst in self.indices_in_as(asn).detach() {
                 if src.index() <= dst.index() {
                     continue;
                 }
@@ -449,24 +624,18 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
                 }
             }
         }
+
         self.set_bgp_session_from(sessions)?;
         Ok(route_reflectors)
     }
 
     fn build_ebgp_sessions(&mut self) -> Result<(), NetworkError> {
-        let mut sessions = Vec::new();
-        for ext in self.external_indices().detach() {
-            for neighbor in Vec::from_iter(self.net.neighbors(ext)) {
-                if !self
-                    .get_device(neighbor)
-                    .map(|x| x.is_internal())
-                    .unwrap_or(true)
-                {
-                    continue;
-                }
-                sessions.push((neighbor, ext, Some(false)));
-            }
-        }
+        let sessions = self
+            .ospf
+            .external_edges()
+            .map(|e| (e.int, e.ext, Some(false)))
+            .filter(|(a, b, _)| a.index() <= b.index())
+            .collect::<Vec<_>>();
         self.set_bgp_session_from(sessions)
     }
 
@@ -475,15 +644,33 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         A: Clone,
         F: FnMut(RouterId, RouterId, &Self, A) -> LinkWeight,
     {
-        // build an iterator over all links
         let weights = self
-            .net
-            .node_indices()
-            .flat_map(|src| self.net.neighbors(src).map(move |dst| (src, dst)))
-            .filter(|(src, dst)| {
-                self.get_device(*src).unwrap().is_internal()
-                    && self.get_device(*dst).unwrap().is_internal()
-            })
+            .ospf
+            .domains()
+            .values()
+            .flat_map(|d| d.internal_edges())
+            .map(|e| (e.src, e.dst))
+            .map(|(src, dst)| (src, dst, link_weight(src, dst, self, a.clone())))
+            .collect::<Vec<_>>();
+
+        self.set_link_weights_from(weights)
+    }
+
+    fn build_link_weights_in_as<F, A>(
+        &mut self,
+        asn: ASN,
+        mut link_weight: F,
+        a: A,
+    ) -> Result<(), NetworkError>
+    where
+        A: Clone,
+        F: FnMut(RouterId, RouterId, &Self, A) -> LinkWeight,
+    {
+        let weights = self
+            .ospf
+            .domain(asn)?
+            .internal_edges()
+            .map(|e| (e.src, e.dst))
             .map(|(src, dst)| (src, dst, link_weight(src, dst, self, a.clone())))
             .collect::<Vec<_>>();
 
@@ -504,13 +691,41 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         Rng: RngCore,
     {
         let mut edges = self
-            .net
-            .node_indices()
-            .flat_map(|src| self.net.neighbors(src).map(move |dst| (src, dst)))
-            .filter(|(src, dst)| {
-                self.get_device(*src).unwrap().is_internal()
-                    && self.get_device(*dst).unwrap().is_internal()
-            })
+            .ospf
+            .domains()
+            .values()
+            .flat_map(|d| d.internal_edges())
+            .map(|e| (e.src, e.dst))
+            .collect::<Vec<_>>();
+        edges.sort();
+
+        let weights = edges
+            .into_iter()
+            .map(|(src, dst)| (src, dst, link_weight(src, dst, self, rng, a.clone())))
+            .collect::<Vec<_>>();
+
+        self.set_link_weights_from(weights)
+    }
+
+    #[cfg(feature = "rand")]
+    #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+    fn build_link_weights_seeded_in_as<F, A, Rng>(
+        &mut self,
+        asn: ASN,
+        rng: &mut Rng,
+        mut link_weight: F,
+        a: A,
+    ) -> Result<(), NetworkError>
+    where
+        A: Clone,
+        F: FnMut(RouterId, RouterId, &Self, &mut Rng, A) -> LinkWeight,
+        Rng: RngCore,
+    {
+        let mut edges = self
+            .ospf
+            .domain(asn)?
+            .internal_edges()
+            .map(|e| (e.src, e.dst))
             .collect::<Vec<_>>();
         edges.sort();
 
@@ -581,11 +796,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         Ok(new_routers)
     }
 
-    fn build_complete_graph(queue: Q, n: usize) -> Self {
+    fn build_complete_graph(queue: Q, n: usize, asn: ASN) -> Self {
         let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{i}"));
+            net.add_router_with_asn(format!("R{i}"), asn);
         });
         for j in 1..n {
             for i in 0..j {
@@ -597,16 +812,16 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
     }
 
     #[cfg(feature = "rand")]
-    fn build_gnp(queue: Q, n: usize, p: f64) -> Self {
+    fn build_gnp(queue: Q, n: usize, p: f64, asn: ASN) -> Self {
         // check if we should build a complete graph,
         if p >= 1.0 {
-            return Self::build_complete_graph(queue, n);
+            return Self::build_complete_graph(queue, n, asn);
         }
         let mut rng = thread_rng();
         let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{i}"));
+            net.add_router_with_asn(format!("R{i}"), asn);
         });
 
         net.add_links_from(
@@ -627,18 +842,18 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
     }
 
     #[cfg(feature = "rand")]
-    fn build_gnm(queue: Q, n: usize, m: usize) -> Self {
+    fn build_gnm(queue: Q, n: usize, m: usize, asn: ASN) -> Self {
         // check if we should create a complete graph.
         let max_edges = n * (n - 1) / 2;
         if max_edges <= m {
-            return Self::build_complete_graph(queue, n);
+            return Self::build_complete_graph(queue, n, asn);
         }
 
         let mut rng = thread_rng();
         let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{i}"));
+            net.add_router_with_asn(format!("R{i}"), asn);
         });
 
         // early exit condition
@@ -662,12 +877,12 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
     }
 
     #[cfg(feature = "rand")]
-    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize) -> Self {
+    fn build_geometric(queue: Q, n: usize, dist: f64, dim: usize, asn: ASN) -> Self {
         let mut rng = thread_rng();
         let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{i}"));
+            net.add_router_with_asn(format!("R{i}"), asn);
         });
         let positions = Vec::from_iter(
             (0..n).map(|_| Vec::from_iter((0..dim).map(|_| rng.gen_range(0.0..1.0)))),
@@ -692,12 +907,12 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
     }
 
     #[cfg(feature = "rand")]
-    fn build_barabasi_albert(queue: Q, n: usize, m: usize) -> Self {
+    fn build_barabasi_albert(queue: Q, n: usize, m: usize, asn: ASN) -> Self {
         let mut rng = thread_rng();
         let mut net = Network::<P, Q, GlobalOspf>::new(queue);
         // create all routers
         (0..n).for_each(|i| {
-            net.add_router(format!("R{i}"));
+            net.add_router_with_asn(format!("R{i}"), asn);
         });
 
         // first, create a complete graph with min(n, m + 1) nodes
@@ -749,19 +964,26 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
     }
 
     fn build_connected_graph(&mut self) {
-        if self.internal_indices().next().is_none() {
-            return;
-        }
+        self.ases()
+            .into_iter()
+            .for_each(|asn| self.build_connected_graph_in_as(asn))
+    }
 
+    fn build_connected_graph_in_as(&mut self, asn: ASN) {
         #[cfg(feature = "rand")]
         let mut rng = thread_rng();
-        let g = &self.net;
+
+        let g = self.ospf.domain(asn).map(|d| d.graph()).unwrap_or_default();
+
+        // skip if the graph has fewer than 2 routers
+        if g.node_count() < 2 {
+            return;
+        }
 
         // compute the set of connected components
         let mut nodes_missing: BTreeSet<RouterId> = g.node_indices().collect();
         let mut components: Vec<Vec<RouterId>> = Vec::new();
-        while let Some(r) = nodes_missing.iter().next().cloned() {
-            let r = nodes_missing.take(&r).unwrap();
+        while let Some(r) = nodes_missing.pop_first() {
             let mut current_component = vec![r];
             let mut to_explore = vec![r];
             while let Some(r) = to_explore.pop() {
@@ -776,6 +998,9 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             current_component.shuffle(&mut rng);
             components.push(current_component);
         }
+
+        #[cfg(feature = "rand")]
+        components.shuffle(&mut rng);
 
         let mut main_component = components.pop().unwrap();
         let mut links = Vec::new();
@@ -829,54 +1054,10 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
 }
 
 fn _build_gao_rexford<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
-    net: &mut Network<P, Q, Ospf>,
-    lut: HashMap<RouterId, GaoRexfordPeerType>,
+    _net: &mut Network<P, Q, Ospf>,
+    _lut: HashMap<RouterId, GaoRexfordPeerType>,
 ) -> Result<HashMap<RouterId, GaoRexfordPeerType>, NetworkError> {
-    let links = net
-        .ospf_network()
-        .external_edges()
-        .map(|e| (e.ext, e.int))
-        .collect::<Vec<_>>();
-
-    // iterate over all external links
-    for (ext, int) in links {
-        // get the type
-        let kind = lut.get(&ext).copied().unwrap_or(GaoRexfordPeerType::Ignore);
-
-        let in_rm = RouteMapBuilder::new()
-            .order(10)
-            .allow()
-            .set_community(kind.community())
-            .set_local_pref(kind.local_pref())
-            .build();
-
-        let out_rms = match kind {
-            GaoRexfordPeerType::Customer => vec![],
-            GaoRexfordPeerType::Peer | GaoRexfordPeerType::Provider => vec![
-                RouteMapBuilder::new()
-                    .order(10)
-                    .deny()
-                    .match_community(GaoRexfordPeerType::Peer.community())
-                    .build(),
-                RouteMapBuilder::new()
-                    .order(20)
-                    .deny()
-                    .match_community(GaoRexfordPeerType::Provider.community())
-                    .build(),
-            ],
-            GaoRexfordPeerType::Ignore => continue,
-        };
-
-        // first, add the BGP session (if it not already exists)
-        net.set_bgp_session(ext, int, Some(false))?;
-
-        net.set_bgp_route_map(int, ext, RouteMapDirection::Incoming, in_rm)?;
-        for out_rm in out_rms {
-            net.set_bgp_route_map(int, ext, RouteMapDirection::Outgoing, out_rm)?;
-        }
-    }
-
-    Ok(lut)
+    todo!()
 }
 
 /// Select completely random internal nodes from the network. This can be used for the function
@@ -893,6 +1074,27 @@ pub fn k_random_nodes<P: Prefix, Q, Ospf: OspfImpl>(
     internal_nodes.into_iter().take(k)
 }
 
+/// Select completely random internal nodes from the network in the given AS. This can be used for
+/// the function [`NetworkBuilder::build_ibgp_route_reflection`] or
+/// [`NetworkBuilder::build_external_routers`].
+#[cfg(feature = "rand")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+pub fn k_random_nodes_in_as<P: Prefix, Q, Ospf: OspfImpl>(
+    net: &Network<P, Q, Ospf>,
+    asn: ASN,
+    k: &mut usize,
+) -> impl Iterator<Item = RouterId> {
+    let mut rng = thread_rng();
+    let mut internal_nodes = net
+        .ospf
+        .domain(asn)
+        .map(|d| d.indices())
+        .unwrap_or_default()
+        .collect::<Vec<RouterId>>();
+    internal_nodes.shuffle(&mut rng);
+    internal_nodes.into_iter().take(*k)
+}
+
 /// Select deterministically random internal nodes from the network. Use this for the functions
 /// [`NetworkBuilder::build_ibgp_route_reflection`] or [`NetworkBuilder::build_external_routers`].
 #[cfg(feature = "rand")]
@@ -906,6 +1108,28 @@ pub fn k_random_nodes_seeded<P: Prefix, Q, Ospf: OspfImpl, Rng: RngCore>(
     internal_nodes.sort();
     internal_nodes.shuffle(rng);
     internal_nodes.into_iter().take(k)
+}
+
+/// Select deterministically random internal nodes from the network in the given AS. Use this for
+/// the functions [`NetworkBuilder::build_ibgp_route_reflection`] or
+/// [`NetworkBuilder::build_external_routers`].
+#[cfg(feature = "rand")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+pub fn k_random_nodes_in_as_seeded<P: Prefix, Q, Ospf: OspfImpl, Rng: RngCore>(
+    net: &Network<P, Q, Ospf>,
+    asn: ASN,
+    args: &mut (&mut Rng, usize),
+) -> impl Iterator<Item = RouterId> {
+    let (rng, k) = args;
+    let mut internal_nodes = net
+        .ospf
+        .domain(asn)
+        .map(|d| d.indices())
+        .unwrap_or_default()
+        .collect::<Vec<RouterId>>();
+    internal_nodes.sort();
+    internal_nodes.shuffle(rng);
+    internal_nodes.into_iter().take(*k)
 }
 
 /// Select k internal routers of highest degree in the network. If some nodes have equal degree, then they will
@@ -926,6 +1150,24 @@ pub fn k_highest_degree_nodes<P: Prefix, Q, Ospf: OspfImpl>(
     internal_nodes.into_iter().take(k)
 }
 
+/// Select k internal routers of highest degree in the given AS. If some nodes have equal degree,
+/// then they will picked randomly if the feature `rand` is enabled. Otherwise, the function will be
+/// deterministic. This function can be used for [`NetworkBuilder::build_ibgp_route_reflection`].
+pub fn k_highest_degree_nodes_in_as<P: Prefix, Q, Ospf: OspfImpl>(
+    net: &Network<P, Q, Ospf>,
+    asn: ASN,
+    k: &mut usize,
+) -> impl Iterator<Item = RouterId> {
+    #[cfg(feature = "rand")]
+    let mut rng = thread_rng();
+    let mut nodes = net.indices_in_as(asn).collect::<Vec<RouterId>>();
+    #[cfg(feature = "rand")]
+    nodes.shuffle(&mut rng);
+    let g = net.get_topology();
+    nodes.sort_by_cached_key(|n| Reverse(g.neighbors_undirected(*n).count()));
+    nodes.into_iter().take(*k)
+}
+
 /// Select k internal routers of highest degree in the network. If some nodes have equal degree, then they will
 /// picked randomly and deterministically. This function can be used for
 /// [`NetworkBuilder::build_ibgp_route_reflection`] or [`NetworkBuilder::build_external_routers`].
@@ -942,6 +1184,25 @@ pub fn k_highest_degree_nodes_seeded<P: Prefix, Q, Ospf: OspfImpl, Rng: RngCore>
     let g = net.get_topology();
     internal_nodes.sort_by_cached_key(|n| Reverse(g.neighbors_undirected(*n).count()));
     internal_nodes.into_iter().take(k)
+}
+
+/// Select k internal routers of highest degree in the given AS. If some nodes have equal degree,
+/// then they will picked randomly and deterministically. This function can be used for
+/// [`NetworkBuilder::build_ibgp_route_reflection`].
+#[cfg(feature = "rand")]
+#[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
+pub fn k_highest_degree_nodes_in_as_seeded<P: Prefix, Q, Ospf: OspfImpl, Rng: RngCore>(
+    net: &Network<P, Q, Ospf>,
+    asn: ASN,
+    args: &mut (&mut Rng, usize),
+) -> impl Iterator<Item = RouterId> {
+    let (rng, k) = args;
+    let mut nodes = net.indices_in_as(asn).collect::<Vec<RouterId>>();
+    nodes.sort();
+    nodes.shuffle(rng);
+    let g = net.get_topology();
+    nodes.sort_by_cached_key(|n| Reverse(g.neighbors_undirected(*n).count()));
+    nodes.into_iter().take(*k)
 }
 
 /// This function will simply return the `weight`, if `src` and `dst` are both internal
