@@ -23,7 +23,7 @@ pub mod local;
 pub use iterator::*;
 use petgraph::{prelude::StableGraph, Directed};
 
-use std::collections::{hash_map::Entry, BTreeSet, HashMap, HashSet};
+use std::collections::{hash_map::Entry, BTreeMap, BTreeSet, HashMap, HashSet};
 
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -689,7 +689,7 @@ impl Iterator for DomainIndices<'_> {
 ))]
 pub struct OspfNetwork<Ospf = GlobalOspfCoordinator> {
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    pub(crate) domains: HashMap<ASN, OspfDomain<Ospf>>,
+    pub(crate) domains: BTreeMap<ASN, OspfDomain<Ospf>>,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
     pub(crate) routers: HashMap<RouterId, ASN>,
 }
@@ -697,7 +697,7 @@ pub struct OspfNetwork<Ospf = GlobalOspfCoordinator> {
 impl<Ospf> Default for OspfNetwork<Ospf> {
     fn default() -> Self {
         Self {
-            domains: HashMap::new(),
+            domains: BTreeMap::new(),
             routers: HashMap::new(),
         }
     }
@@ -1052,7 +1052,7 @@ where
     }
 
     /// Get a reference to the OSPF coordinator struct for the given AS number
-    pub fn domains(&self) -> &HashMap<ASN, OspfDomain<Ospf>> {
+    pub fn domains(&self) -> &BTreeMap<ASN, OspfDomain<Ospf>> {
         &self.domains
     }
 
@@ -1395,7 +1395,7 @@ impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Os
             }
         }
 
-        let mut domains = HashMap::new();
+        let mut domains = BTreeMap::new();
 
         // now, copy all data from the old processes to the new ones.
         for (asn, domain) in self.ospf.domains.into_iter() {
