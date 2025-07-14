@@ -951,10 +951,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
         match expr {
             ConfigModifier::Insert(x) => match x {
                 ConfigExpr::IgpLinkWeight { source, target, .. } => {
-                    self.get_link_weight(*source, *target).is_ok()
+                    self.ospf.get_area(*source, *target).is_some()
                 }
                 ConfigExpr::OspfArea { source, target, .. } => self
-                    .get_ospf_area(*source, *target)
+                    .ospf
+                    .get_area(*source, *target)
                     .map(|x| x == OspfArea::BACKBONE)
                     .unwrap_or(false),
                 ConfigExpr::BgpSession { source, target, .. } => match self.get_device(*source) {
@@ -994,10 +995,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
             },
             ConfigModifier::Remove(x) | ConfigModifier::Update { from: x, .. } => match x {
                 ConfigExpr::IgpLinkWeight { source, target, .. } => {
-                    self.get_link_weight(*source, *target).is_ok()
+                    self.ospf.get_area(*source, *target).is_some()
                 }
                 ConfigExpr::OspfArea { source, target, .. } => self
-                    .get_ospf_area(*source, *target)
+                    .ospf
+                    .get_area(*source, *target)
                     .map(|x| x != OspfArea::BACKBONE)
                     .unwrap_or(false),
                 ConfigExpr::BgpSession { source, target, .. } => match self.get_device(*source) {

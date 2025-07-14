@@ -30,11 +30,12 @@ mod t {
         network::Network,
         ospf::{GlobalOspf, LocalOspf, OspfImpl},
         topology_zoo::TopologyZoo,
-        types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix},
+        types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix, ASN},
     };
 
     fn get_net<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
-        let mut net: Network<P, _, Ospf> = TopologyZoo::Abilene.build(BasicEventQueue::new());
+        let mut net: Network<P, _, Ospf> =
+            TopologyZoo::Abilene.build(BasicEventQueue::new(), ASN(65500), ASN(1));
         net.build_external_routers(extend_to_k_external_routers, 3)
             .unwrap();
         net.build_link_weights(uniform_integer_link_weight, (10, 100))

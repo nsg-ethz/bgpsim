@@ -126,7 +126,8 @@ mod t {
     #[test]
     fn test_build_ibgp_rr_most_important<P: Prefix, Ospf: OspfImpl>() {
         use crate::topology_zoo::TopologyZoo;
-        let mut net: Network<P, _, Ospf> = TopologyZoo::Cesnet200511.build(Queue::new());
+        let mut net: Network<P, _, Ospf> =
+            TopologyZoo::Cesnet200511.build(Queue::new(), ASN(65500), ASN(1));
         let mut reflectors = net
             .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 3)
             .unwrap();
@@ -186,10 +187,10 @@ mod t {
             .unwrap();
         net.build_link_weights(constant_link_weight, 10.0).unwrap();
 
-        let g = net.get_topology();
+        let g = net.ospf_network().domain(ASN(65500)).unwrap().graph();
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
-            let weight = net.get_link_weight(a, b).unwrap();
+            let weight = net.ospf_network().get_weight(a, b);
             if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
             {
                 assert_eq!(weight, 10.0);
@@ -221,7 +222,7 @@ mod t {
         net.build_link_weights(uniform_link_weight, (10.0, 100.0))
             .unwrap();
 
-        let g = net.get_topology();
+        let g = net.ospf_network().domain(ASN(65500)).unwrap().graph();
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
             let weight = net.get_link_weight(a, b).unwrap();
@@ -249,7 +250,7 @@ mod t {
         net.build_link_weights(uniform_integer_link_weight, (10, 100))
             .unwrap();
 
-        let g = net.get_topology();
+        let g = net.ospf_network().domain(ASN(65500)).unwrap().graph();
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
             let weight = net.get_link_weight(a, b).unwrap();
@@ -341,13 +342,18 @@ mod t {
     #[cfg(feature = "rand")]
     #[test]
     fn test_build_connected_graph<P: Prefix, Ospf: OspfImpl>() {
-        use petgraph::algo::connected_components;
+        use petgraph::{algo::connected_components, Graph};
 
         let mut i = 0;
         while i < 10 {
             let mut net =
                 Network::<P, Queue<P>, Ospf>::build_gnp(Queue::new(), 20, 0.03, ASN(65500));
-            let g = Graph::from(net.get_topology().clone());
+            let g: Graph<_, _, _, _> = net
+                .ospf_network()
+                .domain(ASN(65500))
+                .unwrap()
+                .graph()
+                .into();
             let num_components = connected_components(&g);
             if num_components == 1 {
                 continue;
@@ -358,7 +364,12 @@ mod t {
             net.build_connected_graph();
 
             let num_edges_after = net.ospf.edges().count() / 2;
-            let g = Graph::from(net.get_topology().clone());
+            let g: Graph<_, _, _, _> = net
+                .ospf_network()
+                .domain(ASN(65500))
+                .unwrap()
+                .graph()
+                .into();
             let num_components_after = connected_components(&g);
             assert_eq!(num_components_after, 1);
             assert_eq!(num_edges_after - num_edges_before, num_components - 1);

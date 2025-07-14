@@ -40,7 +40,7 @@ use crate::{
     event::EventQueue,
     network::Network,
     ospf::OspfImpl,
-    types::{Prefix, RouterId},
+    types::{Prefix, RouterId, ASN},
 };
 
 use geoutils::Location;
@@ -2710,11 +2710,21 @@ pub enum TopologyZoo {
 
 impl TopologyZoo {
 
-    /// Generate the network.
-    pub fn build<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(&self, queue: Q) -> Network<P, Q, Ospf> {
+    /// Generate the network. All internal routers will get the provided internal ASN, while
+    /// external routers will get a unique ASN starting from `external_asn`.
+    pub fn build<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(&self, queue: Q, internal_asn: ASN, external_asn: ASN) -> Network<P, Q, Ospf> {
         TopologyZooParser::new(self.graphml())
             .unwrap()
-            .get_network(queue)
+            .get_network(queue, internal_asn, Some(external_asn))
+            .unwrap()
+    }
+
+    /// Generate the internal network only. All internal routers will get the provided internal ASN,
+    /// while no external routers will be created.
+    pub fn build_internal<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(&self, queue: Q, internal_asn: ASN) -> Network<P, Q, Ospf> {
+        TopologyZooParser::new(self.graphml())
+            .unwrap()
+            .get_network(queue, internal_asn, None)
             .unwrap()
     }
 

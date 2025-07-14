@@ -22,7 +22,7 @@ use bgpsim::event::BasicEventQueue;
 use bgpsim::network::Network;
 use bgpsim::ospf::global::GlobalOspf;
 use bgpsim::topology_zoo::TopologyZooParser;
-use bgpsim::types::SimplePrefix;
+use bgpsim::types::{SimplePrefix, ASN};
 use itertools::Itertools;
 
 fn main() {
@@ -68,19 +68,37 @@ fn main() {
         };
         println!("Generating {topo_name}");
         // generate the network
-        let net: Network<_, _, GlobalOspf> = match TopologyZooParser::new(&content)
-            .and_then(|p| p.get_network(BasicEventQueue::<SimplePrefix>::new()))
-        {
+        let net: Network<_, _, GlobalOspf> = match TopologyZooParser::new(&content).and_then(|p| {
+            p.get_network(
+                BasicEventQueue::<SimplePrefix>::new(),
+                ASN(65500),
+                Some(ASN(1)),
+            )
+        }) {
             Ok(net) => net,
             Err(_) => continue,
         };
-        let g = net.get_topology();
+
+        // also, try to generate the internal only network, just to be sure this also works
+        if TopologyZooParser::new(&content)
+            .and_then(|p| {
+                p.get_network::<_, _, GlobalOspf>(
+                    BasicEventQueue::<SimplePrefix>::new(),
+                    ASN(65500),
+                    None,
+                )
+            })
+            .is_err()
+        {
+            continue;
+        }
+
         // extract the properties
         let num_internals = net.internal_indices().count();
         let num_externals = net.external_indices().count();
         let num_routers = num_internals + num_externals;
-        let num_edges = g.edge_count();
         let num_internal_edges = net.ospf_network().internal_edges().count() / 2;
+        let num_edges = net.ospf_network().external_edges().count() / 2 + num_internal_edges;
 
         // there must be at least one edge
         if num_edges > 0 {

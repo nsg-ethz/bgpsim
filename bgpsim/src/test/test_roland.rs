@@ -20,8 +20,8 @@ use std::iter::repeat_n;
 
 use crate::{
     builder::{
-        extend_to_k_external_routers, k_highest_degree_nodes, k_highest_degree_nodes_in_as,
-        uniform_link_weight, unique_preferences, NetworkBuilder,
+        extend_to_k_external_routers, k_highest_degree_nodes_in_as, uniform_link_weight,
+        unique_preferences, NetworkBuilder,
     },
     event::{EventQueue, ModelParams, SimpleTimingModel},
     interactive::InteractiveNetwork,
@@ -30,7 +30,7 @@ use crate::{
     policies::{FwPolicy, Policy},
     record::{ConvergenceRecording, ConvergenceTrace, RecordNetwork},
     topology_zoo::TopologyZoo,
-    types::{SinglePrefix as P, StepUpdate},
+    types::{SinglePrefix as P, StepUpdate, ASN},
 };
 
 use pretty_assertions::assert_eq;
@@ -39,7 +39,7 @@ use pretty_assertions::assert_eq;
 fn roland_pacificwave() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net = TopologyZoo::Pacificwave.build(queue);
+    let mut net = TopologyZoo::Pacificwave.build(queue, ASN(65500), ASN(1));
     let prefix = P::from(1);
 
     // Make sure that at least 3 external routers exist
@@ -96,7 +96,8 @@ fn roland_pacificwave() {
 fn roland_pacificwave_manual() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Pacificwave.build(queue);
+    let mut net: Network<_, _, GlobalOspf> =
+        TopologyZoo::Pacificwave.build(queue, ASN(65500), ASN(1));
     let prefix = P::from(1);
 
     // Make sure that at least 3 external routers exist
@@ -193,7 +194,7 @@ fn roland_pacificwave_manual() {
 fn roland_arpanet() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net = TopologyZoo::Arpanet196912.build(queue);
+    let mut net = TopologyZoo::Arpanet196912.build(queue, ASN(65500), ASN(1));
     let prefix = P::from(1);
 
     // Make sure that at least 3 external routers exist
@@ -250,7 +251,8 @@ fn roland_arpanet() {
 fn roland_arpanet_manual() {
     // generate the network precisely as roland did:
     let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
-    let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Arpanet196912.build(queue);
+    let mut net: Network<_, _, GlobalOspf> =
+        TopologyZoo::Arpanet196912.build(queue, ASN(65500), ASN(1));
     let prefix = P::from(0);
 
     // Make sure that at least 3 external routers exist
@@ -363,7 +365,7 @@ fn roland_arpanet_complete() {
 
     let topology = TopologyZoo::Arpanet196912;
 
-    let mut net = topology.build(queue);
+    let mut net = topology.build(queue, ASN(65500), ASN(1));
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net

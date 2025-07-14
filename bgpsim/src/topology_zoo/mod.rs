@@ -45,7 +45,7 @@ use geoutils::Location;
 use ordered_float::NotNan;
 pub use topos::*;
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use thiserror::Error;
 use xmltree::{Element, ParseError as XmlParseError};
@@ -55,7 +55,7 @@ use crate::{
     network::Network,
     ospf::OspfImpl,
     prelude::GlobalOspf,
-    types::{IndexType, NetworkError, Prefix, RouterId},
+    types::{IndexType, NetworkError, Prefix, RouterId, ASN},
 };
 
 /// Structure to read the topology zoo GraphMl file.
@@ -113,27 +113,36 @@ impl TopologyZooParser {
     }
 
     /// Create and extract the network from the topology. This will generate the routers (both
-    /// internal and external, if given), and add all edges.
+    /// internal and external, if given), and add all edges. All internal routers will have the
+    /// given `internal_asn`, while external ones will get a unique one, starting from
+    /// `external_asn`.
     pub fn get_network<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
         &self,
         queue: Q,
+        internal_asn: ASN,
+        external_asn: Option<ASN>,
     ) -> Result<Network<P, Q, Ospf>, TopologyZooError> {
         let mut net: Network<P, Q, GlobalOspf> = Network::new(queue);
+        let mut routers_to_ignore = HashSet::new();
 
-        let mut last_as_id = 1000;
         let nodes_lut: HashMap<&str, RouterId> = self
             .nodes
             .iter()
-            .map(|r| {
-                (
-                    r.id.as_str(),
-                    if r.internal {
-                        net.add_router(r.name.clone())
-                    } else {
-                        last_as_id += 1;
-                        net.add_external_router(r.name.clone(), last_as_id)
-                    },
-                )
+            .filter_map(|r| {
+                if r.internal {
+                    Some((
+                        r.id.as_str(),
+                        net.add_router_with_asn(r.name.clone(), internal_asn),
+                    ))
+                } else if let Some(external_asn) = external_asn {
+                    Some((
+                        r.id.as_str(),
+                        net.add_external_router(r.name.clone(), net.next_unused_asn(external_asn)),
+                    ))
+                } else {
+                    routers_to_ignore.insert(r.id.as_str());
+                    None
+                }
             })
             .enumerate()
             .map(|(idx, (name, id))| {
@@ -148,6 +157,11 @@ impl TopologyZooParser {
         let mut links = Vec::new();
 
         for TopologyZooEdge { source, target } in self.edges.iter() {
+            if routers_to_ignore.contains(source.as_str())
+                || routers_to_ignore.contains(target.as_str())
+            {
+                continue;
+            }
             let src = *nodes_lut
                 .get(source.as_str())
                 .ok_or_else(|| TopologyZooError::NodeNotFound(source.clone()))?;

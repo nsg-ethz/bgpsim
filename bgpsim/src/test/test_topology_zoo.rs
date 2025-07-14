@@ -18,18 +18,16 @@ use crate::{
     network::Network,
     ospf::LocalOspf,
     topology_zoo::TopologyZoo,
-    types::{SimplePrefix, SinglePrefix},
+    types::{SimplePrefix, SinglePrefix, ASN},
 };
 
 #[test]
 fn test_all_single_global() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
         println!("{topo:?}");
-        let n: Network<SinglePrefix, _> = topo.build(BasicEventQueue::new());
+        let n: Network<SinglePrefix, _> = topo.build(BasicEventQueue::new(), ASN(65500), ASN(1));
         assert_eq!(n.internal_indices().count(), topo.num_internals());
         assert_eq!(n.external_indices().count(), topo.num_externals());
-        assert_eq!(n.get_topology().node_count(), topo.num_routers());
-        assert_eq!(n.get_topology().edge_count(), topo.num_edges());
     }
 }
 
@@ -37,11 +35,9 @@ fn test_all_single_global() {
 fn test_all_simple_global() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
         println!("{topo:?}");
-        let n: Network<SimplePrefix, _> = topo.build(BasicEventQueue::new());
+        let n: Network<SimplePrefix, _> = topo.build(BasicEventQueue::new(), ASN(65500), ASN(1));
         assert_eq!(n.internal_indices().count(), topo.num_internals());
         assert_eq!(n.external_indices().count(), topo.num_externals());
-        assert_eq!(n.get_topology().node_count(), topo.num_routers());
-        assert_eq!(n.get_topology().edge_count(), topo.num_edges());
     }
 }
 
@@ -49,11 +45,10 @@ fn test_all_simple_global() {
 fn test_all_single_local() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
         println!("{topo:?}");
-        let n: Network<SinglePrefix, _, LocalOspf> = topo.build(BasicEventQueue::new());
+        let n: Network<SinglePrefix, _, LocalOspf> =
+            topo.build(BasicEventQueue::new(), ASN(65500), ASN(1));
         assert_eq!(n.internal_indices().count(), topo.num_internals());
         assert_eq!(n.external_indices().count(), topo.num_externals());
-        assert_eq!(n.get_topology().node_count(), topo.num_routers());
-        assert_eq!(n.get_topology().edge_count(), topo.num_edges());
     }
 }
 
@@ -61,17 +56,17 @@ fn test_all_single_local() {
 fn test_all_simple_local() {
     for topo in TopologyZoo::topologies_increasing_nodes() {
         println!("{topo:?}");
-        let n: Network<SimplePrefix, _, LocalOspf> = topo.build(BasicEventQueue::new());
+        let n: Network<SimplePrefix, _, LocalOspf> =
+            topo.build(BasicEventQueue::new(), ASN(65500), ASN(1));
         assert_eq!(n.internal_indices().count(), topo.num_internals());
         assert_eq!(n.external_indices().count(), topo.num_externals());
-        assert_eq!(n.get_topology().node_count(), topo.num_routers());
-        assert_eq!(n.get_topology().edge_count(), topo.num_edges());
     }
 }
 
 #[test]
 fn test_extract() {
-    let n: Network<SimplePrefix, _> = TopologyZoo::Epoch.build(BasicEventQueue::new());
+    let n: Network<SimplePrefix, _> =
+        TopologyZoo::Epoch.build(BasicEventQueue::new(), ASN(65500), ASN(1));
 
     assert_eq!(
         n.get_device(0.into()).unwrap().unwrap_internal().name(),
@@ -98,19 +93,19 @@ fn test_extract() {
         "Atlanta"
     );
 
-    assert!(n.get_topology().find_edge(0.into(), 1.into()).is_some());
-    assert!(n.get_topology().find_edge(0.into(), 2.into()).is_some());
-    assert!(n.get_topology().find_edge(0.into(), 4.into()).is_some());
-    assert!(n.get_topology().find_edge(1.into(), 5.into()).is_some());
-    assert!(n.get_topology().find_edge(2.into(), 3.into()).is_some());
-    assert!(n.get_topology().find_edge(3.into(), 4.into()).is_some());
-    assert!(n.get_topology().find_edge(4.into(), 5.into()).is_some());
+    assert!(n.ospf_network().get_area(0.into(), 1.into()).is_some());
+    assert!(n.ospf_network().get_area(0.into(), 2.into()).is_some());
+    assert!(n.ospf_network().get_area(0.into(), 4.into()).is_some());
+    assert!(n.ospf_network().get_area(1.into(), 5.into()).is_some());
+    assert!(n.ospf_network().get_area(2.into(), 3.into()).is_some());
+    assert!(n.ospf_network().get_area(3.into(), 4.into()).is_some());
+    assert!(n.ospf_network().get_area(4.into(), 5.into()).is_some());
 
-    assert!(n.get_topology().find_edge(1.into(), 0.into()).is_some());
-    assert!(n.get_topology().find_edge(2.into(), 0.into()).is_some());
-    assert!(n.get_topology().find_edge(4.into(), 0.into()).is_some());
-    assert!(n.get_topology().find_edge(5.into(), 1.into()).is_some());
-    assert!(n.get_topology().find_edge(3.into(), 2.into()).is_some());
-    assert!(n.get_topology().find_edge(4.into(), 3.into()).is_some());
-    assert!(n.get_topology().find_edge(5.into(), 4.into()).is_some());
+    assert!(n.ospf_network().get_area(1.into(), 0.into()).is_some());
+    assert!(n.ospf_network().get_area(2.into(), 0.into()).is_some());
+    assert!(n.ospf_network().get_area(4.into(), 0.into()).is_some());
+    assert!(n.ospf_network().get_area(5.into(), 1.into()).is_some());
+    assert!(n.ospf_network().get_area(3.into(), 2.into()).is_some());
+    assert!(n.ospf_network().get_area(4.into(), 3.into()).is_some());
+    assert!(n.ospf_network().get_area(5.into(), 4.into()).is_some());
 }

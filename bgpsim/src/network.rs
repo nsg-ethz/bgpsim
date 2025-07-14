@@ -511,6 +511,10 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     // ********************
 
     /// Returns a reference to the network topology (PetGraph struct)
+    #[deprecated(
+        since = "0.20.0",
+        note = "Use functions provided by the `OspfNetwork` instead."
+    )]
     pub fn get_topology(&self) -> &PhysicalNetwork {
         &self.net
     }
@@ -529,6 +533,10 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
 
     /// Get the link weight of a specific link (directed). This function will raise a
     /// `NetworkError::LinkNotFound` if the link does not exist.
+    #[deprecated(
+        since = "0.20.0",
+        note = "Use functions provided by the `OspfNetwork` instead."
+    )]
     pub fn get_link_weight(
         &self,
         source: RouterId,
@@ -542,6 +550,10 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
 
     /// Get the OSPF area of a specific link (undirected). This function will raise a
     /// `NetworkError::LinkNotFound` if the link does not exist.
+    #[deprecated(
+        since = "0.20.0",
+        note = "Use functions provided by the `OspfNetwork` instead."
+    )]
     pub fn get_ospf_area(
         &self,
         source: RouterId,
@@ -1018,6 +1030,16 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     // *******************
     // * Local Functions *
     // *******************
+
+    /// Return the next unused AS number.
+    pub(crate) fn next_unused_asn(&self, start_asn: ASN) -> ASN {
+        for asn in ((start_asn.0)..).map(ASN) {
+            if !self.ospf.domains.contains_key(&asn) {
+                return asn;
+            }
+        }
+        panic!("Used too many AS numbers...")
+    }
 
     /// Private function that sets the session, but does not yet compute which sessions are actually
     /// active, and it does not run the queue
