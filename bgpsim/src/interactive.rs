@@ -539,14 +539,14 @@ fn worker<P: Prefix, T: Default, Ospf: OspfProcess>(
 /// # use bgpsim::topology_zoo::TopologyZoo;
 /// # use bgpsim::event::BasicEventQueue;
 /// # use bgpsim::builder::*;
-/// # let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Abilene.build(BasicEventQueue::new());
+/// # let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Abilene.build(BasicEventQueue::new(), 65500, 1);
 /// # let prefix = P::from(0);
-/// # net.build_external_routers(extend_to_k_external_routers, 3)?;
-/// # net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
+/// # net.build_external_routers(65500, 1, KRandomRouters::new(3))?;
+/// # net.build_ibgp_route_reflection(HighestDegreeRouters::new(2))?;
 /// # net.build_ebgp_sessions()?;
-/// # net.build_link_weights(constant_link_weight, 20.0)?;
-/// # let ads = net.build_advertisements(prefix, unique_preferences, 3)?;
-/// # let ext = ads[0][0];
+/// # net.build_link_weights(20.0)?;
+/// # let ads = net.build_advertisements(prefix, UniquePreference::new().internal_asn(65500), ASN(100))?;
+/// # let ext = ads[0].0;
 /// use bgpsim::interactive::PartialClone;
 ///
 /// // let mut net = ...

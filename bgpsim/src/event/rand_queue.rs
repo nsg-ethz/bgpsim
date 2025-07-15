@@ -224,15 +224,17 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
 /// type Net = Network<P, BasicEventQueue<P>, GlobalOspf>;
 ///
 /// // create the network with the basic event queue
-/// let mut net: Net = TopologyZoo::EliBackbone.build(BasicEventQueue::<P>::new());
+/// let mut net: Net = TopologyZoo::EliBackbone.build(BasicEventQueue::<P>::new(), 65500, 1);
 /// let prefix = P::from(0);
 ///
 /// // Build the configuration for the network
-/// net.build_external_routers(extend_to_k_external_routers, 3)?;
-/// net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
+/// net.build_external_routers(65500, 1, KRandomRouters::new(3))?;
+/// net.build_ibgp_route_reflection(HighestDegreeRouters::new(2))?;
 /// net.build_ebgp_sessions()?;
-/// net.build_link_weights(constant_link_weight, 20.0)?;
-/// let ads = net.build_advertisements(prefix, unique_preferences, 3)?;
+/// net.build_link_weights(20.0)?;
+/// let ads = net.build_advertisements(prefix, UniquePreference::new().internal_asn(65500), ASN(100))?;
+///
+/// let most_preferred = ads[0].0;
 ///
 /// // swap out the queue for the `GeoTimingModel`. We can use `unwrap` here because we know that
 /// // there are no events euqueued at the moment.
@@ -243,7 +245,7 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
 /// ));
 ///
 /// // execute the event and measure the time
-/// net.withdraw_external_route(ads[0][0], prefix)?;
+/// net.withdraw_external_route(most_preferred, prefix)?;
 /// # Ok(())
 /// # }
 /// # #[cfg(not(feature = "topology_zoo"))]

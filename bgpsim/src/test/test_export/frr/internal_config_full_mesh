@@ -82,7 +82,7 @@ router bgp 65500
   neighbor 10.0.2.1 update-source lo
   neighbor 10.0.3.1 remote-as 65500
   neighbor 10.0.3.1 update-source lo
-  neighbor 10.192.0.2 remote-as 4
+  neighbor 10.192.0.2 remote-as 100
   neighbor 10.192.0.2 update-source eth4
   address-family ipv4 unicast
     network 10.0.0.0/8

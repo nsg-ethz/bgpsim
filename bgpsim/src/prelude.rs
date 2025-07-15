@@ -16,7 +16,6 @@
 //! Convenience re-export of common members.
 
 pub use crate::bgp::{BgpRoute, BgpSessionType};
-pub use crate::builder::NetworkBuilder;
 pub use crate::config::NetworkConfig;
 pub use crate::event::{BasicEventQueue, EventQueue};
 pub use crate::formatter::*;

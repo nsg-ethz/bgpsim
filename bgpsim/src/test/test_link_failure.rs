@@ -20,6 +20,7 @@ mod t {
 
     use lazy_static::lazy_static;
 
+    use crate::builder::*;
     use crate::ospf::{GlobalOspf, LocalOspf, OspfImpl};
     use crate::prelude::*;
 
@@ -41,18 +42,12 @@ mod t {
     ///         |        |
     ///         R3 --5-- R4 ---- E4
     /// ```
-    fn link_weights<P: Prefix, Q, Ospf: OspfImpl>(
-        src: RouterId,
-        dst: RouterId,
-        _: &Network<P, Q, Ospf>,
-        _: (),
-    ) -> LinkWeight {
-        match (src.index(), dst.index()) {
-            (1, 2) | (2, 1) => 5.0,
-            (3, 4) | (4, 3) => 5.0,
-            _ => 1.0,
-        }
+    fn link_weights() -> crate::builder::Lookup<LinkWeight> {
+        crate::builder::Lookup::new(1.0)
+            .with_bidirectional(1.into(), 2.into(), 5.0)
+            .with_bidirectional(3.into(), 4.into(), 5.0)
     }
+
     fn get_test_topo<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
         let mut net = Network::default();
 
@@ -78,7 +73,7 @@ mod t {
         let _ = env_logger::try_init();
 
         let mut net = get_test_topo::<P, Ospf>();
-        net.build_link_weights(link_weights, ()).unwrap();
+        net.build_link_weights(link_weights()).unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_ibgp_full_mesh().unwrap();
 
@@ -148,10 +143,9 @@ mod t {
         let mut net = get_test_topo::<P, Ospf>();
         let rr = net.add_router("rr");
         net.add_link(rr, *R3).unwrap();
-        net.build_link_weights(link_weights, ()).unwrap();
+        net.build_link_weights(link_weights()).unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.build_ibgp_route_reflection(|_, _, rr| [*rr], rr)
-            .unwrap();
+        net.build_ibgp_route_reflection(vec![rr]).unwrap();
 
         let p = P::from(0);
         net.advertise_external_route(*E1, p, [1], None, None)
@@ -183,7 +177,7 @@ mod t {
     #[test]
     fn simple_failure<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_topo::<P, Ospf>();
-        net.build_link_weights(link_weights, ()).unwrap();
+        net.build_link_weights(link_weights()).unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_ibgp_full_mesh().unwrap();
 
@@ -251,10 +245,9 @@ mod t {
         let mut net = get_test_topo::<P, Ospf>();
         let rr = net.add_router("rr");
         net.add_link(rr, *R3).unwrap();
-        net.build_link_weights(link_weights, ()).unwrap();
+        net.build_link_weights(link_weights()).unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.build_ibgp_route_reflection(|_, _, rr| [*rr], rr)
-            .unwrap();
+        net.build_ibgp_route_reflection(vec![rr]).unwrap();
 
         let p = P::from(0);
         net.advertise_external_route(*E1, p, [1], None, None)

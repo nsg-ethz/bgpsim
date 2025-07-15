@@ -116,13 +116,14 @@ pub const RUNNER_POSTAMBLE: &str = "\nwhile True:\n    time.sleep(1)\n";
 /// // create the network and get the external router
 /// let mut net = {
 ///     // ...
-/// #   use bgpsim::builder::NetworkBuilder;
-/// #   let mut net: Network<_, _, GlobalOspf> = Network::build_complete_graph(BasicEventQueue::<P>::new(), 1);
+/// #   use bgpsim::builder::*;
+/// #   let mut net: Network<_, _, GlobalOspf> = Network::new(BasicEventQueue::<P>::new());
+/// #   net.build_topology(65500, CompleteGraph(1)).unwrap();
 /// #   let router = net.add_external_router("external_router", ASN(100));
 /// #   net.internal_indices().detach().for_each(|r| net.add_link(r, router).unwrap());
 /// #   net.build_ibgp_full_mesh()?;
 /// #   net.build_ebgp_sessions()?;
-/// #   net.build_link_weights(|_, _, _, _| 1.0, ())?;
+/// #   net.build_link_weights(1.0)?;
 /// #   net
 /// };
 /// let router = net.get_router_id("external_router")?;

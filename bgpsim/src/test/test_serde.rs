@@ -29,20 +29,33 @@ mod t {
 
     #[test]
     fn serialization_small<P: Prefix, Ospf: OspfImpl>() {
-        let mut net: Network<P, BasicEventQueue<P>, Ospf> =
-            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 10, ASN(65500));
-        net.build_ibgp_route_reflection(k_random_nodes_in_as, 3)
+        let mut net = Network::<P, BasicEventQueue<P>, Ospf>::new(BasicEventQueue::new());
+        net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
+        net.build_ibgp_route_reflection(KRandomRouters::new(3))
             .unwrap();
-        net.build_external_routers(k_random_nodes, 5).unwrap();
+        net.build_external_routers(ASN(65500), ASN(1), KRandomRouters::new(5))
+            .unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.build_link_weights(uniform_integer_link_weight, (10, 100))
+        net.build_link_weights(UniformWeights::new(10.0, 100.0).round())
             .unwrap();
-        net.build_advertisements(P::from(1), equal_preferences, 3)
-            .unwrap();
-        net.build_advertisements(P::from(2), equal_preferences, 3)
-            .unwrap();
-        net.build_advertisements(P::from(3), equal_preferences, 3)
-            .unwrap();
+        net.build_advertisements(
+            P::from(1),
+            EqualPreference::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
+        .unwrap();
+        net.build_advertisements(
+            P::from(2),
+            EqualPreference::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
+        .unwrap();
+        net.build_advertisements(
+            P::from(3),
+            EqualPreference::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
+        .unwrap();
 
         let json_str = to_string_pretty(&net).unwrap();
         for (i, l) in json_str.lines().enumerate() {

@@ -21,10 +21,7 @@ mod t {
     use serde_json::Value;
 
     use crate::{
-        builder::{
-            best_others_equal_preferences, extend_to_k_external_routers,
-            uniform_integer_link_weight, NetworkBuilder,
-        },
+        builder::*,
         event::BasicEventQueue,
         formatter::NetworkFormatter,
         network::Network,
@@ -36,16 +33,24 @@ mod t {
     fn get_net<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
         let mut net: Network<P, _, Ospf> =
             TopologyZoo::Abilene.build(BasicEventQueue::new(), ASN(65500), ASN(1));
-        net.build_external_routers(extend_to_k_external_routers, 3)
+        net.build_external_routers(ASN(65500), ASN(1), HighestDegreeRouters::new(3))
             .unwrap();
-        net.build_link_weights(uniform_integer_link_weight, (10, 100))
+        net.build_link_weights(UniformWeights::new(10.0, 100.0).round())
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_ibgp_full_mesh().unwrap();
-        net.build_advertisements(P::from(1), best_others_equal_preferences, 3)
-            .unwrap();
-        net.build_advertisements(P::from(2), best_others_equal_preferences, 3)
-            .unwrap();
+        net.build_advertisements(
+            P::from(1),
+            SingleBestOthersEqual::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
+        .unwrap();
+        net.build_advertisements(
+            P::from(2),
+            SingleBestOthersEqual::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
+        .unwrap();
         net
     }
 

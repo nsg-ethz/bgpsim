@@ -359,8 +359,6 @@ impl GlobalOspfCoordinator {
             }
         }
 
-        println!("{}: modified tables: {modified_tables:?}", self.asn);
-
         // Step 8: update the BGP tables wherever necessary
         let mut events = Vec::new();
         let empty = HashMap::new();

@@ -44,8 +44,8 @@ use crate::{
 };
 
 use geoutils::Location;
-use std::collections::HashMap;
 use include_flate::flate;
+use std::collections::HashMap;
 
 use serde::{Deserialize, Serialize};
 
@@ -323,19 +323,19 @@ flate!(static GRAPHML_Zamren: str from "topology_zoo/Zamren.graphml");
 /// use bgpsim::types::SimplePrefix as P;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
-/// let mut net = TopologyZoo::Abilene.build::<_, _, GlobalOspf>(BasicEventQueue::<P>::new());
+/// let mut net = TopologyZoo::Abilene.build::<_, _, GlobalOspf>(BasicEventQueue::<P>::new(), 65500, 1);
 /// let prefix = P::from(0);
 ///
-/// // Make sure that at least 3 external routers exist
-/// net.build_external_routers(extend_to_k_external_routers, 3)?;
+/// // Create three external routers
+/// net.build_external_routers(65500, 1, KRandomRouters::new(3))?;
 /// // create a route reflection topology with the two route reflectors of the highest degree
-/// net.build_ibgp_route_reflection(k_highest_degree_nodes, 2)?;
+/// net.build_ibgp_route_reflection(HighestDegreeRouters::new(2))?;
 /// // setup all external bgp sessions
 /// net.build_ebgp_sessions()?;
 /// // set all link weights to 10.0
-/// net.build_link_weights(constant_link_weight, 20.0)?;
+/// net.build_link_weights(20.0)?;
 /// // advertise 3 routes with unique preferences for a single prefix
-/// let _ = net.build_advertisements(prefix, unique_preferences, 3)?;
+/// let _ = net.build_advertisements(prefix, UniquePreference::new().internal_asn(65500), ASN(100))?;
 /// # Ok(())
 /// # }
 /// ```
@@ -2705,26 +2705,33 @@ pub enum TopologyZoo {
     ///
     /// <img src="http://topology-zoo.org/maps/Zamren.jpg" alt="--- No image available ---" width="400"/>
     Zamren,
-
 }
 
 impl TopologyZoo {
-
     /// Generate the network. All internal routers will get the provided internal ASN, while
     /// external routers will get a unique ASN starting from `external_asn`.
-    pub fn build<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(&self, queue: Q, internal_asn: ASN, external_asn: ASN) -> Network<P, Q, Ospf> {
+    pub fn build<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
+        &self,
+        queue: Q,
+        internal_asn: impl Into<ASN>,
+        external_asn: impl Into<ASN>,
+    ) -> Network<P, Q, Ospf> {
         TopologyZooParser::new(self.graphml())
             .unwrap()
-            .get_network(queue, internal_asn, Some(external_asn))
+            .get_network(queue, internal_asn.into(), Some(external_asn.into()))
             .unwrap()
     }
 
     /// Generate the internal network only. All internal routers will get the provided internal ASN,
     /// while no external routers will be created.
-    pub fn build_internal<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(&self, queue: Q, internal_asn: ASN) -> Network<P, Q, Ospf> {
+    pub fn build_internal<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
+        &self,
+        queue: Q,
+        internal_asn: impl Into<ASN>,
+    ) -> Network<P, Q, Ospf> {
         TopologyZooParser::new(self.graphml())
             .unwrap()
-            .get_network(queue, internal_asn, None)
+            .get_network(queue, internal_asn.into(), None)
             .unwrap()
     }
 
@@ -4070,7 +4077,9 @@ impl TopologyZoo {
 
     /// Get the geo location of the Topology Zoo
     pub fn geo_location(&self) -> HashMap<RouterId, Location> {
-        TopologyZooParser::new(self.graphml()).unwrap().get_geo_location()
+        TopologyZooParser::new(self.graphml())
+            .unwrap()
+            .get_geo_location()
     }
 
     /// Get all topologies with increasing number of internal nodes. If two topologies have the same number
@@ -5144,7 +5153,7 @@ impl std::str::FromStr for TopologyZoo {
             "uscarrier" => Ok(Self::UsCarrier),
             "cogentco" => Ok(Self::Cogentco),
             "kdl" => Ok(Self::Kdl),
-            _ => Err(s.to_string())
+            _ => Err(s.to_string()),
         }
     }
 }

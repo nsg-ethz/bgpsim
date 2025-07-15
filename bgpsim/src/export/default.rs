@@ -504,7 +504,7 @@ mod test {
     use std::net::Ipv4Addr;
 
     use crate::{
-        builder::NetworkBuilder,
+        builder::*,
         event::BasicEventQueue,
         export::{Addressor, DefaultAddressorBuilder},
         network::Network,
@@ -563,9 +563,9 @@ mod test {
 
     #[test]
     fn ip_addressor() {
-        let mut net: Network<P, _> =
-            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
-        net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+        let mut net = Network::<P, _>::new(BasicEventQueue::new());
+        net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
+        net.build_external_routers(ASN(65500), ASN(1), vec![0.into(), 1.into()])
             .unwrap();
 
         let mut ip = DefaultAddressorBuilder {
@@ -614,9 +614,9 @@ mod test {
 
     #[test]
     fn reverse_ip_addressor() {
-        let mut net: Network<P, _> =
-            NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
-        net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+        let mut net = Network::<P, _>::new(BasicEventQueue::new());
+        net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
+        net.build_external_routers(ASN(65500), ASN(1), vec![0.into(), 1.into()])
             .unwrap();
 
         let mut ip = DefaultAddressorBuilder {

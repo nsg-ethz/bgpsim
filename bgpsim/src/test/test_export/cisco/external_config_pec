@@ -21,7 +21,7 @@ exit
 route-map neighbor-out permit 65535
 exit
 !
-router bgp 4
+router bgp 100
   router-id 20.0.0.1
   neighbor 10.192.0.2 remote-as 65500
     update-source Ethernet8/1
@@ -55,7 +55,7 @@ exit
 interface Loopback5
   ip address 200.0.5.1/24
 exit
-router bgp 4
+router bgp 100
   address-family ipv4 unicast
     network 200.0.1.0/24
     network 200.0.2.0/24

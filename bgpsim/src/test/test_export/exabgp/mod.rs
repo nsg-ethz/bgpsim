@@ -14,7 +14,7 @@
 // limitations under the License.
 
 use crate::{
-    builder::NetworkBuilder,
+    builder::*,
     event::BasicEventQueue,
     export::{Addressor, ExaBgpCfgGen, ExternalCfgGen},
     network::Network,
@@ -27,14 +27,16 @@ use std::time::Duration;
 use super::addressor;
 
 fn get_test_net<P: Prefix>(num_neighbors: usize) -> Network<P, BasicEventQueue<P>> {
-    let mut net = Network::build_complete_graph(BasicEventQueue::new(), num_neighbors, ASN(65500));
+    let mut net = Network::<P, BasicEventQueue<P>>::new(BasicEventQueue::new());
+    net.build_topology(ASN(65500), CompleteGraph(num_neighbors))
+        .unwrap();
     let ext = net.add_external_router("external_router", ASN(100));
     net.internal_indices()
         .detach()
         .for_each(|r| net.add_link(r, ext).unwrap());
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    net.build_link_weights(|_, _, _, _| 1.0, ()).unwrap();
+    net.build_link_weights(1.0).unwrap();
 
     net
 }

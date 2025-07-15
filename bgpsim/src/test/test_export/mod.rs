@@ -16,7 +16,7 @@
 use bgpsim_macros::prefix;
 
 use crate::{
-    builder::{constant_link_weight, NetworkBuilder},
+    builder::*,
     event::BasicEventQueue,
     export::{
         cisco_frr_generators::Target, Addressor, CiscoFrrCfgGen, DefaultAddressor,
@@ -52,11 +52,11 @@ fn addressor<P: Prefix, Q, Ospf: OspfImpl>(
 }
 
 fn generate_internal_config_full_mesh(target: Target) -> String {
-    let mut net: Network<SimplePrefix, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
-    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+    let mut net = Network::<SimplePrefix, BasicEventQueue<_>>::new(BasicEventQueue::new());
+    net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
+    net.build_external_routers(ASN(65500), ASN(100), vec![0.into(), 1.into()])
         .unwrap();
-    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
 
@@ -67,13 +67,12 @@ fn generate_internal_config_full_mesh(target: Target) -> String {
 }
 
 fn generate_internal_config_route_reflector(target: Target) -> String {
-    let mut net: Network<SimplePrefix, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
-    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+    let mut net = Network::<SimplePrefix, BasicEventQueue<_>>::new(BasicEventQueue::new());
+    net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
+    net.build_external_routers(ASN(65500), ASN(100), vec![0.into(), 1.into()])
         .unwrap();
-    net.build_link_weights(constant_link_weight, 100.0).unwrap();
-    net.build_ibgp_route_reflection(|_, _, _| vec![0.into()], ())
-        .unwrap();
+    net.build_link_weights(100.0).unwrap();
+    net.build_ibgp_route_reflection(vec![0.into()]).unwrap();
     net.build_ebgp_sessions().unwrap();
 
     let mut ip = addressor(&net);
@@ -83,11 +82,11 @@ fn generate_internal_config_route_reflector(target: Target) -> String {
 }
 
 fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
-    let mut net: Network<P, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
-    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+    let mut net = Network::<P, BasicEventQueue<_>>::new(BasicEventQueue::new());
+    net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
+    net.build_external_routers(ASN(65500), ASN(100), vec![0.into(), 1.into()])
         .unwrap();
-    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
 
@@ -171,11 +170,11 @@ fn generate_internal_config_route_maps<P: Prefix>(target: Target) -> String {
 }
 
 fn net_for_route_maps_pec<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
-    let mut net: Network<P, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
-    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+    let mut net = Network::<P, BasicEventQueue<_>>::new(BasicEventQueue::new());
+    net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
+    net.build_external_routers(ASN(65500), ASN(100), vec![0.into(), 1.into()])
         .unwrap();
-    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
 
@@ -245,11 +244,11 @@ fn generate_internal_config_route_maps_with_pec<P: Prefix + NonOverlappingPrefix
 }
 
 fn generate_external_config<P: Prefix>(target: Target) -> String {
-    let mut net: Network<P, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
-    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+    let mut net = Network::<P, BasicEventQueue<_>>::new(BasicEventQueue::new());
+    net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
+    net.build_external_routers(ASN(65500), ASN(100), vec![0.into(), 1.into()])
         .unwrap();
-    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
     net.advertise_external_route(4.into(), P::from(0), [4, 4, 4, 2, 1], None, None)
@@ -262,11 +261,11 @@ fn generate_external_config<P: Prefix>(target: Target) -> String {
 }
 
 fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(target: Target) -> String {
-    let mut net: Network<P, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
-    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+    let mut net = Network::<P, BasicEventQueue<_>>::new(BasicEventQueue::new());
+    net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
+    net.build_external_routers(ASN(65500), ASN(100), vec![0.into(), 1.into()])
         .unwrap();
-    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
     net.advertise_external_route(4.into(), P::from(0), [4, 4, 4, 2, 1], None, None)
@@ -290,11 +289,11 @@ fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(target: Target
 }
 
 fn generate_external_config_withdraw(target: Target) -> (String, String) {
-    let mut net: Network<SimplePrefix, _> =
-        NetworkBuilder::build_complete_graph(BasicEventQueue::new(), 4, ASN(65500));
-    net.build_external_routers(|_, _| vec![0.into(), 1.into()], ())
+    let mut net = Network::<SimplePrefix, BasicEventQueue<_>>::new(BasicEventQueue::new());
+    net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
+    net.build_external_routers(ASN(65500), ASN(100), vec![0.into(), 1.into()])
         .unwrap();
-    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
     net.advertise_external_route(4.into(), SimplePrefix::from(0), [4, 4, 4, 2, 1], None, None)

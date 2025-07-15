@@ -29,13 +29,14 @@ mod t {
 
     #[test]
     fn test_build_complete_graph<P: Prefix, Ospf: OspfImpl>() {
-        let net = Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 0, ASN(65500));
+        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        net.build_topology(ASN(65500), CompleteGraph(0)).unwrap();
         assert_eq!(net.device_indices().count(), 0);
         assert_eq!(net.external_indices().count(), 0);
         assert_eq!(net.ospf.edges().count(), 0);
         for n in [1, 2, 10] {
-            let net =
-                Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), n, ASN(65500));
+            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            net.build_topology(ASN(65500), CompleteGraph(n)).unwrap();
             assert_eq!(net.device_indices().count(), n);
             assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.ospf.edges().count(), n * (n - 1));
@@ -45,9 +46,9 @@ mod t {
     #[test]
     fn test_build_ibgp_full_mesh<P: Prefix, Ospf: OspfImpl>() {
         for n in [0, 1, 10] {
-            let mut net =
-                Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), n, ASN(65500));
-            net.build_link_weights(constant_link_weight, 1.0).unwrap();
+            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            net.build_topology(ASN(65500), CompleteGraph(n)).unwrap();
+            net.build_link_weights(1.0).unwrap();
             net.build_ibgp_full_mesh().unwrap();
             for r in net.device_indices().detach() {
                 for other in net.device_indices().detach() {
@@ -72,11 +73,11 @@ mod t {
     #[test]
     fn test_build_ibgp_rr<P: Prefix, Ospf: OspfImpl>() {
         for n in [0, 1, 10] {
-            let mut net =
-                Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), n, ASN(65500));
-            net.build_link_weights(constant_link_weight, 1.0).unwrap();
+            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            net.build_topology(ASN(65500), CompleteGraph(n)).unwrap();
+            net.build_link_weights(1.0).unwrap();
             let rrs = net
-                .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 3)
+                .build_ibgp_route_reflection(HighestDegreeRouters::new(3))
                 .unwrap()
                 .remove(&ASN(65500))
                 .unwrap_or_default();
@@ -129,7 +130,7 @@ mod t {
         let mut net: Network<P, _, Ospf> =
             TopologyZoo::Cesnet200511.build(Queue::new(), ASN(65500), ASN(1));
         let mut reflectors = net
-            .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 3)
+            .build_ibgp_route_reflection(HighestDegreeRouters::new(3))
             .unwrap();
         assert_eq!(reflectors.len(), 1);
         let reflectors = reflectors.remove(&ASN(65500)).unwrap();
@@ -141,29 +142,29 @@ mod t {
 
     #[test]
     fn test_build_external_rotuers<P: Prefix, Ospf: OspfImpl>() {
-        let mut net =
-            Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10, ASN(65500));
+        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
         assert_eq!(net.external_indices().count(), 0);
         net.add_external_router("R1", ASN(1));
         assert_eq!(net.external_indices().count(), 1);
-        net.build_external_routers(extend_to_k_external_routers, 3)
+        net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        assert_eq!(net.external_indices().count(), 3);
-        net.build_external_routers(extend_to_k_external_routers, 3)
+        assert_eq!(net.external_indices().count(), 4);
+        net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        assert_eq!(net.external_indices().count(), 3);
-        net.build_external_routers(k_highest_degree_nodes, 3)
+        assert_eq!(net.external_indices().count(), 7);
+        net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        assert_eq!(net.external_indices().count(), 6);
+        assert_eq!(net.external_indices().count(), 10);
     }
 
     #[test]
     fn test_build_ebgp_sessions<P: Prefix, Ospf: OspfImpl>() {
-        let mut net =
-            Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10, ASN(65500));
-        net.build_external_routers(extend_to_k_external_routers, 3)
+        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
+        net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        net.build_link_weights(constant_link_weight, 1.0).unwrap();
+        net.build_link_weights(1.0).unwrap();
         let r_last = net.add_external_router("test", ASN(1000));
         net.build_ebgp_sessions().unwrap();
         for id in net.external_indices() {
@@ -181,11 +182,11 @@ mod t {
 
     #[test]
     fn test_build_link_weights<P: Prefix, Ospf: OspfImpl>() {
-        let mut net =
-            Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10, ASN(65500));
-        net.build_external_routers(extend_to_k_external_routers, 3)
+        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
+        net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        net.build_link_weights(constant_link_weight, 10.0).unwrap();
+        net.build_link_weights(10.0).unwrap();
 
         let g = net.ospf_network().domain(ASN(65500)).unwrap().graph();
         for e in g.edge_indices() {
@@ -215,11 +216,11 @@ mod t {
     #[cfg(feature = "rand")]
     #[test]
     fn test_build_link_weights_random<P: Prefix, Ospf: OspfImpl>() {
-        let mut net =
-            Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10, ASN(65500));
-        net.build_external_routers(extend_to_k_external_routers, 3)
+        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
+        net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        net.build_link_weights(uniform_link_weight, (10.0, 100.0))
+        net.build_link_weights(UniformWeights::new(10.0, 100.0))
             .unwrap();
 
         let g = net.ospf_network().domain(ASN(65500)).unwrap().graph();
@@ -243,11 +244,11 @@ mod t {
     fn test_build_link_weights_random_integer<P: Prefix, Ospf: OspfImpl>() {
         use crate::ospf::LinkWeight;
 
-        let mut net =
-            Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10, ASN(65500));
-        net.build_external_routers(extend_to_k_external_routers, 3)
+        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
+        net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        net.build_link_weights(uniform_integer_link_weight, (10, 100))
+        net.build_link_weights(UniformWeights::new(10.0, 100.0).round())
             .unwrap();
 
         let g = net.ospf_network().domain(ASN(65500)).unwrap().graph();
@@ -272,24 +273,26 @@ mod t {
     fn test_build_advertisements<P: Prefix, Ospf: OspfImpl>() {
         use crate::types::NetworkError;
 
-        let mut net =
-            Network::<P, Queue<P>, Ospf>::build_complete_graph(Queue::new(), 10, ASN(65500));
+        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
 
-        net.build_external_routers(extend_to_k_external_routers, 3)
+        net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        net.build_link_weights(uniform_link_weight, (10.0, 100.0))
+        net.build_link_weights(UniformWeights::new(10.0, 100.0))
             .unwrap();
 
         net.build_ibgp_full_mesh().unwrap();
         net.build_ebgp_sessions().unwrap();
         let p = P::from(0);
-        let advertisements = net.build_advertisements(p, unique_preferences, 4).unwrap();
+        let advertisements = net
+            .build_advertisements(p, UniquePreference::new().internal_asn(ASN(65500)), ASN(0))
+            .unwrap();
         assert_eq!(advertisements.len(), 3);
 
         let (e1, e2, e3) = (
-            advertisements[0][0],
-            advertisements[1][0],
-            advertisements[2][0],
+            advertisements[0].0,
+            advertisements[1].0,
+            advertisements[2].0,
         );
 
         assert_igp_reachability(&net);
@@ -346,8 +349,9 @@ mod t {
 
         let mut i = 0;
         while i < 10 {
-            let mut net =
-                Network::<P, Queue<P>, Ospf>::build_gnp(Queue::new(), 20, 0.03, ASN(65500));
+            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            net.build_topology(ASN(65500), GnpGraph::new(20, 0.03))
+                .unwrap();
             let g: Graph<_, _, _, _> = net
                 .ospf_network()
                 .domain(ASN(65500))
@@ -361,7 +365,7 @@ mod t {
             i += 1;
 
             let num_edges_before = net.ospf.edges().count() / 2;
-            net.build_connected_graph();
+            net.build_connected_graph().unwrap();
 
             let num_edges_after = net.ospf.edges().count() / 2;
             let g: Graph<_, _, _, _> = net
@@ -380,7 +384,9 @@ mod t {
     #[test]
     fn test_build_gnm<P: Prefix, Ospf: OspfImpl>() {
         for _ in 0..10 {
-            let net = Network::<P, Queue<P>, Ospf>::build_gnm(Queue::new(), 20, 20, ASN(65500));
+            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            net.build_topology(ASN(65500), GnmGraph::new(20, 20))
+                .unwrap();
             assert_eq!(net.internal_indices().count(), 20);
             assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.ospf.edges().count(), 20 * 2);
@@ -391,13 +397,9 @@ mod t {
     #[test]
     fn test_build_geometric_complete_graph<P: Prefix, Ospf: OspfImpl>() {
         for _ in 0..10 {
-            let net = Network::<P, Queue<P>, Ospf>::build_geometric(
-                Queue::new(),
-                20,
-                2.0_f64.sqrt(),
-                2,
-                ASN(65500),
-            );
+            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            net.build_topology(ASN(65500), GeometricGraph::new(20, 2, 2.0f64.sqrt()))
+                .unwrap();
             assert_eq!(net.internal_indices().count(), 20);
             assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.ospf.edges().count(), 20 * 19);
@@ -408,8 +410,9 @@ mod t {
     #[test]
     fn test_build_geometric_less_complete<P: Prefix, Ospf: OspfImpl>() {
         for _ in 0..10 {
-            let net =
-                Network::<P, Queue<P>, Ospf>::build_geometric(Queue::new(), 20, 0.5, 2, ASN(65500));
+            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            net.build_topology(ASN(65500), GeometricGraph::new(20, 2, 0.5))
+                .unwrap();
             assert_eq!(net.internal_indices().count(), 20);
             assert_eq!(net.external_indices().count(), 0);
             assert!(net.ospf.edges().count() < 20 * 19);
@@ -423,12 +426,9 @@ mod t {
         use petgraph::algo::connected_components;
 
         for _ in 0..10 {
-            let net = Network::<P, Queue<P>, Ospf>::build_barabasi_albert(
-                Queue::new(),
-                20,
-                3,
-                ASN(65500),
-            );
+            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            net.build_topology(ASN(65500), BarabasiAlbertGraph::new(20, 3))
+                .unwrap();
             assert_eq!(net.internal_indices().count(), 20);
             assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.ospf.edges().count(), (3 + (20 - 3) * 3) * 2);

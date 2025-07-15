@@ -19,10 +19,7 @@ use std::collections::HashSet;
 use std::iter::repeat_n;
 
 use crate::{
-    builder::{
-        extend_to_k_external_routers, k_highest_degree_nodes_in_as, uniform_link_weight,
-        unique_preferences, NetworkBuilder,
-    },
+    builder::*,
     event::{EventQueue, ModelParams, SimpleTimingModel},
     interactive::InteractiveNetwork,
     network::Network,
@@ -44,20 +41,24 @@ fn roland_pacificwave() {
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
-        .build_external_routers(extend_to_k_external_routers, 3)
+        .build_external_routers(ASN(65500), ASN(1), HighestDegreeRouters::new(3))
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
+        .build_ibgp_route_reflection(HighestDegreeRouters::new(2))
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
     // create random link weights between 10 and 100
-    net.build_link_weights(uniform_link_weight, (10.0, 100.0))
+    net.build_link_weights(UniformWeights::new(10.0, 100.0))
         .unwrap();
     // advertise 3 routes with unique preferences for a single prefix
     let advertisements = net
-        .build_advertisements(prefix, unique_preferences, 3)
+        .build_advertisements(
+            prefix,
+            UniquePreference::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
         .unwrap();
 
     // create the policies
@@ -68,6 +69,8 @@ fn roland_pacificwave() {
             .map(|r| FwPolicy::LoopFree(r, prefix)),
     );
 
+    let most_preferred = advertisements.iter().min_by_key(|(_, x)| *x).unwrap().0;
+
     // record the event 1_000 times
     for _ in 0..1_000 {
         // clone the network
@@ -75,7 +78,7 @@ fn roland_pacificwave() {
 
         // simulate the event
         let mut recording = net
-            .record(|net| net.withdraw_external_route(advertisements[0][0], prefix))
+            .record(|net| net.withdraw_external_route(most_preferred, prefix))
             .unwrap();
 
         // check the initial state
@@ -102,20 +105,24 @@ fn roland_pacificwave_manual() {
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
-        .build_external_routers(extend_to_k_external_routers, 3)
+        .build_external_routers(ASN(65500), ASN(1), HighestDegreeRouters::new(3))
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
+        .build_ibgp_route_reflection(HighestDegreeRouters::new(2))
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
     // create random link weights between 10 and 100
-    net.build_link_weights(uniform_link_weight, (10.0, 100.0))
+    net.build_link_weights(UniformWeights::new(10.0, 100.0))
         .unwrap();
     // advertise 3 routes with unique preferences for a single prefix
     let advertisements = net
-        .build_advertisements(prefix, unique_preferences, 3)
+        .build_advertisements(
+            prefix,
+            UniquePreference::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
         .unwrap();
 
     // create the policies
@@ -132,10 +139,11 @@ fn roland_pacificwave_manual() {
     // get the forwarding state before
     let fw_state_before = t.get_forwarding_state();
 
+    let most_preferred = advertisements.iter().min_by_key(|(_, x)| *x).unwrap().0;
+
     // execute the event
     t.manual_simulation();
-    t.withdraw_external_route(advertisements[0][0], prefix)
-        .unwrap();
+    t.withdraw_external_route(most_preferred, prefix).unwrap();
 
     // compute the fw state diff
     let fw_state_after = t.get_forwarding_state();
@@ -199,20 +207,24 @@ fn roland_arpanet() {
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
-        .build_external_routers(extend_to_k_external_routers, 3)
+        .build_external_routers(ASN(65500), ASN(1), HighestDegreeRouters::new(3))
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
+        .build_ibgp_route_reflection(HighestDegreeRouters::new(2))
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
     // create random link weights between 10 and 100
-    net.build_link_weights(uniform_link_weight, (10.0, 100.0))
+    net.build_link_weights(UniformWeights::new(10.0, 100.0))
         .unwrap();
     // advertise 3 routes with unique preferences for a single prefix
     let advertisements = net
-        .build_advertisements(prefix, unique_preferences, 3)
+        .build_advertisements(
+            prefix,
+            UniquePreference::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
         .unwrap();
 
     // create the policies
@@ -223,6 +235,8 @@ fn roland_arpanet() {
             .map(|r| FwPolicy::LoopFree(r, prefix)),
     );
 
+    let most_preferred = advertisements.iter().min_by_key(|(_, x)| *x).unwrap().0;
+
     // record the event 1_000 times
     for _ in 0..1_000 {
         // clone the network
@@ -230,7 +244,7 @@ fn roland_arpanet() {
 
         // simulate the event
         let mut recording = net
-            .record(|net| net.withdraw_external_route(advertisements[0][0], prefix))
+            .record(|net| net.withdraw_external_route(most_preferred, prefix))
             .unwrap();
 
         // check the initial state
@@ -257,20 +271,24 @@ fn roland_arpanet_manual() {
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
-        .build_external_routers(extend_to_k_external_routers, 3)
+        .build_external_routers(ASN(65500), ASN(1), HighestDegreeRouters::new(3))
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
+        .build_ibgp_route_reflection(HighestDegreeRouters::new(2))
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
     // create random link weights between 10 and 100
-    net.build_link_weights(uniform_link_weight, (10.0, 100.0))
+    net.build_link_weights(UniformWeights::new(10.0, 100.0))
         .unwrap();
     // advertise 3 routes with unique preferences for a single prefix
     let advertisements = net
-        .build_advertisements(prefix, unique_preferences, 3)
+        .build_advertisements(
+            prefix,
+            UniquePreference::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
         .unwrap();
 
     // create the policies
@@ -290,9 +308,10 @@ fn roland_arpanet_manual() {
     // get the forwarding state before
     let fw_state_before = t.get_forwarding_state();
 
+    let most_preferred = advertisements.iter().min_by_key(|(_, x)| *x).unwrap().0;
+
     // execute the event
-    t.withdraw_external_route(advertisements[0][0], prefix)
-        .unwrap();
+    t.withdraw_external_route(most_preferred, prefix).unwrap();
 
     // compute the fw state diff
     let fw_state_after = t.get_forwarding_state();
@@ -369,20 +388,24 @@ fn roland_arpanet_complete() {
 
     // Make sure that at least 3 external routers exist
     let _external_routers = net
-        .build_external_routers(extend_to_k_external_routers, 3)
+        .build_external_routers(ASN(65500), ASN(1), HighestDegreeRouters::new(3))
         .unwrap();
     // create a route reflection topology with the two route reflectors of the highest degree
     let route_reflectors = net
-        .build_ibgp_route_reflection(k_highest_degree_nodes_in_as, 2)
+        .build_ibgp_route_reflection(HighestDegreeRouters::new(2))
         .unwrap();
     // setup all external bgp sessions
     net.build_ebgp_sessions().unwrap();
     // create random link weights between 10 and 100
-    net.build_link_weights(uniform_link_weight, (10.0, 100.0))
+    net.build_link_weights(UniformWeights::new(10.0, 100.0))
         .unwrap();
     // advertise 3 routes with unique preferences for a single prefix
     let advertisements = net
-        .build_advertisements(prefix, unique_preferences, 3)
+        .build_advertisements(
+            prefix,
+            UniquePreference::new().internal_asn(ASN(65500)),
+            ASN(0),
+        )
         .unwrap();
 
     // start simulation of withdrawal of the preferred route
@@ -399,9 +422,10 @@ fn roland_arpanet_complete() {
     // get the forwarding state before
     let fw_state_before = t.get_forwarding_state();
 
+    let most_preferred = advertisements.iter().min_by_key(|(_, x)| *x).unwrap().0;
+
     // execute the function
-    t.withdraw_external_route(advertisements[0][0], prefix)
-        .unwrap();
+    t.withdraw_external_route(most_preferred, prefix).unwrap();
 
     // get the forwarding state difference and start generating the trace
     let fw_state_after = t.get_forwarding_state();

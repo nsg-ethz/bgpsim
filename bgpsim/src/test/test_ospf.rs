@@ -18,7 +18,7 @@
 use std::collections::{BTreeMap, HashMap, HashSet};
 
 use crate::{
-    builder::{constant_link_weight, NetworkBuilder},
+    builder::*,
     event::BasicEventQueue,
     formatter::NetworkFormatter,
     network::Network,
@@ -88,7 +88,7 @@ fn test_net<Ospf: OspfImpl>() -> Result<
     ])?;
 
     // build the link weights
-    net.build_link_weights(constant_link_weight, 1.0)?;
+    net.build_link_weights(1.0)?;
 
     // build an iBGP full-mesh
     net.build_ibgp_full_mesh()?;
@@ -157,7 +157,7 @@ fn test_net_disconnected<Ospf: OspfImpl>() -> Result<
     ])?;
 
     // build the link weights
-    net.build_link_weights(constant_link_weight, 1.0)?;
+    net.build_link_weights(1.0)?;
 
     // build an iBGP full-mesh
     net.build_ibgp_full_mesh()?;
