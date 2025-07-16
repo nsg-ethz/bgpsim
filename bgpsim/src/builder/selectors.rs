@@ -162,13 +162,13 @@ impl RouterSelector for HighestDegreeRouters {
 #[cfg_attr(docsrs, doc(cfg(feature = "rand")))]
 /// Select `k` random routers.
 #[derive(Debug, Clone)]
-pub struct KRandomRouters<R> {
+pub struct RandomRouters<R> {
     rng: R,
     k: usize,
 }
 
 #[cfg(feature = "rand")]
-impl KRandomRouters<ThreadRng> {
+impl RandomRouters<ThreadRng> {
     /// Generate a selector that selects `k` random routers.
     pub fn new(k: usize) -> Self {
         Self {
@@ -179,7 +179,7 @@ impl KRandomRouters<ThreadRng> {
 }
 
 #[cfg(feature = "rand")]
-impl KRandomRouters<StdRng> {
+impl RandomRouters<StdRng> {
     /// Generate a selector that selects `k` random routers based on a seeded RNG.
     pub fn seeded(seed: u64, k: usize) -> Self {
         Self {
@@ -190,7 +190,7 @@ impl KRandomRouters<StdRng> {
 }
 
 #[cfg(feature = "rand")]
-impl<R> KRandomRouters<R> {
+impl<R> RandomRouters<R> {
     /// Generate a selector that selects `k` random routers based on the provided RNG.
     pub fn from_rng(rng: R, k: usize) -> Self {
         Self { rng, k }
@@ -198,7 +198,7 @@ impl<R> KRandomRouters<R> {
 }
 
 #[cfg(feature = "rand")]
-impl<R: RngCore> RouterSelector for KRandomRouters<R> {
+impl<R: RngCore> RouterSelector for RandomRouters<R> {
     fn select<P: Prefix, Q, Ospf: OspfImpl>(
         &mut self,
         net: &Network<P, Q, Ospf>,

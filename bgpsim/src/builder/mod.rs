@@ -56,7 +56,7 @@ use itertools::Itertools;
 /// // Create a complete graph with 10 nodes.
 /// net.build_topology(65500, CompleteGraph(10));
 /// // Create three external networks (with ASN 1, 2, and 3)
-/// net.build_external_routers(65500, 1, KRandomRouters::new(3))?;
+/// net.build_external_routers(65500, 1, RandomRouters::new(3))?;
 /// // create a route reflection topology with the two route reflectors of the highest degree
 /// net.build_ibgp_route_reflection(HighestDegreeRouters::new(2))?;
 /// // setup all external bgp sessions
@@ -185,7 +185,7 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     /// // let mut net = ...
     ///
     /// // Generate three external routers with ASN 1, 2, and 3.
-    /// let _ = net.build_external_routers(ASN(65500), ASN(1), KRandomRouters::new(3))?;
+    /// let _ = net.build_external_routers(ASN(65500), ASN(1), RandomRouters::new(3))?;
     /// # Ok(())
     /// # }
     /// # }

@@ -228,7 +228,7 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
 /// let prefix = P::from(0);
 ///
 /// // Build the configuration for the network
-/// net.build_external_routers(65500, 1, KRandomRouters::new(3))?;
+/// net.build_external_routers(65500, 1, RandomRouters::new(3))?;
 /// net.build_ibgp_route_reflection(HighestDegreeRouters::new(2))?;
 /// net.build_ebgp_sessions()?;
 /// net.build_link_weights(20.0)?;

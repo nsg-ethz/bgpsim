@@ -31,9 +31,9 @@ mod t {
     fn serialization_small<P: Prefix, Ospf: OspfImpl>() {
         let mut net = Network::<P, BasicEventQueue<P>, Ospf>::new(BasicEventQueue::new());
         net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
-        net.build_ibgp_route_reflection(KRandomRouters::new(3))
+        net.build_ibgp_route_reflection(RandomRouters::new(3))
             .unwrap();
-        net.build_external_routers(ASN(65500), ASN(1), KRandomRouters::new(5))
+        net.build_external_routers(ASN(65500), ASN(1), RandomRouters::new(5))
             .unwrap();
         net.build_ebgp_sessions().unwrap();
         net.build_link_weights(UniformWeights::new(10.0, 100.0).round())

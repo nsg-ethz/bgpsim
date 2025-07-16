@@ -327,7 +327,7 @@ flate!(static GRAPHML_Zamren: str from "topology_zoo/Zamren.graphml");
 /// let prefix = P::from(0);
 ///
 /// // Create three external routers
-/// net.build_external_routers(65500, 1, KRandomRouters::new(3))?;
+/// net.build_external_routers(65500, 1, RandomRouters::new(3))?;
 /// // create a route reflection topology with the two route reflectors of the highest degree
 /// net.build_ibgp_route_reflection(HighestDegreeRouters::new(2))?;
 /// // setup all external bgp sessions

@@ -312,8 +312,7 @@ impl<T> BgpStateGraph<T> {
         f: F,
     ) -> Self {
         let mut g = net
-            .get_topology()
-            .node_indices()
+            .device_indices()
             .map(|id| (id, BgpStateNode::default()))
             .collect::<HashMap<_, _>>();
 

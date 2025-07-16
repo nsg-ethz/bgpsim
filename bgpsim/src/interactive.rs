@@ -541,7 +541,7 @@ fn worker<P: Prefix, T: Default, Ospf: OspfProcess>(
 /// # use bgpsim::builder::*;
 /// # let mut net: Network<_, _, GlobalOspf> = TopologyZoo::Abilene.build(BasicEventQueue::new(), 65500, 1);
 /// # let prefix = P::from(0);
-/// # net.build_external_routers(65500, 1, KRandomRouters::new(3))?;
+/// # net.build_external_routers(65500, 1, RandomRouters::new(3))?;
 /// # net.build_ibgp_route_reflection(HighestDegreeRouters::new(2))?;
 /// # net.build_ebgp_sessions()?;
 /// # net.build_link_weights(20.0)?;
