@@ -19,7 +19,7 @@
 //! network.
 
 use crate::{
-    bgp::{BgpSessionType, BgpState, BgpStateRef, Community},
+    bgp::{BgpRoute, BgpSessionType, BgpState, BgpStateRef, Community},
     config::{NetworkConfig, RouteMapEdit},
     event::{BasicEventQueue, Event, EventQueue},
     external_router::ExternalRouter,
@@ -480,21 +480,6 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         }
     }
 
-    /// Returns a reference to an external router
-    pub(crate) fn get_external_router_mut(
-        &mut self,
-        id: RouterId,
-    ) -> Result<&mut ExternalRouter<P>, NetworkError> {
-        match self
-            .routers
-            .get_mut(&id)
-            .ok_or(NetworkError::DeviceNotFound(id))?
-        {
-            NetworkDevice::InternalRouter(_) => Err(NetworkError::DeviceIsInternalRouter(id)),
-            NetworkDevice::ExternalRouter(r) => Ok(r),
-        }
-    }
-
     /// Get the RouterID with the given name. If multiple routers have the same name, then the first
     /// occurence of this name is returned. If the name was not found, an error is returned.
     pub fn get_router_id(&self, name: impl AsRef<str>) -> Result<RouterId, NetworkError> {
@@ -859,11 +844,14 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
         Ok(old_val)
     }
 
-    /// Advertise an external route and let the network converge, The source must be a `RouterId`
-    /// of an `ExternalRouter`. If not, an error is returned. When advertising a route, all
-    /// eBGP neighbors will receive an update with the new route. If a neighbor is added later
-    /// (after `advertise_external_route` is called), then this new neighbor will receive an update
-    /// as well.
+    /// Make a router advertise / originate a BGP route.
+    ///
+    /// Note, that internal routers will still perform best-path selection. That is, the router
+    /// might receive an even better advertisement, in which case, it will stop advertising its
+    /// route.
+    ///
+    /// The AS path may be empty. Remember that the own AS will always be prepended to the route
+    /// when advertising over eBGP, so adding the own AS is typically not necessary.
     pub fn advertise_external_route<A, C>(
         &mut self,
         source: RouterId,
@@ -878,7 +866,8 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
         C: IntoIterator<Item = Community>,
     {
         let prefix: P = prefix.into();
-        let as_path: Vec<ASN> = as_path.into_iter().map(|id| id.into()).collect();
+        let as_path: Vec<ASN> = as_path.into_iter().map(|x| x.into()).collect();
+        let community = community.into_iter().collect();
 
         debug!(
             "Advertise {} on {}",
@@ -889,9 +878,24 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
         self.known_prefixes.insert(prefix);
 
         // initiate the advertisement
-        let (_, events) = self
-            .get_external_router_mut(source)?
-            .advertise_prefix(prefix, as_path, med, community);
+        let events = match self.routers.get_mut(&source).or_router_not_found(source)? {
+            NetworkDevice::InternalRouter(r) => r.bgp.advertise_route(
+                prefix,
+                Some(BgpRoute {
+                    prefix,
+                    as_path,
+                    next_hop: source,
+                    local_pref: None,
+                    med,
+                    community,
+                    originator_id: None,
+                    cluster_list: Default::default(),
+                }),
+            )?,
+            NetworkDevice::ExternalRouter(r) => {
+                r.advertise_prefix(prefix, as_path, med, community).1
+            }
+        };
 
         self.enqueue_events(events);
         self.do_queue_maybe_skip()
@@ -910,9 +914,10 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
 
         debug!("Withdraw {} on {}", prefix, self.get_device(source)?.name());
 
-        let events = self
-            .get_external_router_mut(source)?
-            .withdraw_prefix(prefix);
+        let events = match self.routers.get_mut(&source).or_router_not_found(source)? {
+            NetworkDevice::InternalRouter(r) => r.bgp.advertise_route(prefix, None)?,
+            NetworkDevice::ExternalRouter(r) => r.withdraw_prefix(prefix),
+        };
 
         // run the queue
         self.enqueue_events(events);

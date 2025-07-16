@@ -222,6 +222,9 @@ impl<P: Prefix> BgpRoute<P> {
     }
 }
 
+/// The default weight is 100.
+pub const DEFAULT_WEIGHT: u32 = 100;
+
 /// The default local preference is 100.
 pub const DEFAULT_LOCAL_PREF: u32 = 100;
 

@@ -229,10 +229,7 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
             .collect();
         let mut result: P::Map<Vec<RouterId>> = Default::default();
         for prefix in prefixes {
-            let nhs = self.get_next_hop(prefix);
-            if !nhs.is_empty() {
-                result.insert(prefix, nhs);
-            }
+            result.insert(prefix, self.get_next_hop(prefix));
         }
         result
     }
@@ -243,10 +240,10 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
     pub fn get_next_hop(&self, prefix: P) -> Vec<RouterId> {
         // get the next hop according to both SR and BGP
         let sr_target = self.sr.get_table().get_lpm(&prefix);
-        let bgp_target = self.bgp.get_route(prefix);
+        let bgp_rib = self.bgp.get_route(prefix);
 
         // pick the shorter prefix if both are present
-        let target = match (sr_target, bgp_target) {
+        let target = match (sr_target, bgp_rib) {
             // If both are present, but the BGP prefix contains the SR prefix, then the SR prefix is
             // more specific (or at least the same) --> Pick SR.
             (Some((sr_p, sr_target)), Some(route)) if route.route.prefix.contains(sr_p) => {

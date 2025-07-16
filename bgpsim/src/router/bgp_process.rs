@@ -28,7 +28,7 @@
 //! BGP process of an internal router.
 
 use crate::{
-    bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
+    bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType, DEFAULT_WEIGHT},
     config::RouteMapEdit,
     event::Event,
     formatter::NetworkFormatter,
@@ -238,6 +238,25 @@ impl<P: Prefix> BgpProcess<P> {
      * Configuration Functions
      */
 
+    /// Advertise the given route in BGP (or stop advertising it).
+    pub(crate) fn advertise_route<T: Default>(
+        &mut self,
+        prefix: P,
+        route: Option<BgpRoute<P>>,
+    ) -> Result<Vec<Event<P, T>>, DeviceError> {
+        // essentially this is treated identicaly to as if the router got an update or withdraw.
+        let event = match route {
+            Some(r) => {
+                assert_eq!(r.prefix, prefix);
+                BgpEvent::Update(r)
+            }
+            None => BgpEvent::Withdraw(prefix),
+        };
+
+        // then, handle the event
+        self.handle_event(self.router_id, event)
+    }
+
     /// Set a BGP session with a neighbor. If `target_is_client` is `None`, then any potentially
     /// existing session will be removed. Otherwise, any existing session will be replaced by he new
     /// type. Finally, the BGP tables are updated, and events are generated. This function will
@@ -417,8 +436,8 @@ impl<P: Prefix> BgpProcess<P> {
         from: RouterId,
         event: BgpEvent<P>,
     ) -> Result<Vec<Event<P, T>>, DeviceError> {
-        // first, check if the event was received from a bgp peer
-        if !self.sessions.contains_key(&from) {
+        // first, check if the event was received from a bgp peer (or from itself)
+        if !self.sessions.contains_key(&from) && from != self.router_id {
             log::warn!("Received a bgp event form a non-neighbor! Ignore event!");
             return Ok(vec![]);
         }
@@ -627,6 +646,11 @@ impl<P: Prefix> BgpProcess<P> {
         route: BgpRoute<P>,
         from: RouterId,
     ) -> Result<(P, bool), DeviceError> {
+        // handle own routes specially
+        if from == self.router_id {
+            return self.insert_route_from_self(route);
+        }
+
         let (_, _, from_type) = *self
             .sessions
             .get(&from)
@@ -650,7 +674,7 @@ impl<P: Prefix> BgpProcess<P> {
             from_id: from,
             to_id: None,
             igp_cost: None,
-            weight: 100,
+            weight: DEFAULT_WEIGHT,
         };
 
         let prefix = new_entry.route.prefix;
@@ -670,6 +694,29 @@ impl<P: Prefix> BgpProcess<P> {
         self.rib_in.get_mut_or_default(prefix).remove(&from);
 
         prefix
+    }
+
+    /// Insert a route into the rib_in that is advertised by the router itself.
+    fn insert_route_from_self(&mut self, mut route: BgpRoute<P>) -> Result<(P, bool), DeviceError> {
+        route.next_hop = self.router_id;
+        let new_entry = BgpRibEntry {
+            route,
+            // set the from_type to eBGP. This way, the route is advertised to all neighbors.
+            from_type: BgpSessionType::EBgp,
+            from_id: self.router_id,
+            to_id: None,
+            igp_cost: Some(Default::default()),
+            weight: DEFAULT_WEIGHT,
+        };
+
+        let prefix = new_entry.route.prefix;
+
+        // insert the new entry
+        self.rib_in
+            .get_mut_or_default(prefix)
+            .insert(self.router_id, new_entry);
+
+        Ok((prefix, true))
     }
 
     /// process incoming routes from bgp_rib_in

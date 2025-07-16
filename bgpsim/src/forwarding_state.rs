@@ -93,17 +93,29 @@ impl<P: Prefix> ForwardingState<P> {
             let rid = r.router_id();
             let fib = r.get_fib();
 
-            for (prefix, nhs) in fib.iter() {
-                for nh in nhs {
+            for (prefix, mut nhs) in fib.into_iter() {
+                // if the next-hop is empty, check if the router does select a route that it
+                // originates itself. In that case, mark the target as reached.
+                if nhs.is_empty()
+                    && r.bgp
+                        .get_route(prefix)
+                        .map(|r| (r.from_id, r.route.next_hop))
+                        == Some((rid, rid))
+                {
+                    nhs = vec![*TO_DST]
+                }
+
+                // fill the reverse lookup
+                for nh in &nhs {
                     reversed
                         .entry(*nh)
                         .or_default()
-                        .get_mut_or_default(*prefix)
+                        .get_mut_or_default(prefix)
                         .insert(rid);
                 }
-            }
 
-            state.insert(rid, fib);
+                state.entry(rid).or_default().insert(prefix, nhs);
+            }
         }
 
         // collect the external routers, and chagne the forwarding state such that we remember which

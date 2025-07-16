@@ -39,6 +39,8 @@ mod t {
     use maplit::{btreemap, btreeset};
     use pretty_assertions::assert_eq;
 
+    type Net<P, Ospf> = Network<P, BasicEventQueue<P>, Ospf>;
+
     lazy_static! {
         static ref E1: RouterId = 0.into();
         static ref R1: RouterId = 1.into();
@@ -56,8 +58,8 @@ mod t {
     ///         | .-'   |
     ///         R3 ---- R4 ---- E4
     /// ```
-    fn get_test_net<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
-        let mut net: Network<P, BasicEventQueue<P>, Ospf> = Network::default();
+    fn test_net<P: Prefix, Ospf: OspfImpl>() -> Net<P, Ospf> {
+        let mut net: Net<P, Ospf> = Net::default();
 
         assert_eq!(*E1, net.add_external_router("E1", ASN(65101)));
         assert_eq!(*R1, net.add_router("R1"));
@@ -65,6 +67,35 @@ mod t {
         assert_eq!(*R3, net.add_router("R3"));
         assert_eq!(*R4, net.add_router("R4"));
         assert_eq!(*E4, net.add_external_router("E4", ASN(65104)));
+
+        net.add_link(*R1, *E1).unwrap();
+        net.add_link(*R1, *R2).unwrap();
+        net.add_link(*R1, *R3).unwrap();
+        net.add_link(*R2, *R3).unwrap();
+        net.add_link(*R2, *R4).unwrap();
+        net.add_link(*R3, *R4).unwrap();
+        net.add_link(*R4, *E4).unwrap();
+
+        net
+    }
+
+    /// # Test network
+    ///
+    /// ```text
+    /// E1 ---- R1 ---- R2
+    ///         |    .-'|
+    ///         | .-'   |
+    ///         R3 ---- R4 ---- E4
+    /// ```
+    fn test_net_internal_only<P: Prefix, Ospf: OspfImpl>() -> Net<P, Ospf> {
+        let mut net: Net<P, Ospf> = Net::default();
+
+        assert_eq!(*E1, net.add_router_with_asn("E1", ASN(65101)));
+        assert_eq!(*R1, net.add_router_with_asn("R1", ASN(1)));
+        assert_eq!(*R2, net.add_router_with_asn("R2", ASN(1)));
+        assert_eq!(*R3, net.add_router_with_asn("R3", ASN(1)));
+        assert_eq!(*R4, net.add_router_with_asn("R4", ASN(1)));
+        assert_eq!(*E4, net.add_router_with_asn("E4", ASN(65104)));
 
         net.add_link(*R1, *E1).unwrap();
         net.add_link(*R1, *R2).unwrap();
@@ -87,8 +118,8 @@ mod t {
     ///         | .'     |
     ///         R3 --3-- R4 ---- E4
     /// ```
-    fn get_test_net_igp<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
-        let mut net = get_test_net::<P, Ospf>();
+    fn get_test_net_igp<P: Prefix, Ospf: OspfImpl>(net_fn: fn() -> Net<P, Ospf>) -> Net<P, Ospf> {
+        let mut net = net_fn();
 
         // configure link weights
         net.set_link_weight(*R1, *R2, 5.0).unwrap();
@@ -121,8 +152,8 @@ mod t {
     /// Test network with BGP and link weights configured. No prefixes advertised yet. All internal
     /// routers are connected in an iBGP full mesh, all link weights are set to 1 except the one
     /// between r1 and r2.
-    fn get_test_net_bgp<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
-        let mut net = get_test_net_igp::<P, Ospf>();
+    fn get_test_net_bgp<P: Prefix, Ospf: OspfImpl>(net_fn: fn() -> Net<P, Ospf>) -> Net<P, Ospf> {
+        let mut net = get_test_net_igp::<P, Ospf>(net_fn);
 
         // configure iBGP full mesh
         net.set_bgp_session(*R1, *R2, Some(false)).unwrap();
@@ -141,7 +172,7 @@ mod t {
 
     #[test]
     fn test_single_router<P: Prefix, Ospf: OspfImpl>() {
-        let mut net: Network<P, _, Ospf> = Network::default();
+        let mut net: Net<P, Ospf> = Network::default();
         let p = P::from(0);
         let r = net.add_router("r");
         let e = net.add_external_router("e", 1);
@@ -159,7 +190,7 @@ mod t {
 
     #[test]
     fn test_remove_router<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_bgp::<P, Ospf>();
+        let mut net = get_test_net_bgp::<P, Ospf>(test_net);
         let p = P::from(0);
 
         // advertise prefix on e1
@@ -216,7 +247,7 @@ mod t {
 
     #[test]
     fn test_get_router<P: Prefix, Ospf: OspfImpl>() {
-        let net = get_test_net::<P, Ospf>();
+        let net = test_net::<P, Ospf>();
 
         assert_eq!(net.get_router_id("R1"), Ok(*R1));
         assert_eq!(net.get_router_id("R2"), Ok(*R2));
@@ -246,7 +277,7 @@ mod t {
 
     #[test]
     fn test_bgp_connectivity<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_bgp::<P, Ospf>();
+        let mut net = get_test_net_bgp::<P, Ospf>(test_net);
 
         let p = P::from(0);
 
@@ -281,7 +312,7 @@ mod t {
     fn test_bgp_rib_entries<P: Prefix, Ospf: OspfImpl>() {
         use ordered_float::NotNan;
 
-        let mut net = get_test_net_bgp::<P, Ospf>();
+        let mut net = get_test_net_bgp::<P, Ospf>(test_net);
 
         let p = P::from(0);
 
@@ -390,7 +421,7 @@ mod t {
 
     #[test]
     fn test_static_route<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_bgp::<P, Ospf>();
+        let mut net = get_test_net_bgp::<P, Ospf>(test_net);
 
         let p = P::from(0);
 
@@ -441,7 +472,7 @@ mod t {
 
     #[test]
     fn test_bgp_decision<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_bgp::<P, Ospf>();
+        let mut net = get_test_net_bgp::<P, Ospf>(test_net);
 
         let p = P::from(0);
 
@@ -510,8 +541,47 @@ mod t {
     }
 
     #[test]
+    fn test_bgp_decision_internal_only<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_bgp::<P, Ospf>(test_net_internal_only);
+
+        let p = P::from(0);
+
+        // advertise both prefixes
+        net.advertise_external_route(*E1, p, vec![ASN(1000)], None, None)
+            .unwrap();
+        net.advertise_external_route(*E4, p, vec![ASN(1000)], None, None)
+            .unwrap();
+
+        // The network must have converged back
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+
+        // change the AS path
+        net.advertise_external_route(*E4, p, vec![ASN(1000), ASN(1000)], None, None)
+            .unwrap();
+
+        // we now expect all routers to choose R1 as an egress
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
+
+        // change back
+        net.advertise_external_route(*E4, p, vec![ASN(1000)], None, None)
+            .unwrap();
+
+        // The network must have converged back
+        test_route!(net, *R1, p, [*R1, *E1]);
+        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R3, p, [*R3, *R1, *E1]);
+        test_route!(net, *R4, p, [*R4, *E4]);
+    }
+
+    #[test]
     fn test_route_maps<P: Prefix, Ospf: OspfImpl>() {
-        let mut original_net = get_test_net_bgp::<P, Ospf>();
+        let mut original_net = get_test_net_bgp::<P, Ospf>(test_net);
         let p = P::from(0);
 
         // advertise both prefixes
@@ -683,7 +753,7 @@ mod t {
 
     #[test]
     fn test_link_failure<P: Prefix, Ospf: OspfImpl>() {
-        let mut original_net = get_test_net_bgp::<P, Ospf>();
+        let mut original_net = get_test_net_bgp::<P, Ospf>(test_net);
 
         // advertise a prefix on both ends
         let p = P::from(0);
@@ -754,7 +824,7 @@ mod t {
 
     #[test]
     fn test_config_extractor<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_bgp::<P, Ospf>();
+        let mut net = get_test_net_bgp::<P, Ospf>(test_net);
         let mut original_cfg = net.get_config().unwrap();
 
         let extracted_cfg = net.get_config().unwrap();
@@ -787,7 +857,7 @@ mod t {
     /// between r1 and r2.
     fn get_test_net_bgp_load_balancing<P: Prefix, Ospf: OspfImpl>(
     ) -> Network<P, BasicEventQueue<P>, Ospf> {
-        let mut net = get_test_net::<P, Ospf>();
+        let mut net = test_net::<P, Ospf>();
 
         // configure link weights
         net.set_link_weight(*R1, *R2, 2.0).unwrap();
@@ -934,7 +1004,7 @@ mod t {
 
     #[test]
     fn bgp_state_incoming<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_igp::<P, Ospf>();
+        let mut net = get_test_net_igp::<P, Ospf>(test_net);
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
@@ -1009,7 +1079,7 @@ mod t {
 
     #[test]
     fn bgp_state_incoming_2<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_igp::<P, Ospf>();
+        let mut net = get_test_net_igp::<P, Ospf>(test_net);
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
@@ -1077,7 +1147,7 @@ mod t {
 
     #[test]
     fn bgp_state_peers_incoming<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_igp::<P, Ospf>();
+        let mut net = get_test_net_igp::<P, Ospf>(test_net);
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
@@ -1107,7 +1177,7 @@ mod t {
 
     #[test]
     fn bgp_state_outgoing<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_igp::<P, Ospf>();
+        let mut net = get_test_net_igp::<P, Ospf>(test_net);
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
@@ -1185,7 +1255,7 @@ mod t {
 
     #[test]
     fn bgp_state_outgoing_2<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_igp::<P, Ospf>();
+        let mut net = get_test_net_igp::<P, Ospf>(test_net);
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
@@ -1250,7 +1320,7 @@ mod t {
 
     #[test]
     fn bgp_state_peers_outgoing<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_igp::<P, Ospf>();
+        let mut net = get_test_net_igp::<P, Ospf>(test_net);
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
@@ -1283,7 +1353,7 @@ mod t {
 
     #[test]
     fn bgp_state_reach<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_igp::<P, Ospf>();
+        let mut net = get_test_net_igp::<P, Ospf>(test_net);
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
@@ -1307,7 +1377,7 @@ mod t {
 
     #[test]
     fn bgp_state_propagation_path<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_igp::<P, Ospf>();
+        let mut net = get_test_net_igp::<P, Ospf>(test_net);
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
@@ -1325,7 +1395,7 @@ mod t {
 
     #[test]
     fn bgp_state_transform<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_igp::<P, Ospf>();
+        let mut net = get_test_net_igp::<P, Ospf>(test_net);
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
