@@ -1057,7 +1057,8 @@ where
     }
 
     /// Get a reference to the OSPF coordinator struct for the given AS number
-    pub fn domain(&self, asn: ASN) -> Result<&OspfDomain<Ospf>, NetworkError> {
+    pub fn domain(&self, asn: impl Into<ASN>) -> Result<&OspfDomain<Ospf>, NetworkError> {
+        let asn = asn.into();
         self.domains.get(&asn).ok_or(NetworkError::UnknownAS(asn))
     }
 

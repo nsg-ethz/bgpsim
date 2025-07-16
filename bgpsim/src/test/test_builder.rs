@@ -18,10 +18,12 @@ mod t {
     use crate::{
         builder::*,
         event::BasicEventQueue as Queue,
+        formatter::NetworkFormatter,
         network::Network,
         ospf::{GlobalOspf, LocalOspf, OspfImpl, OspfProcess, EXTERNAL_LINK_WEIGHT},
         prelude::BgpSessionType,
-        types::{Prefix, SimplePrefix, SinglePrefix, ASN},
+        route_map::RouteMapDirection::{self, Incoming, Outgoing},
+        types::{Prefix, RouterId, SimplePrefix, SinglePrefix, ASN},
     };
 
     #[cfg(feature = "rand")]
@@ -226,7 +228,7 @@ mod t {
         let g = net.ospf_network().domain(ASN(65500)).unwrap().graph();
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
-            let weight = net.get_link_weight(a, b).unwrap();
+            let weight = net.ospf.get_weight(a, b);
             if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
             {
                 assert!(weight >= 10.0);
@@ -254,7 +256,7 @@ mod t {
         let g = net.ospf_network().domain(ASN(65500)).unwrap().graph();
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
-            let weight = net.get_link_weight(a, b).unwrap();
+            let weight = net.ospf.get_weight(a, b);
             if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
             {
                 assert!(weight >= 10.0);
@@ -432,8 +434,107 @@ mod t {
             assert_eq!(net.internal_indices().count(), 20);
             assert_eq!(net.external_indices().count(), 0);
             assert_eq!(net.ospf.edges().count(), (3 + (20 - 3) * 3) * 2);
-            let g = Graph::from(net.get_topology().clone());
+            let g = Graph::from(net.ospf.domain(65500).unwrap().graph());
             assert_eq!(connected_components(&g), 1);
+        }
+    }
+
+    #[test]
+    fn test_interdomain<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = Network::<_, Queue<P>, Ospf>::default();
+        let r0 = net.add_router_with_asn("R0", 0);
+        let r1 = net.add_router_with_asn("R1", 1);
+        let r2 = net.add_router_with_asn("R2", 2);
+        let r3 = net.add_router_with_asn("R3", 3);
+        let r4 = net.add_router_with_asn("R4", 4);
+
+        net.add_links_from(vec![
+            (r0, r1),
+            (r1, r2),
+            (r0, r3),
+            (r2, r3),
+            (r0, r4),
+            (r2, r4),
+            (r3, r4),
+        ])
+        .unwrap();
+        net.build_ebgp_sessions().unwrap();
+
+        net.build_gao_rexford(InterDomainTree::new(0)).unwrap();
+
+        for (prov, cust) in [(r0, r1), (r0, r3), (r0, r4), (r1, r2), (r3, r2), (r4, r2)] {
+            let prov_asn = prov.index();
+            let cust_asn = cust.index();
+            check_rms(
+                &net,
+                prov,
+                cust,
+                Incoming,
+                vec![format!(
+                    "allow *; Set community {prov_asn}:501, LocalPref = 200."
+                )],
+            );
+            check_rms(&net, prov, cust, Outgoing, vec![]);
+            check_rms(
+                &net,
+                cust,
+                prov,
+                Incoming,
+                vec![format!(
+                    "allow *; Set community {cust_asn}:503, LocalPref = 50."
+                )],
+            );
+            check_rms(
+                &net,
+                cust,
+                prov,
+                Outgoing,
+                vec![
+                    format!("deny  Community {cust_asn}:502."),
+                    format!("deny  Community {cust_asn}:503."),
+                ],
+            );
+        }
+        for (p1, p2) in [(r3, r4), (r4, r3)] {
+            let asn = p1.index();
+            check_rms(
+                &net,
+                p1,
+                p2,
+                Incoming,
+                vec![format!(
+                    "allow *; Set community {asn}:502, LocalPref = 100."
+                )],
+            );
+            check_rms(
+                &net,
+                p1,
+                p2,
+                Outgoing,
+                vec![
+                    format!("deny  Community {asn}:502."),
+                    format!("deny  Community {asn}:503."),
+                ],
+            );
+        }
+    }
+
+    #[track_caller]
+    fn check_rms<P: Prefix, Q, Ospf: OspfImpl>(
+        net: &Network<P, Q, Ospf>,
+        r: RouterId,
+        n: RouterId,
+        dir: RouteMapDirection,
+        want: Vec<String>,
+    ) {
+        let got = net
+            .get_internal_router(r)
+            .map(|x| x.bgp.get_route_maps(n, dir))
+            .unwrap_or_default();
+        assert_eq!(got.len(), want.len());
+        for (got, want) in got.iter().zip(want) {
+            let got = got.fmt(net);
+            pretty_assertions::assert_eq!(got, want);
         }
     }
 

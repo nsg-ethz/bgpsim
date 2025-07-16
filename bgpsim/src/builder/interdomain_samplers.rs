@@ -79,8 +79,8 @@ pub struct InterDomainTree {
 
 impl InterDomainTree {
     /// Create a new InterDomain Tree rootet at the given ASN.
-    pub fn new(root: ASN) -> Self {
-        Self { root }
+    pub fn new(root: impl Into<ASN>) -> Self {
+        Self { root: root.into() }
     }
 }
 
@@ -216,5 +216,57 @@ impl GaoRexfordPeerType {
             GaoRexfordPeerType::Peer => 100,
             GaoRexfordPeerType::Provider => 50,
         }
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use maplit::btreemap;
+
+    use crate::{
+        builder::NetworkBuilder, event::BasicEventQueue, ospf::GlobalOspf, types::SimplePrefix,
+    };
+
+    use super::*;
+
+    #[test]
+    /// ```
+    ///       3
+    ///   .-'   '-.
+    /// 0 --- 1 --- 2
+    ///   '-.   .-'
+    ///       4
+    /// ```
+    fn inter_domain_tree() {
+        let mut net = Network::<SimplePrefix, _, GlobalOspf>::new(BasicEventQueue::new());
+        let r0 = net.add_router_with_asn("R0", 0);
+        let r1 = net.add_router_with_asn("R1", 1);
+        let r2 = net.add_router_with_asn("R2", 2);
+        let r3 = net.add_router_with_asn("R3", 3);
+        let r4 = net.add_router_with_asn("R4", 4);
+
+        net.add_links_from(vec![
+            (r0, r1),
+            (r1, r2),
+            (r0, r3),
+            (r2, r3),
+            (r0, r4),
+            (r2, r4),
+        ])
+        .unwrap();
+        net.build_ebgp_sessions().unwrap();
+
+        assert_eq!(
+            BTreeMap::from_iter(InterDomainTree::new(0).sample(&net)),
+            btreemap! {ASN(0) => 1, ASN(1) => 2, ASN(2) => 3, ASN(3) => 2, ASN(4) => 2}
+        );
+        assert_eq!(
+            BTreeMap::from_iter(InterDomainTree::new(1).sample(&net)),
+            btreemap! {ASN(0) => 2, ASN(1) => 1, ASN(2) => 2, ASN(3) => 3, ASN(4) => 3}
+        );
+        assert_eq!(
+            BTreeMap::from_iter(InterDomainTree::new(3).sample(&net)),
+            btreemap! {ASN(0) => 2, ASN(1) => 3, ASN(2) => 2, ASN(3) => 1, ASN(4) => 3}
+        );
     }
 }
