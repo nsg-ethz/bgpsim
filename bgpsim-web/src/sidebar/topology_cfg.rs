@@ -66,12 +66,13 @@ impl Component for TopologyCfg {
 
     fn view(&self, ctx: &Context<Self>) -> Html {
         let net_borrow = self.net.net();
-        let g = net_borrow.get_topology();
-        let neigh = g
+        let ospf = net_borrow.ospf_network();
+        let neigh = ospf
             .neighbors(ctx.props().router)
+            .map(|e| e.dst())
             .collect::<HashSet<RouterId>>();
-        let mut link_options: Vec<(RouterId, String, bool)> = g
-            .node_indices()
+        let mut link_options: Vec<(RouterId, String, bool)> = net_borrow
+            .device_indices()
             .filter(|r| {
                 *r != ctx.props().router
                     && (!ctx.props().only_internal
@@ -227,14 +228,19 @@ struct LinkWeightInfo {
 impl LinkWeightInfo {
     fn new(src: RouterId, dst: RouterId, net: &Net) -> Self {
         let net = &net.net();
+        let mut weight = net.ospf_network().get_weight(src, dst);
+        if weight.is_infinite() {
+            weight = 100.0;
+        }
         Self {
             element_text: format!("→ {}", dst.fmt(net)),
             src_asn: net.get_device(src).ok().map(|x| x.asn()),
             dst_asn: net.get_device(dst).ok().map(|x| x.asn()),
             area: net
-                .get_ospf_area(src, dst)
-                .unwrap_or_else(|_| OspfArea::backbone()),
-            weight: net.get_link_weight(src, dst).unwrap_or(100.0),
+                .ospf_network()
+                .get_area(src, dst)
+                .unwrap_or_else(OspfArea::backbone),
+            weight,
         }
     }
 }

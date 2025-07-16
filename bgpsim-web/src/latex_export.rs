@@ -98,7 +98,7 @@ pub fn generate_latex(net: &Net) -> String {
     let pos_deref = net.pos_ref();
     let p = pos_deref.deref();
     let n = net_deref.deref();
-    let g = n.get_topology();
+    // let g = n.get_topology();
 
     let prefix_choices = n
         .get_known_prefixes()
@@ -150,9 +150,10 @@ pub fn generate_latex(net: &Net) -> String {
         })
         .join("\n");
 
-    let edges = g
-        .edge_indices()
-        .filter_map(|e| g.edge_endpoints(e))
+    let edges = net_deref
+        .ospf_network()
+        .edges()
+        .map(|e| (e.src(), e.dst()))
         .filter(|(a, b)| a.index() < b.index())
         .map(|(a, b)| format!(r"  \draw[link] (r{}) -- (r{});", a.index(), b.index()))
         .join("\n");

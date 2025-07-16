@@ -213,7 +213,7 @@ impl Net {
     pub fn get_route_propagation(&self, prefix: Pfx) -> Vec<(RouterId, RouterId, BgpRoute<Pfx>)> {
         let net = self.net.borrow();
         let mut results = Vec::new();
-        for id in net.get_topology().node_indices() {
+        for id in net.device_indices() {
             match net.get_device(id) {
                 Ok(NetworkDeviceRef::InternalRouter(r)) => {
                     if let Some(rib) = r.bgp.get_rib_in().get(&prefix) {
@@ -249,8 +249,15 @@ impl Net {
             let net = self.net.borrow();
             let mut pos_borrow = self.pos.borrow_mut();
             let pos = pos_borrow.deref_mut();
-            let g = net.get_topology();
-            spring_layout::spring_layout(g, pos, fixed);
+            // generate the network from scratch
+            let mut g = PhysicalNetwork::default();
+            for _ in 0..=(net.device_indices().map(|x| x.index()).max().unwrap_or(0)) {
+                g.add_node(());
+            }
+            for e in net.ospf_network().edges() {
+                g.add_edge(e.src(), e.dst(), ());
+            }
+            spring_layout::spring_layout(&g, pos, fixed);
         }
 
         self.normalize_pos();

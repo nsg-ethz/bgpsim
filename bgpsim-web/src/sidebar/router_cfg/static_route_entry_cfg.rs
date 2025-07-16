@@ -184,11 +184,14 @@ fn get_available_options(
 ) -> Vec<RouterId> {
     if matches!(current_mode, StaticRoute::Indirect(_)) {
         net.net()
-            .get_topology()
-            .node_indices()
+            .device_indices()
             .filter(|r| *r != router)
             .collect()
     } else {
-        net.net().get_topology().neighbors(router).collect()
+        net.net()
+            .ospf_network()
+            .neighbors(router)
+            .map(|e| e.dst())
+            .collect()
     }
 }

@@ -17,11 +17,7 @@
 
 use std::collections::{HashMap, HashSet};
 
-use bgpsim::{
-    builder::{constant_link_weight, NetworkBuilder},
-    interactive::InteractiveNetwork,
-    topology_zoo::TopologyZoo,
-};
+use bgpsim::{builder::*, interactive::InteractiveNetwork, topology_zoo::TopologyZoo};
 use geoutils::Location;
 use itertools::Itertools;
 use mapproj::{cylindrical::mer::Mer, LonLat, Projection};
@@ -349,9 +345,9 @@ fn rad(x: Location) -> LonLat {
 
 fn import_topology_zoo(topo: TopologyZoo) {
     // generate the network
-    let mut net = topo.build(Queue::new());
+    let mut net = topo.build(Queue::new(), 1, 100);
     // generate all link weights
-    net.build_link_weights(constant_link_weight, 100.0).unwrap();
+    net.build_link_weights_in_as(1, 100.0).unwrap();
     // generate ebgp sessions
     net.build_ebgp_sessions().unwrap();
 
@@ -366,7 +362,7 @@ fn import_topology_zoo(topo: TopologyZoo) {
         let points = geo.values().collect_vec();
         let center = rad(Location::center(&points));
         let proj = Mer::new();
-        for r in net.get_topology().node_indices() {
+        for r in net.device_indices() {
             let p = match geo.get(&r).map(|pos| rad(*pos)) {
                 Some(p) => {
                     fixed.insert(r);

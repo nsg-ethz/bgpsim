@@ -81,12 +81,10 @@ impl Component for BgpCfg {
             .collect::<HashSet<RouterId>>();
 
         let bgp_options = n
-            .get_topology()
-            .node_indices()
+            .device_indices()
             .filter(|r| {
                 *r != router
-                    && (n.get_internal_router(*r).is_ok()
-                        || n.get_topology().contains_edge(router, *r))
+                    && (n.get_internal_router(*r).is_ok() || n.ospf_network().has_edge(router, *r))
             })
             .map(|r| (r, r.fmt(n).to_string(), sessions_dict.contains(&r)))
             .collect::<Vec<_>>();

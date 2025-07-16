@@ -126,8 +126,8 @@ impl RouterState {
     fn new(id: RouterId, net: &Net) -> Self {
         let dim_scale = net.dim.scale();
         let n = net.net();
-        let g = n.get_topology();
-        let igp_neighbors: Vec<RouterId> = g.neighbors(id).sorted().collect();
+        let igp_neighbors: Vec<RouterId> =
+            n.ospf_network().neighbors(id).map(|e| e.src()).collect();
         let (external, bgp_neighbors) = match n.get_device(id) {
             Ok(NetworkDeviceRef::InternalRouter(r)) => (
                 false,

@@ -23,7 +23,6 @@ use bgpsim::policies::Policy;
 use bgpsim::types::RouterId;
 use gloo_events::EventListener;
 use gloo_utils::window;
-use itertools::Itertools;
 use wasm_bindgen::JsCast;
 use web_sys::{HtmlDivElement, HtmlElement};
 use yew::prelude::*;
@@ -226,17 +225,10 @@ fn prepare_touch() -> (Callback<TouchEvent>, Callback<TouchEvent>) {
 pub fn CanvasLinks() -> Html {
     let links = use_selector(|net: &Net| {
         let n = net.net();
-        let g = n.get_topology();
-        g.edge_indices()
-            .map(|e| g.edge_endpoints(e).unwrap()) // safety: ok because we used edge_indices.
-            .map(|(a, b)| {
-                if a.index() > b.index() {
-                    (b, a)
-                } else {
-                    (a, b)
-                }
-            })
-            .unique()
+        n.ospf_network()
+            .edges()
+            .map(|e| (e.src(), e.dst()))
+            .filter(|(a, b)| a <= b)
             .collect::<Vec<_>>()
     });
 
@@ -250,8 +242,7 @@ pub fn CanvasLinks() -> Html {
 
 #[function_component]
 pub fn CanvasRouters() -> Html {
-    let nodes =
-        use_selector(|net: &Net| net.net().get_topology().node_indices().collect::<Vec<_>>());
+    let nodes = use_selector(|net: &Net| net.net().device_indices().collect::<Vec<_>>());
 
     log::debug!("render CanvasRouters");
 

@@ -166,6 +166,19 @@ where
         }
     }
 
+    /// Return `true` if there exists a link from `a` (must be part of this AS) to `b`.
+    pub fn has_edge(&self, a: RouterId, b: RouterId) -> bool {
+        self.links
+            .get(&a)
+            .map(|x| x.contains_key(&b))
+            .unwrap_or(false)
+            || self
+                .external_links
+                .get(&a)
+                .map(|x| x.contains(&b))
+                .unwrap_or(false)
+    }
+
     /// Swap the coordinator by replacing it with the default of the new type `Ospf2`.
     pub(crate) fn swap_coordinator<Ospf2: OspfCoordinator>(self) -> (OspfDomain<Ospf2>, Ospf) {
         (
@@ -707,6 +720,15 @@ impl<Ospf> OspfNetwork<Ospf>
 where
     Ospf: OspfCoordinator,
 {
+    /// Return `true` if the two routers are directly connected.
+    pub fn has_edge(&self, a: RouterId, b: RouterId) -> bool {
+        self.routers
+            .get(&a)
+            .and_then(|asn| self.domains.get(asn))
+            .map(|x| x.has_edge(a, b))
+            .unwrap_or(false)
+    }
+
     fn split<'a, P: Prefix>(
         &self,
         asn: ASN,

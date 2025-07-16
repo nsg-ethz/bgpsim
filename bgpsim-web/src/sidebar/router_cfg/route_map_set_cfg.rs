@@ -85,8 +85,7 @@ impl Component for RouteMapSetCfg {
             let options = self
                 .net
                 .net()
-                .get_topology()
-                .node_indices()
+                .device_indices()
                 .map(|n| (n, n.fmt(&self.net.net()).to_string()))
                 .collect::<Vec<_>>();
             let current_text = self.value.fmt(&self.net);

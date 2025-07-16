@@ -190,12 +190,9 @@ impl RouterInfo {
 
         let sessions = r.get_bgp_sessions();
         let bgp_options = n
-            .get_topology()
-            .node_indices()
+            .device_indices()
             .filter(|r| {
-                *r != id
-                    && n.get_internal_router(*r).is_ok()
-                    && n.get_topology().contains_edge(id, *r)
+                *r != id && n.get_internal_router(*r).is_ok() && n.ospf_network().has_edge(id, *r)
             })
             .map(|r| (r, r.fmt(&n).to_string(), sessions.contains(&r)))
             .collect::<Vec<_>>();
