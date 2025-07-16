@@ -23,9 +23,14 @@ use crate::{
     types::{IntoIpv4Prefix, Ipv4Prefix, Prefix, RouterId, ASN},
 };
 
+use itertools::Itertools;
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, collections::BTreeSet, hash::Hash};
+use std::{
+    cmp::Ordering,
+    collections::{BTreeSet, HashMap},
+    hash::Hash,
+};
 
 /// The community has an AS number and a community number.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash, Serialize, Deserialize)]
@@ -217,21 +222,13 @@ impl<P: Prefix> BgpRoute<P> {
     }
 }
 
-impl<P: Prefix> BgpRoute<P> {
-    /// returns a clone of self, with the default values applied for any non-mandatory field.
-    pub fn clone_default(&self) -> Self {
-        Self {
-            prefix: self.prefix,
-            as_path: self.as_path.clone(),
-            next_hop: self.next_hop,
-            local_pref: Some(self.local_pref.unwrap_or(100)),
-            med: Some(self.med.unwrap_or(0)),
-            community: self.community.clone(),
-            originator_id: self.originator_id,
-            cluster_list: self.cluster_list.clone(),
-        }
-    }
+/// The default local preference is 100.
+pub const DEFAULT_LOCAL_PREF: u32 = 100;
 
+/// The default Multi-Exit Discriminator (MED) is 0.
+pub const DEFAULT_MED: u32 = 0;
+
+impl<P: Prefix> BgpRoute<P> {
     /// Change the prefix type of the route.
     pub fn with_prefix<P2: Prefix>(self, prefix: P2) -> BgpRoute<P2> {
         BgpRoute {
@@ -249,72 +246,26 @@ impl<P: Prefix> BgpRoute<P> {
 
 impl<P: Prefix> PartialEq for BgpRoute<P> {
     fn eq(&self, other: &Self) -> bool {
-        let s = self.clone_default();
-        let o = other.clone_default();
-        s.prefix == o.prefix
-            && s.as_path == other.as_path
-            && s.next_hop == o.next_hop
-            && s.local_pref == o.local_pref
-            && s.med == o.med
-            && s.community == o.community
-            && s.originator_id == o.originator_id
-            && s.cluster_list == o.cluster_list
-    }
-}
-
-impl<P: Prefix> Ord for BgpRoute<P> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        let s = self.clone_default();
-        let o = other.clone_default();
-
-        match s.local_pref.unwrap().cmp(&o.local_pref.unwrap()) {
-            Ordering::Equal => {}
-            o => return o,
-        }
-
-        match s.as_path.len().cmp(&o.as_path.len()) {
-            Ordering::Equal => {}
-            Ordering::Greater => return Ordering::Less,
-            Ordering::Less => return Ordering::Greater,
-        }
-
-        if s.as_path.first() == o.as_path.first() {
-            match s.med.unwrap().cmp(&o.med.unwrap()) {
-                Ordering::Equal => {}
-                Ordering::Greater => return Ordering::Less,
-                Ordering::Less => return Ordering::Greater,
-            }
-        }
-
-        match s.cluster_list.len().cmp(&o.cluster_list.len()) {
-            Ordering::Equal => {}
-            Ordering::Less => return Ordering::Greater,
-            Ordering::Greater => return Ordering::Less,
-        }
-
-        match s.next_hop.cmp(&o.next_hop) {
-            Ordering::Equal => Ordering::Equal,
-            Ordering::Greater => Ordering::Less,
-            Ordering::Less => Ordering::Greater,
-        }
-    }
-}
-
-impl<P: Prefix> PartialOrd for BgpRoute<P> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
+        self.prefix == other.prefix
+            && self.as_path == other.as_path
+            && self.next_hop == other.next_hop
+            && self.local_pref.unwrap_or(DEFAULT_LOCAL_PREF)
+                == other.local_pref.unwrap_or(DEFAULT_LOCAL_PREF)
+            && self.med.unwrap_or(DEFAULT_MED) == other.med.unwrap_or(DEFAULT_MED)
+            && self.community == other.community
+            && self.originator_id == other.originator_id
+            && self.cluster_list == other.cluster_list
     }
 }
 
 impl<P: Prefix> Hash for BgpRoute<P> {
     fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
-        let s = self.clone_default();
-        s.prefix.hash(state);
-        s.as_path.hash(state);
-        s.next_hop.hash(state);
-        s.local_pref.hash(state);
-        s.med.hash(state);
-        s.community.hash(state);
+        self.prefix.hash(state);
+        self.as_path.hash(state);
+        self.next_hop.hash(state);
+        self.local_pref.unwrap_or(DEFAULT_LOCAL_PREF).hash(state);
+        self.med.unwrap_or(DEFAULT_MED).hash(state);
+        self.community.hash(state);
     }
 }
 
@@ -440,35 +391,60 @@ impl<P: Prefix> IntoIpv4Prefix for BgpRibEntry<P> {
     }
 }
 
-impl<P: Prefix> Ord for BgpRibEntry<P> {
-    fn cmp(&self, other: &Self) -> Ordering {
-        let s = self.route.clone_default();
-        let o = other.route.clone_default();
+impl<P: Prefix> BgpRibEntry<P> {
+    /// Select the best route according to [RFC 4271](https://www.rfc-editor.org/rfc/rfc4271). The
+    /// algorithm first finds the best routes up to the MED step, then removes those routes that
+    /// have a lower MED than others (learned from the same peer), and then gets the best route
+    /// according to all steps after MED.
+    pub fn best_route(routes: impl IntoIterator<Item = Self>) -> Option<Self> {
+        // first, find the best before applying med
+        let max_pre_med = routes.into_iter().max_set_by(|a, b| a.cmp_pre_med(b));
 
+        // then, get the lowest MED value of all neighboring ASes
+        let min_meds: HashMap<Option<ASN>, u32> = max_pre_med
+            .iter()
+            .map(|r| {
+                (
+                    r.route.as_path.first().copied(),
+                    r.route.med.unwrap_or(DEFAULT_MED),
+                )
+            })
+            .into_grouping_map()
+            .min();
+
+        // only keep those that have the same min_med
+        max_pre_med
+            .into_iter()
+            .filter(|r| {
+                min_meds[&r.route.as_path.first().copied()] == r.route.med.unwrap_or(DEFAULT_MED)
+            })
+            .max_by(|a, b| a.cmp_post_med(b))
+    }
+
+    fn cmp_pre_med(&self, other: &Self) -> Ordering {
         match self.weight.cmp(&other.weight) {
             Ordering::Equal => {}
             o => return o,
         }
 
-        match s.local_pref.unwrap().cmp(&o.local_pref.unwrap()) {
+        match self
+            .route
+            .local_pref
+            .unwrap_or(DEFAULT_LOCAL_PREF)
+            .cmp(&other.route.local_pref.unwrap_or(DEFAULT_LOCAL_PREF))
+        {
             Ordering::Equal => {}
             o => return o,
         }
 
-        match s.as_path.len().cmp(&o.as_path.len()) {
-            Ordering::Equal => {}
-            Ordering::Greater => return Ordering::Less,
-            Ordering::Less => return Ordering::Greater,
+        match self.route.as_path.len().cmp(&other.route.as_path.len()) {
+            Ordering::Equal => Ordering::Equal,
+            Ordering::Greater => Ordering::Less,
+            Ordering::Less => Ordering::Greater,
         }
+    }
 
-        if s.as_path.first() == o.as_path.first() {
-            match s.med.unwrap().cmp(&o.med.unwrap()) {
-                Ordering::Equal => {}
-                Ordering::Greater => return Ordering::Less,
-                Ordering::Less => return Ordering::Greater,
-            }
-        }
-
+    fn cmp_post_med(&self, other: &Self) -> Ordering {
         if self.from_type.is_ebgp() && other.from_type.is_ibgp() {
             return Ordering::Greater;
         } else if self.from_type.is_ibgp() && other.from_type.is_ebgp() {
@@ -481,21 +457,26 @@ impl<P: Prefix> Ord for BgpRibEntry<P> {
             Some(Ordering::Less) => return Ordering::Greater,
         }
 
-        match s.next_hop.cmp(&o.next_hop) {
+        match self.route.next_hop.cmp(&other.route.next_hop) {
             Ordering::Equal => {}
             Ordering::Greater => return Ordering::Less,
             Ordering::Less => return Ordering::Greater,
         }
 
-        let s_from = s.originator_id.unwrap_or(self.from_id);
-        let o_from = o.originator_id.unwrap_or(other.from_id);
+        let s_from = self.route.originator_id.unwrap_or(self.from_id);
+        let o_from = other.route.originator_id.unwrap_or(other.from_id);
         match s_from.cmp(&o_from) {
             Ordering::Equal => {}
             Ordering::Greater => return Ordering::Less,
             Ordering::Less => return Ordering::Greater,
         }
 
-        match s.cluster_list.len().cmp(&o.cluster_list.len()) {
+        match self
+            .route
+            .cluster_list
+            .len()
+            .cmp(&other.route.cluster_list.len())
+        {
             Ordering::Equal => {}
             Ordering::Greater => return Ordering::Less,
             Ordering::Less => return Ordering::Greater,
@@ -520,26 +501,11 @@ impl<P: Prefix> PartialEq for BgpRibEntry<P> {
     }
 }
 
-impl<P: Prefix> PartialOrd for BgpRibEntry<P> {
-    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 impl<P: Prefix> PartialEq<Option<&BgpRibEntry<P>>> for BgpRibEntry<P> {
     fn eq(&self, other: &Option<&BgpRibEntry<P>>) -> bool {
         match other {
             None => false,
             Some(o) => self.eq(*o),
-        }
-    }
-}
-
-impl<P: Prefix> PartialOrd<Option<&BgpRibEntry<P>>> for BgpRibEntry<P> {
-    fn partial_cmp(&self, other: &Option<&BgpRibEntry<P>>) -> Option<Ordering> {
-        match other {
-            None => Some(Ordering::Greater),
-            Some(o) => self.partial_cmp(*o),
         }
     }
 }

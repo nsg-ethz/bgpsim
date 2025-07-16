@@ -423,31 +423,28 @@ impl<P: Prefix> BgpProcess<P> {
             return Ok(vec![]);
         }
         // phase 1 of BGP protocol
-        let (prefix, new) = match event {
+        let prefix = match event {
             BgpEvent::Update(route) => {
                 let prefix = route.prefix;
                 match self.insert_route(route, from)? {
-                    (p, true) => (p, true),
+                    (p, true) => p,
                     (_, false) => {
                         log::trace!("Ignore BGP update with ORIGINATOR_ID of self.");
                         // In that case, the update message must be dropped. Essentially, it must be
                         // treated like a withdraw event.
-                        (self.remove_route(prefix, from), false)
+                        self.remove_route(prefix, from)
                     }
                 }
             }
-            BgpEvent::Withdraw(prefix) => (self.remove_route(prefix, from), false),
+            BgpEvent::Withdraw(prefix) => self.remove_route(prefix, from),
         };
         self.known_prefixes.insert(prefix);
 
         // phase 2
-        let changed = if new {
-            self.run_decision_process_for_new_route(prefix, from)
-        } else {
-            self.run_decision_process_for_prefix(prefix)
-        }?;
+        let changed = self.run_decision_process_for_prefix(prefix)?;
+
+        // phase 3
         if changed {
-            // phase 3
             self.run_dissemination_for_prefix(prefix)
         } else {
             Ok(Vec::new())
@@ -515,50 +512,6 @@ impl<P: Prefix> BgpProcess<P> {
      * Private Functions
      */
 
-    /// Only run bgp decision process (phase 2) in case a new route appears for a specific
-    /// prefix. This function assumes that the route was already added to `self.bgp_rib_in`, so the
-    /// arguments of this function are both the prefix and the neighbor. This function will then
-    /// only only process this new BGP route and compare it to the currently best route. If it is
-    /// better, then update `self.bgp_rib[prefix]` and return `Ok(true)`.
-    fn run_decision_process_for_new_route(
-        &mut self,
-        prefix: P,
-        neighbor: RouterId,
-    ) -> Result<bool, DeviceError> {
-        // search the best route and compare
-        let old_entry = self.rib.get(&prefix);
-        let new_entry = self
-            .rib_in
-            .get(&prefix)
-            .and_then(|rib| rib.get(&neighbor))
-            .and_then(|e| self.process_rib_in_route(e.clone()));
-
-        match (old_entry, new_entry) {
-            // Still no route available. nothing to do
-            (None, None) => Ok(false),
-            // otherwise, if the new route is better than the old one, we can replace it in any
-            // case, even if the origin of both routes would be the same.
-            (old, Some(new)) if new > old => {
-                // replace the old with the better, new route
-                self.rib.insert(prefix, new);
-                Ok(true)
-            }
-            // However, if the origin of the old route is the same as the neighbor, then it must be
-            // replaced. Since we already know that the old route is preferred over the new one, we
-            // need to re-run the entire decision process.
-            (Some(old), _) if old.from_id == neighbor => {
-                // the old is replaced by the new. Now, we need to re-run the decision process.
-                self.run_decision_process_for_prefix(prefix)
-            }
-            // If the old selected route is not from that neighbor that is updated right now, and
-            // the new route is worse than the old route (due to the second case in this match
-            // statement), we don't need to update any tables.
-            (Some(_), _) => Ok(false),
-            // This case is unreachable! This would already match in the second case statement.
-            (None, Some(_)) => unreachable!(),
-        }
-    }
-
     /// only run bgp decision process (phase 2). This function may change
     /// `self.bgp_rib[prefix]`. This function returns `Ok(true)` if the selected route was changed
     /// (and the dissemination process should be executed).
@@ -568,7 +521,7 @@ impl<P: Prefix> BgpProcess<P> {
 
         // find the new best route
         let new_entry = self.rib_in.get(&prefix).and_then(|rib| {
-            Iterator::max(
+            BgpRibEntry::best_route(
                 rib.values()
                     .filter_map(|e| self.process_rib_in_route(e.clone())),
             )
