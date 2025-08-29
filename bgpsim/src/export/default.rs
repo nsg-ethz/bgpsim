@@ -321,6 +321,9 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Addressor<P> for DefaultAddressor<'_, P, Q, O
         let iface_indices = self.interface_indices.entry(router).or_default();
         let new_idx = iface_indices.len();
         let idx = *iface_indices.entry(neighbor).or_insert(new_idx);
+        let iface_indices_rev = self.interface_indices.entry(neighbor).or_default();
+        let new_idx_rev = iface_indices_rev.len();
+        let idx_rev = *iface_indices_rev.entry(router).or_insert(new_idx_rev);
         let a = self.as_addressor(self.link_asn(router, neighbor)?)?;
         Ok(match a.link_addrs.entry(link) {
             Entry::Occupied(e) => {
@@ -347,8 +350,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Addressor<P> for DefaultAddressor<'_, P, Q, O
                     .insert(neighbor, (idx, addr));
                 // add the neighbor stuff
                 let neighbor_ifaces = a.interfaces.entry(neighbor).or_default();
-                let neighbor_idx = neighbor_ifaces.len();
-                neighbor_ifaces.insert(router, (neighbor_idx, ip_err(hosts.next())?));
+                neighbor_ifaces.insert(router, (idx_rev, ip_err(hosts.next())?));
                 (addr, net, idx)
             }
         })
@@ -520,7 +522,11 @@ mod test {
             assert!($ip.find_neighbor($r.into(), $i).is_err())
         };
         ($ip:expr, $r:expr, $i:expr, $exp:expr) => {
-            pretty_assertions::assert_eq!($ip.find_neighbor($r.into(), $i).unwrap(), $exp.into())
+            pretty_assertions::assert_eq!(
+                $ip.find_neighbor($r.into(), $i).unwrap(),
+                $exp.into(),
+                "left: got, right: want"
+            )
         };
     }
 
@@ -592,6 +598,21 @@ mod test {
         cmp_addr!(ip.iface_address(1.into(), 3.into()), "1.128.0.17");
         cmp_addr!(ip.iface_address(0.into(), 4.into()), "1.192.0.1");
         cmp_addr!(ip.iface_address(5.into(), 1.into()), "1.192.0.5");
+
+        assert_eq!(ip.iface_index(0.into(), 1.into()).unwrap(), 0);
+        assert_eq!(ip.iface_index(0.into(), 2.into()).unwrap(), 1);
+        assert_eq!(ip.iface_index(0.into(), 3.into()).unwrap(), 2);
+        assert_eq!(ip.iface_index(0.into(), 4.into()).unwrap(), 3);
+        assert_eq!(ip.iface_index(1.into(), 0.into()).unwrap(), 0);
+        assert_eq!(ip.iface_index(1.into(), 2.into()).unwrap(), 1);
+        assert_eq!(ip.iface_index(1.into(), 3.into()).unwrap(), 2);
+        assert_eq!(ip.iface_index(1.into(), 5.into()).unwrap(), 3);
+        assert_eq!(ip.iface_index(2.into(), 0.into()).unwrap(), 0);
+        assert_eq!(ip.iface_index(2.into(), 1.into()).unwrap(), 1);
+        assert_eq!(ip.iface_index(3.into(), 0.into()).unwrap(), 0);
+        assert_eq!(ip.iface_index(3.into(), 1.into()).unwrap(), 1);
+        assert_eq!(ip.iface_index(4.into(), 0.into()).unwrap(), 0);
+        assert_eq!(ip.iface_index(5.into(), 1.into()).unwrap(), 0);
 
         finds_address!(ip, "1.0.0.1/32", 0);
         finds_address!(ip, "1.0.1.1/32", 1);
