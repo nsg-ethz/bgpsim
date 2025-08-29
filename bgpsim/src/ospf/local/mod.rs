@@ -66,9 +66,16 @@ impl OspfImpl for LocalOspf {
         let mut ribs = HashMap::new();
         let mut redistributed_paths = HashMap::new();
 
-        for (router, (local_p, global_p)) in processes {
+        for (router, (mut local_p, global_p)) in processes {
             // create the neighbors
             global_p.neighbors = local_p.neighbor_links;
+
+            // ensure that the RIB to the own router is present
+            local_p
+                .areas
+                .rib
+                .entry(router)
+                .or_insert(OspfRibEntry::empty(router));
 
             // write the OSPF and RIB tables
             global_p.ospf_table = local_p.table;

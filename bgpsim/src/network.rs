@@ -55,8 +55,8 @@ pub const DEFAULT_INTERNAL_ASN: ASN = ASN(65500);
 ///     let mut net: Network<SimplePrefix, _> = Network::default();
 ///
 ///     // add two internal routers and connect them.
-///     let r1 = net.add_router("r1");
-///     let r2 = net.add_router("r2");
+///     let r1 = net.add_router("r1", 65500);
+///     let r2 = net.add_router("r2", 65500);
 ///     net.add_link(r1, r2)?;
 ///     net.set_link_weight(r1, r2, 5.0)?;
 ///     net.set_link_weight(r2, r1, 4.0)?;
@@ -137,39 +137,11 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         }
     }
 
-    /// Add a new router to the topology with the default AS number of `AsId(65001)`. This function
-    /// returns the ID of the router, which can be used to reference it while confiugring the
-    /// network.
-    ///
-    /// If you wish to create a router with a different AS number, use [`Self::add_router_with_asn`].
-    pub fn add_router(&mut self, name: impl Into<String>) -> RouterId {
+    /// Add a new router to the topology with given AS number. This function returns the ID of the
+    /// router, which can be used to reference it while confiugring the network.
+    pub fn add_router(&mut self, name: impl Into<String>, asn: impl Into<ASN>) -> RouterId {
         let router_id = self._prepare_node();
-        self._add_router_with_asn_and_router_id(router_id, name, DEFAULT_INTERNAL_ASN);
-        router_id
-    }
-
-    /// Add a new router to the topology with a custom AS number. This function returns the ID of
-    /// the router, which can be used to reference it while confiugring the network.
-    pub fn add_router_with_asn(
-        &mut self,
-        name: impl Into<String>,
-        asn: impl Into<ASN>,
-    ) -> RouterId {
-        let router_id = self._prepare_node();
-        self._add_router_with_asn_and_router_id(router_id, name, asn);
-        router_id
-    }
-
-    /// Add a new external router to the topology. An external router does not process any BGP
-    /// messages, it just advertises routes from outside of the network. This function returns
-    /// the ID of the router, which can be used to reference it while configuring the network.
-    pub fn add_external_router(
-        &mut self,
-        name: impl Into<String>,
-        asn: impl Into<ASN>,
-    ) -> RouterId {
-        let router_id = self._prepare_node();
-        self._add_external_router_with_router_id(router_id, name, asn);
+        self._add_router_with_router_id(router_id, name, asn.into());
         router_id
     }
 
@@ -254,7 +226,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         Ok(old_asn)
     }
 
-    pub(crate) fn _add_router_with_asn_and_router_id(
+    pub(crate) fn _add_router_with_router_id(
         &mut self,
         router_id: RouterId,
         name: impl Into<String>,
@@ -262,19 +234,6 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     ) {
         let asn = asn.into();
         let new_router = Router::new(name.into(), router_id, asn);
-        let router_id = new_router.router_id();
-        self.routers.insert(router_id, new_router.into());
-        self.ospf.add_router(router_id, asn);
-    }
-
-    pub(crate) fn _add_external_router_with_router_id(
-        &mut self,
-        router_id: RouterId,
-        name: impl Into<String>,
-        asn: impl Into<ASN>,
-    ) {
-        let asn = asn.into();
-        let new_router = ExternalRouter::new(name.into(), router_id, asn);
         let router_id = new_router.router_id();
         self.routers.insert(router_id, new_router.into());
         self.ospf.add_router(router_id, asn);
@@ -584,8 +543,8 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// # use bgpsim::prelude::*;
     /// # fn main() -> Result<(), NetworkError> {
     /// let mut net: Network<SimplePrefix, _> = Network::default();
-    /// let r1 = net.add_router("r1");
-    /// let r2 = net.add_router("r2");
+    /// let r1 = net.add_router("r1", 65500);
+    /// let r2 = net.add_router("r2", 65500);
     /// net.add_link(r1, r2)?;
     /// net.set_link_weight(r1, r2, 5.0)?;
     /// net.set_link_weight(r2, r1, 4.0)?;

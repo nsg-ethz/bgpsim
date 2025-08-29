@@ -33,9 +33,9 @@ mod t {
     #[test]
     fn two_router<P: Prefix, Ospf: OspfImpl>() -> Result<(), NetworkError> {
         let mut net: Network<P, BasicEventQueue<P>, Ospf> = Network::default();
-        let e = net.add_external_router("ext", 100);
-        let a = net.add_router_with_asn("a", 1);
-        let b = net.add_router_with_asn("b", 2);
+        let e = net.add_router("ext", 100);
+        let a = net.add_router("a", 1);
+        let b = net.add_router("b", 2);
 
         net.add_link(e, a)?;
         net.add_link(a, b)?;
@@ -52,7 +52,7 @@ mod t {
         assert_ospf_table(&net, b, btreemap! {a => (vec![a], 0.0), b => (vec![], 0.0)});
 
         let p = prefix!("10.0.0.0/8" as P);
-        net.advertise_external_route(e, p, vec![ASN(100)], None, None)?;
+        net.advertise_external_route(e, p, None::<ASN>, None, None)?;
         assert_eq!(
             net.get_internal_router(a)?
                 .bgp
@@ -74,10 +74,10 @@ mod t {
     #[test]
     fn three_router<P: Prefix, Ospf: OspfImpl>() -> Result<(), NetworkError> {
         let mut net: Network<P, BasicEventQueue<P>, Ospf> = Network::default();
-        let e = net.add_external_router("ext", 100);
-        let a = net.add_router_with_asn("a", 1);
-        let b = net.add_router_with_asn("b", 2);
-        let c = net.add_router_with_asn("c", 2);
+        let e = net.add_router("ext", 100);
+        let a = net.add_router("a", 1);
+        let b = net.add_router("b", 2);
+        let c = net.add_router("c", 2);
 
         net.add_link(e, a)?;
         net.add_link(a, b)?;
@@ -105,7 +105,7 @@ mod t {
         );
 
         let p = prefix!("10.0.0.0/8" as P);
-        net.advertise_external_route(e, p, vec![ASN(100)], None, None)?;
+        net.advertise_external_route(e, p, None::<ASN>, None, None)?;
         assert_eq!(
             net.get_internal_router(a)?
                 .bgp
@@ -134,9 +134,9 @@ mod t {
     #[test]
     fn two_router_community_filter<P: Prefix, Ospf: OspfImpl>() -> Result<(), NetworkError> {
         let mut net: Network<P, BasicEventQueue<P>, Ospf> = Network::default();
-        let e = net.add_external_router("ext", 100);
-        let a = net.add_router_with_asn("a", 1);
-        let b = net.add_router_with_asn("b", 2);
+        let e = net.add_router("ext", 100);
+        let a = net.add_router("a", 1);
+        let b = net.add_router("b", 2);
 
         net.add_link(e, a)?;
         net.add_link(a, b)?;
@@ -148,7 +148,7 @@ mod t {
         net.advertise_external_route(
             e,
             p,
-            vec![ASN(100)],
+            None::<ASN>,
             None,
             [(100, 1).into(), (1, 1).into(), (2, 1).into()],
         )?;
@@ -180,9 +180,9 @@ mod t {
         let _ = env_logger::try_init();
 
         let mut net: Network<P, BasicEventQueue<P>, Ospf> = Network::default();
-        let e = net.add_external_router("ext", 100);
-        let a = net.add_router_with_asn("a", 1);
-        let b = net.add_router_with_asn("b", 1);
+        let e = net.add_router("ext", 100);
+        let a = net.add_router("a", 1);
+        let b = net.add_router("b", 1);
 
         let same_asn_table_a =
             btreemap! {e => (vec![e], 0.0), a => (vec![], 0.0), b => (vec![b], 100.0)};
@@ -228,9 +228,9 @@ mod t {
     #[test]
     fn foo<P: Prefix, Ospf: OspfImpl>() -> Result<(), NetworkError> {
         let mut net: Network<P, BasicEventQueue<P>, Ospf> = Network::default();
-        let e = net.add_external_router("ext", 100);
-        let a = net.add_router_with_asn("a", 1);
-        let b = net.add_router_with_asn("b", 1);
+        let e = net.add_router("ext", 100);
+        let a = net.add_router("a", 1);
+        let b = net.add_router("b", 1);
 
         let same_asn_table_a =
             btreemap! {e => (vec![e], 0.0), a => (vec![], 0.0), b => (vec![b], 100.0)};

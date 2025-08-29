@@ -30,7 +30,7 @@ fn get_test_net<P: Prefix>(num_neighbors: usize) -> Network<P, BasicEventQueue<P
     let mut net = Network::<P, BasicEventQueue<P>>::new(BasicEventQueue::new());
     net.build_topology(ASN(65500), CompleteGraph(num_neighbors))
         .unwrap();
-    let ext = net.add_external_router("external_router", ASN(100));
+    let ext = net.add_router("external_router", ASN(100));
     net.internal_indices()
         .detach()
         .for_each(|r| net.add_link(r, ext).unwrap());

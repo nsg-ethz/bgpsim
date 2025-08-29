@@ -40,12 +40,12 @@ fn setup_simple<Q>(
 where
     Q: EventQueue<P>,
 {
-    let e0 = net.add_external_router("E0", ASN(1));
-    let b0 = net.add_router("B0");
-    let r0 = net.add_router("R0");
-    let r1 = net.add_router("R1");
-    let b1 = net.add_router("B1");
-    let e1 = net.add_external_router("E1", ASN(1));
+    let e0 = net.add_router("E0", ASN(1));
+    let b0 = net.add_router("B0", 65500);
+    let r0 = net.add_router("R0", 65500);
+    let r1 = net.add_router("R1", 65500);
+    let b1 = net.add_router("B1", 65500);
+    let e1 = net.add_router("E1", ASN(1));
 
     net.add_link(e0, b0)?;
     net.add_link(b0, r0)?;

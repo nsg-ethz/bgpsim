@@ -125,9 +125,9 @@ impl RouteSampler for EqualPreference {
         };
 
         ases.into_iter().flat_map(|asn| {
-            net.external_routers()
+            net.devices()
                 .filter(move |r| r.asn() == asn)
-                .map(|r| (r.router_id(), 1))
+                .map(|r| (r.router_id(), 0))
         })
     }
 }
@@ -219,9 +219,9 @@ impl RouteSampler for UniquePreference {
         }
 
         ases.into_iter().enumerate().flat_map(|(path_len, asn)| {
-            net.external_routers()
+            net.devices()
                 .filter(move |r| r.asn() == asn)
-                .map(move |r| (r.router_id(), path_len + 1))
+                .map(move |r| (r.router_id(), path_len))
         })
     }
 }
@@ -313,9 +313,9 @@ impl RouteSampler for SingleBestOthersEqual {
         }
 
         ases.into_iter().enumerate().flat_map(|(path_len, asn)| {
-            net.external_routers()
+            net.devices()
                 .filter(move |r| r.asn() == asn)
-                .map(move |r| (r.router_id(), if path_len == 0 { 1 } else { 3 }))
+                .map(move |r| (r.router_id(), if path_len == 0 { 0 } else { 2 }))
         })
     }
 }

@@ -93,12 +93,12 @@
 //!
 //!     let prefix = Prefix::from(0);
 //!
-//!     let e0 = t.add_external_router("E0", 1);
-//!     let b0 = t.add_router("B0");
-//!     let r0 = t.add_router("R0");
-//!     let r1 = t.add_router("R1");
-//!     let b1 = t.add_router("B1");
-//!     let e1 = t.add_external_router("E1", 2);
+//!     let e0 = t.add_router("E0", 1);
+//!     let b0 = t.add_router("B0", 65500);
+//!     let r0 = t.add_router("R0", 65500);
+//!     let r1 = t.add_router("R1", 65500);
+//!     let b1 = t.add_router("B1", 65500);
+//!     let e1 = t.add_router("E1", 2);
 //!
 //!     t.add_link(e0, b0);
 //!     t.add_link(b0, r0);

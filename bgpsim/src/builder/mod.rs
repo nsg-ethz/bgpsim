@@ -219,9 +219,9 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
     /// # let mut net: Network<SimplePrefix, _, GlobalOspf> = TopologyZoo::Abilene.build(Queue::new(), ASN(65500), ASN(1));
     /// # let prefix = Prefix::from(0);
-    /// # let e1 = net.add_external_router("e1", ASN(1));
-    /// # let e2 = net.add_external_router("e2", ASN(2));
-    /// # let e3 = net.add_external_router("e3", ASN(3));
+    /// # let e1 = net.add_router("e1", ASN(1));
+    /// # let e2 = net.add_router("e2", ASN(2));
+    /// # let e3 = net.add_router("e3", ASN(3));
     ///
     /// // let mut net = ...
     /// // let prefix = ...
@@ -440,7 +440,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
                 let router_id = self._prepare_node();
                 let name = format!("{}_ext_{}", neighbor_name, router_id.index());
                 let asn = self.next_unused_asn(external_asn);
-                self._add_external_router_with_router_id(router_id, name, asn);
+                self._add_router_with_router_id(router_id, name, asn);
                 new_links.push((router_id, neighbor));
                 Ok(router_id)
             })
@@ -466,7 +466,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         self.skip_queue = false;
 
         for (router, as_path_len) in prefs.iter().copied() {
-            let router_as = self.get_device(router)?.external_or_err()?.asn();
+            let router_as = self.get_device(router)?.asn();
             let as_path =
                 std::iter::repeat_n(router_as, as_path_len).chain(std::iter::once(origin_asn));
             self.advertise_external_route(router, prefix, as_path, None, None)?;
@@ -488,7 +488,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             .map(|_| {
                 let router_id = self._prepare_node();
                 let name = format!("R{}", router_id.index());
-                self._add_router_with_asn_and_router_id(router_id, name, asn);
+                self._add_router_with_router_id(router_id, name, asn);
                 router_id
             })
             .collect::<Vec<_>>();

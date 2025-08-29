@@ -3,49 +3,49 @@
 ! Interfaces
 !
 interface eth1
-  ip address 10.192.0.1/30
+  ip address 1.192.0.1/30
   no shutdown
 exit
 !
 interface lo
-  ip address 20.0.0.1/32
+  ip address 1.0.0.1/32
+  ip address 100.0.0.1/24
   no shutdown
+exit
+!
+! Static Routes
+!
+!
+! OSPF
+!
+router ospf
+  router-id 1.0.0.1
+  maximum-paths 1
 exit
 !
 ! BGP
 !
-route-map neighbor-in permit 65535
+route-map neighbor-R0-in permit 65535
 exit
-route-map neighbor-out permit 65535
+route-map neighbor-R0-out permit 65535
 exit
 !
 router bgp 100
-  bgp router-id 20.0.0.1
-  neighbor 10.192.0.2 remote-as 65500
-  neighbor 10.192.0.2 update-source eth1
+  bgp router-id 1.0.0.1
+  neighbor 1.192.0.2 remote-as 65500
+  neighbor 1.192.0.2 update-source eth1
   address-family ipv4 unicast
-    network 20.0.0.0/24
-    neighbor 10.192.0.2 next-hop-self
-    neighbor 10.192.0.2 route-map neighbor-in in
-    neighbor 10.192.0.2 route-map neighbor-out out
+    network 1.0.0.0/8
+    network 100.0.0.1/24
+    neighbor 1.192.0.2 weight 100
+    neighbor 1.192.0.2 next-hop-self
+    neighbor 1.192.0.2 route-map neighbor-R0-in in
+    neighbor 1.192.0.2 route-map neighbor-R0-out out
+    neighbor 1.192.0.2 soft-reconfiguration inbound
   exit-address-family
 exit
 !
-ip route 20.0.0.0/24 Null0
+ip route 1.0.0.0/8 Null0
 !
-! Create external advertisements
+! Route-Maps
 !
-interface lo
-  ip address 100.0.0.1/24
-exit
-router bgp 100
-  address-family ipv4 unicast
-    network 100.0.0.0/24
-  exit-address-family
-exit
-ip prefix-list prefix-list-0 seq 1 permit 100.0.0.0/24
-route-map neighbor-out permit 1
-  match ip address prefix-list prefix-list-0
-  set metric 0
-  set as-path prepend 4 4 2 1
-exit

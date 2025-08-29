@@ -147,7 +147,7 @@ mod t {
         let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
         assert_eq!(net.external_indices().count(), 0);
-        net.add_external_router("R1", ASN(1));
+        net.add_router("R1", ASN(1));
         assert_eq!(net.external_indices().count(), 1);
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
@@ -167,7 +167,7 @@ mod t {
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
         net.build_link_weights(1.0).unwrap();
-        let r_last = net.add_external_router("test", ASN(1000));
+        let r_last = net.add_router("test", ASN(1000));
         net.build_ebgp_sessions().unwrap();
         for id in net.external_indices() {
             let r = net.get_device(id).unwrap().unwrap_external();
@@ -442,11 +442,11 @@ mod t {
     #[test]
     fn test_interdomain<P: Prefix, Ospf: OspfImpl>() {
         let mut net = Network::<_, Queue<P>, Ospf>::default();
-        let r0 = net.add_router_with_asn("R0", 0);
-        let r1 = net.add_router_with_asn("R1", 1);
-        let r2 = net.add_router_with_asn("R2", 2);
-        let r3 = net.add_router_with_asn("R3", 3);
-        let r4 = net.add_router_with_asn("R4", 4);
+        let r0 = net.add_router("R0", 0);
+        let r1 = net.add_router("R1", 1);
+        let r2 = net.add_router("R2", 2);
+        let r3 = net.add_router("R3", 3);
+        let r4 = net.add_router("R4", 4);
 
         net.add_links_from(vec![
             (r0, r1),

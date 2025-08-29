@@ -28,7 +28,7 @@ use crate::{
     types::{Ipv4Prefix, Prefix, PrefixMap, RouterId, ASN},
 };
 
-use super::{Addressor, ExportError, ExternalCfgGen};
+use super::{Addressor, CfgGen, ExportError};
 
 use ipnet::Ipv4Net;
 use itertools::Itertools;
@@ -119,7 +119,7 @@ pub const RUNNER_POSTAMBLE: &str = "\nwhile True:\n    time.sleep(1)\n";
 /// #   use bgpsim::builder::*;
 /// #   let mut net: Network<_, _, GlobalOspf> = Network::new(BasicEventQueue::<P>::new());
 /// #   net.build_topology(65500, CompleteGraph(1)).unwrap();
-/// #   let router = net.add_external_router("external_router", ASN(100));
+/// #   let router = net.add_router("external_router", ASN(100));
 /// #   net.internal_indices().detach().for_each(|r| net.add_link(r, router).unwrap());
 /// #   net.build_ibgp_full_mesh()?;
 /// #   net.build_ebgp_sessions()?;

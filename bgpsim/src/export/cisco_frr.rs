@@ -17,7 +17,7 @@
 
 use std::{
     cmp::Ordering,
-    collections::{HashMap, HashSet},
+    collections::{BTreeSet, HashMap, HashSet},
     iter::once,
     net::Ipv4Addr,
 };
@@ -27,7 +27,7 @@ use ipnet::Ipv4Net;
 use itertools::Itertools;
 
 use crate::{
-    bgp::{BgpRoute, Community},
+    bgp::Community,
     config::{ConfigExpr, ConfigModifier},
     network::Network,
     ospf::{InternalEdge, OspfArea, OspfImpl, OspfProcess},
@@ -45,16 +45,12 @@ use super::{
         RouteMapItem, RouterBgp, RouterBgpNeighbor, RouterOspf, StaticRoute as StaticRouteGen,
         Target,
     },
-    Addressor, ExportError, ExternalCfgGen, InternalCfgGen,
+    Addressor, CfgGen, ExportError,
 };
-
-/// constant for the internal AS number
-const EXTERNAL_RM_IN: &str = "neighbor-in";
-const EXTERNAL_RM_OUT: &str = "neighbor-out";
 
 /// Configuration generator for Cisco IOS. This was tested on the nexus 7000 series.
 #[derive(Debug)]
-pub struct CiscoFrrCfgGen<P: Prefix> {
+pub struct CiscoFrrCfgGen {
     target: Target,
     ifaces: Vec<String>,
     router: RouterId,
@@ -70,13 +66,11 @@ pub struct CiscoFrrCfgGen<P: Prefix> {
     ospf_params: (Option<u16>, Option<u16>),
     /// List of route map indices,
     route_maps: HashMap<(RouterId, RmDir), Vec<(i16, RouteMapState)>>,
-    /// list of routes (external) that are advertised
-    advertised_external_routes: P::Set,
 }
 
-impl<P: Prefix> CiscoFrrCfgGen<P> {
+impl CiscoFrrCfgGen {
     /// Create a new config generator for the specified router.
-    pub fn new<Q, Ospf: OspfImpl>(
+    pub fn new<P: Prefix, Q, Ospf: OspfImpl>(
         net: &Network<P, Q, Ospf>,
         router: RouterId,
         target: Target,
@@ -120,7 +114,6 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
             mac_addresses: Default::default(),
             ospf_params: (Some(1), Some(5)),
             route_maps,
-            advertised_external_routes: Default::default(),
         })
     }
 
@@ -171,7 +164,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     /// return `Err(ExportError::ModifierDoesNotAffectRouter)`. We use `a` and `b`, instead of only
     /// `target`, such that one can call this function without knowing which of `a` and `b` is
     /// `self.router`.
-    fn iface<A: Addressor<P>>(
+    fn iface<P: Prefix, A: Addressor<P>>(
         &self,
         a: RouterId,
         b: RouterId,
@@ -187,7 +180,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Generate the prefix-lists for all equivalence classes
-    fn pec_config<A: Addressor<P>>(&mut self, addressor: &A) -> String {
+    fn pec_config<P: Prefix, A: Addressor<P>>(&mut self, addressor: &A) -> String {
         // early exit if there are no pecs
         if addressor.get_pecs().iter().next().is_none() {
             return String::new();
@@ -213,14 +206,14 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create all the interface configuration
-    fn iface_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
+    fn iface_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &mut self,
         net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
         let r = self.router;
-        let is_internal = net.get_device(self.router)?.is_internal();
+        let router = net.get_internal_router(self.router)?;
 
         config.push_str("!\n! Interfaces\n!\n");
         for edge in net.ospf.neighbors(r).sorted_by_key(|e| e.dst()) {
@@ -237,12 +230,8 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
                 iface.mac_address(*mac);
             }
 
-            let (weight, area) = match edge.internal() {
-                Some(InternalEdge { weight, area, .. }) => (weight, area),
-                _ => (1.0, OspfArea::BACKBONE),
-            };
-
-            if is_internal {
+            // ospf configuration only for internal edged
+            if let Some(InternalEdge { weight, area, .. }) = edge.internal() {
                 iface.cost(weight);
                 if let Some(hello) = self.ospf_params.0 {
                     iface.hello_interval(hello);
@@ -266,13 +255,32 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
             lo.cost(1.0);
             lo.area(area);
         }
+
+        let mut additional_lo = Vec::new();
+
+        // add all advertised networks to the loopback address
+        for route in router.bgp.get_advertised_routes() {
+            for address in addressor.prefix_address(route.prefix)? {
+                if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
+                    lo.ip_address(address);
+                } else {
+                    let mut add_lo = Interface::new(self.get_loopback_iface(address)?);
+                    add_lo.ip_address(address);
+                    additional_lo.push(add_lo);
+                }
+            }
+        }
+
         config.push_str(&lo.build(self.target));
+        for add_lo in additional_lo {
+            config.push_str(&add_lo.build(self.target));
+        }
 
         Ok(config)
     }
 
     /// Create the static route config
-    fn static_route_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
+    fn static_route_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
         net: &Network<P, Q, Ospf>,
         router: &Router<P, Ospf::Process>,
@@ -290,7 +298,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Generate a single static route line
-    fn static_route<A: Addressor<P>, Q, Ospf: OspfImpl>(
+    fn static_route<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
         net: &Network<P, Q, Ospf>,
         addressor: &mut A,
@@ -318,7 +326,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create the ospf configuration
-    fn ospf_config<A: Addressor<P>, Ospf: OspfProcess>(
+    fn ospf_config<P: Prefix, A: Addressor<P>, Ospf: OspfProcess>(
         &self,
         router: &Router<P, Ospf>,
         addressor: &mut A,
@@ -335,7 +343,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create the BGP configuration
-    fn bgp_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
+    fn bgp_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
         net: &Network<P, Q, Ospf>,
         router: &Router<P, Ospf::Process>,
@@ -348,12 +356,12 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         // create the bgp configuration
         let mut router_bgp = RouterBgp::new(self.asn);
         router_bgp.router_id(addressor.router_address(r)?);
-        router_bgp.network(addressor.internal_network());
+        router_bgp.network(addressor.as_network(self.asn)?);
 
         // create each neighbor
         for (n, (_, client, _)) in router.bgp.get_sessions().iter().sorted_by_key(|(x, _)| *x) {
             let rm_name = rm_name(net, *n);
-            router_bgp.neighbor(self.bgp_neigbor_config(net, addressor, *n, *client, &rm_name)?);
+            router_bgp.neighbor(self.bgp_neighbor_config(net, addressor, *n, *client, &rm_name)?);
 
             // build the default route-map to permit everything
             default_rm.push_str(
@@ -364,6 +372,14 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
             );
         }
 
+        // advertise routes
+        for route in router.bgp.get_advertised_routes() {
+            empty_route(&route.as_path, route.med, &route.community)?;
+            for network in addressor.prefix_address(route.prefix)? {
+                router_bgp.network(network);
+            }
+        }
+
         // push the bgp configuration
         config.push_str("!\n! BGP\n!\n");
         config.push_str(&default_rm);
@@ -372,7 +388,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         // push the static route for the entire internal network with the lowest preference.
         config.push_str("!\n");
         config.push_str(
-            &StaticRouteGen::new(addressor.internal_network())
+            &StaticRouteGen::new(addressor.as_network(self.asn)?)
                 .blackhole()
                 .build(self.target),
         );
@@ -381,7 +397,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create the configuration for a BGP neighbor
-    fn bgp_neigbor_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
+    fn bgp_neighbor_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
         net: &Network<P, Q, Ospf>,
         addressor: &mut A,
@@ -416,7 +432,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create all route-maps
-    fn route_map_config<A: Addressor<P>, Q, Ospf: OspfImpl>(
+    fn route_map_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &mut self,
         net: &Network<P, Q, Ospf>,
         addressor: &mut A,
@@ -510,7 +526,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Create a route-map item from a [`RouteMap<P>`]
-    fn route_map_item<A: Addressor<P>, Q, Ospf: OspfImpl>(
+    fn route_map_item<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
         name: &str,
         rm: &RouteMap<P>,
@@ -617,7 +633,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Update the continue statement of the route-map that is coming before `order`.
-    fn fix_prev_rm_continue<Q, Ospf: OspfImpl>(
+    fn fix_prev_rm_continue<P: Prefix, Q, Ospf: OspfImpl>(
         &self,
         net: &Network<P, Q, Ospf>,
         neighbor: RouterId,
@@ -640,13 +656,15 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
     }
 
     /// Transform the router-id into an IP address (when writing route-maps)
-    fn router_id_to_ip<A: Addressor<P>, Q, Ospf: OspfImpl>(
+    fn router_id_to_ip<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
         r: RouterId,
         net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<Ipv4Addr, ExportError> {
-        if net.get_device(r)?.is_internal() && net.get_device(self.router)?.is_internal() {
+        if net.get_device(r)?.internal_or_err()?.asn()
+            == net.get_device(self.router)?.internal_or_err()?.asn()
+        {
             addressor.router_address(r)
         } else {
             addressor.iface_address(r, self.router)
@@ -701,9 +719,7 @@ fn rm_name<P: Prefix, Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>, router: Rout
     }
 }
 
-impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A>
-    for CiscoFrrCfgGen<P>
-{
+impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> CfgGen<P, Q, Ospf, A> for CiscoFrrCfgGen {
     fn generate_config(
         &mut self,
         net: &Network<P, Q, Ospf>,
@@ -768,7 +784,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                     Ok(format!(
                         "{}{}{}",
                         RouterBgp::new(self.asn)
-                            .neighbor(self.bgp_neigbor_config(
+                            .neighbor(self.bgp_neighbor_config(
                                 net,
                                 addressor,
                                 neighbor,
@@ -812,6 +828,13 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                 ConfigExpr::LoadBalancing { .. } => {
                     Ok(RouterOspf::new().maximum_paths(16).build(self.target))
                 }
+                ConfigExpr::AdvertiseRoute {
+                    prefix,
+                    as_path,
+                    med,
+                    community,
+                    ..
+                } => self.advertise_route(addressor, prefix, as_path, med, community),
             },
             ConfigModifier::Remove(c) => match c {
                 ConfigExpr::IgpLinkWeight { source, target, .. } => {
@@ -870,6 +893,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                 ConfigExpr::LoadBalancing { .. } => {
                     Ok(RouterOspf::new().maximum_paths(1).build(self.target))
                 }
+                ConfigExpr::AdvertiseRoute { prefix, .. } => self.withdraw_route(addressor, prefix),
             },
             ConfigModifier::Update { from, to } => match to {
                 ConfigExpr::IgpLinkWeight {
@@ -942,6 +966,13 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
                     }
                 }
                 ConfigExpr::LoadBalancing { .. } => unreachable!(),
+                ConfigExpr::AdvertiseRoute {
+                    prefix,
+                    as_path,
+                    med,
+                    community,
+                    ..
+                } => self.advertise_route(addressor, prefix, as_path, med, community),
             },
             ConfigModifier::BatchRouteMapEdit { router, updates } => updates
                 .into_iter()
@@ -952,87 +983,43 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> InternalCfgGen<P, Q, Ospf, A
     }
 }
 
-impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A>
-    for CiscoFrrCfgGen<P>
-{
-    fn generate_config(
-        &mut self,
-        net: &Network<P, Q, Ospf>,
-        addressor: &mut A,
-    ) -> Result<String, ExportError> {
-        let mut config = String::new();
-        let router = net.get_device(self.router)?.external_or_err()?;
-
-        // if we are on cisco, enable the ospf and bgp feature
-        config.push_str("!\n");
-        config.push_str(enable_bgp(self.target));
-
-        // create the interfaces to the neighbors
-        config.push_str(&self.iface_config(net, addressor)?);
-
-        // manually create the bgp configuration
-        let mut router_bgp = RouterBgp::new(self.asn);
-        router_bgp.router_id(addressor.router_address(self.router)?);
-        for neighbor in router.neighbors.iter() {
-            let neighbor_asn = net.get_device(*neighbor)?.asn();
-            router_bgp.neighbor(
-                RouterBgpNeighbor::new(self.router_id_to_ip(*neighbor, net, addressor)?)
-                    .update_source(self.iface(self.router, *neighbor, addressor)?)
-                    .remote_as(neighbor_asn)
-                    .next_hop_self()
-                    .route_map_in(EXTERNAL_RM_IN)
-                    .route_map_out(EXTERNAL_RM_OUT),
-            );
-        }
-        // announce the internal prefix (for now).
-        router_bgp.network(addressor.router_network(self.router)?);
-        // create the actual config
-        config.push_str("!\n! BGP\n!\n");
-        // first, push all route-maps
-        config.push_str(&RouteMapItem::new(EXTERNAL_RM_IN, u16::MAX, true).build(self.target));
-        config.push_str(&RouteMapItem::new(EXTERNAL_RM_OUT, u16::MAX, true).build(self.target));
-        config.push_str("!\n");
-        // then, push the config
-        config.push_str(&router_bgp.build(self.target));
-        config.push_str("!\n");
-        config.push_str(
-            &StaticRouteGen::new(addressor.router_network(self.router)?)
-                .blackhole()
-                .build(self.target),
-        );
-
-        // create the two route-maps that allow everything
-
-        // Create all external advertisements
-        config.push_str("!\n! Create external advertisements\n");
-        for (_, route) in router.active_routes.iter().sorted_by_key(|(p, _)| *p) {
-            config.push_str("!\n");
-            config.push_str(&self.advertise_route(net, addressor, route)?);
-        }
-
-        Ok(config)
+fn empty_route(
+    as_path: &[ASN],
+    med: Option<u32>,
+    community: &BTreeSet<Community>,
+) -> Result<(), ExportError> {
+    // only support empty options
+    if !as_path.is_empty() {
+        Err(ExportError::NotSupported("Cisco routers can only originate `empty' routes. Use route-maps to customize the AS path!"))
+    } else if med.is_some() {
+        Err(ExportError::NotSupported("Cisco routers can only originate `empty' routes. Use route-maps to customize the advertised MED value!"))
+    } else if !community.is_empty() {
+        Err(ExportError::NotSupported("Cisco routers can only originate `empty' routes. Use route-maps to customize the advertised community!"))
+    } else {
+        Ok(())
     }
+}
 
-    fn advertise_route(
+impl CiscoFrrCfgGen {
+    fn advertise_route<P: Prefix, A: Addressor<P>>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
-        route: &BgpRoute<P>,
+        prefix: P,
+        as_path: Vec<ASN>,
+        med: Option<u32>,
+        community: BTreeSet<Community>,
     ) -> Result<String, ExportError> {
-        // check if the prefix is already present. If so, first withdraw the route
-        if self.advertised_external_routes.contains(&route.prefix) {
-            self.withdraw_route(net, addressor, route.prefix)?;
-        }
-        self.advertised_external_routes.insert(route.prefix);
+        // only support empty options
+        empty_route(&as_path, med, &community)?;
 
+        // check if the prefix is already present. If so, first withdraw the route
         let mut config = String::new();
 
-        let mut prefix_list = PrefixList::new(format!("prefix-list-{}", route.prefix.as_num()));
         let mut bgp_config = RouterBgp::new(self.asn);
 
         // add all loopback ip addresses. This is special if we can store multiple IP addresses on
         // the same loopback interface
-        for address in addressor.prefix_address(route.prefix)? {
+        for address in addressor.prefix_address(prefix)? {
             if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
                 let mut iface = Interface::new(loopback_iface(self.target, 0));
                 iface.ip_address(address);
@@ -1047,36 +1034,21 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         }
 
         // add all networks to the bgp config and prefix list
-        for prefix_net in addressor.prefix(route.prefix)? {
+        for prefix_net in addressor.prefix(prefix)? {
             bgp_config.network(prefix_net);
-            prefix_list.prefix(prefix_net);
         }
 
         // write the bgp config
         config.push_str(&bgp_config.build(self.target));
 
-        // write the route-map
-        let mut route_map =
-            RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.as_num() as u16 + 1, true);
-        route_map.match_prefix_list(prefix_list);
-        route_map.prepend_as_path(route.as_path.iter().skip(1));
-        route_map.set_med(route.med.unwrap_or(0));
-        for c in route.community.iter() {
-            route_map.set_community(*c);
-        }
-        config.push_str(&route_map.build(self.target));
-
         Ok(config)
     }
 
-    fn withdraw_route(
+    fn withdraw_route<P: Prefix, A: Addressor<P>>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         prefix: P,
     ) -> Result<String, ExportError> {
-        self.advertised_external_routes.remove(&prefix);
-
         let mut config = String::new();
 
         // add all loopback ip addresses. This is special if we can store multiple IP addresses on
@@ -1104,46 +1076,7 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         }
         config.push_str(&bgp_config.build(self.target));
 
-        // remote the route-map
-        config.push_str(
-            &RouteMapItem::new(EXTERNAL_RM_OUT, prefix.as_num() as u16 + 1, true)
-                .match_prefix_list(PrefixList::new(format!("prefix-list-{}", prefix.as_num())))
-                .no(self.target),
-        );
-
         Ok(config)
-    }
-
-    fn establish_ebgp_session(
-        &mut self,
-        net: &Network<P, Q, Ospf>,
-        addressor: &mut A,
-        neighbor: RouterId,
-    ) -> Result<String, ExportError> {
-        let neighbor_asn = net.get_device(neighbor)?.asn();
-        Ok(RouterBgp::new(self.asn)
-            .neighbor(
-                RouterBgpNeighbor::new(self.router_id_to_ip(neighbor, net, addressor)?)
-                    .update_source(self.iface(self.router, neighbor, addressor)?)
-                    .remote_as(neighbor_asn)
-                    .next_hop_self()
-                    .route_map_in(EXTERNAL_RM_IN)
-                    .route_map_out(EXTERNAL_RM_OUT),
-            )
-            .build(self.target))
-    }
-
-    fn teardown_ebgp_session(
-        &mut self,
-        net: &Network<P, Q, Ospf>,
-        addressor: &mut A,
-        neighbor: RouterId,
-    ) -> Result<String, ExportError> {
-        Ok(RouterBgp::new(self.asn)
-            .neighbor(RouterBgpNeighbor::new(
-                self.router_id_to_ip(neighbor, net, addressor)?,
-            ))
-            .no())
     }
 }
 

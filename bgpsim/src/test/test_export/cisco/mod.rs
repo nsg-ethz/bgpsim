@@ -17,9 +17,7 @@ use pretty_assertions::assert_str_eq;
 
 use crate::{
     config::{ConfigExpr, ConfigModifier::*},
-    export::{
-        cisco_frr_generators::Target::CiscoNexus7000 as Target, CiscoFrrCfgGen, InternalCfgGen,
-    },
+    export::{cisco_frr_generators::Target::CiscoNexus7000 as Target, CfgGen, CiscoFrrCfgGen},
     route_map::{RouteMapBuilder, RouteMapDirection::Incoming},
     types::{NonOverlappingPrefix, Prefix, SimplePrefix, SinglePrefix},
 };
@@ -90,7 +88,7 @@ fn generate_internal_config_route_maps_edit() {
     let mut cfg_gen =
         CiscoFrrCfgGen::new(&net, 0.into(), Target, super::iface_names(Target)).unwrap();
 
-    let config = InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap();
+    let config = cfg_gen.generate_config(&net, &mut ip).unwrap();
 
     assert_str_eq!(config, include_str!("internal_config_route_maps"));
 

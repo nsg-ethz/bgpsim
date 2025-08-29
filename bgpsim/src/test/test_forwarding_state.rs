@@ -54,20 +54,20 @@ mod t {
         for _ in 0..10 {
             let mut net = Network::<_, _, GlobalOspf>::default();
 
-            let rr = net.add_router("rr");
-            let r1 = net.add_router("r1");
-            let r2 = net.add_router("r2");
-            let r3 = net.add_router("r3");
-            let r4 = net.add_router("r4");
-            let b1 = net.add_router("b1");
-            let b2 = net.add_router("b2");
-            let b3 = net.add_router("b3");
-            let b4 = net.add_router("b4");
-            let e1 = net.add_external_router("e1", ASN(65101));
-            let e2 = net.add_external_router("e2", ASN(65102));
-            let e3 = net.add_external_router("e3", ASN(65103));
-            let e4 = net.add_external_router("e4", ASN(65104));
-            let er = net.add_external_router("er", ASN(65100));
+            let rr = net.add_router("rr", 65500);
+            let r1 = net.add_router("r1", 65500);
+            let r2 = net.add_router("r2", 65500);
+            let r3 = net.add_router("r3", 65500);
+            let r4 = net.add_router("r4", 65500);
+            let b1 = net.add_router("b1", 65500);
+            let b2 = net.add_router("b2", 65500);
+            let b3 = net.add_router("b3", 65500);
+            let b4 = net.add_router("b4", 65500);
+            let e1 = net.add_router("e1", ASN(65101));
+            let e2 = net.add_router("e2", ASN(65102));
+            let e3 = net.add_router("e3", ASN(65103));
+            let e4 = net.add_router("e4", ASN(65104));
+            let er = net.add_router("er", ASN(65100));
 
             net.add_link(rr, r1).unwrap();
             net.add_link(rr, r2).unwrap();
@@ -256,12 +256,12 @@ mod ipv4 {
     fn longest_prefix_match() {
         let mut net: Network<_, BasicEventQueue<Ipv4Prefix>> = Network::new(Default::default());
 
-        let r1 = net.add_router("R1");
-        let r2 = net.add_router("R2");
-        let r3 = net.add_router("R3");
-        let r4 = net.add_router("R4");
-        let e1 = net.add_external_router("e1", 1);
-        let e4 = net.add_external_router("e4", 4);
+        let r1 = net.add_router("R1", 65500);
+        let r2 = net.add_router("R2", 65500);
+        let r3 = net.add_router("R3", 65500);
+        let r4 = net.add_router("R4", 65500);
+        let e1 = net.add_router("e1", 1);
+        let e4 = net.add_router("e4", 4);
 
         net.add_link(r1, r2).unwrap();
         net.add_link(r1, r3).unwrap();

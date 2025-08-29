@@ -93,7 +93,9 @@ impl OspfRib {
         Self {
             router_id,
             areas: Default::default(),
-            rib: Default::default(),
+            rib: [(router_id, OspfRibEntry::empty(router_id))]
+                .into_iter()
+                .collect(),
             external_lsas: Default::default(),
             recompute_as_external: HashSet::new(),
         }
@@ -1456,7 +1458,9 @@ pub(crate) fn compute_as_external_route(
     rib: &HashMap<RouterId, OspfRibEntry>,
 ) -> Option<OspfRibEntry> {
     // only look at External-LSAs
-    let weight = lsa.data.external()?;
+    let Some(weight) = lsa.data.external() else {
+        return None;
+    };
     let target = lsa.target();
 
     // (1) If the cost specified by the LSA is LSInfinity, or if the LSA's LS age is equal
@@ -1498,7 +1502,9 @@ pub(crate) fn compute_as_external_route(
     //     inter-area path; if no such path exists, do nothing with the LSA and consider the
     //     next in the list.
     // --> We don't implement that behavior
-    let adv_rib = rib.get(&lsa.header.router)?;
+    let Some(adv_rib) = rib.get(&lsa.header.router) else {
+        return None;
+    };
 
     // (4) Let X be the cost specified by the preferred routing table entry for the
     //     ASBR/forwarding address, and Y the cost specified in the LSA. X is in terms of

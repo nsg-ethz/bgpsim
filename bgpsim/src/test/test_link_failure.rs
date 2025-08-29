@@ -51,12 +51,12 @@ mod t {
     fn get_test_topo<P: Prefix, Ospf: OspfImpl>() -> Network<P, BasicEventQueue<P>, Ospf> {
         let mut net = Network::default();
 
-        assert_eq!(*E1, net.add_external_router("E1", ASN(65101)));
-        assert_eq!(*R1, net.add_router("R1"));
-        assert_eq!(*R2, net.add_router("R2"));
-        assert_eq!(*R3, net.add_router("R3"));
-        assert_eq!(*R4, net.add_router("R4"));
-        assert_eq!(*E4, net.add_external_router("E4", ASN(65104)));
+        assert_eq!(*E1, net.add_router("E1", ASN(65101)));
+        assert_eq!(*R1, net.add_router("R1", 65500));
+        assert_eq!(*R2, net.add_router("R2", 65500));
+        assert_eq!(*R3, net.add_router("R3", 65500));
+        assert_eq!(*R4, net.add_router("R4", 65500));
+        assert_eq!(*E4, net.add_router("E4", ASN(65104)));
 
         net.add_link(*R1, *E1).unwrap();
         net.add_link(*R1, *R2).unwrap();
@@ -141,7 +141,7 @@ mod t {
 
         // let mut net = get_test_topo::<P, Ospf>();
         let mut net = get_test_topo::<P, Ospf>();
-        let rr = net.add_router("rr");
+        let rr = net.add_router("rr", 65500);
         net.add_link(rr, *R3).unwrap();
         net.build_link_weights(link_weights()).unwrap();
         net.build_ebgp_sessions().unwrap();
@@ -243,7 +243,7 @@ mod t {
     #[test]
     fn rr_failure<P: Prefix, Ospf: OspfImpl>() {
         let mut net = get_test_topo::<P, Ospf>();
-        let rr = net.add_router("rr");
+        let rr = net.add_router("rr", 65500);
         net.add_link(rr, *R3).unwrap();
         net.build_link_weights(link_weights()).unwrap();
         net.build_ebgp_sessions().unwrap();

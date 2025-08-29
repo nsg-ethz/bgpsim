@@ -48,6 +48,7 @@ mod t {
         static ref R3: RouterId = 3.into();
         static ref R4: RouterId = 4.into();
         static ref E4: RouterId = 5.into();
+        static ref E5: RouterId = 6.into();
     }
 
     /// # Test network
@@ -61,41 +62,12 @@ mod t {
     fn test_net<P: Prefix, Ospf: OspfImpl>() -> Net<P, Ospf> {
         let mut net: Net<P, Ospf> = Net::default();
 
-        assert_eq!(*E1, net.add_external_router("E1", ASN(65101)));
-        assert_eq!(*R1, net.add_router("R1"));
-        assert_eq!(*R2, net.add_router("R2"));
-        assert_eq!(*R3, net.add_router("R3"));
-        assert_eq!(*R4, net.add_router("R4"));
-        assert_eq!(*E4, net.add_external_router("E4", ASN(65104)));
-
-        net.add_link(*R1, *E1).unwrap();
-        net.add_link(*R1, *R2).unwrap();
-        net.add_link(*R1, *R3).unwrap();
-        net.add_link(*R2, *R3).unwrap();
-        net.add_link(*R2, *R4).unwrap();
-        net.add_link(*R3, *R4).unwrap();
-        net.add_link(*R4, *E4).unwrap();
-
-        net
-    }
-
-    /// # Test network
-    ///
-    /// ```text
-    /// E1 ---- R1 ---- R2
-    ///         |    .-'|
-    ///         | .-'   |
-    ///         R3 ---- R4 ---- E4
-    /// ```
-    fn test_net_internal_only<P: Prefix, Ospf: OspfImpl>() -> Net<P, Ospf> {
-        let mut net: Net<P, Ospf> = Net::default();
-
-        assert_eq!(*E1, net.add_router_with_asn("E1", ASN(65101)));
-        assert_eq!(*R1, net.add_router_with_asn("R1", ASN(1)));
-        assert_eq!(*R2, net.add_router_with_asn("R2", ASN(1)));
-        assert_eq!(*R3, net.add_router_with_asn("R3", ASN(1)));
-        assert_eq!(*R4, net.add_router_with_asn("R4", ASN(1)));
-        assert_eq!(*E4, net.add_router_with_asn("E4", ASN(65104)));
+        assert_eq!(*E1, net.add_router("E1", ASN(65101)));
+        assert_eq!(*R1, net.add_router("R1", 65500));
+        assert_eq!(*R2, net.add_router("R2", 65500));
+        assert_eq!(*R3, net.add_router("R3", 65500));
+        assert_eq!(*R4, net.add_router("R4", 65500));
+        assert_eq!(*E4, net.add_router("E4", ASN(65104)));
 
         net.add_link(*R1, *E1).unwrap();
         net.add_link(*R1, *R2).unwrap();
@@ -174,8 +146,8 @@ mod t {
     fn test_single_router<P: Prefix, Ospf: OspfImpl>() {
         let mut net: Net<P, Ospf> = Network::default();
         let p = P::from(0);
-        let r = net.add_router("r");
-        let e = net.add_external_router("e", 1);
+        let r = net.add_router("r", 65500);
+        let e = net.add_router("e", 1);
         net.add_link(r, e).unwrap();
         assert!(&net
             .get_device(r)
@@ -213,7 +185,7 @@ mod t {
 
         let net_clone = net.clone();
 
-        let r5 = net.add_router("R5");
+        let r5 = net.add_router("R5", 65500);
         net.add_link(*R3, r5).unwrap();
         net.add_link(*R4, r5).unwrap();
         net.set_link_weight(*R3, r5, 1.0).unwrap();
@@ -266,13 +238,9 @@ mod t {
         net.get_router_id("e0").unwrap_err();
         net.get_device(10.into()).unwrap_err();
 
-        let mut routers = net.internal_indices().collect::<Vec<_>>();
+        let mut routers = net.device_indices().collect::<Vec<_>>();
         routers.sort();
-        assert_eq!(routers, vec![*R1, *R2, *R3, *R4]);
-
-        let mut external_routers = net.external_indices().collect::<Vec<_>>();
-        external_routers.sort();
-        assert_eq!(external_routers, vec![*E1, *E4]);
+        assert_eq!(routers, vec![*E1, *R1, *R2, *R3, *R4, *E4]);
     }
 
     #[test]
@@ -512,22 +480,11 @@ mod t {
         net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], Some(20), None)
             .unwrap();
 
-        // we now expect all routers to choose R1 as an egress
+        // MED is not compared. so we should be in the same state.
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *E4]);
-
-        // change the MED, such that it has the same AS ID in the first entry, so that MED is actually
-        // compared!
-        net.advertise_external_route(*E4, p, vec![ASN(65101), ASN(65201)], Some(20), None)
-            .unwrap();
-
-        // we now expect all routers to choose R1 as an egress
-        test_route!(net, *R1, p, [*R1, *E1]);
-        test_route!(net, *R2, p, [*R2, *R3, *R1, *E1]);
-        test_route!(net, *R3, p, [*R3, *R1, *E1]);
-        test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
         // change back
         net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(65201)], None, None)
@@ -541,26 +498,38 @@ mod t {
     }
 
     #[test]
-    fn test_bgp_decision_internal_only<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = get_test_net_bgp::<P, Ospf>(test_net_internal_only);
+    fn test_bgp_decision_with_med<P: Prefix, Ospf: OspfImpl>() {
+        let mut net = get_test_net_bgp::<P, Ospf>(test_net);
+        assert_eq!(net.add_router("E5", 65101), *E5);
+        net.add_link(*R4, *E5).unwrap();
+        net.set_bgp_session(*R4, *E5, Some(false)).unwrap();
 
         let p = P::from(0);
 
         // advertise both prefixes
-        net.advertise_external_route(*E1, p, vec![ASN(1000)], None, None)
+        net.advertise_external_route(*E1, p, vec![ASN(65201)], None, None)
             .unwrap();
-        net.advertise_external_route(*E4, p, vec![ASN(1000)], None, None)
+        net.advertise_external_route(*E5, p, vec![ASN(65201)], None, None)
             .unwrap();
 
         // The network must have converged back
         test_route!(net, *R1, p, [*R1, *E1]);
-        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R2, p, [*R2, *R4, *E5]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
-        test_route!(net, *R4, p, [*R4, *E4]);
+        test_route!(net, *R4, p, [*R4, *E5]);
 
-        // change the AS path
-        net.advertise_external_route(*E4, p, vec![ASN(1000), ASN(1000)], None, None)
+        // change the MED
+        net.advertise_external_route(*E5, p, vec![ASN(65201)], Some(20), None)
             .unwrap();
+
+        println!(
+            "{:#?}",
+            net.get_internal_router(*R4)
+                .unwrap()
+                .bgp
+                .get_known_routes(p)
+                .unwrap()
+        );
 
         // we now expect all routers to choose R1 as an egress
         test_route!(net, *R1, p, [*R1, *E1]);
@@ -569,14 +538,14 @@ mod t {
         test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
         // change back
-        net.advertise_external_route(*E4, p, vec![ASN(1000)], None, None)
+        net.advertise_external_route(*E5, p, vec![ASN(65201)], None, None)
             .unwrap();
 
         // The network must have converged back
         test_route!(net, *R1, p, [*R1, *E1]);
-        test_route!(net, *R2, p, [*R2, *R4, *E4]);
+        test_route!(net, *R2, p, [*R2, *R4, *E5]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
-        test_route!(net, *R4, p, [*R4, *E4]);
+        test_route!(net, *R4, p, [*R4, *E5]);
     }
 
     #[test]
@@ -975,10 +944,10 @@ mod t {
     #[test]
     fn bgp_propagation_client_peers<P: Prefix, Ospf: OspfImpl>() {
         let mut net = Network::<_, _, Ospf>::default();
-        let r1 = net.add_router("r1");
-        let r2 = net.add_router("r2");
-        let r3 = net.add_router("r3");
-        let e3 = net.add_external_router("e3", ASN(3));
+        let r1 = net.add_router("r1", 65500);
+        let r2 = net.add_router("r2", 65500);
+        let r3 = net.add_router("r3", 65500);
+        let e3 = net.add_router("e3", ASN(3));
         let p = P::from(1);
 
         net.add_link(r1, r2).unwrap();
@@ -1083,7 +1052,7 @@ mod t {
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(100)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(100)], None, None)
             .unwrap();
 
         let state = net.get_bgp_state(p);
@@ -1259,7 +1228,7 @@ mod t {
         let p = P::from(1);
         net.build_ibgp_route_reflection(vec![*R2]).unwrap();
         net.build_ebgp_sessions().unwrap();
-        net.advertise_external_route(*E4, p, vec![ASN(65104), ASN(100)], None, None)
+        net.advertise_external_route(*E4, p, vec![ASN(100)], None, None)
             .unwrap();
 
         let state = net.get_bgp_state(p);
@@ -1290,10 +1259,10 @@ mod t {
         };
         let route_r421 = BgpRoute {
             prefix: p,
-            as_path: vec![DEFAULT_INTERNAL_ASN, ASN(65104), ASN(100)],
+            as_path: vec![ASN(65500), ASN(65104), ASN(100)],
             next_hop: *R1,
             local_pref: None,
-            med: Some(0),
+            med: None,
             community: Default::default(),
             originator_id: None,
             cluster_list: Vec::new(),

@@ -57,17 +57,17 @@ fn test_net<Ospf: OspfImpl>() -> Result<
 > {
     let mut net: Network<Prefix, BasicEventQueue<Prefix>, Ospf> = Network::default();
 
-    let r0 = net.add_router("R0");
-    let r1 = net.add_router("R1");
-    let r2 = net.add_router("R2");
-    let r3 = net.add_router("R3");
-    let r4 = net.add_router("R4");
-    let r5 = net.add_router("R5");
-    let r6 = net.add_router("R6");
-    let r7 = net.add_router("R7");
-    let r8 = net.add_external_router("E8", ASN(8));
-    let r9 = net.add_external_router("E9", ASN(9));
-    let r10 = net.add_external_router("E10", ASN(10));
+    let r0 = net.add_router("R0", 65500);
+    let r1 = net.add_router("R1", 65500);
+    let r2 = net.add_router("R2", 65500);
+    let r3 = net.add_router("R3", 65500);
+    let r4 = net.add_router("R4", 65500);
+    let r5 = net.add_router("R5", 65500);
+    let r6 = net.add_router("R6", 65500);
+    let r7 = net.add_router("R7", 65500);
+    let r8 = net.add_router("E8", ASN(8));
+    let r9 = net.add_router("E9", ASN(9));
+    let r10 = net.add_router("E10", ASN(10));
 
     net.add_links_from([
         (r0, r1),
@@ -126,17 +126,17 @@ fn test_net_disconnected<Ospf: OspfImpl>() -> Result<
 > {
     let mut net: Network<Prefix, BasicEventQueue<Prefix>, Ospf> = Network::default();
 
-    let r0 = net.add_router("R0");
-    let r1 = net.add_router("R1");
-    let r2 = net.add_router("R2");
-    let r3 = net.add_router("R3");
-    let r4 = net.add_router("R4");
-    let r5 = net.add_router("R5");
-    let r6 = net.add_router("R6");
-    let r7 = net.add_router("R7");
-    let r8 = net.add_router("R8");
-    let r9 = net.add_external_router("E9", ASN(9));
-    let r10 = net.add_external_router("E10", ASN(10));
+    let r0 = net.add_router("R0", 65500);
+    let r1 = net.add_router("R1", 65500);
+    let r2 = net.add_router("R2", 65500);
+    let r3 = net.add_router("R3", 65500);
+    let r4 = net.add_router("R4", 65500);
+    let r5 = net.add_router("R5", 65500);
+    let r6 = net.add_router("R6", 65500);
+    let r7 = net.add_router("R7", 65500);
+    let r8 = net.add_router("R8", 65500);
+    let r9 = net.add_router("E9", ASN(9));
+    let r10 = net.add_router("E10", ASN(10));
 
     net.add_links_from([
         (r0, r1),
@@ -580,7 +580,7 @@ fn check(
     }
 
     for asn in asns {
-        println!("{asn} (disconnected: {disconnected})");
+        println!("checking {asn} (disconnected: {disconnected})");
         let want_ext_lsas = lsa_data(
             nets_g[0]
                 .ospf
@@ -588,20 +588,21 @@ fn check(
                 .unwrap()
                 .get_external_lsas(),
         );
-        let exp_area_lsas = lsas_data(nets_g[0].ospf.get_coordinator(asn).unwrap().get_lsa_lists());
+        let want_area_lsas =
+            lsas_data(nets_g[0].ospf.get_coordinator(asn).unwrap().get_lsa_lists());
 
         for (i, n) in nets_g.iter().enumerate() {
             let got_ext_lsas = lsa_data(n.ospf.get_coordinator(asn).unwrap().get_external_lsas());
-            let acq_area_lsas = lsas_data(n.ospf.get_coordinator(asn).unwrap().get_lsa_lists());
+            let got_area_lsas = lsas_data(n.ospf.get_coordinator(asn).unwrap().get_lsa_lists());
             // compare ext_lsas
             pretty_assertions::assert_eq!(
                 got_ext_lsas,
                 want_ext_lsas,
                 "{asn}: External-LSAs of global network {i} (left: got, right: want)",
             );
-            for area in exp_area_lsas.keys().chain(acq_area_lsas.keys()).unique() {
-                let got = exp_area_lsas.get(area).unwrap_or(&empty_b);
-                let want = acq_area_lsas.get(area).unwrap_or(&empty_b);
+            for area in want_area_lsas.keys().chain(got_area_lsas.keys()).unique() {
+                let got = got_area_lsas.get(area).unwrap_or(&empty_b);
+                let want = want_area_lsas.get(area).unwrap_or(&empty_b);
                 pretty_assertions::assert_eq!(
                     got,
                     want,
@@ -649,7 +650,7 @@ fn check(
                                 .unwrap_or(&empty_h),
                         )
                     } else {
-                        exp_area_lsas.get(&area).unwrap_or(&empty_b).clone()
+                        want_area_lsas.get(&area).unwrap_or(&empty_b).clone()
                     };
                     let got_area_lsas =
                         lsa_data(r.ospf.data().get_lsa_list(Some(area)).unwrap_or(&empty_h));
@@ -665,29 +666,6 @@ fn check(
 
         // check RIB
         let reference = &nets_g[0].ospf.get_coordinator(asn).unwrap().get_ribs();
-        for (i, n) in nets_g.iter().enumerate() {
-            let state = &n.ospf.get_coordinator(asn).unwrap().get_ribs();
-            for r in state.keys().chain(reference.keys()).sorted().unique() {
-                let want_ribs = reference
-                    .get(r)
-                    .into_iter()
-                    .flatten()
-                    .map(|(k, v)| (*k, v))
-                    .collect::<BTreeMap<_, _>>();
-                let got_ribs = state
-                    .get(r)
-                    .into_iter()
-                    .flatten()
-                    .map(|(k, v)| (*k, v))
-                    .collect::<BTreeMap<_, _>>();
-                pretty_assertions::assert_eq!(
-                    got_ribs,
-                    want_ribs,
-                    "{asn}: RIBs of global network {i} for router {} (left: got, right: want)",
-                    r.fmt(n)
-                );
-            }
-        }
 
         for (i, n) in nets_l.iter().enumerate() {
             let state = n
@@ -704,6 +682,7 @@ fn check(
                     .into_iter()
                     .flatten()
                     .map(|(k, v)| (*k, v))
+                    .filter(|(target, _)| r != target)
                     .collect::<BTreeMap<_, _>>();
                 let got_ribs = state
                     .get(r)
@@ -711,11 +690,38 @@ fn check(
                     .copied()
                     .flatten()
                     .map(|(k, v)| (*k, v))
+                    .filter(|(target, _)| r != target)
                     .collect::<BTreeMap<_, _>>();
                 pretty_assertions::assert_eq!(
                     got_ribs,
                     want_ribs,
                     "{asn}: RIBs of local network {i} for router {} (left: got, right: want)",
+                    r.fmt(n)
+                );
+            }
+        }
+
+        for (i, n) in nets_g.iter().enumerate() {
+            let state = &n.ospf.get_coordinator(asn).unwrap().get_ribs();
+            for r in state.keys().chain(reference.keys()).sorted().unique() {
+                let want_ribs = reference
+                    .get(r)
+                    .into_iter()
+                    .flatten()
+                    .map(|(k, v)| (*k, v))
+                    .filter(|(target, _)| r != target)
+                    .collect::<BTreeMap<_, _>>();
+                let got_ribs = state
+                    .get(r)
+                    .into_iter()
+                    .flatten()
+                    .map(|(k, v)| (*k, v))
+                    .filter(|(target, _)| r != target)
+                    .collect::<BTreeMap<_, _>>();
+                pretty_assertions::assert_eq!(
+                    got_ribs,
+                    want_ribs,
+                    "{asn}: RIBs of global network {i} for router {} (left: got, right: want)",
                     r.fmt(n)
                 );
             }
@@ -732,6 +738,7 @@ fn do_clone(
 }
 
 type Net<Ospf> = Network<Prefix, BasicEventQueue<Prefix>, Ospf>;
+
 #[track_caller]
 fn modify<Ospf: OspfImpl, R, F: Fn(&mut Net<Ospf>) -> Result<R, NetworkError>>(
     nets: &mut [Net<Ospf>],
@@ -739,6 +746,23 @@ fn modify<Ospf: OspfImpl, R, F: Fn(&mut Net<Ospf>) -> Result<R, NetworkError>>(
 ) {
     let k = nets.len();
     for (i, n) in nets.iter_mut().enumerate() {
+        let e = f(n);
+        if let Err(e) = e {
+            println!("Error while modifying network {}/{k}: {}", i + 1, e.fmt(n));
+            panic!()
+        }
+    }
+}
+
+#[track_caller]
+fn modify_msg<Ospf: OspfImpl, R, F: Fn(&mut Net<Ospf>) -> Result<R, NetworkError>>(
+    nets: &mut [Net<Ospf>],
+    f: F,
+    msg: &'static str,
+) {
+    let k = nets.len();
+    for (i, n) in nets.iter_mut().enumerate() {
+        println!("\n>> Modify network {i}: {msg}");
         let e = f(n);
         if let Err(e) = e {
             println!("Error while modifying network {}/{k}: {}", i + 1, e.fmt(n));
@@ -757,21 +781,21 @@ fn test_conversion() {
     let mut net_l = Network::<Prefix, BasicEventQueue<Prefix>, LocalOspf>::default();
 
     // add all routers
-    net_g.add_router("R0");
-    net_g.add_router("R1");
-    net_g.add_router("R2");
-    net_g.add_router("R3");
-    net_g.add_router("R4");
-    net_g.add_external_router("E5", 5);
-    net_g.add_external_router("E6", 6);
+    net_g.add_router("R0", 65500);
+    net_g.add_router("R1", 65500);
+    net_g.add_router("R2", 65500);
+    net_g.add_router("R3", 65500);
+    net_g.add_router("R4", 65500);
+    net_g.add_router("E5", 5);
+    net_g.add_router("E6", 6);
 
-    net_l.add_router("R0");
-    net_l.add_router("R1");
-    net_l.add_router("R2");
-    net_l.add_router("R3");
-    net_l.add_router("R4");
-    net_l.add_external_router("E5", 5);
-    net_l.add_external_router("E6", 6);
+    net_l.add_router("R0", 65500);
+    net_l.add_router("R1", 65500);
+    net_l.add_router("R2", 65500);
+    net_l.add_router("R3", 65500);
+    net_l.add_router("R4", 65500);
+    net_l.add_router("E5", 5);
+    net_l.add_router("E6", 6);
 
     // create the clones
     let mut nets_g = vec![net_g];
@@ -802,7 +826,11 @@ fn test_conversion() {
     do_clone(&mut nets_g, &mut nets_l);
     check(&nets_g, &nets_l, false);
 
-    modify(&mut nets_g, |net| net.add_link(0.into(), 5.into()));
+    modify_msg(
+        &mut nets_g,
+        |net| net.add_link(0.into(), 5.into()),
+        "add external link",
+    );
     modify(&mut nets_l, |net| net.add_link(0.into(), 5.into()));
     do_clone(&mut nets_g, &mut nets_l);
     check(&nets_g, &nets_l, false);
@@ -855,21 +883,21 @@ fn test_disconnected_conversion() {
     let mut net_l = Network::<Prefix, BasicEventQueue<Prefix>, LocalOspf>::default();
 
     // add all routers
-    net_g.add_router("R0");
-    net_g.add_router("R1");
-    net_g.add_router("R2");
-    net_g.add_router("R3");
-    net_g.add_router("R4");
-    net_g.add_external_router("E5", 5);
-    net_g.add_external_router("E6", 6);
+    net_g.add_router("R0", 65500);
+    net_g.add_router("R1", 65500);
+    net_g.add_router("R2", 65500);
+    net_g.add_router("R3", 65500);
+    net_g.add_router("R4", 65500);
+    net_g.add_router("E5", 5);
+    net_g.add_router("E6", 6);
 
-    net_l.add_router("R0");
-    net_l.add_router("R1");
-    net_l.add_router("R2");
-    net_l.add_router("R3");
-    net_l.add_router("R4");
-    net_l.add_external_router("E5", 5);
-    net_l.add_external_router("E6", 6);
+    net_l.add_router("R0", 65500);
+    net_l.add_router("R1", 65500);
+    net_l.add_router("R2", 65500);
+    net_l.add_router("R3", 65500);
+    net_l.add_router("R4", 65500);
+    net_l.add_router("E5", 5);
+    net_l.add_router("E6", 6);
 
     // create the clones
     let mut nets_g = vec![net_g];

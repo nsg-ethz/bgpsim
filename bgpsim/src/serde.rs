@@ -15,7 +15,7 @@
 
 //! This module contains functions to save the network to a file, and restore it from a file.
 
-use std::collections::{BTreeSet, HashMap};
+use std::collections::HashMap;
 
 #[cfg(feature = "topology_zoo")]
 use geoutils::Location;
@@ -28,31 +28,21 @@ use serde_json::json;
 #[cfg(feature = "topology_zoo")]
 use crate::topology_zoo::TopologyZoo;
 use crate::{
-    bgp::Community,
     config::{ConfigExpr, ConfigModifier, NetworkConfig},
     event::{BasicEventQueue, Event, EventQueue},
     network::Network,
     ospf::{LocalOspf, OspfImpl},
     policies::{FwPolicy, Policy, PolicyError},
-    types::{
-        IntoIpv4Prefix, Ipv4Prefix, NetworkDeviceRef, NetworkError, Prefix, PrefixMap, RouterId,
-        ASN,
-    },
+    types::{IntoIpv4Prefix, Ipv4Prefix, NetworkDeviceRef, NetworkError, Prefix, RouterId, ASN},
 };
 
 const JSON_FIELD_NAME_NETWORK: &str = "net";
 const JSON_FIELD_NAME_CONFIG: &str = "config_nodes_routes";
 
-type ExportRoutes<P> = (RouterId, P, Vec<ASN>, Option<u32>, BTreeSet<Community>);
 type ExportConfig<P> = Vec<ConfigExpr<P>>;
-type ExportRouters = Vec<(RouterId, String, ASN, bool)>;
+type ExportRouters = Vec<(RouterId, String, ASN)>;
 type ExportLinks = Vec<(RouterId, RouterId)>;
-type ExportTuple<P> = (
-    ExportConfig<P>,
-    ExportRouters,
-    ExportLinks,
-    Vec<ExportRoutes<P>>,
-);
+type ExportTuple<P> = (ExportConfig<P>, ExportRouters, ExportLinks);
 
 impl<P, Q, Ospf> Network<P, Q, Ospf>
 where
@@ -83,7 +73,7 @@ where
 
     /// Create a json value containing the configuration.
     fn as_config_json_value(&self) -> serde_json::Value {
-        serde_json::to_value(self.as_config_node_routes()).unwrap()
+        serde_json::to_value(self.as_topo_config()).unwrap()
     }
 }
 
@@ -94,20 +84,20 @@ where
     Ospf: OspfImpl,
 {
     /// Create a json value containing the configuration.
-    fn as_config_node_routes(&self) -> ExportTuple<P> {
+    fn as_topo_config(&self) -> ExportTuple<P> {
         let config = Vec::from_iter(self.get_config().unwrap().iter().cloned());
         let mut nodes: ExportRouters = self
             .devices()
             .map(|r| match r {
                 NetworkDeviceRef::InternalRouter(r) => {
-                    (r.router_id(), r.name().to_string(), r.asn(), true)
+                    (r.router_id(), r.name().to_string(), r.asn())
                 }
-                NetworkDeviceRef::ExternalRouter(r) => {
-                    (r.router_id(), r.name().to_string(), r.asn(), false)
+                NetworkDeviceRef::ExternalRouter(_) => {
+                    unreachable!()
                 }
             })
             .collect();
-        nodes.sort_by_key(|(r, _, _, _)| *r);
+        nodes.sort_by_key(|(r, _, _)| *r);
 
         let links: ExportLinks = self
             .ospf
@@ -117,22 +107,7 @@ where
             .unique()
             .collect();
 
-        let routes: Vec<ExportRoutes<P>> = self
-            .external_routers()
-            .flat_map(|r| {
-                let id = r.router_id();
-                r.get_advertised_routes().values().map(move |route| {
-                    (
-                        id,
-                        route.prefix,
-                        route.as_path.clone(),
-                        route.med,
-                        route.community.clone(),
-                    )
-                })
-            })
-            .collect();
-        (config, nodes, links, routes)
+        (config, nodes, links)
     }
 }
 
@@ -172,7 +147,7 @@ impl WebExporter {
         };
 
         // create the config
-        let config_node_routes = net.as_config_node_routes();
+        let config_node_routes = net.as_topo_config();
 
         Self {
             net: Some(net),
@@ -367,11 +342,10 @@ where
                 .get(JSON_FIELD_NAME_CONFIG)
                 .and_then(|v| v.as_array())
             {
-                Some(v) if v.len() == 4 => Self::from_config_nodes_routes(
+                Some(v) if v.len() == 3 => Self::from_config_nodes_routes(
                     v[0].clone(),
                     v[1].clone(),
                     v[2].clone(),
-                    v[3].clone(),
                     default_queue,
                 ),
                 _ => Err(serde_json::from_str::<ConfigNodeRoutes>(s).unwrap_err())?,
@@ -391,7 +365,6 @@ where
         config: serde_json::Value,
         nodes: serde_json::Value,
         links: serde_json::Value,
-        routes: serde_json::Value,
         default_queue: F,
     ) -> Result<Self, NetworkError>
     where
@@ -400,16 +373,11 @@ where
         let config: Vec<ConfigExpr<P>> = serde_json::from_value(config)?;
         let nodes: ExportRouters = serde_json::from_value(nodes)?;
         let links: ExportLinks = serde_json::from_value(links)?;
-        let routes: Vec<ExportRoutes<P>> = serde_json::from_value(routes)?;
         let mut nodes_lut: HashMap<RouterId, RouterId> = HashMap::new();
         let mut net = Network::new(default_queue());
         // add all nodes and create the lut
-        for (id, name, asn, is_internal) in nodes.into_iter() {
-            let new_id = if is_internal {
-                net.add_router_with_asn(name, asn)
-            } else {
-                net.add_external_router(name, asn)
-            };
+        for (id, name, asn) in nodes.into_iter() {
+            let new_id = net.add_router(name, asn);
             nodes_lut.insert(id, new_id);
         }
         // create the function to lookup nodes
@@ -478,11 +446,21 @@ where
                 ConfigExpr::LoadBalancing { router } => ConfigExpr::LoadBalancing {
                     router: node(router)?,
                 },
+                ConfigExpr::AdvertiseRoute {
+                    router,
+                    prefix,
+                    as_path,
+                    med,
+                    community,
+                } => ConfigExpr::AdvertiseRoute {
+                    router: node(router)?,
+                    prefix,
+                    as_path,
+                    med,
+                    community,
+                },
             };
             net.apply_modifier(&ConfigModifier::Insert(expr))?;
-        }
-        for (src, prefix, as_path, med, community) in routes.into_iter() {
-            net.advertise_external_route(src, prefix, as_path, med, community)?;
         }
         Ok(net)
     }

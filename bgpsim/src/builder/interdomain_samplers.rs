@@ -239,11 +239,11 @@ mod test {
     /// ```
     fn inter_domain_tree() {
         let mut net = Network::<SimplePrefix, _, GlobalOspf>::new(BasicEventQueue::new());
-        let r0 = net.add_router_with_asn("R0", 0);
-        let r1 = net.add_router_with_asn("R1", 1);
-        let r2 = net.add_router_with_asn("R2", 2);
-        let r3 = net.add_router_with_asn("R3", 3);
-        let r4 = net.add_router_with_asn("R4", 4);
+        let r0 = net.add_router("R0", 0);
+        let r1 = net.add_router("R1", 1);
+        let r2 = net.add_router("R2", 2);
+        let r3 = net.add_router("R3", 3);
+        let r4 = net.add_router("R4", 4);
 
         net.add_links_from(vec![
             (r0, r1),

@@ -130,14 +130,11 @@ impl TopologyZooParser {
             .iter()
             .filter_map(|r| {
                 if r.internal {
-                    Some((
-                        r.id.as_str(),
-                        net.add_router_with_asn(r.name.clone(), internal_asn),
-                    ))
+                    Some((r.id.as_str(), net.add_router(r.name.clone(), internal_asn)))
                 } else if let Some(external_asn) = external_asn {
                     Some((
                         r.id.as_str(),
-                        net.add_external_router(r.name.clone(), net.next_unused_asn(external_asn)),
+                        net.add_router(r.name.clone(), net.next_unused_asn(external_asn)),
                     ))
                 } else {
                     routers_to_ignore.insert(r.id.as_str());

@@ -745,6 +745,30 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conf
             ConfigExpr::LoadBalancing { router } => {
                 format!("Load Balancing: {}", router.fmt(net))
             }
+            ConfigExpr::AdvertiseRoute {
+                router,
+                prefix,
+                as_path,
+                med,
+                community,
+            } => {
+                let mut options = Vec::new();
+                if !as_path.is_empty() {
+                    options.push(format!("AS path [{}]", as_path.iter().join(" ")));
+                }
+                if let Some(med) = med {
+                    options.push(format!("MED {med}"));
+                }
+                if !community.is_empty() {
+                    options.push(format!("Community [{}]", community.iter().join(" ")));
+                }
+                let opt = if options.is_empty() {
+                    String::new()
+                } else {
+                    format!(" with {}", options.into_iter().join("; "))
+                };
+                format!("Advertise Route on {} for {prefix}{opt}", router.fmt(net))
+            }
         }
     }
 }
@@ -785,6 +809,9 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conf
             }
             ConfigExprKey::LoadBalancing { router } => {
                 format!("Load Balancing: {}", router.fmt(net))
+            }
+            ConfigExprKey::AdvertiseRoute { router, prefix } => {
+                format!("Advertise Route on {} for {prefix}", router.fmt(net))
             }
         }
     }

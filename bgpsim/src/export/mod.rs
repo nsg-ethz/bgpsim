@@ -24,21 +24,20 @@ use ipnet::Ipv4Net;
 use thiserror::Error;
 
 use crate::{
-    bgp::BgpRoute,
     config::ConfigModifier,
     network::Network,
     ospf::OspfImpl,
-    types::{NetworkError, NonOverlappingPrefix, Prefix, RouterId},
+    types::{NetworkError, NonOverlappingPrefix, Prefix, RouterId, ASN},
 };
 
 mod cisco_frr;
 pub mod cisco_frr_generators;
 mod default;
-pub mod exabgp;
+// pub mod exabgp;
 
 pub use cisco_frr::CiscoFrrCfgGen;
-pub use default::{DefaultAddressor, DefaultAddressorBuilder};
-pub use exabgp::ExaBgpCfgGen;
+pub use default::DefaultAddressor;
+// pub use exabgp::ExaBgpCfgGen;
 
 /// Link index used in the IP addressor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
@@ -61,8 +60,8 @@ impl From<(RouterId, RouterId)> for LinkId {
     }
 }
 
-/// A trait for generating configurations for an internal router
-pub trait InternalCfgGen<P: Prefix, Q, Ospf: OspfImpl, A> {
+/// A trait for generating configurations for a router.
+pub trait CfgGen<P: Prefix, Q, Ospf: OspfImpl, A> {
     /// Generate all configuration files for the device.
     fn generate_config(
         &mut self,
@@ -79,53 +78,11 @@ pub trait InternalCfgGen<P: Prefix, Q, Ospf: OspfImpl, A> {
     ) -> Result<String, ExportError>;
 }
 
-/// A trait for generating configurations for an external router
-pub trait ExternalCfgGen<P: Prefix, Q, Ospf: OspfImpl, A> {
-    /// Generate all configuration files for the device.
-    fn generate_config(
-        &mut self,
-        net: &Network<P, Q, Ospf>,
-        addressor: &mut A,
-    ) -> Result<String, ExportError>;
-
-    /// Generate the commands for advertising a new route
-    fn advertise_route(
-        &mut self,
-        net: &Network<P, Q, Ospf>,
-        addressor: &mut A,
-        route: &BgpRoute<P>,
-    ) -> Result<String, ExportError>;
-
-    /// Generate the command for withdrawing a route.
-    fn withdraw_route(
-        &mut self,
-        net: &Network<P, Q, Ospf>,
-        addressor: &mut A,
-        prefix: P,
-    ) -> Result<String, ExportError>;
-
-    /// Generate the command for establishing a new BGP session.
-    fn establish_ebgp_session(
-        &mut self,
-        net: &Network<P, Q, Ospf>,
-        addressor: &mut A,
-        neighbor: RouterId,
-    ) -> Result<String, ExportError>;
-
-    /// Generate the command for removing an existing BGP session.
-    fn teardown_ebgp_session(
-        &mut self,
-        net: &Network<P, Q, Ospf>,
-        addressor: &mut A,
-        neighbor: RouterId,
-    ) -> Result<String, ExportError>;
-}
-
 /// A trait for generating IP address ranges and AS numbers. For this addressor, a single [`Prefix`]
 /// represents an equivalence class, and is thus associated with multiple addresses.
 pub trait Addressor<P: Prefix> {
-    /// Get the internal network
-    fn internal_network(&mut self) -> Ipv4Net;
+    /// Get the network of a given AS
+    fn as_network(&mut self, asn: ASN) -> Result<Ipv4Net, ExportError>;
 
     /// Try to get router address (router ID) for the given router or return `None` if the router
     /// has not been allocated.
@@ -381,6 +338,9 @@ pub enum ExportError {
     /// Did not expect a prefix equivalence class at this point.
     #[error("Did not expect a prefix equivalence class of {0}!")]
     UnexpectedPec(Ipv4Net),
+    /// Tried to use a feature that is yet unsupported on the given device
+    #[error("{0}")]
+    NotSupported(&'static str),
 }
 
 impl From<NetworkError> for ExportError {

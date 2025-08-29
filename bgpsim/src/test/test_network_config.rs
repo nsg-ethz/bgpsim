@@ -68,12 +68,12 @@ mod t {
         P: Prefix,
         Q: EventQueue<P>,
     {
-        let e0 = net.add_external_router("E0", ASN(1));
-        let b0 = net.add_router("B0");
-        let r0 = net.add_router("R0");
-        let r1 = net.add_router("R1");
-        let b1 = net.add_router("B1");
-        let e1 = net.add_external_router("E1", ASN(1));
+        let e0 = net.add_router("E0", ASN(1));
+        let b0 = net.add_router("B0", 65500);
+        let r0 = net.add_router("R0", 65500);
+        let r1 = net.add_router("R1", 65500);
+        let b1 = net.add_router("B1", 65500);
+        let e1 = net.add_router("E1", ASN(1));
 
         net.add_link(e0, b0).unwrap();
         net.add_link(b0, r0).unwrap();
@@ -168,12 +168,12 @@ mod t {
         Q: EventQueue<P>,
     {
         // add routers
-        let r1 = net.add_router("r1");
-        let r2 = net.add_router("r2");
-        let r3 = net.add_router("r3");
-        let r4 = net.add_router("r4");
-        let e1 = net.add_external_router("e1", ASN(65101));
-        let e4 = net.add_external_router("e4", ASN(65104));
+        let r1 = net.add_router("r1", 65500);
+        let r2 = net.add_router("r2", 65500);
+        let r3 = net.add_router("r3", 65500);
+        let r4 = net.add_router("r4", 65500);
+        let e1 = net.add_router("e1", ASN(65101));
+        let e4 = net.add_router("e4", ASN(65104));
 
         // add links
         net.add_link(r1, r2).unwrap();
@@ -318,12 +318,12 @@ mod t {
 
         let prefix = P::from(0);
 
-        let e0 = net.add_external_router("E0", ASN(1));
-        let b0 = net.add_router("B0");
-        let r0 = net.add_router("R0");
-        let r1 = net.add_router("R1");
-        let b1 = net.add_router("B1");
-        let e1 = net.add_external_router("E1", ASN(1));
+        let e0 = net.add_router("E0", ASN(1));
+        let b0 = net.add_router("B0", 65500);
+        let r0 = net.add_router("R0", 65500);
+        let r1 = net.add_router("R1", 65500);
+        let b1 = net.add_router("B1", 65500);
+        let e1 = net.add_router("E1", ASN(1));
 
         net.add_link(e0, b0).unwrap();
         net.add_link(b0, r1).unwrap();
@@ -375,12 +375,12 @@ mod t {
 
         let prefix = P::from(0);
 
-        let e0 = net.add_external_router("E0", ASN(1));
-        let b0 = net.add_router("B0");
-        let r0 = net.add_router("R0");
-        let r1 = net.add_router("R1");
-        let b1 = net.add_router("B1");
-        let e1 = net.add_external_router("E1", ASN(1));
+        let e0 = net.add_router("E0", ASN(1));
+        let b0 = net.add_router("B0", 65500);
+        let r0 = net.add_router("R0", 65500);
+        let r1 = net.add_router("R1", 65500);
+        let b1 = net.add_router("B1", 65500);
+        let e1 = net.add_router("E1", ASN(1));
 
         net.add_link(e0, b0).unwrap();
         net.add_link(b0, r1).unwrap();
@@ -434,15 +434,15 @@ mod t {
 
         let prefix = P::from(0);
 
-        let e0 = net.add_external_router("E0", ASN(65100));
-        let e1 = net.add_external_router("E1", ASN(65101));
-        let e2 = net.add_external_router("E2", ASN(65102));
-        let b0 = net.add_router("B0");
-        let b1 = net.add_router("B1");
-        let b2 = net.add_router("B2");
-        let r0 = net.add_router("R0");
-        let r1 = net.add_router("R1");
-        let r2 = net.add_router("R2");
+        let e0 = net.add_router("E0", ASN(65100));
+        let e1 = net.add_router("E1", ASN(65101));
+        let e2 = net.add_router("E2", ASN(65102));
+        let b0 = net.add_router("B0", 65500);
+        let b1 = net.add_router("B1", 65500);
+        let b2 = net.add_router("B2", 65500);
+        let r0 = net.add_router("R0", 65500);
+        let r1 = net.add_router("R1", 65500);
+        let r2 = net.add_router("R2", 65500);
 
         net.add_link(e0, b0).unwrap();
         net.add_link(e1, b1).unwrap();
@@ -536,16 +536,16 @@ mod t {
 
         let prefix = P::from(0);
 
-        let rr = net.add_router("rr");
-        let r1 = net.add_router("r1");
-        let r2 = net.add_router("r2");
-        let r3 = net.add_router("r3");
-        let e1 = net.add_router("e1");
-        let e2 = net.add_router("e2");
-        let e3 = net.add_router("e3");
-        let p1 = net.add_external_router("p1", ASN(65101));
-        let p2 = net.add_external_router("p2", ASN(65102));
-        let p3 = net.add_external_router("p3", ASN(65103));
+        let rr = net.add_router("rr", 65500);
+        let r1 = net.add_router("r1", 65500);
+        let r2 = net.add_router("r2", 65500);
+        let r3 = net.add_router("r3", 65500);
+        let e1 = net.add_router("e1", 65500);
+        let e2 = net.add_router("e2", 65500);
+        let e3 = net.add_router("e3", 65500);
+        let p1 = net.add_router("p1", ASN(65101));
+        let p2 = net.add_router("p2", ASN(65102));
+        let p3 = net.add_router("p3", ASN(65103));
 
         net.add_link(r1, e1).unwrap();
         net.add_link(r2, e2).unwrap();
@@ -660,16 +660,16 @@ mod t {
 
         let prefix = P::from(0);
 
-        let rr = net.add_router("rr");
-        let r1 = net.add_router("r1");
-        let r2 = net.add_router("r2");
-        let r3 = net.add_router("r3");
-        let e1 = net.add_router("e1");
-        let e2 = net.add_router("e2");
-        let e3 = net.add_router("e3");
-        let p1 = net.add_external_router("p1", ASN(65101));
-        let p2 = net.add_external_router("p2", ASN(65102));
-        let p3 = net.add_external_router("p3", ASN(65103));
+        let rr = net.add_router("rr", 65500);
+        let r1 = net.add_router("r1", 65500);
+        let r2 = net.add_router("r2", 65500);
+        let r3 = net.add_router("r3", 65500);
+        let e1 = net.add_router("e1", 65500);
+        let e2 = net.add_router("e2", 65500);
+        let e3 = net.add_router("e3", 65500);
+        let p1 = net.add_router("p1", ASN(65101));
+        let p2 = net.add_router("p2", ASN(65102));
+        let p3 = net.add_router("p3", ASN(65103));
 
         net.add_link(r1, e1).unwrap();
         net.add_link(r2, e2).unwrap();
@@ -811,16 +811,16 @@ mod t {
         let mut net: Network<P, _> = Network::default();
         let prefix = P::from(0);
 
-        let s = net.add_router("s");
-        let rr1 = net.add_router("rr1");
-        let rr2 = net.add_router("rr2");
-        let r1 = net.add_router("r1");
-        let r2 = net.add_router("r2");
-        let e0 = net.add_router("e0");
-        let e1 = net.add_router("e1");
-        let p0 = net.add_external_router("p0", ASN(65100));
-        let p1 = net.add_external_router("p1", ASN(65101));
-        let ps = net.add_external_router("ps", ASN(65102));
+        let s = net.add_router("s", 65500);
+        let rr1 = net.add_router("rr1", 65500);
+        let rr2 = net.add_router("rr2", 65500);
+        let r1 = net.add_router("r1", 65500);
+        let r2 = net.add_router("r2", 65500);
+        let e0 = net.add_router("e0", 65500);
+        let e1 = net.add_router("e1", 65500);
+        let p0 = net.add_router("p0", ASN(65100));
+        let p1 = net.add_router("p1", ASN(65101));
+        let ps = net.add_router("ps", ASN(65102));
 
         net.add_link(s, r1).unwrap();
         net.add_link(s, r2).unwrap();
@@ -907,9 +907,9 @@ mod t {
     fn batch_route_map_update<P: Prefix>() {
         let mut net: Network<P, BasicEventQueue<P>> = Network::default();
         let p = P::from(1);
-        let r1 = net.add_router("r1");
-        let r2 = net.add_router("r2");
-        let ex = net.add_external_router("ex", ASN(100));
+        let r1 = net.add_router("r1", 65500);
+        let r2 = net.add_router("r2", 65500);
+        let ex = net.add_router("ex", ASN(100));
         net.add_link(r1, r2).unwrap();
         net.add_link(r1, ex).unwrap();
         net.set_link_weight(r1, r2, 1.0).unwrap();
@@ -1017,20 +1017,20 @@ fn carousel_gadget() {
     let prefix1 = SimplePrefix::from(1);
     let prefix2 = SimplePrefix::from(2);
 
-    let rr = net.add_router("rr");
-    let r1 = net.add_router("r1");
-    let r2 = net.add_router("r2");
-    let r3 = net.add_router("r3");
-    let r4 = net.add_router("r4");
-    let e1 = net.add_router("e1");
-    let e2 = net.add_router("e2");
-    let e3 = net.add_router("e3");
-    let e4 = net.add_router("e4");
-    let pr = net.add_external_router("pr", ASN(65100));
-    let p1 = net.add_external_router("p1", ASN(65101));
-    let p2 = net.add_external_router("p2", ASN(65102));
-    let p3 = net.add_external_router("p3", ASN(65103));
-    let p4 = net.add_external_router("p4", ASN(65104));
+    let rr = net.add_router("rr", 65500);
+    let r1 = net.add_router("r1", 65500);
+    let r2 = net.add_router("r2", 65500);
+    let r3 = net.add_router("r3", 65500);
+    let r4 = net.add_router("r4", 65500);
+    let e1 = net.add_router("e1", 65500);
+    let e2 = net.add_router("e2", 65500);
+    let e3 = net.add_router("e3", 65500);
+    let e4 = net.add_router("e4", 65500);
+    let pr = net.add_router("pr", ASN(65100));
+    let p1 = net.add_router("p1", ASN(65101));
+    let p2 = net.add_router("p2", ASN(65102));
+    let p3 = net.add_router("p3", ASN(65103));
+    let p4 = net.add_router("p4", ASN(65104));
 
     // make igp topology
     net.add_link(rr, r1).unwrap();
@@ -1238,21 +1238,21 @@ fn test_twicebad_gadget() {
     let prefix1 = SimplePrefix::from(1);
     let prefix2 = SimplePrefix::from(2);
 
-    let r1 = net.add_router("r1");
-    let r2 = net.add_router("r2");
-    let r3 = net.add_router("r3");
-    let r4 = net.add_router("r4");
-    let e1 = net.add_router("e1");
-    let ex = net.add_router("ex");
-    let e2 = net.add_router("e2");
-    let e3 = net.add_router("e3");
-    let e4 = net.add_router("e4");
-    let pr = net.add_external_router("pr", ASN(65100));
-    let p1 = net.add_external_router("p1", ASN(65101));
-    let px = net.add_external_router("px", ASN(65105));
-    let p2 = net.add_external_router("p2", ASN(65102));
-    let p3 = net.add_external_router("p3", ASN(65103));
-    let p4 = net.add_external_router("p4", ASN(65104));
+    let r1 = net.add_router("r1", 65500);
+    let r2 = net.add_router("r2", 65500);
+    let r3 = net.add_router("r3", 65500);
+    let r4 = net.add_router("r4", 65500);
+    let e1 = net.add_router("e1", 65500);
+    let ex = net.add_router("ex", 65500);
+    let e2 = net.add_router("e2", 65500);
+    let e3 = net.add_router("e3", 65500);
+    let e4 = net.add_router("e4", 65500);
+    let pr = net.add_router("pr", ASN(65100));
+    let p1 = net.add_router("p1", ASN(65101));
+    let px = net.add_router("px", ASN(65105));
+    let p2 = net.add_router("p2", ASN(65102));
+    let p3 = net.add_router("p3", ASN(65103));
+    let p4 = net.add_router("p4", ASN(65104));
 
     net.add_link(r1, pr).unwrap();
     net.add_link(e1, p1).unwrap();

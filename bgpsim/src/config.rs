@@ -72,6 +72,7 @@
 use log::debug;
 
 use crate::{
+    bgp::Community,
     event::EventQueue,
     formatter::NetworkFormatter,
     network::Network,
@@ -80,13 +81,13 @@ use crate::{
     router::StaticRoute,
     types::{
         ConfigError, IntoIpv4Prefix, Ipv4Prefix, NetworkDeviceRef, NetworkError, Prefix, PrefixMap,
-        RouterId,
+        RouterId, ASN,
     },
 };
 
 use petgraph::algo::FloatMeasure;
 use serde::{Deserialize, Serialize};
-use std::collections::{HashMap, HashSet};
+use std::collections::{BTreeSet, HashMap, HashSet};
 use std::ops::Index;
 
 /// # Network Configuration
@@ -337,10 +338,6 @@ pub enum ConfigExpr<P: Prefix> {
         area: OspfArea,
     },
     /// Create a BGP session
-    /// TODO currently, this is treated as a single configuration line, where in fact, it is two
-    /// distinct configurations, one on the source and one on the target. We treat it as a single
-    /// configuration statement, because it is only active once both speakers have opened the
-    /// session. Changing this requires changes in `router.rs`.
     BgpSession {
         /// Source router for Session
         source: RouterId,
@@ -373,6 +370,21 @@ pub enum ConfigExpr<P: Prefix> {
     LoadBalancing {
         /// Router where to enable the load balancing
         router: RouterId,
+    },
+    /// Advertise (originate) a route for a prefix (network)
+    AdvertiseRoute {
+        /// The router that advertises (originates) the route
+        router: RouterId,
+        /// The prefix (network) to advertise
+        prefix: P,
+        /// The AS path to advertise. Note, that the router will still prepend its own AS when
+        /// advertising to external neighbors.
+        as_path: Vec<ASN>,
+        /// The MED value that should be advertised.
+        med: Option<u32>,
+        /// The community value to advertise. Note, that private communities are removed when
+        /// advertised on eBGP sessions (except those of the receiving AS).
+        community: BTreeSet<Community>,
     },
 }
 
@@ -449,13 +461,30 @@ impl<P: Prefix + PartialEq> PartialEq for ConfigExpr<P> {
                 ConfigExpr::LoadBalancing { router: r1 },
                 ConfigExpr::LoadBalancing { router: r2 },
             ) => r1 == r2,
+            (
+                ConfigExpr::AdvertiseRoute {
+                    router: r1,
+                    prefix: p1,
+                    as_path: apl1,
+                    med: med1,
+                    community: c1,
+                },
+                ConfigExpr::AdvertiseRoute {
+                    router: r2,
+                    prefix: p2,
+                    as_path: apl2,
+                    med: med2,
+                    community: c2,
+                },
+            ) => (r1, p1, apl1, med1, c1) == (r2, p2, apl2, med2, c2),
             // Here, we match explicitly all other types, so that we never forget adding a new one!
             (ConfigExpr::IgpLinkWeight { .. }, _)
             | (ConfigExpr::OspfArea { .. }, _)
             | (ConfigExpr::BgpSession { .. }, _)
             | (ConfigExpr::BgpRouteMap { .. }, _)
             | (ConfigExpr::StaticRoute { .. }, _)
-            | (ConfigExpr::LoadBalancing { .. }, _) => false,
+            | (ConfigExpr::LoadBalancing { .. }, _)
+            | (ConfigExpr::AdvertiseRoute { .. }, _) => false,
         }
     }
 }
@@ -526,6 +555,10 @@ impl<P: Prefix> ConfigExpr<P> {
             ConfigExpr::LoadBalancing { router } => {
                 ConfigExprKey::LoadBalancing { router: *router }
             }
+            ConfigExpr::AdvertiseRoute { router, prefix, .. } => ConfigExprKey::AdvertiseRoute {
+                router: *router,
+                prefix: *prefix,
+            },
         }
     }
 
@@ -538,6 +571,7 @@ impl<P: Prefix> ConfigExpr<P> {
             ConfigExpr::BgpRouteMap { router, .. } => vec![*router],
             ConfigExpr::StaticRoute { router, .. } => vec![*router],
             ConfigExpr::LoadBalancing { router } => vec![*router],
+            ConfigExpr::AdvertiseRoute { router, .. } => vec![*router],
         }
     }
 }
@@ -602,6 +636,13 @@ pub enum ConfigExprKey<P> {
     LoadBalancing {
         /// Router to be configured
         router: RouterId,
+    },
+    /// Key for advertising (originating) a BGP route.
+    AdvertiseRoute {
+        /// The router that advertises (originates) the route
+        router: RouterId,
+        /// The prefix (network) to advertise
+        prefix: P,
     },
 }
 
@@ -903,6 +944,22 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     self.set_load_balancing(*router, true)?;
                     Ok(())
                 }
+                ConfigExpr::AdvertiseRoute {
+                    router,
+                    prefix,
+                    as_path,
+                    med,
+                    community,
+                } => {
+                    self.advertise_external_route(
+                        *router,
+                        *prefix,
+                        as_path.iter().copied(),
+                        *med,
+                        community.iter().copied(),
+                    )?;
+                    Ok(())
+                }
             },
             ConfigModifier::Remove(expr) => match expr {
                 ConfigExpr::IgpLinkWeight {
@@ -937,6 +994,10 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                 }
                 ConfigExpr::LoadBalancing { router } => {
                     self.set_load_balancing(*router, false)?;
+                    Ok(())
+                }
+                ConfigExpr::AdvertiseRoute { router, prefix, .. } => {
+                    self.withdraw_external_route(*router, *prefix)?;
                     Ok(())
                 }
             },
@@ -992,6 +1053,12 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     .and_then(|r| r.internal())
                     .map(|r| !r.get_load_balancing())
                     .unwrap_or(false),
+                ConfigExpr::AdvertiseRoute { router, prefix, .. } => self
+                    .get_device(*router)
+                    .ok()
+                    .and_then(|r| r.internal())
+                    .map(|r| r.bgp.get_advertised_route(*prefix).is_none())
+                    .unwrap_or(false),
             },
             ConfigModifier::Remove(x) | ConfigModifier::Update { from: x, .. } => match x {
                 ConfigExpr::IgpLinkWeight { source, target, .. } => {
@@ -1035,6 +1102,12 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     .ok()
                     .and_then(|r| r.internal())
                     .map(|r| r.get_load_balancing())
+                    .unwrap_or(false),
+                ConfigExpr::AdvertiseRoute { router, prefix, .. } => self
+                    .get_device(*router)
+                    .ok()
+                    .and_then(|r| r.internal())
+                    .map(|r| r.bgp.get_advertised_route(*prefix).is_some())
                     .unwrap_or(false),
             },
             ConfigModifier::BatchRouteMapEdit { router, updates } => {
@@ -1130,7 +1203,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
             }
         }
 
-        // get all route maps and all static routes
+        // get all route maps, all static routes, and advertised routes
         for r in self.internal_routers() {
             let rid = r.router_id();
 
@@ -1170,6 +1243,17 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                         router: r.router_id(),
                     })?;
                 }
+            }
+
+            // get all advertised routes
+            for route in r.bgp.get_advertised_routes() {
+                c.add(ConfigExpr::AdvertiseRoute {
+                    router: rid,
+                    prefix: route.prefix,
+                    as_path: route.as_path.clone(),
+                    med: route.med,
+                    community: route.community.clone(),
+                })?;
             }
         }
 
@@ -1263,6 +1347,19 @@ impl<P: Prefix> IntoIpv4Prefix for ConfigExpr<P> {
                 target,
             },
             ConfigExpr::LoadBalancing { router } => ConfigExpr::LoadBalancing { router },
+            ConfigExpr::AdvertiseRoute {
+                router,
+                prefix,
+                as_path,
+                med,
+                community,
+            } => ConfigExpr::AdvertiseRoute {
+                router,
+                prefix: prefix.into_ipv4_prefix(),
+                as_path,
+                med,
+                community,
+            },
         }
     }
 }

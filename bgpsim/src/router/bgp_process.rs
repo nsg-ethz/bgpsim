@@ -234,6 +234,20 @@ impl<P: Prefix> BgpProcess<P> {
         .unwrap_or_default()
     }
 
+    /// Get the route that is currently advertised (originate) by this router for the given prefix.
+    pub fn get_advertised_route(&self, prefix: P) -> Option<&BgpRoute<P>> {
+        Some(&self.rib_in.get(&prefix)?.get(&self.router_id)?.route)
+    }
+
+    /// Get an iterator over all routes that are advertised (originated) by this router.
+    pub fn get_advertised_routes(&self) -> impl Iterator<Item = &BgpRoute<P>> {
+        self.rib_in
+            .values()
+            .filter_map(|rib| rib.get(&self.router_id))
+            .map(|e| &e.route)
+            .sorted_by_key(|r| r.prefix)
+    }
+
     /*
      * Configuration Functions
      */
@@ -747,7 +761,7 @@ impl<P: Prefix> BgpProcess<P> {
         if self
             .get_session_type(neighbor)
             .map(|x| x.is_ebgp())
-            .unwrap_or(true)
+            .unwrap_or(false)
         {
             entry
                 .route
@@ -799,7 +813,11 @@ impl<P: Prefix> BgpProcess<P> {
 
         // clear the MED for eBGP sessions before applying the route-maps
         if target_session_type.is_ebgp() {
-            entry.route.med = None;
+            // only do so for routes learned from peers. If it was originated locally, then don't
+            // modify this attribute
+            if entry.from_id != self.router_id {
+                entry.route.med = None;
+            }
         }
 
         // apply bgp_route_map_out

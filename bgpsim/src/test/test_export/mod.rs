@@ -17,11 +17,9 @@ use bgpsim_macros::prefix;
 
 use crate::{
     builder::*,
+    config::{ConfigExpr, ConfigModifier},
     event::BasicEventQueue,
-    export::{
-        cisco_frr_generators::Target, Addressor, CiscoFrrCfgGen, DefaultAddressor,
-        DefaultAddressorBuilder, ExternalCfgGen, InternalCfgGen,
-    },
+    export::{cisco_frr_generators::Target, Addressor, CfgGen, CiscoFrrCfgGen, DefaultAddressor},
     network::Network,
     ospf::OspfImpl,
     route_map::{RouteMapBuilder, RouteMapDirection},
@@ -29,7 +27,7 @@ use crate::{
 };
 
 mod cisco;
-mod exabgp;
+// mod exabgp;
 mod frr;
 
 fn iface_names(target: Target) -> Vec<String> {
@@ -42,13 +40,7 @@ fn iface_names(target: Target) -> Vec<String> {
 fn addressor<P: Prefix, Q, Ospf: OspfImpl>(
     net: &Network<P, Q, Ospf>,
 ) -> DefaultAddressor<P, Q, Ospf> {
-    DefaultAddressorBuilder {
-        internal_ip_range: "10.0.0.0/8".parse().unwrap(),
-        external_ip_range: "20.0.0.0/8".parse().unwrap(),
-        ..Default::default()
-    }
-    .build(net)
-    .unwrap()
+    DefaultAddressor::new(net, 8, 24, 30).unwrap()
 }
 
 fn generate_internal_config_full_mesh(target: Target) -> String {
@@ -63,7 +55,7 @@ fn generate_internal_config_full_mesh(target: Target) -> String {
     let mut ip = addressor(&net);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
-    InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
+    cfg_gen.generate_config(&net, &mut ip).unwrap()
 }
 
 fn generate_internal_config_route_reflector(target: Target) -> String {
@@ -78,7 +70,7 @@ fn generate_internal_config_route_reflector(target: Target) -> String {
     let mut ip = addressor(&net);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
-    InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
+    cfg_gen.generate_config(&net, &mut ip).unwrap()
 }
 
 fn net_for_route_maps<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
@@ -166,7 +158,7 @@ fn generate_internal_config_route_maps<P: Prefix>(target: Target) -> String {
     let net = net_for_route_maps::<P>();
     let mut ip = addressor(&net);
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
-    InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
+    cfg_gen.generate_config(&net, &mut ip).unwrap()
 }
 
 fn net_for_route_maps_pec<P: Prefix>() -> Network<P, BasicEventQueue<P>> {
@@ -240,7 +232,7 @@ fn generate_internal_config_route_maps_with_pec<P: Prefix + NonOverlappingPrefix
         ],
     );
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 0.into(), target, iface_names(target)).unwrap();
-    InternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
+    cfg_gen.generate_config(&net, &mut ip).unwrap()
 }
 
 fn generate_external_config<P: Prefix>(target: Target) -> String {
@@ -251,13 +243,13 @@ fn generate_external_config<P: Prefix>(target: Target) -> String {
     net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    net.advertise_external_route(4.into(), P::from(0), [4, 4, 4, 2, 1], None, None)
+    net.advertise_external_route(4.into(), P::from(0), None::<ASN>, None, None)
         .unwrap();
 
     let mut ip = addressor(&net);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 4.into(), target, iface_names(target)).unwrap();
-    ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
+    cfg_gen.generate_config(&net, &mut ip).unwrap()
 }
 
 fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(target: Target) -> String {
@@ -268,7 +260,7 @@ fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(target: Target
     net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    net.advertise_external_route(4.into(), P::from(0), [4, 4, 4, 2, 1], None, None)
+    net.advertise_external_route(4.into(), P::from(0), None::<ASN>, None, None)
         .unwrap();
 
     let mut ip = addressor(&net);
@@ -285,7 +277,7 @@ fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(target: Target
     );
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 4.into(), target, iface_names(target)).unwrap();
-    ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap()
+    cfg_gen.generate_config(&net, &mut ip).unwrap()
 }
 
 fn generate_external_config_withdraw(target: Target) -> (String, String) {
@@ -296,18 +288,31 @@ fn generate_external_config_withdraw(target: Target) -> (String, String) {
     net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    net.advertise_external_route(4.into(), SimplePrefix::from(0), [4, 4, 4, 2, 1], None, None)
+    net.advertise_external_route(4.into(), SimplePrefix::from(100), None::<ASN>, None, None)
         .unwrap();
-    net.advertise_external_route(4.into(), SimplePrefix::from(1), [4, 5, 5, 6], None, None)
+    net.advertise_external_route(4.into(), SimplePrefix::from(101), None::<ASN>, None, None)
         .unwrap();
 
     let mut ip = addressor(&net);
 
     let mut cfg_gen = CiscoFrrCfgGen::new(&net, 4.into(), target, iface_names(target)).unwrap();
-    let c = ExternalCfgGen::generate_config(&mut cfg_gen, &net, &mut ip).unwrap();
+    let c = cfg_gen.generate_config(&net, &mut ip).unwrap();
 
-    let withdraw_c =
-        ExternalCfgGen::withdraw_route(&mut cfg_gen, &net, &mut ip, SimplePrefix::from(1)).unwrap();
+    println!("{c}");
+
+    let withdraw_c = cfg_gen
+        .generate_command(
+            &net,
+            &mut ip,
+            ConfigModifier::Remove(ConfigExpr::AdvertiseRoute {
+                router: 4.into(),
+                prefix: SimplePrefix::from(101),
+                as_path: Default::default(),
+                med: Default::default(),
+                community: Default::default(),
+            }),
+        )
+        .unwrap();
 
     (c, withdraw_c)
 }
