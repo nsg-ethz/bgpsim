@@ -143,21 +143,21 @@ mod t {
     }
 
     #[test]
-    fn test_build_external_rotuers<P: Prefix, Ospf: OspfImpl>() {
+    fn test_build_external_routers<P: Prefix, Ospf: OspfImpl>() {
         let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
-        assert_eq!(net.external_indices().count(), 0);
+        assert_eq!(net.ases().len(), 1);
         net.add_router("R1", ASN(1));
-        assert_eq!(net.external_indices().count(), 1);
+        assert_eq!(net.ases().len(), 2);
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        assert_eq!(net.external_indices().count(), 4);
+        assert_eq!(net.ases().len(), 5);
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        assert_eq!(net.external_indices().count(), 7);
+        assert_eq!(net.ases().len(), 8);
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
-        assert_eq!(net.external_indices().count(), 10);
+        assert_eq!(net.ases().len(), 11);
     }
 
     #[test]
@@ -301,6 +301,10 @@ mod t {
 
         let mut fw_state = net.get_forwarding_state();
         for src in net.internal_indices() {
+            if [e1, e2, e3].contains(&src) {
+                // skip external routers
+                continue;
+            }
             assert!(fw_state
                 .get_paths(src, p)
                 .unwrap()
@@ -313,6 +317,10 @@ mod t {
 
         let mut fw_state = net.get_forwarding_state();
         for src in net.internal_indices() {
+            if [e1, e2, e3].contains(&src) {
+                // skip external routers
+                continue;
+            }
             assert!(fw_state
                 .get_paths(src, p)
                 .unwrap()
@@ -325,6 +333,10 @@ mod t {
 
         let mut fw_state = net.get_forwarding_state();
         for src in net.internal_indices() {
+            if [e1, e2, e3].contains(&src) {
+                // skip external routers
+                continue;
+            }
             assert!(fw_state
                 .get_paths(src, p)
                 .unwrap()
@@ -337,6 +349,10 @@ mod t {
 
         let mut fw_state = net.get_forwarding_state();
         for src in net.internal_indices() {
+            if [e1, e2, e3].contains(&src) {
+                // skip external routers
+                continue;
+            }
             assert_eq!(
                 fw_state.get_paths(src, p),
                 Err(NetworkError::ForwardingBlackHole(vec![src]))
