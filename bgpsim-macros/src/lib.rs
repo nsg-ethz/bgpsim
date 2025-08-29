@@ -49,6 +49,8 @@ use syn::parse_macro_input;
 ///   This macro will **automatically add links between nodes for external sessions** if they are
 ///   not already defined in `links`.
 ///
+/// - `default_asn`: The default ASN that is used when no AS number is given otherwise.
+///
 /// - `routes`: An enumeration of all BGP announcements from external routers. Each announcement is
 ///   written as `SRC -> PREFIX as {path: P, [med: M], [communities: C]}`. The symbols mean the
 ///   following:
@@ -75,10 +77,11 @@ use syn::parse_macro_input;
 ///
 /// - `return`: A nested tuple of identifiers that referr to previously defined nodes.
 ///
-/// # Defining external routers
-/// Every node identifier can also be written like a macro invocation by appending a `!(AS_ID)`,
-/// where `AS_ID` is a literal number. In that case, this node will be trned into an external router
-/// that uses the given AS number. You only need to annotate an external router once!
+/// # Defining Routers
+/// Every node identifier can also be written like a function invocation by appending a `(ASN)`,
+/// where `ASN` is a literal number. This must be done for each node at least once in the macro
+/// invocation (must not be the first time) to define the AS number. Alternatively, you can also set
+/// the default ASN by adding `default_asn = ASN` somewhere.
 ///
 /// # Example
 /// ```rust
@@ -86,14 +89,15 @@ use syn::parse_macro_input;
 ///
 /// let (net, ((b0, b1), (e0, e1))) = net! {
 ///     Prefix = Ipv4Prefix;
+///     default_asn: 100;
 ///     links = {
 ///         b0 -> r0: 1;
 ///         r0 -> r1: 1;
 ///         r1 -> b1: 1;
 ///     };
 ///     sessions = {
-///         b1 -> e1!(1);
-///         b0 -> e0!(2);
+///         b1 -> e1(1);
+///         b0 -> e0(2);
 ///         r0 -> r1: peer;
 ///         r0 -> b0: client;
 ///         r1 -> b1: client;
@@ -115,14 +119,14 @@ use syn::parse_macro_input;
 /// use ipnet::Ipv4Net;
 /// use std::net::Ipv4Addr;
 ///
-/// let (_net, ((b0, b1), (e0, e1))) = {
+/// let (net, ((b0, b1), (e0, e1))) = {
 ///     let mut _net: Network<Ipv4Prefix, _> = Network::new(BasicEventQueue::default());
-///     let b0 = _net.add_router("b0");
-///     let b1 = _net.add_router("b1");
-///     let r0 = _net.add_router("r0");
-///     let r1 = _net.add_router("r1");
-///     let e0 = _net.add_external_router("e0", 2u32);
-///     let e1 = _net.add_external_router("e1", 1u32);
+///     let b0 = _net.add_router("b0", 100);
+///     let b1 = _net.add_router("b1", 100);
+///     let r0 = _net.add_router("r0", 100);
+///     let r1 = _net.add_router("r1", 100);
+///     let e0 = _net.add_router("e0", 2u32);
+///     let e1 = _net.add_router("e1", 1u32);
 ///
 ///     _net.add_link(b0, r0);
 ///     _net.add_link(r1, b1);
@@ -173,14 +177,15 @@ use syn::parse_macro_input;
 ///
 /// let (net, ((b0, b1), (r0, r1), (e0, e1))) = net! {
 ///     Prefix = Ipv4Prefix;
+///     default_asn = 100;
 ///     links = {
 ///         b0 -> r0: 1;
 ///         r0 -> r1: 1;
 ///         r1 -> b1: 1;
 ///     };
 ///     sessions = {
-///         b1 -> e1!(1);
-///         b0 -> e0!(2);
+///         b1 -> e1(1);
+///         b0 -> e0(2);
 ///         r0 -> r1: peer;
 ///         r0 -> b0: client;
 ///         r1 -> b1: client;

@@ -42,6 +42,7 @@ pub(crate) struct Net {
     sessions: HashMap<(Ident, Ident), Option<Ident>>,
     routes: Vec<Route<Ident>>,
     returns: Option<Returns>,
+    default_asn: Option<(u32, Span)>,
 }
 
 impl Parse for Net {
@@ -58,6 +59,7 @@ impl Parse for Net {
             sessions: Default::default(),
             routes: Default::default(),
             returns: Default::default(),
+            default_asn: Default::default(),
         };
 
         while !input.is_empty() {
@@ -66,6 +68,11 @@ impl Parse for Net {
                 "links" => {
                     let _: Token![=] = input.parse()?;
                     net.parse_links(input)?;
+                }
+                "default_asn" => {
+                    let _: Token![=] = input.parse()?;
+                    let default_asn = input.parse::<syn::LitInt>()?;
+                    net.default_asn = Some((default_asn.base10_parse()?, default_asn.span()));
                 }
                 "sessions" => {
                     let _: Token![=] = input.parse()?;
@@ -161,11 +168,8 @@ impl Net {
             .filter_map(|ident| self.nodes.get_key_value(ident))
             .map(|(ident, ext)| {
                 let router_name = ident.to_string();
-                if let Some((as_id, _)) = ext.as_ref() {
-                    quote! { let #ident = _net.add_external_router(#router_name, #as_id); }
-                } else {
-                    quote! { let #ident = _net.add_router(#router_name); }
-                }
+                let (as_id, _) = ext.as_ref().unwrap();
+                quote! { let #ident = _net.add_router(#router_name, #as_id); }
             })
             .collect::<Vec<_>>();
 
@@ -402,7 +406,7 @@ impl Net {
         if matches!(entry, Entry::Vacant(_)) {
             self.node_order.push(node.ident.clone());
         }
-        if let Some((as_id, span)) = node.ext {
+        if let Some((as_id, span)) = node.asn {
             match entry {
                 Entry::Occupied(mut e) => match e.get() {
                     None => {
@@ -431,33 +435,24 @@ impl Net {
         Ok(node.ident)
     }
 
-    fn check_input(&self) -> Result<()> {
-        if let Some((src, dst)) = self.sessions.keys().find(|(src, dst)| {
-            self.nodes.get(src).unwrap().is_some() && self.nodes.get(dst).unwrap().is_some()
-        }) {
-            return Err(Error::new(
-                src.span().join(dst.span()).expect("Cannot get the span 3"),
-                "BGP Sessions between two external routers are not allowed!",
-            ));
+    fn check_input(&mut self) -> Result<()> {
+        // check that every router has one AS number
+        for (ident, asn) in self.nodes.iter_mut() {
+            if asn.is_none() {
+                *asn = self.default_asn.clone();
+            }
+            // check if asn is still none
+            if asn.is_none() {
+                return Err(Error::new(
+                    ident.span(),
+                    "This router has no AS number defined, and no `default_asn` is defined.",
+                ));
+            }
         }
 
         self.sessions.iter().try_for_each(|((src, dst), ident)| {
             SessionType::check(ident, self.external_session(src, dst))
         })?;
-
-        if let Some(src) = self
-            .routes
-            .iter()
-            .map(|r| &r.src)
-            .find(|src| !self.is_external(src))
-        {
-            return Err(Error::new(
-                src.span(),
-                format!(
-                    "Only external routers are allowed to advertise a route! Maybe use `{src}!(1)`?"
-                ),
-            ));
-        }
 
         let mut announcements: HashSet<(&Ident, &Prefix)> = Default::default();
         for route in self.routes.iter() {
@@ -499,12 +494,10 @@ impl Net {
         }
     }
 
-    fn is_external(&self, node: &Ident) -> bool {
-        self.nodes.get(node).unwrap().is_some()
-    }
-
     fn external_session(&self, src: &Ident, dst: &Ident) -> bool {
-        self.is_external(src) || self.is_external(dst)
+        let src_asn = self.nodes.get(src).and_then(|x| x.map(|(asn, _)| asn));
+        let dst_asn = self.nodes.get(dst).and_then(|x| x.map(|(asn, _)| asn));
+        src_asn != dst_asn
     }
 }
 
@@ -779,23 +772,22 @@ impl Parse for Prefix {
 
 struct Node {
     ident: Ident,
-    ext: Option<(u32, Span)>,
+    asn: Option<(u32, Span)>,
 }
 
 impl Parse for Node {
     fn parse(input: ParseStream) -> Result<Self> {
         let ident: Ident = input.parse()?;
-        if input.peek(Token![!]) {
-            let _: Token![!] = input.parse()?;
+        if input.peek(syn::token::Paren) {
             let paren_parser;
             parenthesized!(paren_parser in input);
             let as_id: LitInt = paren_parser.parse()?;
             Ok(Self {
                 ident,
-                ext: Some((as_id.base10_parse()?, as_id.span())),
+                asn: Some((as_id.base10_parse()?, as_id.span())),
             })
         } else {
-            Ok(Self { ident, ext: None })
+            Ok(Self { ident, asn: None })
         }
     }
 }
