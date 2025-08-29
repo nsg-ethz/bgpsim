@@ -878,6 +878,9 @@ impl<P: Prefix> BgpProcess<P> {
             entry.route.community.retain(|c| c.asn != self.asn);
         }
 
+        // in the RIB out, always clear the IGP cost field.
+        entry.igp_cost = None;
+
         Ok(Some(entry))
     }
 
