@@ -514,16 +514,35 @@ impl<P: Prefix> BgpProcess<P> {
     /// This function checks if all BGP tables are the same for all prefixes
     pub fn compare_table(&self, other: &Self) -> bool {
         if self.rib != other.rib {
+            #[cfg(test)]
+            {
+                eprintln!("RIBs don't match!");
+                eprintln!(
+                    "{}",
+                    pretty_assertions::Comparison::new(&self.rib, &other.rib)
+                );
+            }
             return false;
         }
-        let neighbors: HashSet<_> = self.rib_out.keys().chain(other.rib_out.keys()).collect();
-        for n in neighbors {
-            if match (self.rib_out.get(n), other.rib_out.get(n)) {
+        let prefixes: HashSet<_> = self.rib_out.keys().chain(other.rib_out.keys()).collect();
+        for prefix in prefixes {
+            if match (self.rib_out.get(prefix), other.rib_out.get(prefix)) {
                 (Some(x), None) if !x.is_empty() => true,
                 (None, Some(x)) if !x.is_empty() => true,
                 (Some(a), Some(b)) if a != b => true,
                 _ => false,
             } {
+                #[cfg(test)]
+                {
+                    eprintln!("RIB OUT for prefix {prefix:?} doesn't match!");
+                    eprintln!(
+                        "{}",
+                        pretty_assertions::Comparison::new(
+                            &self.rib_out.get(prefix),
+                            &other.rib_out.get(prefix)
+                        )
+                    );
+                }
                 return false;
             }
         }
@@ -535,6 +554,17 @@ impl<P: Prefix> BgpProcess<P> {
                 (Some(a), Some(b)) if a != b => true,
                 _ => false,
             } {
+                #[cfg(test)]
+                {
+                    eprintln!("RIB IN for prefix {prefix:?} don't match");
+                    eprintln!(
+                        "{}",
+                        pretty_assertions::Comparison::new(
+                            &self.rib_in.get(prefix),
+                            &other.rib_in.get(prefix)
+                        )
+                    );
+                }
                 return false;
             }
         }

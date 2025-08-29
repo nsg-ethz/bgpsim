@@ -25,7 +25,9 @@ use crate::{
     external_router::ExternalRouter,
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
-    ospf::{global::GlobalOspf, LinkWeight, LocalOspf, OspfArea, OspfImpl, OspfNetwork},
+    ospf::{
+        global::GlobalOspf, LinkWeight, LocalOspf, OspfArea, OspfImpl, OspfNetwork, OspfProcess,
+    },
     route_map::{RouteMap, RouteMapDirection},
     router::{Router, StaticRoute},
     types::{
@@ -33,6 +35,11 @@ use crate::{
         NetworkErrorOption, PhysicalNetwork, Prefix, PrefixSet, RouterId, SimplePrefix, ASN,
     },
 };
+
+#[cfg(test)]
+use crate::formatter::NetworkFormatter;
+#[cfg(test)]
+use std::collections::BTreeMap;
 
 use log::*;
 use serde::{Deserialize, Serialize};
@@ -1208,23 +1215,64 @@ where
         // check if the queue is the same. Notice that the length of the queue will be checked
         // before every element is compared!
         if self.queue != other.queue {
+            #[cfg(test)]
+            {
+                eprintln!("Queues don't match.");
+                eprintln!("self: {} events enqueued", self.queue.len());
+                eprintln!("other: {} events enqueued", other.queue.len());
+            }
             return false;
         }
 
         if self.internal_indices().collect::<HashSet<_>>()
             != other.internal_indices().collect::<HashSet<_>>()
         {
+            #[cfg(test)]
+            eprintln!("Internal indices don't match!");
             return false;
         }
 
         if self.external_indices().collect::<HashSet<_>>()
             != other.external_indices().collect::<HashSet<_>>()
         {
+            #[cfg(test)]
+            eprintln!("External indices don't match!");
             return false;
+        }
+
+        // compare all OSPF ribs
+        for r in self.internal_indices() {
+            let self_r = self.get_internal_router(r).unwrap();
+            let other_r = other.get_internal_router(r).unwrap();
+            if self_r.ospf.get_table() != other_r.ospf.get_table() {
+                #[cfg(test)]
+                {
+                    let self_table = self_r.ospf.get_table().iter().collect::<BTreeMap<_, _>>();
+                    let other_table = other_r.ospf.get_table().iter().collect::<BTreeMap<_, _>>();
+                    eprintln!(
+                        "OSPF table of {} (and {}) don't match!",
+                        self_r.name(),
+                        other_r.name()
+                    );
+                    eprintln!(
+                        "{}",
+                        pretty_assertions::Comparison::new(&self_table, &other_table)
+                    );
+                }
+                return false;
+            }
         }
 
         // check if the forwarding state is the same
         if self.get_forwarding_state() != other.get_forwarding_state() {
+            #[cfg(test)]
+            {
+                eprintln!("Forwarding state doesn't match!");
+                eprintln!("\nself:");
+                eprintln!("{}", self.get_forwarding_state().fmt_multiline(self));
+                eprintln!("\nother:");
+                eprintln!("{}", other.get_forwarding_state().fmt_multiline(other));
+            }
             return false;
         }
 
@@ -1238,6 +1286,14 @@ where
                 .bgp
                 .compare_table(&other.get_device(id).unwrap().unwrap_internal().bgp)
             {
+                #[cfg(test)]
+                {
+                    eprintln!(
+                        "Routing Tables of {} (and {}) don't match!",
+                        id.fmt(self),
+                        id.fmt(other)
+                    );
+                }
                 return false;
             }
         }
