@@ -78,10 +78,8 @@ mod t {
         net.build_ibgp_full_mesh().unwrap();
 
         let p = P::from(0);
-        net.advertise_external_route(*E1, p, [1], None, None)
-            .unwrap();
-        net.advertise_external_route(*E4, p, [4], None, None)
-            .unwrap();
+        net.advertise_route(*E1, p, [1], None, None).unwrap();
+        net.advertise_route(*E4, p, [4], None, None).unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
@@ -124,10 +122,8 @@ mod t {
         net.build_ibgp_route_reflection(vec![rr]).unwrap();
 
         let p = P::from(0);
-        net.advertise_external_route(*E1, p, [1], None, None)
-            .unwrap();
-        net.advertise_external_route(*E4, p, [4], None, None)
-            .unwrap();
+        net.advertise_route(*E1, p, [1], None, None).unwrap();
+        net.advertise_route(*E4, p, [4], None, None).unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R1, *E1]);
@@ -158,10 +154,8 @@ mod t {
         net.build_ibgp_full_mesh().unwrap();
 
         let p = P::from(0);
-        net.advertise_external_route(*E1, p, [1], None, None)
-            .unwrap();
-        net.advertise_external_route(*E4, p, [4], None, None)
-            .unwrap();
+        net.advertise_route(*E1, p, [1], None, None).unwrap();
+        net.advertise_route(*E4, p, [4], None, None).unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
@@ -202,10 +196,8 @@ mod t {
         net.build_ibgp_route_reflection(vec![rr]).unwrap();
 
         let p = P::from(0);
-        net.advertise_external_route(*E1, p, [1], None, None)
-            .unwrap();
-        net.advertise_external_route(*E4, p, [4], None, None)
-            .unwrap();
+        net.advertise_route(*E1, p, [1], None, None).unwrap();
+        net.advertise_route(*E4, p, [4], None, None).unwrap();
 
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R1, *E1]);

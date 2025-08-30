@@ -120,8 +120,8 @@
 //!     t.set_bgp_session(e1, b1, Some(false))?;
 //!
 //!     // advertise the same prefix on both routers
-//!     t.advertise_external_route(e0, prefix, &[1, 2, 3], None, None)?;
-//!     t.advertise_external_route(e1, prefix, &[2, 3], None, None)?;
+//!     t.advertise_route(e0, prefix, &[1, 2, 3], None, None)?;
+//!     t.advertise_route(e1, prefix, &[2, 3], None, None)?;
 //!
 //!     // get the forwarding state
 //!     let mut fw_state = t.get_forwarding_state();

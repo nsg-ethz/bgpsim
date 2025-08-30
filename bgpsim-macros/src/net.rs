@@ -244,14 +244,16 @@ impl Net {
                 let source = r.src.clone();
                 let prefix = r.prefix.quote();
                 let as_path = r.as_path.quote(|path| quote!([#(#path),*]));
-                let med = r.med.quote(|med| if let Some(med) = med {
-                    quote!(Some(#med))
-                } else {
-                    quote!(None)
+                let med = r.med.quote(|med| {
+                    if let Some(med) = med {
+                        quote!(Some(#med))
+                    } else {
+                        quote!(None)
+                    }
                 });
                 let communities = r.communities.quote(|c| quote!([#(#c),*]));
                 quote! {
-                    _net.advertise_external_route(#source, #prefix, #as_path, #med, #communities).unwrap();
+                    _net.advertise_route(#source, #prefix, #as_path, #med, #communities).unwrap();
                 }
             })
             .collect::<Vec<_>>();

@@ -76,11 +76,11 @@ fn test_simple_deterministic() {
     let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net).unwrap();
 
     // advertise the same prefix on both routers
-    net.advertise_external_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
+    net.advertise_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
         .unwrap();
 
     let mut rec = net
-        .record(|n| n.advertise_external_route(e1, prefix, vec![ASN(4), ASN(5)], None, None))
+        .record(|n| n.advertise_route(e1, prefix, vec![ASN(4), ASN(5)], None, None))
         .unwrap();
 
     assert_eq!(

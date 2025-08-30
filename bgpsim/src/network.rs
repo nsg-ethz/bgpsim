@@ -740,7 +740,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     ///
     /// The AS path may be empty. Remember that the own AS will always be prepended to the route
     /// when advertising over eBGP, so adding the own AS is typically not necessary.
-    pub fn advertise_external_route<A, C>(
+    pub fn advertise_route<A, C>(
         &mut self,
         source: RouterId,
         prefix: impl Into<P>,
@@ -789,11 +789,12 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
         self.do_queue_maybe_skip()
     }
 
-    /// Withdraw an external route and let the network converge. The source must be a `RouterId` of
-    /// an `ExternalRouter`. All current eBGP neighbors will receive a withdraw message.
+    /// Withdraw a route and let the network converge. Notice, that the router only sends withdraw
+    /// messages to neighbors if it also selects its own route (not if it selects another one that
+    /// it receives).
     ///
     /// This function will do nothing if the router does not advertise this prefix.
-    pub fn withdraw_external_route(
+    pub fn withdraw_route(
         &mut self,
         source: RouterId,
         prefix: impl Into<P>,

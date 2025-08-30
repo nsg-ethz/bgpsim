@@ -177,21 +177,21 @@ mod t {
             .unwrap();
             net.set_config(&c).unwrap();
 
-            net.advertise_external_route(er, P::from(1), vec![ASN(65100), ASN(65201)], None, None)
+            net.advertise_route(er, P::from(1), vec![ASN(65100), ASN(65201)], None, None)
                 .unwrap();
-            net.advertise_external_route(er, P::from(2), vec![ASN(65100), ASN(65202)], None, None)
+            net.advertise_route(er, P::from(2), vec![ASN(65100), ASN(65202)], None, None)
                 .unwrap();
-            net.advertise_external_route(e1, P::from(1), vec![ASN(65101), ASN(65201)], None, None)
+            net.advertise_route(e1, P::from(1), vec![ASN(65101), ASN(65201)], None, None)
                 .unwrap();
-            net.advertise_external_route(e2, P::from(1), vec![ASN(65102), ASN(65201)], None, None)
+            net.advertise_route(e2, P::from(1), vec![ASN(65102), ASN(65201)], None, None)
                 .unwrap();
-            net.advertise_external_route(e2, P::from(2), vec![ASN(65102), ASN(65202)], None, None)
+            net.advertise_route(e2, P::from(2), vec![ASN(65102), ASN(65202)], None, None)
                 .unwrap(); //
-            net.advertise_external_route(e3, P::from(1), vec![ASN(65103), ASN(65201)], None, None)
+            net.advertise_route(e3, P::from(1), vec![ASN(65103), ASN(65201)], None, None)
                 .unwrap();
-            net.advertise_external_route(e3, P::from(2), vec![ASN(65103), ASN(65202)], None, None)
+            net.advertise_route(e3, P::from(2), vec![ASN(65103), ASN(65202)], None, None)
                 .unwrap();
-            net.advertise_external_route(e4, P::from(2), vec![ASN(65104), ASN(65202)], None, None)
+            net.advertise_route(e4, P::from(2), vec![ASN(65104), ASN(65202)], None, None)
                 .unwrap();
 
             let mut routers = net.indices().collect::<Vec<_>>();
@@ -291,9 +291,9 @@ mod ipv4 {
         net.set_bgp_session(r1, e1, Some(false)).unwrap();
         net.set_bgp_session(r4, e4, Some(false)).unwrap();
 
-        net.advertise_external_route(e1, prefix!("100.0.0.0/16"), [1, 10], None, None)
+        net.advertise_route(e1, prefix!("100.0.0.0/16"), [1, 10], None, None)
             .unwrap();
-        net.advertise_external_route(e4, prefix!("100.0.2.0/24"), [4, 4, 4, 10], None, None)
+        net.advertise_route(e4, prefix!("100.0.2.0/24"), [4, 4, 4, 10], None, None)
             .unwrap();
 
         net.set_static_route(

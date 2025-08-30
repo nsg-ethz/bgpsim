@@ -243,7 +243,7 @@ fn generate_external_config<P: Prefix>(target: Target) -> String {
     net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    net.advertise_external_route(4.into(), P::from(0), None::<ASN>, None, None)
+    net.advertise_route(4.into(), P::from(0), None::<ASN>, None, None)
         .unwrap();
 
     let mut ip = addressor(&net);
@@ -260,7 +260,7 @@ fn generate_external_config_pec<P: Prefix + NonOverlappingPrefix>(target: Target
     net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    net.advertise_external_route(4.into(), P::from(0), None::<ASN>, None, None)
+    net.advertise_route(4.into(), P::from(0), None::<ASN>, None, None)
         .unwrap();
 
     let mut ip = addressor(&net);
@@ -288,9 +288,9 @@ fn generate_external_config_withdraw(target: Target) -> (String, String) {
     net.build_link_weights(100.0).unwrap();
     net.build_ibgp_full_mesh().unwrap();
     net.build_ebgp_sessions().unwrap();
-    net.advertise_external_route(4.into(), SimplePrefix::from(100), None::<ASN>, None, None)
+    net.advertise_route(4.into(), SimplePrefix::from(100), None::<ASN>, None, None)
         .unwrap();
-    net.advertise_external_route(4.into(), SimplePrefix::from(101), None::<ASN>, None, None)
+    net.advertise_route(4.into(), SimplePrefix::from(101), None::<ASN>, None, None)
         .unwrap();
 
     let mut ip = addressor(&net);

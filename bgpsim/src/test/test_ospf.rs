@@ -101,9 +101,9 @@ fn test_net<Ospf: OspfImpl>() -> Result<
     let p10 = Prefix::from(10);
 
     // advertise prefixes at r8, r9 and r10
-    net.advertise_external_route(r8, p8, [8, 18, 108], None, None)?;
-    net.advertise_external_route(r9, p9, [9, 19, 109], None, None)?;
-    net.advertise_external_route(r10, p10, [10, 100, 1000], None, None)?;
+    net.advertise_route(r8, p8, [8, 18, 108], None, None)?;
+    net.advertise_route(r9, p9, [9, 19, 109], None, None)?;
+    net.advertise_route(r10, p10, [10, 100, 1000], None, None)?;
 
     Ok((
         net,
@@ -169,8 +169,8 @@ fn test_net_disconnected<Ospf: OspfImpl>() -> Result<
     let p10 = Prefix::from(10);
 
     // advertise prefixes at r8, r9 and r10
-    net.advertise_external_route(r9, p9, [9, 19, 109], None, None)?;
-    net.advertise_external_route(r10, p10, [10, 100, 1000], None, None)?;
+    net.advertise_route(r9, p9, [9, 19, 109], None, None)?;
+    net.advertise_route(r10, p10, [10, 100, 1000], None, None)?;
 
     Ok((net, (r0, r1, r2, r3, r4, r5, r6, r7, r8, r9, r10), p9, p10))
 }

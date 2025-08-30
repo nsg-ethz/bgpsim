@@ -950,7 +950,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     med,
                     community,
                 } => {
-                    self.advertise_external_route(
+                    self.advertise_route(
                         *router,
                         *prefix,
                         as_path.iter().copied(),
@@ -996,7 +996,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     Ok(())
                 }
                 ConfigExpr::AdvertiseRoute { router, prefix, .. } => {
-                    self.withdraw_external_route(*router, *prefix)?;
+                    self.withdraw_route(*router, *prefix)?;
                     Ok(())
                 }
             },

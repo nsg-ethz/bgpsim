@@ -542,7 +542,7 @@ fn worker<P: Prefix, T: Default, Ospf: OspfProcess>(
 ///
 /// // let mut net = ...
 /// let original_net = net.clone();
-/// net.withdraw_external_route(ext, prefix)?;
+/// net.withdraw_route(ext, prefix)?;
 /// assert_ne!(net, original_net);
 /// let net = unsafe {
 ///     PartialClone::new(&original_net)

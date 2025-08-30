@@ -121,10 +121,10 @@ mod t {
 
         test_net.manual_simulation();
         let p = P::from(0);
-        ref_net.advertise_external_route(*E1, p, [1], None, None)?;
-        ref_net.advertise_external_route(*E4, p, [1], None, None)?;
-        test_net.advertise_external_route(*E1, p, [1], None, None)?;
-        test_net.advertise_external_route(*E4, p, [1], None, None)?;
+        ref_net.advertise_route(*E1, p, [1], None, None)?;
+        ref_net.advertise_route(*E4, p, [1], None, None)?;
+        test_net.advertise_route(*E1, p, [1], None, None)?;
+        test_net.advertise_route(*E4, p, [1], None, None)?;
 
         test_net.simulate_parallel(Some(4))?;
 
@@ -146,10 +146,10 @@ mod t {
         let prefixes = (0..1000).map(P::from).collect::<Vec<_>>();
 
         for &p in &prefixes {
-            ref_net.advertise_external_route(*E1, p, [1], None, None)?;
-            ref_net.advertise_external_route(*E4, p, [1], None, None)?;
-            test_net.advertise_external_route(*E1, p, [1], None, None)?;
-            test_net.advertise_external_route(*E4, p, [1], None, None)?;
+            ref_net.advertise_route(*E1, p, [1], None, None)?;
+            ref_net.advertise_route(*E4, p, [1], None, None)?;
+            test_net.advertise_route(*E1, p, [1], None, None)?;
+            test_net.advertise_route(*E4, p, [1], None, None)?;
         }
 
         test_net.simulate_parallel(Some(4))?;

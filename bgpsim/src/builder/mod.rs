@@ -469,7 +469,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             let router_as = self.get_router(router)?.asn();
             let as_path =
                 std::iter::repeat_n(router_as, as_path_len).chain(std::iter::once(origin_asn));
-            self.advertise_external_route(router, prefix, as_path, None, None)?;
+            self.advertise_route(router, prefix, as_path, None, None)?;
         }
 
         self.skip_queue = old_skip_queue;

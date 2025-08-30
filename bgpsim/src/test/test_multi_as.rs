@@ -52,7 +52,7 @@ mod t {
         assert_ospf_table(&net, b, btreemap! {a => (vec![a], 0.0), b => (vec![], 0.0)});
 
         let p = prefix!("10.0.0.0/8" as P);
-        net.advertise_external_route(e, p, None::<ASN>, None, None)?;
+        net.advertise_route(e, p, None::<ASN>, None, None)?;
         assert_eq!(
             net.get_router(a)?
                 .bgp
@@ -105,7 +105,7 @@ mod t {
         );
 
         let p = prefix!("10.0.0.0/8" as P);
-        net.advertise_external_route(e, p, None::<ASN>, None, None)?;
+        net.advertise_route(e, p, None::<ASN>, None, None)?;
         assert_eq!(
             net.get_router(a)?
                 .bgp
@@ -145,7 +145,7 @@ mod t {
         net.set_bgp_session(a, b, Some(false))?;
 
         let p = prefix!("10.0.0.0/8" as P);
-        net.advertise_external_route(
+        net.advertise_route(
             e,
             p,
             None::<ASN>,

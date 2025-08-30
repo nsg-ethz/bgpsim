@@ -246,7 +246,7 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
 /// ));
 ///
 /// // execute the event and measure the time
-/// net.withdraw_external_route(most_preferred, prefix)?;
+/// net.withdraw_route(most_preferred, prefix)?;
 /// # Ok(())
 /// # }
 /// # #[cfg(not(feature = "topology_zoo"))]

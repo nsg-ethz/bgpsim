@@ -107,9 +107,9 @@ mod t {
         let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net);
 
         // advertise the same prefix on both routers
-        net.advertise_external_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
+        net.advertise_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
             .unwrap();
-        net.advertise_external_route(e1, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
+        net.advertise_route(e1, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
             .unwrap();
 
         // check that all routes are correct
@@ -131,9 +131,9 @@ mod t {
         let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net);
 
         // advertise the same prefix on both routers
-        net.advertise_external_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
+        net.advertise_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
             .unwrap();
-        net.advertise_external_route(e1, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
+        net.advertise_route(e1, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
             .unwrap();
 
         // check that all routes are correct
@@ -215,9 +215,9 @@ mod t {
         let (e1, r1, r2, r3, r4, e4) = setup_external(&mut net);
 
         // advertise routes
-        net.advertise_external_route(e1, prefix, vec![ASN(65101), ASN(65200)], None, None)
+        net.advertise_route(e1, prefix, vec![ASN(65101), ASN(65200)], None, None)
             .unwrap();
-        net.advertise_external_route(e4, prefix, vec![ASN(65104), ASN(65200)], None, None)
+        net.advertise_route(e4, prefix, vec![ASN(65104), ASN(65200)], None, None)
             .unwrap();
 
         test_route!(net, r1, prefix, [r1, e1]);
@@ -264,9 +264,9 @@ mod t {
         let (e1, r1, r2, r3, r4, e4) = setup_external(&mut net);
 
         // advertise routes
-        net.advertise_external_route(e1, prefix, vec![ASN(65101), ASN(65200)], None, None)
+        net.advertise_route(e1, prefix, vec![ASN(65101), ASN(65200)], None, None)
             .unwrap();
-        net.advertise_external_route(e4, prefix, vec![ASN(65104), ASN(65200)], None, None)
+        net.advertise_route(e4, prefix, vec![ASN(65104), ASN(65200)], None, None)
             .unwrap();
 
         test_route!(net, r1, prefix, [r1, e1]);
@@ -347,9 +347,9 @@ mod t {
         net.set_config(&c).unwrap();
 
         // advertise the same prefix on both routers
-        net.advertise_external_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
+        net.advertise_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
             .unwrap();
-        net.advertise_external_route(e1, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
+        net.advertise_route(e1, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
             .unwrap();
 
         // check that all routes are correct
@@ -404,9 +404,9 @@ mod t {
         net.set_config(&c).unwrap();
 
         // advertise the same prefix on both routers
-        net.advertise_external_route(e1, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
+        net.advertise_route(e1, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
             .unwrap();
-        net.advertise_external_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
+        net.advertise_route(e0, prefix, vec![ASN(1), ASN(2), ASN(3)], None, None)
             .unwrap();
 
         // check that all routes are correct
@@ -483,16 +483,15 @@ mod t {
 
         // advertise the same prefix on both routers
         assert_eq!(
-            net.advertise_external_route(e2, prefix, vec![ASN(0), ASN(1)], None, None),
+            net.advertise_route(e2, prefix, vec![ASN(0), ASN(1)], None, None),
             Ok(())
         );
         assert_eq!(
-            net.advertise_external_route(e1, prefix, vec![ASN(0), ASN(1)], None, None),
+            net.advertise_route(e1, prefix, vec![ASN(0), ASN(1)], None, None),
             Ok(())
         );
 
-        let last_advertisement =
-            net.advertise_external_route(e0, prefix, vec![ASN(0), ASN(1)], None, None);
+        let last_advertisement = net.advertise_route(e0, prefix, vec![ASN(0), ASN(1)], None, None);
         assert!(last_advertisement == Err(NetworkError::NoConvergence));
     }
 
@@ -596,11 +595,11 @@ mod t {
         net.set_config(&c).unwrap();
 
         // apply the start configuration
-        net.advertise_external_route(p1, prefix, vec![ASN(1)], None, None)
+        net.advertise_route(p1, prefix, vec![ASN(1)], None, None)
             .unwrap();
-        net.advertise_external_route(p2, prefix, vec![ASN(1)], None, None)
+        net.advertise_route(p2, prefix, vec![ASN(1)], None, None)
             .unwrap();
-        net.advertise_external_route(p3, prefix, vec![ASN(1)], None, None)
+        net.advertise_route(p3, prefix, vec![ASN(1)], None, None)
             .unwrap();
 
         test_route!(net, r1, prefix, [r1, e1, p1]);
@@ -720,15 +719,15 @@ mod t {
         net.set_config(&c).unwrap();
 
         assert_eq!(
-            net.advertise_external_route(p1, prefix, vec![ASN(1)], None, None),
+            net.advertise_route(p1, prefix, vec![ASN(1)], None, None),
             Ok(())
         );
         assert_eq!(
-            net.advertise_external_route(p2, prefix, vec![ASN(1)], None, None),
+            net.advertise_route(p2, prefix, vec![ASN(1)], None, None),
             Ok(())
         );
         assert_eq!(
-            net.advertise_external_route(p3, prefix, vec![ASN(1)], None, None),
+            net.advertise_route(p3, prefix, vec![ASN(1)], None, None),
             Ok(())
         );
 
@@ -870,11 +869,11 @@ mod t {
 
         net.set_config(&c).unwrap();
 
-        net.advertise_external_route(ps, prefix, vec![ASN(1)], None, None)
+        net.advertise_route(ps, prefix, vec![ASN(1)], None, None)
             .unwrap();
-        net.advertise_external_route(p0, prefix, vec![ASN(1)], None, None)
+        net.advertise_route(p0, prefix, vec![ASN(1)], None, None)
             .unwrap();
-        net.advertise_external_route(p1, prefix, vec![ASN(1)], None, None)
+        net.advertise_route(p1, prefix, vec![ASN(1)], None, None)
             .unwrap();
 
         test_route!(net, s, prefix, [s, ps]);
@@ -923,7 +922,7 @@ mod t {
             RouteMapBuilder::new().order(100).deny().build(),
         )
         .unwrap();
-        net.advertise_external_route(ex, p, [100, 100, 1], None, [(65500, 10).into()])
+        net.advertise_route(ex, p, [100, 100, 1], None, [(65500, 10).into()])
             .unwrap();
         net.manual_simulation();
 
@@ -1120,21 +1119,21 @@ fn carousel_gadget() {
     net.set_config(&c).unwrap();
 
     // start advertising
-    net.advertise_external_route(pr, prefix1, vec![ASN(1)], None, None)
+    net.advertise_route(pr, prefix1, vec![ASN(1)], None, None)
         .unwrap();
-    net.advertise_external_route(pr, prefix2, vec![ASN(1)], None, None)
+    net.advertise_route(pr, prefix2, vec![ASN(1)], None, None)
         .unwrap();
-    net.advertise_external_route(p1, prefix1, vec![ASN(1)], None, None)
+    net.advertise_route(p1, prefix1, vec![ASN(1)], None, None)
         .unwrap();
-    net.advertise_external_route(p2, prefix1, vec![ASN(1)], None, None)
+    net.advertise_route(p2, prefix1, vec![ASN(1)], None, None)
         .unwrap();
-    net.advertise_external_route(p2, prefix2, vec![ASN(1)], None, None)
+    net.advertise_route(p2, prefix2, vec![ASN(1)], None, None)
         .unwrap();
-    net.advertise_external_route(p3, prefix1, vec![ASN(1)], None, None)
+    net.advertise_route(p3, prefix1, vec![ASN(1)], None, None)
         .unwrap();
-    net.advertise_external_route(p3, prefix2, vec![ASN(1)], None, None)
+    net.advertise_route(p3, prefix2, vec![ASN(1)], None, None)
         .unwrap();
-    net.advertise_external_route(p4, prefix2, vec![ASN(1)], None, None)
+    net.advertise_route(p4, prefix2, vec![ASN(1)], None, None)
         .unwrap();
 
     test_route!(net, rr, prefix1, [rr, pr]);
@@ -1312,35 +1311,35 @@ fn test_twicebad_gadget() {
     net.set_config(&c).unwrap();
 
     assert_eq!(
-        net.advertise_external_route(p1, prefix1, vec![ASN(1)], None, None),
+        net.advertise_route(p1, prefix1, vec![ASN(1)], None, None),
         Ok(())
     );
     assert_eq!(
-        net.advertise_external_route(p1, prefix2, vec![ASN(2)], None, None),
+        net.advertise_route(p1, prefix2, vec![ASN(2)], None, None),
         Ok(())
     );
     assert_eq!(
-        net.advertise_external_route(px, prefix1, vec![ASN(1)], None, None),
+        net.advertise_route(px, prefix1, vec![ASN(1)], None, None),
         Ok(())
     );
     assert_eq!(
-        net.advertise_external_route(px, prefix2, vec![ASN(2)], None, None),
+        net.advertise_route(px, prefix2, vec![ASN(2)], None, None),
         Ok(())
     );
     assert_eq!(
-        net.advertise_external_route(p2, prefix1, vec![ASN(1)], None, None),
+        net.advertise_route(p2, prefix1, vec![ASN(1)], None, None),
         Ok(())
     );
     assert_eq!(
-        net.advertise_external_route(p3, prefix1, vec![ASN(1)], None, None),
+        net.advertise_route(p3, prefix1, vec![ASN(1)], None, None),
         Ok(())
     );
     assert_eq!(
-        net.advertise_external_route(p4, prefix2, vec![ASN(2)], None, None),
+        net.advertise_route(p4, prefix2, vec![ASN(2)], None, None),
         Ok(())
     );
     assert_eq!(
-        net.advertise_external_route(pr, prefix2, vec![ASN(2)], None, None),
+        net.advertise_route(pr, prefix2, vec![ASN(2)], None, None),
         Ok(())
     );
 
