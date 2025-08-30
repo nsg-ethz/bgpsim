@@ -76,33 +76,29 @@ impl CiscoFrrCfgGen {
         target: Target,
         ifaces: Vec<String>,
     ) -> Result<Self, ExportError> {
-        let asn = net.get_device(router)?.asn();
+        let asn = net.get_router(router)?.asn();
 
         // initialize all route-maps
-        let route_maps = net
-            .get_device(router)?
-            .internal()
-            .map(|r| {
-                r.bgp
-                    .get_sessions()
-                    .iter()
-                    // build all keys
-                    .flat_map(|(n, _)| [(*n, RmDir::Incoming), (*n, RmDir::Outgoing)])
-                    .map(|(n, dir)| {
-                        (
-                            (n, dir),
-                            // build all values
-                            r.bgp
-                                .get_route_maps(n, dir)
-                                .iter()
-                                .map(|x| (x.order(), x.state()))
-                                .chain(once((i16::MAX, RouteMapState::Allow))) // add the last value
-                                .collect_vec(),
-                        )
-                    })
-                    .collect()
+        let r = net.get_router(router)?;
+        let route_maps = r
+            .bgp
+            .get_sessions()
+            .iter()
+            // build all keys
+            .flat_map(|(n, _)| [(*n, RmDir::Incoming), (*n, RmDir::Outgoing)])
+            .map(|(n, dir)| {
+                (
+                    (n, dir),
+                    // build all values
+                    r.bgp
+                        .get_route_maps(n, dir)
+                        .iter()
+                        .map(|x| (x.order(), x.state()))
+                        .chain(once((i16::MAX, RouteMapState::Allow))) // add the last value
+                        .collect_vec(),
+                )
             })
-            .unwrap_or_default();
+            .collect();
 
         Ok(Self {
             target,
@@ -213,7 +209,7 @@ impl CiscoFrrCfgGen {
     ) -> Result<String, ExportError> {
         let mut config = String::new();
         let r = self.router;
-        let router = net.get_internal_router(self.router)?;
+        let router = net.get_router(self.router)?;
 
         config.push_str("!\n! Interfaces\n!\n");
         for edge in net.ospf.neighbors(r).sorted_by_key(|e| e.dst()) {
@@ -407,7 +403,7 @@ impl CiscoFrrCfgGen {
     ) -> Result<RouterBgpNeighbor, ExportError> {
         let r = self.router;
         let mut bgp_neighbor = RouterBgpNeighbor::new(self.router_id_to_ip(n, net, addressor)?);
-        let neighbor_asn = net.get_device(n)?.asn();
+        let neighbor_asn = net.get_router(n)?.asn();
 
         if neighbor_asn == self.asn {
             // internal neighbor
@@ -451,21 +447,19 @@ impl CiscoFrrCfgGen {
         };
 
         // generate all route-maps, and stre them in the local structure, for easy modifications.
-        let route_maps: HashMap<_, _> = if let Some(r) = net.get_device(self.router)?.internal() {
-            r.bgp
-                .route_maps_in
-                .iter()
-                .map(|(n, maps)| ((*n, RmDir::Incoming), maps.clone()))
-                .chain(
-                    r.bgp
-                        .route_maps_out
-                        .iter()
-                        .map(|(n, maps)| ((*n, RmDir::Outgoing), maps.clone())),
-                )
-                .collect()
-        } else {
-            Default::default()
-        };
+        let r = net.get_router(self.router)?;
+        let route_maps: HashMap<_, _> = r
+            .bgp
+            .route_maps_in
+            .iter()
+            .map(|(n, maps)| ((*n, RmDir::Incoming), maps.clone()))
+            .chain(
+                r.bgp
+                    .route_maps_out
+                    .iter()
+                    .map(|(n, maps)| ((*n, RmDir::Outgoing), maps.clone())),
+            )
+            .collect();
 
         // write all route-maps
         config.push_str("!\n! Route-Maps\n");
@@ -662,9 +656,7 @@ impl CiscoFrrCfgGen {
         net: &Network<P, Q, Ospf>,
         addressor: &mut A,
     ) -> Result<Ipv4Addr, ExportError> {
-        if net.get_device(r)?.internal_or_err()?.asn()
-            == net.get_device(self.router)?.internal_or_err()?.asn()
-        {
+        if net.get_router(r)?.asn() == net.get_router(self.router)?.asn() {
             addressor.router_address(r)
         } else {
             addressor.iface_address(r, self.router)
@@ -704,15 +696,15 @@ fn full_rm_name<P: Prefix, Q, Ospf: OspfImpl>(
         RmDir::Incoming => "in",
         RmDir::Outgoing => "out",
     };
-    if let Ok(d) = net.get_device(router) {
+    if let Ok(d) = net.get_router(router) {
         format!("neighbor-{}-{dir}", d.name())
     } else {
-        format!("neighbor-id-{}-{}", router.index(), dir)
+        format!("neighbor-id-{}-{dir}", router.index())
     }
 }
 
 fn rm_name<P: Prefix, Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>, router: RouterId) -> String {
-    if let Ok(d) = net.get_device(router) {
+    if let Ok(d) = net.get_router(router) {
         format!("neighbor-{}", d.name())
     } else {
         format!("neighbor-id-{}", router.index())
@@ -726,7 +718,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> CfgGen<P, Q, Ospf, A> for Ci
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
-        let router = net.get_device(self.router)?.internal_or_err()?;
+        let router = net.get_router(self.router)?;
 
         // if we are on cisco, enable the ospf and bgp feature
         config.push_str("!\n");

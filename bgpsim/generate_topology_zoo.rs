@@ -94,8 +94,8 @@ fn main() {
         }
 
         // extract the properties
-        let num_internals = net.internal_indices().count();
-        let num_externals = net.external_indices().count();
+        let num_internals = net.routers_in_as(65500.into()).count();
+        let num_externals = net.num_routers() - num_internals;
         let num_routers = num_internals + num_externals;
         let num_internal_edges = net.ospf_network().internal_edges().count() / 2;
         let num_edges = net.ospf_network().external_edges().count() / 2 + num_internal_edges;

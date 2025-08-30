@@ -612,7 +612,7 @@ fn check(
         }
 
         for (i, n) in nets_l.iter().enumerate() {
-            for r in n.internal_routers() {
+            for r in n.routers() {
                 // only go through the routers that are in that AS
                 if r.asn() != asn {
                     continue;
@@ -620,7 +620,7 @@ fn check(
                 let want_ext_lsas = if disconnected {
                     lsa_data(
                         nets_l[0]
-                            .get_internal_router(r.router_id())
+                            .get_router(r.router_id())
                             .unwrap()
                             .ospf
                             .data()
@@ -642,7 +642,7 @@ fn check(
                         // if it is disconnected, then just compare with the LSAs of the first network
                         lsa_data(
                             nets_l[0]
-                                .get_internal_router(r.router_id())
+                                .get_router(r.router_id())
                                 .unwrap()
                                 .ospf
                                 .data()
@@ -669,12 +669,12 @@ fn check(
 
         for (i, n) in nets_l.iter().enumerate() {
             let state = n
-                .internal_routers()
+                .routers()
                 .map(|r| (r.router_id(), r.ospf.data().get_rib()))
                 .collect::<HashMap<_, _>>();
             for r in state.keys().chain(reference.keys()).sorted().unique() {
                 // only check internal routers in that AS
-                if n.get_device(*r).unwrap().internal().map(|x| x.asn()) != Some(asn) {
+                if n.get_router(*r).unwrap().asn() != asn {
                     continue;
                 }
                 let want_ribs = reference

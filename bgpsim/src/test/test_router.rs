@@ -18,9 +18,8 @@ use crate::bgp::BgpSessionType::{EBgp, IBgpClient, IBgpPeer};
 use crate::{
     bgp::{BgpEvent, BgpRoute},
     event::Event,
-    external_router::*,
     router::*,
-    types::{Ipv4Prefix, Prefix, SimplePrefix, SinglePrefix, ASN},
+    types::{Ipv4Prefix, Prefix, SimplePrefix, ASN},
 };
 
 use maplit::{hashmap, hashset};
@@ -540,107 +539,6 @@ mod t2 {
             )]
         );
     }
-
-    #[instantiate_tests(<SimplePrefix>)]
-    mod simple {}
-
-    #[instantiate_tests(<Ipv4Prefix>)]
-    mod ipv4 {}
-}
-
-#[generic_tests::define]
-mod t1 {
-    use super::*;
-
-    #[test]
-    fn external_router_advertise_to_neighbors<P: Prefix>() {
-        // test that an external router will advertise a route to an already existing neighbor
-        let mut r = ExternalRouter::<P>::new("router".to_string(), 0.into(), ASN(65001));
-
-        // add the session
-        let events = r.establish_ebgp_session::<()>(1.into()).unwrap();
-        assert!(events.is_empty());
-
-        // advertise route
-        let (_, events) = r.advertise_prefix(P::from(0), vec![ASN(0)], None, None);
-
-        // check that one event was created
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            Event::bgp(
-                (),
-                0.into(),
-                1.into(),
-                BgpEvent::Update(BgpRoute {
-                    prefix: P::from(0),
-                    as_path: vec![ASN(0)],
-                    next_hop: 0.into(),
-                    local_pref: None,
-                    med: None,
-                    community: Default::default(),
-                    originator_id: None,
-                    cluster_list: Vec::new(),
-                }),
-            )
-        );
-
-        // emove the route
-        let events = r.withdraw_prefix(P::from(0));
-
-        // check that one event was created
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            Event::bgp((), 0.into(), 1.into(), BgpEvent::Withdraw(P::from(0)))
-        )
-    }
-
-    #[test]
-    fn external_router_new_neighbor<P: Prefix>() {
-        // test that an external router will advertise a route to an already existing neighbor
-        let mut r = ExternalRouter::<P>::new("router".to_string(), 0.into(), ASN(65001));
-
-        // advertise route
-        let (_, events) = r.advertise_prefix::<(), _>(P::from(0), vec![ASN(0)], None, None);
-
-        // check that no event was created
-        assert_eq!(events.len(), 0);
-
-        // add a neighbor and check that the route is advertised
-        let events = r.establish_ebgp_session(1.into()).unwrap();
-
-        // check that one event was created
-        assert_eq!(events.len(), 1);
-        assert_eq!(
-            events[0],
-            Event::bgp(
-                (),
-                0.into(),
-                1.into(),
-                BgpEvent::Update(BgpRoute {
-                    prefix: P::from(0),
-                    as_path: vec![ASN(0)],
-                    next_hop: 0.into(),
-                    local_pref: None,
-                    med: None,
-                    community: Default::default(),
-                    originator_id: None,
-                    cluster_list: Vec::new(),
-                }),
-            )
-        );
-
-        // first, remove the neighbor, then stop advertising
-        r.close_ebgp_session(1.into()).unwrap();
-
-        // then, withdraw the session
-        let events = r.withdraw_prefix::<()>(P::from(0));
-        assert!(events.is_empty());
-    }
-
-    #[instantiate_tests(<SinglePrefix>)]
-    mod single {}
 
     #[instantiate_tests(<SimplePrefix>)]
     mod simple {}

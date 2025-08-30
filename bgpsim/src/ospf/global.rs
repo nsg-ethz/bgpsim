@@ -35,7 +35,8 @@ use crate::{
         LinkWeight, NeighborhoodChange, OspfArea, OspfCoordinator, OspfImpl, OspfProcess,
         EXTERNAL_LINK_WEIGHT,
     },
-    types::{DeviceError, NetworkDevice, NetworkError, Prefix, RouterId, ASN},
+    router::Router,
+    types::{DeviceError, NetworkError, Prefix, RouterId, ASN},
 };
 
 /// Global OSPF is the OSPF implementation that computes the resulting forwarding state atomically
@@ -177,7 +178,7 @@ impl OspfCoordinator for GlobalOspfCoordinator {
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: HashMap<RouterId, &mut NetworkDevice<P, GlobalOspfProcess>>,
+        routers: HashMap<RouterId, &mut Router<P, GlobalOspfProcess>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
@@ -270,7 +271,7 @@ impl GlobalOspfCoordinator {
     fn perform_actions<P: Prefix, T: Default>(
         &mut self,
         actions: Actions,
-        mut routers: HashMap<RouterId, &mut NetworkDevice<P, GlobalOspfProcess>>,
+        mut routers: HashMap<RouterId, &mut Router<P, GlobalOspfProcess>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
@@ -365,11 +366,6 @@ impl GlobalOspfCoordinator {
         for &router in &modified_tables {
             let rib = self.ribs.get(&router).unwrap_or(&empty);
             let Some(r) = routers.get_mut(&router) else {
-                continue;
-            };
-            // send the table to the process
-            let Ok(r) = r.internal_or_err() else {
-                // nothing to change if it is an external router. This one has no OSPF table.
                 continue;
             };
             events.append(&mut r.update_ospf(|ospf| {

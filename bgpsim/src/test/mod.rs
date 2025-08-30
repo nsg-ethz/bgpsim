@@ -61,7 +61,7 @@ fn path_names<'a, 'n, P: Prefix, Q, Ospf: OspfImpl>(
     path: impl Iterator<Item = &'a RouterId>,
     net: &'n Network<P, Q, Ospf>,
 ) -> Result<Vec<&'n str>, NetworkError> {
-    path.map(|r| net.get_device(*r).map(|r| r.name())).collect()
+    path.map(|r| net.get_router(*r).map(|r| r.name())).collect()
 }
 
 macro_rules! test_route {

@@ -17,7 +17,8 @@
 
 use crate::{
     ospf::OspfProcess,
-    types::{NetworkDevice, PhysicalNetwork, Prefix, RouterId},
+    router::Router,
+    types::{PhysicalNetwork, Prefix, RouterId},
 };
 
 use geoutils::Location;
@@ -74,7 +75,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
     fn push<Ospf: OspfProcess>(
         &mut self,
         mut event: Event<P, Self::Priority>,
-        _routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        _routers: &HashMap<RouterId, Router<P, Ospf>>,
         _net: &PhysicalNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -146,7 +147,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
 
     fn update_params<Ospf: OspfProcess>(
         &mut self,
-        _: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        _: &HashMap<RouterId, Router<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
     }
@@ -330,7 +331,7 @@ impl<P: Prefix> GeoTimingModel<P> {
         router: RouterId,
         target: RouterId,
         loop_protection: &mut HashSet<RouterId>,
-        routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        routers: &HashMap<RouterId, Router<P, Ospf>>,
         path_cache: &mut HashMap<(RouterId, RouterId), Option<Vec<RouterId>>>,
     ) {
         if router == target {
@@ -350,7 +351,6 @@ impl<P: Prefix> GeoTimingModel<P> {
         // get the next-hop of that router
         let new_path = if let Some(nh) = routers
             .get(&router)
-            .and_then(|r| r.as_ref().internal())
             .map(|r| r.ospf.get(target))
             .and_then(|nhs| nhs.first().copied())
         {
@@ -430,7 +430,7 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
     fn push<Ospf: OspfProcess>(
         &mut self,
         mut event: Event<P, Self::Priority>,
-        _: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        _: &HashMap<RouterId, Router<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -526,13 +526,13 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
 
     fn update_params<Ospf: OspfProcess>(
         &mut self,
-        routers: &HashMap<RouterId, NetworkDevice<P, Ospf>>,
+        routers: &HashMap<RouterId, Router<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         self.paths.clear();
         // update all paths
-        for (src, _) in routers.iter().filter(|(_, r)| r.is_internal()) {
-            for (dst, _) in routers.iter().filter(|(_, r)| r.is_internal()) {
+        for src in routers.keys() {
+            for dst in routers.keys() {
                 self.recursive_compute_paths(
                     *src,
                     *dst,

@@ -209,11 +209,7 @@ impl<'a, P: Prefix, Q, Ospf: OspfImpl> DefaultAddressor<'a, P, Q, Ospf> {
     }
 
     fn router_asn(&self, router: RouterId) -> Result<ASN, ExportError> {
-        Ok(self
-            .net
-            .get_device(router)
-            .map_err(|_| ExportError::InvalidRouterId(router))?
-            .asn())
+        Ok(self.net.get_router(router)?.asn())
     }
 
     fn link_asn(&self, a: RouterId, b: RouterId) -> Result<ASN, ExportError> {

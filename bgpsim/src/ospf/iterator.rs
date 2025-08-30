@@ -24,7 +24,7 @@ use std::{
 use serde::{Deserialize, Serialize};
 
 use super::{LinkWeight, OspfArea};
-use crate::types::{NetworkError, RouterId};
+use crate::types::RouterId;
 
 /// Iterator over internal edges.
 #[derive(Debug, Default)]
@@ -249,22 +249,6 @@ impl Edge {
         match self {
             Edge::External(e) => Ok(e),
             Edge::Internal(_) => Err(e),
-        }
-    }
-
-    /// Returns the internal edge or `Err(NetworkError::DeviceIsExternalRouter)`
-    pub fn internal_or_err(self) -> Result<InternalEdge, NetworkError> {
-        match self {
-            Edge::External(e) => Err(NetworkError::DeviceIsExternalRouter(e.ext)),
-            Edge::Internal(e) => Ok(e),
-        }
-    }
-
-    /// Returns the external edge or `Err(NetworkError::DeviceIsInternalRouter)`
-    pub fn external_or_err(self) -> Result<ExternalEdge, NetworkError> {
-        match self {
-            Edge::External(e) => Ok(e),
-            Edge::Internal(e) => Err(NetworkError::DeviceIsInternalRouter(e.dst)),
         }
     }
 }

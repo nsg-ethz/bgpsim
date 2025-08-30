@@ -45,8 +45,8 @@
 //! ## Main Concepts
 //!
 //! The [`network::Network`] is the main datastructure to operate on. It allows you to generate,
-//! modify, and simulate network behavior. A network consists of many routers (either
-//! [`router::Router`] or [`external_router::ExternalRouter`]) connected with links.
+//! modify, and simulate network behavior. A network consists of many [`router::Router`]s connected
+//! with links.
 //!
 //! The network can be configured using functions directly on the instance itself. However, it can
 //! also be configured using a configuration language. For that, make sure to `use` the trait
@@ -75,8 +75,9 @@
 //! ## Example usage
 //!
 //! The following example generates a network with two border routers `B0` and `B1`, two route
-//! reflectors `R0` and `R1`, and two external routers `E0` and `E1`. Both routers advertise the
-//! same prefix `Prefix::from(0)`, and all links have the same weight `1.0`.
+//! reflectors `R0` and `R1`, and two external routers `E0` and `E1` (with different AS
+//! numbers). Both routers advertise the same prefix `Prefix::from(0)`, and all links have the same
+//! weight `1.0`.
 //!
 //! ```
 //! use bgpsim::prelude::*;
@@ -221,7 +222,6 @@ pub mod event;
 #[cfg(feature = "export")]
 #[cfg_attr(docsrs, doc(cfg(feature = "export")))]
 pub mod export;
-pub mod external_router;
 pub mod formatter;
 pub mod forwarding_state;
 pub mod interactive;

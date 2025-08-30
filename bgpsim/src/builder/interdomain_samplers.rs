@@ -112,7 +112,7 @@ impl AsLevelSampler for InterDomainTree {
                 .unwrap_or_default()
             {
                 let ext = edge.ext;
-                let Ok(asn) = net.get_device(ext).map(|r| r.asn()) else {
+                let Ok(asn) = net.get_router(ext).map(|r| r.asn()) else {
                     continue;
                 };
                 stack.push_back((asn, level + 1));

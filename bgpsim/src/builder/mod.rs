@@ -436,7 +436,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         let new_routers = new_borders
             .into_iter()
             .map(|neighbor| {
-                let neighbor_name = self.get_device(neighbor)?.name().to_owned();
+                let neighbor_name = self.get_router(neighbor)?.name().to_owned();
                 let router_id = self._prepare_node();
                 let name = format!("{}_ext_{}", neighbor_name, router_id.index());
                 let asn = self.next_unused_asn(external_asn);
@@ -466,7 +466,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
         self.skip_queue = false;
 
         for (router, as_path_len) in prefs.iter().copied() {
-            let router_as = self.get_device(router)?.asn();
+            let router_as = self.get_router(router)?.asn();
             let as_path =
                 std::iter::repeat_n(router_as, as_path_len).chain(std::iter::once(origin_asn));
             self.advertise_external_route(router, prefix, as_path, None, None)?;
@@ -527,14 +527,14 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
                 .unwrap_or_default();
             // only select those that have a BGP session configured
             let edges = edges.filter(|e| {
-                self.get_device(e.int)
+                self.get_router(e.int)
                     .ok()
-                    .and_then(|d| d.bgp_session_type(e.ext))
+                    .and_then(|r| r.bgp.get_session_type(e.ext))
                     == Some(BgpSessionType::EBgp)
             });
             // now, get the AS number of the neighbor
             let edges = edges
-                .filter_map(|e| self.get_device(e.ext).ok().map(|d| (e.int, e.ext, d.asn())))
+                .filter_map(|e| self.get_router(e.ext).ok().map(|r| (e.int, e.ext, r.asn())))
                 .collect::<Vec<_>>();
 
             for (r, neighbor, neighbor_asn) in edges {

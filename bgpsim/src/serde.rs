@@ -33,7 +33,7 @@ use crate::{
     network::Network,
     ospf::{LocalOspf, OspfImpl},
     policies::{FwPolicy, Policy, PolicyError},
-    types::{IntoIpv4Prefix, Ipv4Prefix, NetworkDeviceRef, NetworkError, Prefix, RouterId, ASN},
+    types::{IntoIpv4Prefix, Ipv4Prefix, NetworkError, Prefix, RouterId, ASN},
 };
 
 const JSON_FIELD_NAME_NETWORK: &str = "net";
@@ -87,15 +87,8 @@ where
     fn as_topo_config(&self) -> ExportTuple<P> {
         let config = Vec::from_iter(self.get_config().unwrap().iter().cloned());
         let mut nodes: ExportRouters = self
-            .devices()
-            .map(|r| match r {
-                NetworkDeviceRef::InternalRouter(r) => {
-                    (r.router_id(), r.name().to_string(), r.asn())
-                }
-                NetworkDeviceRef::ExternalRouter(_) => {
-                    unreachable!()
-                }
-            })
+            .routers()
+            .map(|r| (r.router_id(), r.name().to_string(), r.asn()))
             .collect();
         nodes.sort_by_key(|(r, _, _)| *r);
 

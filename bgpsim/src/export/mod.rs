@@ -311,12 +311,6 @@ pub enum ExportError {
     /// No router with the given ID does exist!
     #[error("No router with ID {0:?} does exist.")]
     InvalidRouterId(RouterId),
-    /// Router is not an internal router
-    #[error("Router {0:?} is not an internal router")]
-    NotAnInternalRouter(RouterId),
-    /// Router is not an external router
-    #[error("Router {0:?} is not an external router")]
-    NotAnExternalRouter(RouterId),
     /// Cannot withdraw a route that is not yet advertised
     #[error("Cannot withdraw a route that is not yet advertised!")]
     WithdrawUnadvertisedRoute,
@@ -347,8 +341,6 @@ impl From<NetworkError> for ExportError {
     fn from(value: NetworkError) -> Self {
         match value {
             NetworkError::DeviceNotFound(r) => Self::InvalidRouterId(r),
-            NetworkError::DeviceIsExternalRouter(r) => Self::NotAnInternalRouter(r),
-            NetworkError::DeviceIsInternalRouter(r) => Self::NotAnExternalRouter(r),
             e => panic!("Unexpected network error when generating configuration! {e}"),
         }
     }

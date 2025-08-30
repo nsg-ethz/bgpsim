@@ -20,7 +20,7 @@ mod t {
     ) {
         let want: BTreeMap<RouterId, (Vec<RouterId>, LinkWeight)> = table.into_iter().collect();
         let got: BTreeMap<RouterId, (Vec<RouterId>, LinkWeight)> = net
-            .get_internal_router(r)
+            .get_router(r)
             .unwrap()
             .ospf
             .get_table()
@@ -54,14 +54,14 @@ mod t {
         let p = prefix!("10.0.0.0/8" as P);
         net.advertise_external_route(e, p, None::<ASN>, None, None)?;
         assert_eq!(
-            net.get_internal_router(a)?
+            net.get_router(a)?
                 .bgp
                 .get_route(p)
                 .map(|r| r.route.as_path.clone()),
             Some(vec![ASN(100)])
         );
         assert_eq!(
-            net.get_internal_router(b)?
+            net.get_router(b)?
                 .bgp
                 .get_route(p)
                 .map(|r| r.route.as_path.clone()),
@@ -107,21 +107,21 @@ mod t {
         let p = prefix!("10.0.0.0/8" as P);
         net.advertise_external_route(e, p, None::<ASN>, None, None)?;
         assert_eq!(
-            net.get_internal_router(a)?
+            net.get_router(a)?
                 .bgp
                 .get_route(p)
                 .map(|r| r.route.as_path.clone()),
             Some(vec![ASN(100)])
         );
         assert_eq!(
-            net.get_internal_router(b)?
+            net.get_router(b)?
                 .bgp
                 .get_route(p)
                 .map(|r| r.route.as_path.clone()),
             Some(vec![ASN(1), ASN(100)])
         );
         assert_eq!(
-            net.get_internal_router(c)?
+            net.get_router(c)?
                 .bgp
                 .get_route(p)
                 .map(|r| r.route.as_path.clone()),
@@ -153,7 +153,7 @@ mod t {
             [(100, 1).into(), (1, 1).into(), (2, 1).into()],
         )?;
         assert_eq!(
-            net.get_internal_router(a)?.bgp.get_route(p).map(|r| r
+            net.get_router(a)?.bgp.get_route(p).map(|r| r
                 .route
                 .community
                 .iter()
@@ -162,7 +162,7 @@ mod t {
             Some(vec![(1, 1).into()])
         );
         assert_eq!(
-            net.get_internal_router(b)?.bgp.get_route(p).map(|r| r
+            net.get_router(b)?.bgp.get_route(p).map(|r| r
                 .route
                 .community
                 .iter()

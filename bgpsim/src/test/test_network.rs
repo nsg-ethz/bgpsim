@@ -149,12 +149,7 @@ mod t {
         let r = net.add_router("r", 65500);
         let e = net.add_router("e", 1);
         net.add_link(r, e).unwrap();
-        assert!(&net
-            .get_device(r)
-            .unwrap()
-            .unwrap_internal()
-            .ospf
-            .is_reachable(e));
+        assert!(&net.get_router(r).unwrap().ospf.is_reachable(e));
         net.set_bgp_session(r, e, Some(false)).unwrap();
         net.advertise_external_route(e, p, [1], None, None).unwrap();
         test_route!(net, r, p, [r, e]);
@@ -228,17 +223,17 @@ mod t {
         assert_eq!(net.get_router_id("E1"), Ok(*E1));
         assert_eq!(net.get_router_id("E4"), Ok(*E4));
 
-        assert_eq!(net.get_device(*R1).map(|r| r.name()), Ok("R1"));
-        assert_eq!(net.get_device(*R2).map(|r| r.name()), Ok("R2"));
-        assert_eq!(net.get_device(*R3).map(|r| r.name()), Ok("R3"));
-        assert_eq!(net.get_device(*R4).map(|r| r.name()), Ok("R4"));
-        assert_eq!(net.get_device(*E1).map(|r| r.name()), Ok("E1"));
-        assert_eq!(net.get_device(*E4).map(|r| r.name()), Ok("E4"));
+        assert_eq!(net.get_router(*R1).map(|r| r.name()), Ok("R1"));
+        assert_eq!(net.get_router(*R2).map(|r| r.name()), Ok("R2"));
+        assert_eq!(net.get_router(*R3).map(|r| r.name()), Ok("R3"));
+        assert_eq!(net.get_router(*R4).map(|r| r.name()), Ok("R4"));
+        assert_eq!(net.get_router(*E1).map(|r| r.name()), Ok("E1"));
+        assert_eq!(net.get_router(*E4).map(|r| r.name()), Ok("E4"));
 
         net.get_router_id("e0").unwrap_err();
-        net.get_device(10.into()).unwrap_err();
+        net.get_router(10.into()).unwrap_err();
 
-        let mut routers = net.device_indices().collect::<Vec<_>>();
+        let mut routers = net.indices().collect::<Vec<_>>();
         routers.sort();
         assert_eq!(routers, vec![*E1, *R1, *R2, *R3, *R4, *E4]);
     }
@@ -250,7 +245,7 @@ mod t {
         let p = P::from(0);
 
         // check that all routes have a black hole
-        for router in net.internal_indices() {
+        for router in net.indices() {
             assert_eq!(
                 net.get_forwarding_state().get_paths(router, p),
                 Err(NetworkError::ForwardingBlackHole(vec![router]))
@@ -293,38 +288,10 @@ mod t {
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *R2, *R3, *R1, *E1]);
 
-        let r1_rib = net
-            .get_device(*R1)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_rib()
-            .get(&p)
-            .unwrap();
-        let r2_rib = net
-            .get_device(*R2)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_rib()
-            .get(&p)
-            .unwrap();
-        let r3_rib = net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_rib()
-            .get(&p)
-            .unwrap();
-        let r4_rib = net
-            .get_device(*R4)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_rib()
-            .get(&p)
-            .unwrap();
+        let r1_rib = net.get_router(*R1).unwrap().bgp.get_rib().get(&p).unwrap();
+        let r2_rib = net.get_router(*R2).unwrap().bgp.get_rib().get(&p).unwrap();
+        let r3_rib = net.get_router(*R3).unwrap().bgp.get_rib().get(&p).unwrap();
+        let r4_rib = net.get_router(*R4).unwrap().bgp.get_rib().get(&p).unwrap();
 
         assert_eq!(r1_rib.route.next_hop, *E1);
         assert_eq!(r2_rib.route.next_hop, *R1);
@@ -344,38 +311,10 @@ mod t {
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *E4]);
 
-        let r1_rib = net
-            .get_device(*R1)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_rib()
-            .get(&p)
-            .unwrap();
-        let r2_rib = net
-            .get_device(*R2)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_rib()
-            .get(&p)
-            .unwrap();
-        let r3_rib = net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_rib()
-            .get(&p)
-            .unwrap();
-        let r4_rib = net
-            .get_device(*R4)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_rib()
-            .get(&p)
-            .unwrap();
+        let r1_rib = net.get_router(*R1).unwrap().bgp.get_rib().get(&p).unwrap();
+        let r2_rib = net.get_router(*R2).unwrap().bgp.get_rib().get(&p).unwrap();
+        let r3_rib = net.get_router(*R3).unwrap().bgp.get_rib().get(&p).unwrap();
+        let r4_rib = net.get_router(*R4).unwrap().bgp.get_rib().get(&p).unwrap();
 
         assert_eq!(r1_rib.route.next_hop, *E1);
         assert_eq!(r2_rib.route.next_hop, *R4);
@@ -394,7 +333,7 @@ mod t {
         let p = P::from(0);
 
         // check that all routes have a black hole
-        for router in net.internal_indices() {
+        for router in net.indices() {
             assert_eq!(
                 net.get_forwarding_state().get_paths(router, p),
                 Err(NetworkError::ForwardingBlackHole(vec![router]))
@@ -524,7 +463,7 @@ mod t {
 
         println!(
             "{:#?}",
-            net.get_internal_router(*R4)
+            net.get_router(*R4)
                 .unwrap()
                 .bgp
                 .get_known_routes(p)

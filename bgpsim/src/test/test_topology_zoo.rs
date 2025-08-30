@@ -29,10 +29,10 @@ mod t {
         for topo in TopologyZoo::topologies_increasing_nodes() {
             let n: Network<P, _, Ospf> = topo.build(BasicEventQueue::new(), ASN(65500), ASN(1));
             assert_eq!(
-                n.device_indices().count(),
+                n.indices().count(),
                 topo.num_internals() + topo.num_externals()
             );
-            assert_eq!(n.device_indices().count(), topo.num_routers());
+            assert_eq!(n.indices().count(), topo.num_routers());
         }
     }
 
@@ -40,7 +40,7 @@ mod t {
     fn test_internal_only<P: Prefix, Ospf: OspfImpl>() {
         for topo in TopologyZoo::topologies_increasing_nodes() {
             let n: Network<P, _, Ospf> = topo.build_internal(BasicEventQueue::new(), ASN(65500));
-            assert_eq!(n.device_indices().count(), topo.num_internals());
+            assert_eq!(n.indices().count(), topo.num_internals());
         }
     }
 
@@ -49,30 +49,12 @@ mod t {
         let n: Network<P, _, Ospf> =
             TopologyZoo::Epoch.build(BasicEventQueue::new(), ASN(65500), ASN(1));
 
-        assert_eq!(
-            n.get_device(0.into()).unwrap().unwrap_internal().name(),
-            "PaloAlto"
-        );
-        assert_eq!(
-            n.get_device(1.into()).unwrap().unwrap_internal().name(),
-            "LosAngeles"
-        );
-        assert_eq!(
-            n.get_device(2.into()).unwrap().unwrap_internal().name(),
-            "Denver"
-        );
-        assert_eq!(
-            n.get_device(3.into()).unwrap().unwrap_internal().name(),
-            "Chicago"
-        );
-        assert_eq!(
-            n.get_device(4.into()).unwrap().unwrap_internal().name(),
-            "Vienna"
-        );
-        assert_eq!(
-            n.get_device(5.into()).unwrap().unwrap_internal().name(),
-            "Atlanta"
-        );
+        assert_eq!(n.get_router(0.into()).unwrap().name(), "PaloAlto");
+        assert_eq!(n.get_router(1.into()).unwrap().name(), "LosAngeles");
+        assert_eq!(n.get_router(2.into()).unwrap().name(), "Denver");
+        assert_eq!(n.get_router(3.into()).unwrap().name(), "Chicago");
+        assert_eq!(n.get_router(4.into()).unwrap().name(), "Vienna");
+        assert_eq!(n.get_router(5.into()).unwrap().name(), "Atlanta");
 
         assert!(n.ospf_network().get_area(0.into(), 1.into()).is_some());
         assert!(n.ospf_network().get_area(0.into(), 2.into()).is_some());

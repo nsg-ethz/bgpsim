@@ -45,7 +45,7 @@ impl RouterSelector for Vec<RouterId> {
     ) -> impl Iterator<Item = RouterId> {
         self.iter()
             .copied()
-            .filter(move |r| net.get_device(*r).map(|x| x.asn() == asn).unwrap_or(false))
+            .filter(move |r| net.get_router(*r).map(|x| x.asn() == asn).unwrap_or(false))
     }
 }
 
@@ -57,7 +57,7 @@ impl RouterSelector for &[RouterId] {
     ) -> impl Iterator<Item = RouterId> {
         self.iter()
             .copied()
-            .filter(move |r| net.get_device(*r).map(|x| x.asn() == asn).unwrap_or(false))
+            .filter(move |r| net.get_router(*r).map(|x| x.asn() == asn).unwrap_or(false))
     }
 }
 
@@ -69,7 +69,7 @@ impl RouterSelector for HashSet<RouterId> {
     ) -> impl Iterator<Item = RouterId> {
         self.iter()
             .copied()
-            .filter(move |r| net.get_device(*r).map(|x| x.asn() == asn).unwrap_or(false))
+            .filter(move |r| net.get_router(*r).map(|x| x.asn() == asn).unwrap_or(false))
     }
 }
 
@@ -81,7 +81,7 @@ impl RouterSelector for BTreeSet<RouterId> {
     ) -> impl Iterator<Item = RouterId> {
         self.iter()
             .copied()
-            .filter(move |r| net.get_device(*r).map(|x| x.asn() == asn).unwrap_or(false))
+            .filter(move |r| net.get_router(*r).map(|x| x.asn() == asn).unwrap_or(false))
     }
 }
 

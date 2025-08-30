@@ -35,7 +35,8 @@ use serde::{Deserialize, Serialize};
 use crate::{
     event::Event,
     formatter::NetworkFormatter,
-    types::{NetworkDevice, NetworkError, NetworkErrorOption, Prefix, RouterId, ASN},
+    router::Router,
+    types::{NetworkError, NetworkErrorOption, Prefix, RouterId, ASN},
 };
 
 use self::{database::AreaDataStructure, neighbor::Neighbor};
@@ -239,21 +240,14 @@ impl OspfCoordinator for LocalOspfCoordinator {
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        mut routers: HashMap<RouterId, &mut NetworkDevice<P, Self::Process>>,
+        mut routers: HashMap<RouterId, &mut Router<P, Self::Process>>,
         _links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         _external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut events = Vec::new();
 
         for (id, change) in LocalNeighborhoodChange::from_global(delta) {
-            let Ok(r) = routers
-                .get_mut(&id)
-                .or_router_not_found(id)?
-                .internal_or_err()
-            else {
-                // in case of an external router, just ignore it
-                continue;
-            };
+            let r = routers.get_mut(&id).or_router_not_found(id)?;
             log::trace!("{}: {id:?} processes update {change:?}", self.0);
             let mut r_events = r.update_ospf(|ospf| ospf.handle_neighborhood_change(change))?;
             events.append(&mut r_events);

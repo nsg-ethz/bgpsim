@@ -27,7 +27,7 @@ use crate::{
     bgp::BgpRoute,
     network::Network,
     ospf::OspfImpl,
-    types::{NetworkDeviceRef, Prefix, PrefixMap, RouterId},
+    types::{Prefix, PrefixMap, RouterId},
 };
 
 /// BGP State, which contains information on how all routes of an individual prefix were propagated
@@ -312,42 +312,29 @@ impl<T> BgpStateGraph<T> {
         f: F,
     ) -> Self {
         let mut g = net
-            .device_indices()
+            .indices()
             .map(|id| (id, BgpStateNode::default()))
             .collect::<HashMap<_, _>>();
 
-        for r in net.devices() {
+        for r in net.routers() {
             let id = r.router_id();
-            match r {
-                NetworkDeviceRef::InternalRouter(r) => {
-                    // handle local RIB
-                    if let Some(entry) = r.bgp.get_route(prefix) {
-                        g.get_mut(&id).unwrap().node = Some((f(&entry.route), entry.from_id));
-                    }
-                    // handle RIB_OUT
-                    r.bgp
-                        .get_rib_out()
-                        .get(&prefix)
-                        .into_iter()
-                        .flatten()
-                        .for_each(|(peer, entry)| {
-                            g.get_mut(&id)
-                                .unwrap()
-                                .edges_out
-                                .insert(*peer, f(&entry.route));
-                            g.get_mut(peer).unwrap().edges_in.insert(id);
-                        });
-                }
-                NetworkDeviceRef::ExternalRouter(r) => {
-                    if let Some(route) = r.get_advertised_route(prefix) {
-                        g.get_mut(&id).unwrap().node = Some((f(route), id));
-                        r.get_bgp_sessions().iter().copied().for_each(|peer| {
-                            g.get_mut(&peer).unwrap().edges_in.insert(id);
-                            g.get_mut(&id).unwrap().edges_out.insert(peer, f(route));
-                        });
-                    }
-                }
+            // handle local RIB
+            if let Some(entry) = r.bgp.get_route(prefix) {
+                g.get_mut(&id).unwrap().node = Some((f(&entry.route), entry.from_id));
             }
+            // handle RIB_OUT
+            r.bgp
+                .get_rib_out()
+                .get(&prefix)
+                .into_iter()
+                .flatten()
+                .for_each(|(peer, entry)| {
+                    g.get_mut(&id)
+                        .unwrap()
+                        .edges_out
+                        .insert(*peer, f(&entry.route));
+                    g.get_mut(peer).unwrap().edges_in.insert(id);
+                });
         }
 
         Self(g)

@@ -33,14 +33,12 @@ mod t {
     fn test_build_complete_graph<P: Prefix, Ospf: OspfImpl>() {
         let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(0)).unwrap();
-        assert_eq!(net.device_indices().count(), 0);
-        assert_eq!(net.external_indices().count(), 0);
+        assert_eq!(net.indices().count(), 0);
         assert_eq!(net.ospf.edges().count(), 0);
         for n in [1, 2, 10] {
             let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
             net.build_topology(ASN(65500), CompleteGraph(n)).unwrap();
-            assert_eq!(net.device_indices().count(), n);
-            assert_eq!(net.external_indices().count(), 0);
+            assert_eq!(net.indices().count(), n);
             assert_eq!(net.ospf.edges().count(), n * (n - 1));
         }
     }
@@ -52,19 +50,15 @@ mod t {
             net.build_topology(ASN(65500), CompleteGraph(n)).unwrap();
             net.build_link_weights(1.0).unwrap();
             net.build_ibgp_full_mesh().unwrap();
-            for r in net.device_indices().detach() {
-                for other in net.device_indices().detach() {
+            for r in net.indices().detach() {
+                for other in net.indices().detach() {
                     let expected_ty = if r == other {
                         None
                     } else {
                         Some(BgpSessionType::IBgpPeer)
                     };
                     assert_eq!(
-                        net.get_device(r)
-                            .unwrap()
-                            .unwrap_internal()
-                            .bgp
-                            .get_session_type(other),
+                        net.get_router(r).unwrap().bgp.get_session_type(other),
                         expected_ty
                     );
                 }
@@ -83,9 +77,9 @@ mod t {
                 .unwrap()
                 .remove(&ASN(65500))
                 .unwrap_or_default();
-            for r in net.device_indices() {
+            for r in net.indices() {
                 if rrs.contains(&r) {
-                    for other in net.device_indices() {
+                    for other in net.indices() {
                         let expected_ty = if r == other {
                             None
                         } else if rrs.contains(&other) {
@@ -94,16 +88,12 @@ mod t {
                             Some(BgpSessionType::IBgpClient)
                         };
                         assert_eq!(
-                            net.get_device(r)
-                                .unwrap()
-                                .unwrap_internal()
-                                .bgp
-                                .get_session_type(other),
+                            net.get_router(r).unwrap().bgp.get_session_type(other),
                             expected_ty
                         );
                     }
                 } else {
-                    for other in net.device_indices() {
+                    for other in net.indices() {
                         let expected_ty = if r == other {
                             None
                         } else if rrs.contains(&other) {
@@ -112,11 +102,7 @@ mod t {
                             None
                         };
                         assert_eq!(
-                            net.get_device(r)
-                                .unwrap()
-                                .unwrap_internal()
-                                .bgp
-                                .get_session_type(other),
+                            net.get_router(r).unwrap().bgp.get_session_type(other),
                             expected_ty
                         );
                     }
@@ -169,15 +155,15 @@ mod t {
         net.build_link_weights(1.0).unwrap();
         let r_last = net.add_router("test", ASN(1000));
         net.build_ebgp_sessions().unwrap();
-        for id in net.external_indices() {
-            let r = net.get_device(id).unwrap().unwrap_external();
+        for id in net.indices() {
+            let r = net.get_router(id).unwrap();
+            if r.asn() == ASN(65500) {
+                continue;
+            }
             if id == r_last {
-                assert!(r.get_bgp_sessions().is_empty());
+                assert!(r.bgp.get_sessions().is_empty());
             } else {
-                assert_eq!(r.get_bgp_sessions().len(), 1);
-                for peer in r.get_bgp_sessions() {
-                    assert!(net.get_device(*peer).unwrap().is_internal());
-                }
+                assert_eq!(r.bgp.get_sessions().len(), 1);
             }
         }
     }
@@ -194,15 +180,14 @@ mod t {
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
             let weight = net.ospf_network().get_weight(a, b);
-            if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
-            {
+            if net.get_router(a).unwrap().asn() == net.get_router(b).unwrap().asn() {
                 assert_eq!(weight, 10.0);
             } else {
                 assert_eq!(weight, EXTERNAL_LINK_WEIGHT);
             }
         }
 
-        for src in net.internal_routers() {
+        for src in net.routers() {
             let id = src.router_id();
             assert!(src
                 .ospf
@@ -229,8 +214,7 @@ mod t {
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
             let weight = net.ospf.get_weight(a, b);
-            if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
-            {
+            if net.get_router(a).unwrap().asn() == net.get_router(b).unwrap().asn() {
                 assert!(weight >= 10.0);
                 assert!(weight <= 100.0);
             } else {
@@ -257,8 +241,7 @@ mod t {
         for e in g.edge_indices() {
             let (a, b) = g.edge_endpoints(e).unwrap();
             let weight = net.ospf.get_weight(a, b);
-            if net.get_device(a).unwrap().is_internal() && net.get_device(b).unwrap().is_internal()
-            {
+            if net.get_router(a).unwrap().asn() == net.get_router(b).unwrap().asn() {
                 assert!(weight >= 10.0);
                 assert!(weight <= 100.0);
                 assert!((weight - weight.round()).abs() < LinkWeight::EPSILON);
@@ -300,7 +283,7 @@ mod t {
         assert_igp_reachability(&net);
 
         let mut fw_state = net.get_forwarding_state();
-        for src in net.internal_indices() {
+        for src in net.indices() {
             if [e1, e2, e3].contains(&src) {
                 // skip external routers
                 continue;
@@ -316,7 +299,7 @@ mod t {
         net.withdraw_external_route(e1, p).unwrap();
 
         let mut fw_state = net.get_forwarding_state();
-        for src in net.internal_indices() {
+        for src in net.indices() {
             if [e1, e2, e3].contains(&src) {
                 // skip external routers
                 continue;
@@ -332,7 +315,7 @@ mod t {
         net.withdraw_external_route(e2, p).unwrap();
 
         let mut fw_state = net.get_forwarding_state();
-        for src in net.internal_indices() {
+        for src in net.indices() {
             if [e1, e2, e3].contains(&src) {
                 // skip external routers
                 continue;
@@ -348,7 +331,7 @@ mod t {
         net.withdraw_external_route(e3, p).unwrap();
 
         let mut fw_state = net.get_forwarding_state();
-        for src in net.internal_indices() {
+        for src in net.indices() {
             if [e1, e2, e3].contains(&src) {
                 // skip external routers
                 continue;
@@ -405,8 +388,7 @@ mod t {
             let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
             net.build_topology(ASN(65500), GnmGraph::new(20, 20))
                 .unwrap();
-            assert_eq!(net.internal_indices().count(), 20);
-            assert_eq!(net.external_indices().count(), 0);
+            assert_eq!(net.indices().count(), 20);
             assert_eq!(net.ospf.edges().count(), 20 * 2);
         }
     }
@@ -418,8 +400,7 @@ mod t {
             let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
             net.build_topology(ASN(65500), GeometricGraph::new(20, 2, 2.0f64.sqrt()))
                 .unwrap();
-            assert_eq!(net.internal_indices().count(), 20);
-            assert_eq!(net.external_indices().count(), 0);
+            assert_eq!(net.indices().count(), 20);
             assert_eq!(net.ospf.edges().count(), 20 * 19);
         }
     }
@@ -431,8 +412,7 @@ mod t {
             let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
             net.build_topology(ASN(65500), GeometricGraph::new(20, 2, 0.5))
                 .unwrap();
-            assert_eq!(net.internal_indices().count(), 20);
-            assert_eq!(net.external_indices().count(), 0);
+            assert_eq!(net.indices().count(), 20);
             assert!(net.ospf.edges().count() < 20 * 19);
             assert!(net.ospf.edges().count() > 20 * 2);
         }
@@ -447,8 +427,7 @@ mod t {
             let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
             net.build_topology(ASN(65500), BarabasiAlbertGraph::new(20, 3))
                 .unwrap();
-            assert_eq!(net.internal_indices().count(), 20);
-            assert_eq!(net.external_indices().count(), 0);
+            assert_eq!(net.indices().count(), 20);
             assert_eq!(net.ospf.edges().count(), (3 + (20 - 3) * 3) * 2);
             let g = Graph::from(net.ospf.domain(65500).unwrap().graph());
             assert_eq!(connected_components(&g), 1);
@@ -544,7 +523,7 @@ mod t {
         want: Vec<String>,
     ) {
         let got = net
-            .get_internal_router(r)
+            .get_router(r)
             .map(|x| x.bgp.get_route_maps(n, dir))
             .unwrap_or_default();
         assert_eq!(got.len(), want.len());
@@ -555,8 +534,8 @@ mod t {
     }
 
     fn assert_igp_reachability<P: Prefix, Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>) {
-        for src in net.internal_indices() {
-            let r = net.get_device(src).unwrap().unwrap_internal();
+        for src in net.indices() {
+            let r = net.get_router(src).unwrap();
             let igp_table = r.ospf.get_table();
             assert!(igp_table
                 .iter()

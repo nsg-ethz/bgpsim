@@ -277,7 +277,7 @@ fmt_tuple!(T1, T2, T3, T4, T5, T6, T7, T8);
 
 impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for RouterId {
     fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
-        match net.get_device(*self) {
+        match net.get_router(*self) {
             Ok(r) => r.name().to_string(),
             Err(_) => "?".to_string(),
         }
@@ -1060,12 +1060,6 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Netw
             NetworkError::UnknownAS(asn) => format!("No router in {asn} exists."),
             NetworkError::DeviceNotFound(r) => format!("Device with id={} not found!", r.index()),
             NetworkError::DeviceNameNotFound(n) => format!("Device with name={n} not found!"),
-            NetworkError::DeviceIsExternalRouter(r) => {
-                format!("{} is an external router!", r.fmt(net))
-            }
-            NetworkError::DeviceIsInternalRouter(r) => {
-                format!("{} is an internal router!", r.fmt(net))
-            }
             NetworkError::LinkNotFound(src, dst) => format!(
                 "No link between {} and {} exists!",
                 src.fmt(net),
@@ -1098,16 +1092,6 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Netw
                 format!("Router {} has an invalid BGP table!", r.fmt(net))
             }
             NetworkError::JsonError(e) => format!("Json error occurred: {e}"),
-            NetworkError::CannotConnectExternalRouters(a, b) => format!(
-                "Cannot connect two external routers: {} and {}.",
-                a.fmt(net),
-                b.fmt(net)
-            ),
-            NetworkError::CannotConfigureExternalLink(a, b) => format!(
-                "Cannot configure an external link between {} and {}.",
-                a.fmt(net),
-                b.fmt(net)
-            ),
             NetworkError::InconsistentOspfState(k) => {
                 format!("OSPF state is inconsistent for key {}", k.fmt(net))
             }

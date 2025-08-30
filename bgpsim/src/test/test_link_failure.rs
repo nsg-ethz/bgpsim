@@ -87,52 +87,28 @@ mod t {
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *E4]);
-        assert!(!net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_sessions()
-            .is_empty());
+        assert!(!net.get_router(*R3).unwrap().bgp.get_sessions().is_empty());
 
         net.set_link_weight(*R3, *R1, LinkWeight::INFINITY).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R4, *E4]);
         test_route!(net, *R4, p, [*R4, *E4]);
-        assert!(!net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_sessions()
-            .is_empty());
+        assert!(!net.get_router(*R3).unwrap().bgp.get_sessions().is_empty());
 
         net.set_link_weight(*R3, *R4, LinkWeight::INFINITY).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_bad_route!(black_hole, net, *R3, p, [*R3]);
         test_route!(net, *R4, p, [*R4, *E4]);
-        assert!(net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_sessions()
-            .is_empty());
+        assert!(net.get_router(*R3).unwrap().bgp.get_sessions().is_empty());
 
         net.set_link_weight(*R3, *R1, 1.0).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *E4]);
-        assert!(!net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_sessions()
-            .is_empty());
+        assert!(!net.get_router(*R3).unwrap().bgp.get_sessions().is_empty());
     }
 
     #[test]
@@ -191,39 +167,21 @@ mod t {
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *E4]);
-        assert!(!net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_sessions()
-            .is_empty());
+        assert!(!net.get_router(*R3).unwrap().bgp.get_sessions().is_empty());
 
         net.remove_link(*R3, *R1).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R4, *E4]);
         test_route!(net, *R4, p, [*R4, *E4]);
-        assert!(!net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_sessions()
-            .is_empty());
+        assert!(!net.get_router(*R3).unwrap().bgp.get_sessions().is_empty());
 
         net.remove_link(*R3, *R4).unwrap();
         test_route!(net, *R1, p, [*R1, *E1]);
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_bad_route!(black_hole, net, *R3, p, [*R3]);
         test_route!(net, *R4, p, [*R4, *E4]);
-        assert!(net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_sessions()
-            .is_empty());
+        assert!(net.get_router(*R3).unwrap().bgp.get_sessions().is_empty());
 
         net.add_link(*R3, *R1).unwrap();
         net.set_link_weight(*R3, *R1, 1.0).unwrap();
@@ -231,13 +189,7 @@ mod t {
         test_route!(net, *R2, p, [*R2, *R4, *E4]);
         test_route!(net, *R3, p, [*R3, *R1, *E1]);
         test_route!(net, *R4, p, [*R4, *E4]);
-        assert!(!net
-            .get_device(*R3)
-            .unwrap()
-            .unwrap_internal()
-            .bgp
-            .get_sessions()
-            .is_empty());
+        assert!(!net.get_router(*R3).unwrap().bgp.get_sessions().is_empty());
     }
 
     #[test]

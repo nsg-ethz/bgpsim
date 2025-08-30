@@ -84,12 +84,12 @@ impl<P: Prefix> ForwardingState<P> {
     pub fn from_net<Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>) -> Self {
         // initialize the prefix lookup
         let mut state: HashMap<RouterId, P::Map<Vec<RouterId>>> =
-            HashMap::with_capacity(net.num_devices());
+            HashMap::with_capacity(net.num_routers());
         let mut reversed: HashMap<RouterId, P::Map<HashSet<RouterId>>> =
-            HashMap::with_capacity(net.num_devices());
+            HashMap::with_capacity(net.num_routers());
 
         // initialize state
-        for r in net.internal_routers() {
+        for r in net.routers() {
             let rid = r.router_id();
             let fib = r.get_fib();
 
@@ -115,20 +115,6 @@ impl<P: Prefix> ForwardingState<P> {
                 }
 
                 state.entry(rid).or_default().insert(prefix, nhs);
-            }
-        }
-
-        // collect the external routers, and chagne the forwarding state such that we remember which
-        // prefix they know a route to.
-        for r in net.external_routers() {
-            let st = state.entry(r.router_id()).or_default();
-            for p in r.advertised_prefixes() {
-                st.insert(*p, vec![*TO_DST]);
-                reversed
-                    .entry(*TO_DST)
-                    .or_default()
-                    .get_mut_or_default(*p)
-                    .insert(r.router_id());
             }
         }
 

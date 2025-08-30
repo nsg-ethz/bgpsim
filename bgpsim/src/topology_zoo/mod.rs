@@ -165,17 +165,7 @@ impl TopologyZooParser {
             let dst = *nodes_lut
                 .get(target.as_str())
                 .ok_or_else(|| TopologyZooError::NodeNotFound(target.clone()))?;
-            let src_internal = net
-                .get_device(src)
-                .map(|x| x.is_internal())
-                .unwrap_or(false);
-            let dst_internal = net
-                .get_device(dst)
-                .map(|x| x.is_internal())
-                .unwrap_or(false);
-            if src_internal || dst_internal {
-                links.push((src, dst));
-            }
+            links.push((src, dst));
         }
         net.add_links_from(links)?;
 

@@ -26,9 +26,8 @@ use crate::{
     formatter::NetworkFormatter,
     network::Network,
     ospf::{global::GlobalOspf, OspfImpl, OspfProcess},
-    types::{
-        DeviceError, NetworkDevice, NetworkError, NetworkErrorOption, Prefix, RouterId, StepUpdate,
-    },
+    router::Router,
+    types::{DeviceError, NetworkError, Prefix, RouterId, StepUpdate},
 };
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
@@ -246,7 +245,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
         }
 
         // remove unreachable OSPF LSAs
-        self.internal_routers_mut()
+        self.routers_mut()
             .for_each(|r| r.ospf.remove_unreachable_lsas());
 
         Ok(())
@@ -303,7 +302,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
         }
 
         // remove unreachable OSPF LSAs
-        self.internal_routers_mut()
+        self.routers_mut()
             .for_each(|r| r.ospf.remove_unreachable_lsas());
 
         Ok(())
@@ -312,7 +311,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
     fn trigger_timeout(&mut self) -> Result<Option<RouterId>, NetworkError> {
         #[allow(unused_mut)]
         let mut routers_waiting_for_timeout = self
-            .internal_routers()
+            .routers()
             .filter(|r| r.is_waiting_for_timeout())
             .map(|r| r.router_id());
 
@@ -335,11 +334,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
     }
 
     fn trigger_timeout_at(&mut self, router: RouterId) -> Result<bool, NetworkError> {
-        let r = self
-            .routers
-            .get_mut(&router)
-            .or_router_not_found(router)?
-            .internal_or_err()?;
+        let r = self.get_router_mut(router)?;
 
         if r.is_waiting_for_timeout() {
             log::debug!("Trigger timeout on {}", r.name());
@@ -416,7 +411,7 @@ where
 
         let num_routers = routers.len();
         let mut result = Ok(());
-        let empty = HashMap::<RouterId, NetworkDevice<P, Ospf::Process>>::new();
+        let empty = HashMap::<RouterId, Router<P, Ospf::Process>>::new();
 
         // start the process
         'main: loop {
@@ -489,12 +484,8 @@ where
     }
 }
 
-type Job<P, T, Ospf> = (NetworkDevice<P, Ospf>, Vec<Event<P, T>>);
-type Res<P, T, Ospf> = (
-    NetworkDevice<P, Ospf>,
-    Vec<Event<P, T>>,
-    Result<(), DeviceError>,
-);
+type Job<P, T, Ospf> = (Router<P, Ospf>, Vec<Event<P, T>>);
+type Res<P, T, Ospf> = (Router<P, Ospf>, Vec<Event<P, T>>, Result<(), DeviceError>);
 
 fn worker<P: Prefix, T: Default, Ospf: OspfProcess>(
     recv: Receiver<Job<P, T, Ospf>>,
@@ -687,22 +678,10 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
             new.queue.clone_from(&source.queue);
         }
 
-        // handle all external routers
-        for r in new.external_routers_mut() {
-            let id = r.router_id();
-            let r_source = source.get_device(id).unwrap().external_or_err().unwrap();
-            if !self.reuse_config {
-                r.neighbors.clone_from(&r_source.neighbors);
-            }
-            if !self.reuse_advertisements {
-                r.active_routes.clone_from(&r_source.active_routes);
-            }
-        }
-
         // handle all internal routers
-        for r in new.internal_routers_mut() {
+        for r in new.routers_mut() {
             let id = r.router_id();
-            let r_source = source.get_device(id).unwrap().internal_or_err().unwrap();
+            let r_source = source.get_router(id).unwrap();
 
             if !self.reuse_config {
                 r.do_load_balancing = r_source.do_load_balancing;

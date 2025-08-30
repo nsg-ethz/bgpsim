@@ -225,7 +225,7 @@ mod t {
         test_route!(net, r3, prefix, [r3, r1, e1]);
         test_route!(net, r4, prefix, [r4, r2, r1, e1]);
 
-        eprintln!("{:#?}", net.get_device(r2));
+        eprintln!("{:#?}", net.get_router(r2));
 
         // add all new sessions
         net.apply_modifier(&Insert(bgp_session!(r2, r4, false)))
@@ -235,7 +235,7 @@ mod t {
         net.apply_modifier(&Insert(bgp_session!(r4, e4, false)))
             .unwrap();
 
-        eprintln!("{:#?}", net.get_device(r2));
+        eprintln!("{:#?}", net.get_router(r2));
 
         // remove all old sessions
         net.apply_modifier(&Remove(bgp_session!(r1, r2, false)))
@@ -245,7 +245,7 @@ mod t {
         net.apply_modifier(&Remove(bgp_session!(r1, e1, false)))
             .unwrap();
 
-        eprintln!("{:#?}", net.get_device(r2));
+        eprintln!("{:#?}", net.get_router(r2));
 
         test_route!(net, r1, prefix, [r1, r2, r4, e4]);
         test_route!(net, r2, prefix, [r2, r4, e4]);
@@ -274,7 +274,7 @@ mod t {
         test_route!(net, r3, prefix, [r3, r1, e1]);
         test_route!(net, r4, prefix, [r4, r2, r1, e1]);
 
-        eprintln!("{:#?}", net.get_device(r2));
+        eprintln!("{:#?}", net.get_router(r2));
 
         // add all new sessions
         net.apply_modifier(&Insert(bgp_session!(r2, r4, false)))
@@ -284,7 +284,7 @@ mod t {
         net.apply_modifier(&Insert(bgp_session!(r4, e4, false)))
             .unwrap();
 
-        eprintln!("{:#?}", net.get_device(r2));
+        eprintln!("{:#?}", net.get_router(r2));
 
         // remove all old sessions
         net.apply_modifier(&Remove(bgp_session!(r1, r2, false)))
@@ -294,7 +294,7 @@ mod t {
         net.apply_modifier(&Remove(bgp_session!(r1, e1, false)))
             .unwrap();
 
-        eprintln!("{:#?}", net.get_device(r2));
+        eprintln!("{:#?}", net.get_router(r2));
 
         test_route!(net, r1, prefix, [r1, r2, r4, e4]);
         test_route!(net, r2, prefix, [r2, r4, e4]);
@@ -927,13 +927,7 @@ mod t {
             .unwrap();
         net.manual_simulation();
 
-        assert_eq!(
-            net.get_device(r2)
-                .unwrap()
-                .unwrap_internal()
-                .get_next_hop(p),
-            vec![]
-        );
+        assert_eq!(net.get_router(r2).unwrap().get_next_hop(p), vec![]);
 
         let mut net2 = net.clone();
 
