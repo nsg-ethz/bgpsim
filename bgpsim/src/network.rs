@@ -37,14 +37,12 @@ use crate::{
 
 #[cfg(test)]
 use crate::formatter::NetworkFormatter;
-#[cfg(test)]
-use std::collections::BTreeMap;
 
 use log::*;
 use serde::{Deserialize, Serialize};
 use serde_with::serde_as;
 use std::{
-    collections::{BTreeSet, HashMap, HashSet},
+    collections::{BTreeMap, BTreeSet, HashMap, HashSet},
     iter::FusedIterator,
 };
 
@@ -98,9 +96,9 @@ pub struct Network<
 > {
     pub(crate) net: PhysicalNetwork,
     pub(crate) ospf: OspfNetwork<Ospf::Coordinator>,
-    pub(crate) routers: HashMap<RouterId, Router<P, Ospf::Process>>,
+    pub(crate) routers: BTreeMap<RouterId, Router<P, Ospf::Process>>,
     #[serde_as(as = "Vec<(_, _)>")]
-    pub(crate) bgp_sessions: HashMap<(RouterId, RouterId), Option<bool>>,
+    pub(crate) bgp_sessions: BTreeMap<(RouterId, RouterId), Option<bool>>,
     pub(crate) known_prefixes: P::Set,
     pub(crate) stop_after: Option<usize>,
     pub(crate) queue: Q,
@@ -137,8 +135,8 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         Self {
             net: PhysicalNetwork::default(),
             ospf: OspfNetwork::default(),
-            routers: HashMap::new(),
-            bgp_sessions: HashMap::new(),
+            routers: BTreeMap::new(),
+            bgp_sessions: BTreeMap::new(),
             known_prefixes: Default::default(),
             stop_after: Some(DEFAULT_STOP_AFTER),
             queue,
@@ -329,7 +327,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// Return an iterator over all internal routers.
     pub fn routers(
         &self,
-    ) -> std::collections::hash_map::Values<'_, RouterId, Router<P, Ospf::Process>> {
+    ) -> std::collections::btree_map::Values<'_, RouterId, Router<P, Ospf::Process>> {
         self.routers.values()
     }
 
@@ -349,7 +347,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// Return an iterator over all internal routers as mutable references.
     pub(crate) fn routers_mut(
         &mut self,
-    ) -> std::collections::hash_map::ValuesMut<'_, RouterId, Router<P, Ospf::Process>> {
+    ) -> std::collections::btree_map::ValuesMut<'_, RouterId, Router<P, Ospf::Process>> {
         self.routers.values_mut()
     }
 
@@ -1241,7 +1239,7 @@ where
 /// Iterator of all router indices in the network.
 #[derive(Debug)]
 pub struct Indices<'a, P: Prefix, Ospf> {
-    i: std::collections::hash_map::Keys<'a, RouterId, Router<P, Ospf>>,
+    i: std::collections::btree_map::Keys<'a, RouterId, Router<P, Ospf>>,
 }
 
 impl<P: Prefix, Ospf> Iterator for Indices<'_, P, Ospf> {
@@ -1264,7 +1262,7 @@ impl<P: Prefix, Ospf> Indices<'_, P, Ospf> {
 /// Iterator of all routers in a given as.
 #[derive(Debug)]
 pub struct IndicesInAs<'a> {
-    i: std::collections::hash_map::Iter<'a, RouterId, ASN>,
+    i: std::collections::btree_map::Iter<'a, RouterId, ASN>,
     asn: ASN,
 }
 
@@ -1291,7 +1289,7 @@ impl IndicesInAs<'_> {
 /// Iterator of all external routers in the network.
 #[derive(Debug)]
 pub struct RoutersInAs<'a, P: Prefix, Ospf> {
-    i: std::collections::hash_map::Values<'a, RouterId, Router<P, Ospf>>,
+    i: std::collections::btree_map::Values<'a, RouterId, Router<P, Ospf>>,
     asn: ASN,
 }
 

@@ -22,7 +22,7 @@ use crate::{
     types::{Ipv4Prefix, Prefix, SimplePrefix, ASN},
 };
 
-use maplit::{hashmap, hashset};
+use maplit::{btreemap, hashset};
 
 #[generic_tests::define]
 mod t2 {
@@ -54,7 +54,7 @@ mod t2 {
         r.bgp
             .set_session::<()>(6.into(), Some((ASN(65001), true)))
             .unwrap();
-        r.ospf.ospf_table = hashmap! {
+        r.ospf.ospf_table = btreemap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
@@ -376,7 +376,7 @@ mod t2 {
         r.bgp
             .set_session::<()>(1.into(), Some((ASN(65001), false)))
             .unwrap();
-        r.ospf.ospf_table = hashmap! {
+        r.ospf.ospf_table = btreemap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
         };
@@ -566,7 +566,7 @@ mod ipv4 {
         r.bgp
             .set_session::<()>(3.into(), Some((ASN(65001), true)))
             .unwrap();
-        r.ospf.ospf_table = hashmap! {
+        r.ospf.ospf_table = btreemap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
@@ -659,7 +659,7 @@ mod ipv4 {
         r.bgp
             .set_session::<()>(3.into(), Some((ASN(65001), true)))
             .unwrap();
-        r.ospf.ospf_table = hashmap! {
+        r.ospf.ospf_table = btreemap! {
             100.into() => (vec![100.into()], 0.0),
             1.into()   => (vec![1.into()], 1.0),
             2.into()   => (vec![2.into()], 1.0),
@@ -671,7 +671,7 @@ mod ipv4 {
             .iter()
             .map(|(r, (_, c))| (*r, *c))
             .collect();
-        r.ospf.neighbors = hashmap! {
+        r.ospf.neighbors = btreemap! {
             100.into() => 0.0,
             1.into() => 1.0,
             2.into() => 1.0

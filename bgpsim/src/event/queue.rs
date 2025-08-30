@@ -23,7 +23,7 @@ use crate::{
 
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
-use std::collections::{BTreeMap, HashMap, VecDeque};
+use std::collections::{BTreeMap, VecDeque};
 
 use super::Event;
 
@@ -41,7 +41,7 @@ pub trait EventQueue<P: Prefix> {
     fn push<Ospf: OspfProcess>(
         &mut self,
         event: Event<P, Self::Priority>,
-        routers: &HashMap<RouterId, Router<P, Ospf>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
         net: &PhysicalNetwork,
     );
 
@@ -49,7 +49,7 @@ pub trait EventQueue<P: Prefix> {
     fn push_many<Ospf: OspfProcess>(
         &mut self,
         events: Vec<Event<P, Self::Priority>>,
-        routers: &HashMap<RouterId, Router<P, Ospf>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
         net: &PhysicalNetwork,
     ) {
         events.into_iter().for_each(|e| self.push(e, routers, net))
@@ -89,7 +89,7 @@ pub trait EventQueue<P: Prefix> {
     /// simulation.
     fn update_params<Ospf: OspfProcess>(
         &mut self,
-        routers: &HashMap<RouterId, Router<P, Ospf>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
         net: &PhysicalNetwork,
     );
 
@@ -134,7 +134,7 @@ impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
     fn push<Ospf: OspfProcess>(
         &mut self,
         event: Event<P, Self::Priority>,
-        _: &HashMap<RouterId, Router<P, Ospf>>,
+        _: &BTreeMap<RouterId, Router<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         self.0.push_back(event)
@@ -166,7 +166,7 @@ impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
 
     fn update_params<Ospf: OspfProcess>(
         &mut self,
-        _: &HashMap<RouterId, Router<P, Ospf>>,
+        _: &BTreeMap<RouterId, Router<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
     }
@@ -229,7 +229,7 @@ impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
     fn push<Ospf: OspfProcess>(
         &mut self,
         event: Event<P, Self::Priority>,
-        _routers: &HashMap<RouterId, Router<P, Ospf>>,
+        _routers: &BTreeMap<RouterId, Router<P, Ospf>>,
         _net: &PhysicalNetwork,
     ) {
         self.events
@@ -268,7 +268,7 @@ impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
 
     fn update_params<Ospf: OspfProcess>(
         &mut self,
-        _routers: &HashMap<RouterId, Router<P, Ospf>>,
+        _routers: &BTreeMap<RouterId, Router<P, Ospf>>,
         _net: &PhysicalNetwork,
     ) {
     }

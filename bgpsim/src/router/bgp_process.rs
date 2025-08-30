@@ -45,7 +45,7 @@ use itertools::Itertools;
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 use std::{
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     fmt::Write,
 };
 
@@ -59,23 +59,23 @@ pub struct BgpProcess<P: Prefix> {
     /// The AS-ID of the router
     asn: ASN,
     /// The cost to reach all internal routers
-    pub(crate) igp_cost: HashMap<RouterId, LinkWeight>,
+    pub(crate) igp_cost: BTreeMap<RouterId, LinkWeight>,
     /// hashmap of all bgp sessions
-    pub(crate) sessions: HashMap<RouterId, (ASN, bool, BgpSessionType)>,
+    pub(crate) sessions: BTreeMap<RouterId, (ASN, bool, BgpSessionType)>,
     /// Table containing all received entries. It is represented as a hashmap, mapping the prefixes
     /// to another hashmap, which maps the received router id to the entry. This way, we can store
     /// one entry for every prefix and every session.
-    pub(crate) rib_in: P::Map<HashMap<RouterId, BgpRibEntry<P>>>,
+    pub(crate) rib_in: P::Map<BTreeMap<RouterId, BgpRibEntry<P>>>,
     /// Table containing all selected best routes. It is represented as a hashmap, mapping the
     /// prefixes to the table entry
     pub(crate) rib: P::Map<BgpRibEntry<P>>,
     /// Table containing all exported routes, represented as a hashmap mapping the neighboring
     /// RouterId (of a BGP session) to the table entries.
-    pub(crate) rib_out: P::Map<HashMap<RouterId, BgpRibEntry<P>>>,
+    pub(crate) rib_out: P::Map<BTreeMap<RouterId, BgpRibEntry<P>>>,
     /// BGP Route-Maps for Input
-    pub(crate) route_maps_in: HashMap<RouterId, Vec<RouteMap<P>>>,
+    pub(crate) route_maps_in: BTreeMap<RouterId, Vec<RouteMap<P>>>,
     /// BGP Route-Maps for Output
-    pub(crate) route_maps_out: HashMap<RouterId, Vec<RouteMap<P>>>,
+    pub(crate) route_maps_out: BTreeMap<RouterId, Vec<RouteMap<P>>>,
     /// Set of known bgp prefixes
     pub(crate) known_prefixes: P::Set,
 }
@@ -140,7 +140,7 @@ impl<P: Prefix> BgpProcess<P> {
     /// Returns an interator over all BGP sessions. The first value is the peer ASN, the second one
     /// is whether the peer is a client or not, and the third summarizes this info into the BGP
     /// session type.
-    pub fn get_sessions(&self) -> &HashMap<RouterId, (ASN, bool, BgpSessionType)> {
+    pub fn get_sessions(&self) -> &BTreeMap<RouterId, (ASN, bool, BgpSessionType)> {
         &self.sessions
     }
 
@@ -179,12 +179,12 @@ impl<P: Prefix> BgpProcess<P> {
     }
 
     /// Get a reference to the `RIB_IN` table
-    pub fn get_rib_in(&self) -> &P::Map<HashMap<RouterId, BgpRibEntry<P>>> {
+    pub fn get_rib_in(&self) -> &P::Map<BTreeMap<RouterId, BgpRibEntry<P>>> {
         &self.rib_in
     }
 
     /// Get a reference to the `RIB_OUT` table
-    pub fn get_rib_out(&self) -> &P::Map<HashMap<RouterId, BgpRibEntry<P>>> {
+    pub fn get_rib_out(&self) -> &P::Map<BTreeMap<RouterId, BgpRibEntry<P>>> {
         &self.rib_out
     }
 
@@ -993,8 +993,8 @@ impl<P: Prefix + PartialEq> PartialEq for BgpProcess<P> {
         }
         let prefix_union = self.known_prefixes.union(&other.known_prefixes);
         for prefix in prefix_union {
-            if self.rib_in.get(prefix).unwrap_or(&HashMap::new())
-                != other.rib_in.get(prefix).unwrap_or(&HashMap::new())
+            if self.rib_in.get(prefix).unwrap_or(&BTreeMap::new())
+                != other.rib_in.get(prefix).unwrap_or(&BTreeMap::new())
             {
                 return false;
             }

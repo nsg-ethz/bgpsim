@@ -17,7 +17,7 @@
 //! per-message level.
 
 use crossbeam::channel::{bounded, Receiver, Sender};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 use log::debug;
 
@@ -378,7 +378,7 @@ where
         let mut remaining_iter = self.stop_after;
 
         // take out all routers.
-        let mut routers = HashMap::new();
+        let mut routers = BTreeMap::new();
         std::mem::swap(&mut routers, &mut self.routers);
         let mut routers = routers.into_values().collect::<Vec<_>>();
 
@@ -411,7 +411,7 @@ where
 
         let num_routers = routers.len();
         let mut result = Ok(());
-        let empty = HashMap::<RouterId, Router<P, Ospf::Process>>::new();
+        let empty = BTreeMap::<RouterId, Router<P, Ospf::Process>>::new();
 
         // start the process
         'main: loop {

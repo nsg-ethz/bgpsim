@@ -30,7 +30,7 @@ use rand_distr::Beta;
 use serde::{Deserialize, Serialize};
 use std::{
     cmp::Reverse,
-    collections::{HashMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     iter::zip,
 };
 
@@ -75,7 +75,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
     fn push<Ospf: OspfProcess>(
         &mut self,
         mut event: Event<P, Self::Priority>,
-        _routers: &HashMap<RouterId, Router<P, Ospf>>,
+        _routers: &BTreeMap<RouterId, Router<P, Ospf>>,
         _net: &PhysicalNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -147,7 +147,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
 
     fn update_params<Ospf: OspfProcess>(
         &mut self,
-        _: &HashMap<RouterId, Router<P, Ospf>>,
+        _: &BTreeMap<RouterId, Router<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
     }
@@ -331,7 +331,7 @@ impl<P: Prefix> GeoTimingModel<P> {
         router: RouterId,
         target: RouterId,
         loop_protection: &mut HashSet<RouterId>,
-        routers: &HashMap<RouterId, Router<P, Ospf>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
         path_cache: &mut HashMap<(RouterId, RouterId), Option<Vec<RouterId>>>,
     ) {
         if router == target {
@@ -430,7 +430,7 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
     fn push<Ospf: OspfProcess>(
         &mut self,
         mut event: Event<P, Self::Priority>,
-        _: &HashMap<RouterId, Router<P, Ospf>>,
+        _: &BTreeMap<RouterId, Router<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         let mut next_time = self.current_time;
@@ -526,7 +526,7 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
 
     fn update_params<Ospf: OspfProcess>(
         &mut self,
-        routers: &HashMap<RouterId, Router<P, Ospf>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         self.paths.clear();

@@ -209,7 +209,7 @@ where
 
     pub(crate) fn reset<P: Prefix, T: Default>(
         &mut self,
-        mut routers: HashMap<RouterId, &mut Router<P, Ospf::Process>>,
+        mut routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         // first, reset all processes
         routers
@@ -253,7 +253,7 @@ where
     pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
         &mut self,
         links: I,
-        routers: HashMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId)>,
@@ -314,7 +314,7 @@ where
         src: RouterId,
         dst: RouterId,
         weight: LinkWeight,
-        routers: HashMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
     ) -> Result<(Vec<Event<P, T>>, LinkWeight), NetworkError> {
         let (w, a) = self
             .links
@@ -345,7 +345,7 @@ where
     pub(crate) fn set_link_weights_from<P: Prefix, T: Default, I>(
         &mut self,
         weights: I,
-        routers: HashMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
@@ -437,7 +437,7 @@ where
         a: RouterId,
         b: RouterId,
         area: OspfArea,
-        routers: HashMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
     ) -> Result<(Vec<Event<P, T>>, OspfArea), NetworkError> {
         let (w_a_b, aa) = self
             .links
@@ -483,7 +483,7 @@ where
         &mut self,
         a: RouterId,
         b: RouterId,
-        routers: HashMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         assert!(self.is_internal(a));
         let update = if self.is_internal(b) {
@@ -527,7 +527,7 @@ where
     pub(crate) fn remove_router<P: Prefix, T: Default>(
         &mut self,
         r: RouterId,
-        routers: HashMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut deltas = Vec::new();
         if self.is_external(r) {
@@ -575,7 +575,7 @@ where
         &self,
         a: RouterId,
         b: RouterId,
-        routers: &HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> bool {
         // `a` must be in that domain. otherwise, it is not reachable (from that domain)
         if self.is_external(a) || !routers.contains_key(&a) || !routers.contains_key(&b) {
@@ -689,14 +689,14 @@ pub struct OspfNetwork<Ospf = GlobalOspfCoordinator> {
     #[serde(with = "As::<Vec<(Same, Same)>>")]
     pub(crate) domains: BTreeMap<ASN, OspfDomain<Ospf>>,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    pub(crate) routers: HashMap<RouterId, ASN>,
+    pub(crate) routers: BTreeMap<RouterId, ASN>,
 }
 
 impl<Ospf> Default for OspfNetwork<Ospf> {
     fn default() -> Self {
         Self {
             domains: BTreeMap::new(),
-            routers: HashMap::new(),
+            routers: BTreeMap::new(),
         }
     }
 }
@@ -717,8 +717,8 @@ where
     fn split<'a, P: Prefix>(
         &self,
         asn: ASN,
-        routers: &'a mut HashMap<RouterId, Router<P, Ospf::Process>>,
-    ) -> HashMap<RouterId, &'a mut Router<P, Ospf::Process>> {
+        routers: &'a mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+    ) -> BTreeMap<RouterId, &'a mut Router<P, Ospf::Process>> {
         routers
             .iter_mut()
             .map(|(router_id, device)| {
@@ -736,9 +736,9 @@ where
 
     fn split_all<'a, P: Prefix>(
         &self,
-        routers: &'a mut HashMap<RouterId, Router<P, Ospf::Process>>,
-    ) -> HashMap<ASN, HashMap<RouterId, &'a mut Router<P, Ospf::Process>>> {
-        let mut result: HashMap<_, HashMap<_, _>> = HashMap::new();
+        routers: &'a mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+    ) -> BTreeMap<ASN, BTreeMap<RouterId, &'a mut Router<P, Ospf::Process>>> {
+        let mut result: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
         for (router_id, device) in routers.iter_mut() {
             let asn = self
                 .routers
@@ -753,7 +753,7 @@ where
     /// Reset all OSPF data and computations
     pub(crate) fn reset<P: Prefix, T: Default>(
         &mut self,
-        routers: &mut HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut events = Vec::new();
         let mut routers = self.split_all(routers);
@@ -783,7 +783,7 @@ where
         &mut self,
         a: RouterId,
         b: RouterId,
-        routers: &mut HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         self.add_links_from([(a, b)], routers)
     }
@@ -791,7 +791,7 @@ where
     pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
         &mut self,
         links: I,
-        routers: &mut HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId)>,
@@ -833,7 +833,7 @@ where
         src: RouterId,
         dst: RouterId,
         weight: LinkWeight,
-        routers: &mut HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> Result<(Vec<Event<P, T>>, LinkWeight), NetworkError> {
         let asn = self
             .routers
@@ -849,7 +849,7 @@ where
     pub(crate) fn set_link_weights_from<P: Prefix, T: Default, I>(
         &mut self,
         weights: I,
-        routers: &mut HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
@@ -896,7 +896,7 @@ where
         a: RouterId,
         b: RouterId,
         area: OspfArea,
-        routers: &mut HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> Result<(Vec<Event<P, T>>, OspfArea), NetworkError> {
         let asn = self
             .routers
@@ -921,7 +921,7 @@ where
         &mut self,
         a: RouterId,
         b: RouterId,
-        routers: &mut HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let a_asn = self
             .routers
@@ -952,7 +952,7 @@ where
     pub(crate) fn remove_router<P: Prefix, T: Default>(
         &mut self,
         r: RouterId,
-        routers: &mut HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut routers = self.split_all(routers);
         // remove the router from all domains
@@ -980,7 +980,7 @@ where
         &self,
         a: RouterId,
         b: RouterId,
-        routers: &HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> bool {
         let Some(a_asn) = self.routers.get(&a) else {
             return false;
@@ -1014,7 +1014,7 @@ where
     /// of a router with ID `id` by computing `id.index().into()`.
     pub(crate) fn get_forwarding_state<P: Prefix>(
         &self,
-        routers: &HashMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf::Process>>,
     ) -> (
         ForwardingState<SimplePrefix>,
         HashMap<RouterId, SimplePrefix>,
@@ -1240,7 +1240,7 @@ pub trait OspfCoordinator: std::fmt::Debug + Clone + for<'de> Deserialize<'de> +
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: HashMap<RouterId, &mut Router<P, Self::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Self::Process>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>;
@@ -1254,10 +1254,10 @@ pub trait OspfProcess:
     fn new(router_id: RouterId) -> Self;
 
     /// Get the a reference to the OSPF table
-    fn get_table(&self) -> &HashMap<RouterId, (Vec<RouterId>, LinkWeight)>;
+    fn get_table(&self) -> &BTreeMap<RouterId, (Vec<RouterId>, LinkWeight)>;
 
     /// Get a reference to the physical neighbors in OSPF.
-    fn get_neighbors(&self) -> &HashMap<RouterId, LinkWeight>;
+    fn get_neighbors(&self) -> &BTreeMap<RouterId, LinkWeight>;
 
     /// Handle an OSPF event and return new OSPF events to be enqueued. This function should return
     /// a set of newly triggered events, and a flag indicating whether the BGP state has changed,
@@ -1408,7 +1408,7 @@ impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Os
                             .unwrap()
                             .iter_mut()
                             .map(|(r, d)| (*r, d))
-                            .collect::<HashMap<_, _>>();
+                            .collect::<BTreeMap<_, _>>();
 
                         let events = OspfCoordinator::update::<P, ()>(
                             &mut ospf_domain.coordinator,
@@ -1431,7 +1431,7 @@ impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Os
                             .unwrap()
                             .iter_mut()
                             .map(|(r, d)| (*r, d))
-                            .collect::<HashMap<_, _>>();
+                            .collect::<BTreeMap<_, _>>();
 
                         let weight_rev = links[&b][&a].0;
                         let events = OspfCoordinator::update::<P, ()>(

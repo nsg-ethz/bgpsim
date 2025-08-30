@@ -240,7 +240,7 @@ impl OspfCoordinator for LocalOspfCoordinator {
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        mut routers: HashMap<RouterId, &mut Router<P, Self::Process>>,
+        mut routers: BTreeMap<RouterId, &mut Router<P, Self::Process>>,
         _links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         _external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {

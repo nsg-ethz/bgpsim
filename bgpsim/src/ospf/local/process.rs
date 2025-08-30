@@ -44,9 +44,9 @@ pub struct LocalOspfProcess {
     router_id: RouterId,
     pub(super) areas: OspfRib,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    pub(super) table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+    pub(super) table: BTreeMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
-    pub(super) neighbor_links: HashMap<RouterId, LinkWeight>,
+    pub(super) neighbor_links: BTreeMap<RouterId, LinkWeight>,
     #[serde(with = "As::<Vec<(Same, Same)>>")]
     pub(super) neighbors: BTreeMap<RouterId, Neighbor>,
     /// Sequence of keys to track that all neighbors acknowledge that LSA. Once acknowledged,
@@ -794,17 +794,17 @@ impl OspfProcess for LocalOspfProcess {
             router_id,
             areas: OspfRib::new(router_id),
             table: Default::default(),
-            neighbor_links: HashMap::new(),
+            neighbor_links: BTreeMap::new(),
             neighbors: BTreeMap::new(),
             track_max_age: BTreeMap::new(),
         }
     }
 
-    fn get_table(&self) -> &HashMap<RouterId, (Vec<RouterId>, LinkWeight)> {
+    fn get_table(&self) -> &BTreeMap<RouterId, (Vec<RouterId>, LinkWeight)> {
         &self.table
     }
 
-    fn get_neighbors(&self) -> &HashMap<RouterId, LinkWeight> {
+    fn get_neighbors(&self) -> &BTreeMap<RouterId, LinkWeight> {
         &self.neighbor_links
     }
 

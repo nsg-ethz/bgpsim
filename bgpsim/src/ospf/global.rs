@@ -178,7 +178,7 @@ impl OspfCoordinator for GlobalOspfCoordinator {
     fn update<P: Prefix, T: Default>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: HashMap<RouterId, &mut Router<P, GlobalOspfProcess>>,
+        routers: BTreeMap<RouterId, &mut Router<P, GlobalOspfProcess>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
@@ -271,7 +271,7 @@ impl GlobalOspfCoordinator {
     fn perform_actions<P: Prefix, T: Default>(
         &mut self,
         actions: Actions,
-        mut routers: HashMap<RouterId, &mut Router<P, GlobalOspfProcess>>,
+        mut routers: BTreeMap<RouterId, &mut Router<P, GlobalOspfProcess>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
@@ -939,9 +939,9 @@ pub struct GlobalOspfProcess {
     /// Router Id
     pub(crate) router_id: RouterId,
     /// forwarding table for IGP messages
-    pub(crate) ospf_table: HashMap<RouterId, (Vec<RouterId>, LinkWeight)>,
+    pub(crate) ospf_table: BTreeMap<RouterId, (Vec<RouterId>, LinkWeight)>,
     /// Neighbors of that node. This updates with any IGP update
-    pub(crate) neighbors: HashMap<RouterId, LinkWeight>,
+    pub(crate) neighbors: BTreeMap<RouterId, LinkWeight>,
 }
 
 impl GlobalOspfProcess {
@@ -991,11 +991,11 @@ impl OspfProcess for GlobalOspfProcess {
         }
     }
 
-    fn get_table(&self) -> &HashMap<RouterId, (Vec<RouterId>, LinkWeight)> {
+    fn get_table(&self) -> &BTreeMap<RouterId, (Vec<RouterId>, LinkWeight)> {
         &self.ospf_table
     }
 
-    fn get_neighbors(&self) -> &HashMap<RouterId, LinkWeight> {
+    fn get_neighbors(&self) -> &BTreeMap<RouterId, LinkWeight> {
         &self.neighbors
     }
 
