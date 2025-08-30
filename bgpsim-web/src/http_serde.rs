@@ -260,7 +260,7 @@ fn interpret_json_str(s: &str) -> Result<(Net, Settings), String> {
     let fixed = pos.keys().copied().collect();
 
     // assign the position of all unfixed nodes
-    for r in net.device_indices() {
+    for r in net.indices() {
         pos.entry(r).or_insert_with(|| Point {
             x: rand_uniform(),
             y: rand_uniform(),
@@ -316,9 +316,10 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
             Event::Bgp { src, dst, .. } => {
                 // check that the BGP sessions exists
                 net.net()
-                    .get_device(*src)
+                    .get_router(*src)
                     .map_err(|_| format!("Router {src:?} does not exist"))?
-                    .bgp_session_type(*dst)
+                    .bgp
+                    .get_session_type(*dst)
                     .ok_or_else(|| {
                         format!(
                             "Router {} has no BGP session with {}",
@@ -327,9 +328,10 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
                         )
                     })?;
                 net.net()
-                    .get_device(*dst)
+                    .get_router(*dst)
                     .map_err(|_| format!("Router {dst:?} does not exist"))?
-                    .bgp_session_type(*src)
+                    .bgp
+                    .get_session_type(*src)
                     .ok_or_else(|| {
                         format!(
                             "Router {} has no BGP session with {}",
@@ -340,25 +342,11 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
             }
             Event::Ospf { src, dst, .. } => {
                 net.net()
-                    .get_device(*src)
-                    .map_err(|_| format!("Router {src:?} does not exist"))?
-                    .internal()
-                    .ok_or_else(|| {
-                        format!(
-                            "Router {} is not an internal router",
-                            src.fmt(net.net().deref())
-                        )
-                    })?;
+                    .get_router(*src)
+                    .map_err(|_| format!("Router {src:?} does not exist"))?;
                 net.net()
-                    .get_device(*dst)
-                    .map_err(|_| format!("Router {dst:?} does not exist"))?
-                    .internal()
-                    .ok_or_else(|| {
-                        format!(
-                            "Router {} is not an internal router",
-                            dst.fmt(net.net().deref())
-                        )
-                    })?;
+                    .get_router(*dst)
+                    .map_err(|_| format!("Router {dst:?} does not exist"))?;
             }
         }
     }

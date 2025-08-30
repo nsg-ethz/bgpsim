@@ -23,7 +23,7 @@ use bgpsim::{
         RouteMap, RouteMapBuilder,
         RouteMapDirection::{self, Incoming, Outgoing},
     },
-    types::{NetworkDeviceRef, RouterId, ASN},
+    types::{RouterId, ASN},
 };
 use web_sys::Element as WebElement;
 use yew::prelude::*;
@@ -93,7 +93,7 @@ impl Component for RouteMapsCfg {
         let asn = ctx.props().asn;
         let disabled = ctx.props().disabled.unwrap_or(false);
         let n = &self.net.net();
-        let r = if let Ok(r) = n.get_internal_router(router) {
+        let r = if let Ok(r) = n.get_router(router) {
             r
         } else {
             return html! {};
@@ -239,8 +239,8 @@ impl Component for RouteMapsCfg {
                 self.rm_neighbor = Some(neighbor);
                 true
             }
-            Msg::ChangeRMOrder(neighbor, direction, o) => match self.net.net().get_device(router) {
-                Ok(NetworkDeviceRef::InternalRouter(r)) => {
+            Msg::ChangeRMOrder(neighbor, direction, o) => match self.net.net().get_router(router) {
+                Ok(r) => {
                     self.rm_in_order_correct = o
                         .parse::<i16>()
                         .ok()

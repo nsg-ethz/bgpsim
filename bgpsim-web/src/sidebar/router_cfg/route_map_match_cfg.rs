@@ -82,7 +82,7 @@ impl Component for RouteMapMatchCfg {
         let peers: Vec<RouterId> = self
             .net
             .net()
-            .get_internal_router(ctx.props().router)
+            .get_router(ctx.props().router)
             .map(|r| r.bgp.get_sessions().keys().copied().collect())
             .unwrap_or_default();
         let asn = ctx.props().asn;

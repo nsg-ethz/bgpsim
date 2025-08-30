@@ -64,7 +64,7 @@ impl Component for StaticRoutesCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let n = &self.net.net();
-        let r = if let Ok(r) = n.get_internal_router(router) {
+        let r = if let Ok(r) = n.get_router(router) {
             r
         } else {
             return html! {};
@@ -104,7 +104,7 @@ impl Component for StaticRoutesCfg {
                 self.new_sr_correct = if let Ok(p) = Pfx::from_str(&s) {
                     self.net
                         .net()
-                        .get_internal_router(router)
+                        .get_router(router)
                         .ok()
                         .and_then(|r| r.sr.get_exact(p))
                         .is_none()

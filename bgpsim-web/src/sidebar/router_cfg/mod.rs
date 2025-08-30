@@ -15,6 +15,7 @@
 // with this program; if not, write to the Free Software Foundation, Inc.,
 // 51 Franklin Street, Fifth Floor, Boston, MA 02110-1301 USA.
 
+mod advertised_routes_cfg;
 mod bgp_cfg;
 mod fw_policy_cfg;
 mod route_map_item_cfg;
@@ -24,6 +25,7 @@ mod route_maps_cfg;
 mod specification_cfg;
 mod static_route_entry_cfg;
 mod static_routes_cfg;
+mod topology_cfg;
 
 use std::rc::Rc;
 
@@ -42,12 +44,11 @@ use crate::{
     state::{Selected, State},
 };
 
-use super::{
-    topology_cfg::TopologyCfg, Divider, Element, ExpandableDivider, Select, TextField, Toggle,
-};
+use super::{Divider, Element, ExpandableDivider, Select, TextField, Toggle};
 use bgp_cfg::BgpCfg;
 use specification_cfg::SpecificationCfg;
 use static_routes_cfg::StaticRoutesCfg;
+use topology_cfg::TopologyCfg;
 
 pub struct RouterCfg {
     net: Rc<Net>,
@@ -93,7 +94,7 @@ impl Component for RouterCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let n = &self.net.net();
-        let r = if let Ok(r) = n.get_internal_router(router) {
+        let r = if let Ok(r) = n.get_router(router) {
             r
         } else {
             return html! {};
@@ -128,7 +129,7 @@ impl Component for RouterCfg {
                     </Element>
                 }
                 if self.state.features().ospf {
-                    <TopologyCfg {router} only_internal={false} {disabled}/>
+                    <TopologyCfg {router} {disabled}/>
                 }
                 if self.state.features().static_routes {
                     <StaticRoutesCfg {router} {disabled}/>
@@ -194,8 +195,10 @@ impl Component for RouterCfg {
                         .parse::<u32>()
                         .unwrap(),
                 );
-                self.net_dispatch
-                    .reduce_mut(move |n| n.net_mut().set_asn(router, new_asn).unwrap());
+                self.net_dispatch.reduce_mut(move |n| {
+                    n.net_mut().set_asn(router, new_asn).unwrap();
+                    n.last_asn = new_asn;
+                });
                 true
             }
         }

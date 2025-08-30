@@ -383,17 +383,18 @@ impl Action {
             }
             Action::CreateFirstRouter => {
                 let center = net.dim.center_point();
-                if net.net().internal_indices().next().is_none() {
+                if net.net().indices().next().is_none() {
                     Dispatch::<Net>::new().reduce_mut(|n| {
-                        let id = n.net_mut().add_router("Zürich");
+                        let id = n.net_mut().add_router("Zürich", 100);
                         n.pos_mut().insert(id, center);
                     });
                 }
             }
             Action::SelectFirstRouter => {
-                let first_router = net.net().internal_indices().next().unwrap();
+                let first_router = net.net().indices().next().unwrap();
+                let asn = net.get_asn(first_router);
                 Dispatch::<State>::new().reduce_mut(move |state| {
-                    state.set_selected(Selected::Router(first_router, false))
+                    state.set_selected(Selected::Router(first_router, asn))
                 });
             }
             Action::ShowQueue => {

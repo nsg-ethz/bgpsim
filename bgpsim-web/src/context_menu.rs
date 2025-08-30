@@ -61,16 +61,16 @@ pub fn Menu() -> Html {
                 </>
             }
         }
-        (false, ContextMenu::InternalRouterContext(router, _)) => {
+        (false, ContextMenu::RouterContext(router, asn, _)) => {
             let add_link = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(router, false, Connection::Link));
+                s.set_selected(Selected::CreateConnection(router, asn, Connection::Link));
             });
             let add_bgp = dispatch.reduce_mut_callback(move |s| {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(
                     router,
-                    false,
+                    asn,
                     Connection::BgpSession(false),
                 ));
             });
@@ -78,7 +78,7 @@ pub fn Menu() -> Html {
                 s.clear_context_menu();
                 s.set_selected(Selected::CreateConnection(
                     router,
-                    false,
+                    asn,
                     Connection::BgpSession(true),
                 ));
             });
@@ -87,26 +87,6 @@ pub fn Menu() -> Html {
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_link}>{"Add Link"}</button>
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_bgp}>{"Add BGP session"}</button>
                     <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ibgp_client}>{"Add iBGP client"}</button>
-                </>
-            }
-        }
-        (false, ContextMenu::ExternalRouterContext(router, _)) => {
-            let add_link = dispatch.reduce_mut_callback(move |s| {
-                s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(router, true, Connection::Link));
-            });
-            let add_ebgp = dispatch.reduce_mut_callback(move |s| {
-                s.clear_context_menu();
-                s.set_selected(Selected::CreateConnection(
-                    router,
-                    true,
-                    Connection::BgpSession(false),
-                ));
-            });
-            html! {
-                <>
-                    <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_link}>{"Add Link"}</button>
-                    <button class="text-main bg-base-1 hover:bg-base-3 py-2 px-4 focus:outline-none" onclick={add_ebgp}>{"Add BGP session"}</button>
                 </>
             }
         }

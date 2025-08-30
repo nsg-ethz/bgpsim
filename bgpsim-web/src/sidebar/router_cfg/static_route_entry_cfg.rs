@@ -86,7 +86,7 @@ impl Component for StaticRouteEntryCfg {
             StaticRoute::Direct(target) | StaticRoute::Indirect(target) => self
                 .net
                 .net()
-                .get_device(target)
+                .get_router(target)
                 .map(|r| r.name())
                 .unwrap_or("Err")
                 .to_string(),
@@ -100,7 +100,7 @@ impl Component for StaticRouteEntryCfg {
                         r,
                         self.net
                             .net()
-                            .get_device(r)
+                            .get_router(r)
                             .map(|r| r.name())
                             .unwrap_or("Err")
                             .to_string(),
@@ -183,10 +183,7 @@ fn get_available_options(
     current_mode: StaticRoute,
 ) -> Vec<RouterId> {
     if matches!(current_mode, StaticRoute::Indirect(_)) {
-        net.net()
-            .device_indices()
-            .filter(|r| *r != router)
-            .collect()
+        net.net().indices().filter(|r| *r != router).collect()
     } else {
         net.net()
             .ospf_network()

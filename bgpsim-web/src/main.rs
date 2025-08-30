@@ -24,7 +24,8 @@ mod dim;
 mod draw;
 mod header;
 mod http_serde;
-mod latex_export;
+// Disabled for now, I never ended up using it.
+// mod latex_export;
 mod net;
 mod point;
 mod sidebar;

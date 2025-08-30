@@ -20,9 +20,8 @@ mod main_menu;
 mod replayer;
 mod verifier;
 
-use std::{collections::HashSet, rc::Rc, str::FromStr};
+use std::{rc::Rc, str::FromStr};
 
-use bgpsim::types::ASN;
 use gloo_utils::window;
 use strum::IntoEnumIterator;
 use web_sys::HtmlInputElement;
@@ -147,71 +146,29 @@ fn layer_selection() -> Html {
 #[function_component(AddRouter)]
 fn add_router() -> Html {
     let button_class = "rounded-full z-10 p-2 drop-shadow bg-base-0 text-main hover:text-main transition-all duration-150 ease-in-out flex justify-between items-center pointer-events-auto";
-    let content_class = "absolute mt-2 z-10 w-40 flex flex-col py-1 opacity-0 rounded-md drop-shadow bg-base-0 peer-checked:opacity-100 transition duration-150 ease-in-out pointer-events-none peer-checked:pointer-events-auto -translate-y-10 peer-checked:translate-y-0";
-    let bg_class = "absolute z-10 -top-4 -left-20 h-screen w-screen bg-opacity-0 peer-checked:bg-opacity-30 pointer-events-none peer-checked:pointer-events-auto cursor-default focus:outline-none transition duration-150 ease-in-out";
-
-    let shown = use_state(|| false);
-    let toggle = {
-        let shown = shown.clone();
-        Callback::from(move |_| shown.set(!*shown))
-    };
-    let hide = {
-        let shown = shown.clone();
-        Callback::from(move |_| shown.set(false))
-    };
 
     let (_, net_dispatch) = use_store::<Net>();
-    let add_internal = {
-        let shown = shown.clone();
+    let add_router = {
         let net_dispatch = net_dispatch.clone();
         move |event| {
-            shown.set(false);
-            net_dispatch.reduce_mut(|n| add_new_router(n, true, event));
-        }
-    };
-    let add_external = {
-        let shown = shown.clone();
-        let net_dispatch = net_dispatch.clone();
-        move |event| {
-            shown.set(false);
-            net_dispatch.reduce_mut(|n| add_new_router(n, false, event));
+            net_dispatch.reduce_mut(|n| add_new_router(n, event));
         }
     };
 
     html! {
-        <span class="pointer-events-none" id="add-new-router">
-            <input type="checkbox" value="" class="sr-only peer" checked={*shown}/>
-            <button class={bg_class} onclick={hide}> </button>
-            <button class={button_class} onclick={toggle}> <yew_lucide::Plus class="w-6 h-6"/> </button>
-            <div class={content_class}>
-                <button class="text-main hover:text-main hover:bg-base-3 py-2 focus:outline-none" onclick={add_internal}>{"Internal Router"}</button>
-                <button class="text-main hover:text-main hover:bg-base-3 py-2 focus:outline-none" onclick={add_external}>{"External Router"}</button>
-            </div>
-        </span>
+        <button class={button_class} onclick={add_router} id="add-new-router"> <yew_lucide::Plus class="w-6 h-6"/> </button>
     }
 }
 
-fn add_new_router(net: &mut Net, internal: bool, event: MouseEvent) {
-    let prefix = if internal { "R" } else { "E" };
+fn add_new_router(net: &mut Net, event: MouseEvent) {
     let name = (1..)
-        .map(|x| format!("{prefix}{x}"))
+        .map(|x| format!("R{x}"))
         .find(|n| net.net().get_router_id(n).is_err())
         .unwrap(); // safety: This unwrap is ok because of the infinite iterator!
-    let router_id = if internal {
-        net.net_mut().add_router(name)
-    } else {
-        log::debug!("add external router");
-        let used_as: HashSet<ASN> = net
-            .net()
-            .external_indices()
-            .map(|r| net.net().get_external_router(r).unwrap().asn())
-            .collect();
-        // safety: this unwrap is ok because of the infinite iterator!
-        let as_id = (1..).map(ASN).find(|x| !used_as.contains(x)).unwrap();
-        net.net_mut().add_external_router(name, as_id)
-    };
+    let asn = net.last_asn;
+    let router_id = net.net_mut().add_router(name, asn);
     // get the point of where to add the router
-    let screen_point = Point::new(event.client_x(), event.client_y());
+    let screen_point = Point::new(event.client_x(), event.client_y() + 100);
     let point = net.dim.screen_to_data(screen_point);
     log::debug!("add router at {point:?}");
     net.pos_mut().insert(router_id, point);

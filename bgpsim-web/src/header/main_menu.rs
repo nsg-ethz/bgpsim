@@ -75,7 +75,7 @@ pub fn MainMenu(props: &Properties) -> Html {
     };
     let auto_layout = net_dispatch.reduce_mut_callback(|n| n.spring_layout());
     let export = net_dispatch.reduce_mut_callback(|n| n.export());
-    let export_latex = net_dispatch.reduce_mut_callback(|n| n.export_latex());
+    // let export_latex = net_dispatch.reduce_mut_callback(|n| n.export_latex());
     let export_copy_url = callback!(url_network -> move |_| {
         let mut url = export_url();
         log::debug!("{url}");
@@ -167,10 +167,10 @@ pub fn MainMenu(props: &Properties) -> Html {
                             <yew_lucide::Save class="h-6 mr-4" />
                             {"Export network"}
                         </button>
-                        <button class={element_class} onclick={export_latex}>
-                            <yew_lucide::FileText class="h-6 mr-4" />
-                            {"Export to laTeX"}
-                        </button>
+                        // <button class={element_class} onclick={export_latex}>
+                        //     <yew_lucide::FileText class="h-6 mr-4" />
+                        //     {"Export to laTeX"}
+                        // </button>
                         <button class={element_class} onclick={import}>
                             <yew_lucide::Import class="h-6 mr-4" />
                             {"Import from file"}
@@ -362,7 +362,7 @@ fn import_topology_zoo(topo: TopologyZoo) {
         let points = geo.values().collect_vec();
         let center = rad(Location::center(&points));
         let proj = Mer::new();
-        for r in net.device_indices() {
+        for r in net.indices() {
             let p = match geo.get(&r).map(|pos| rad(*pos)) {
                 Some(p) => {
                     fixed.insert(r);

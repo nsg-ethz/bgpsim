@@ -103,12 +103,13 @@ pub fn RouteMap(props: &RmProps) -> Html {
     let route_maps = use_selector_with_deps(
         |n: &Net, (id, peer, direction)| {
             n.net()
-                .get_internal_router(*id)
+                .get_router(*id)
                 .map(|r| r.bgp.get_route_maps(*peer, *direction).to_vec())
                 .unwrap_or_default()
         },
         (id, peer, direction),
     );
+    let asn = use_selector(move |n: &Net| n.get_asn(id));
 
     if route_maps.is_empty() {
         return html! {};
@@ -132,7 +133,7 @@ pub fn RouteMap(props: &RmProps) -> Html {
     let onmouseleave = dispatch.reduce_mut_callback(|s| s.clear_hover());
 
     let onclick = dispatch.reduce_mut_callback(move |s| {
-        s.set_selected(Selected::Router(id, false));
+        s.set_selected(Selected::Router(id, *asn));
         s.set_flash(Flash::RouteMap(id, peer, direction));
     });
 

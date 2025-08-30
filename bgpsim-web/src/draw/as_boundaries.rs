@@ -29,9 +29,9 @@ use crate::{net::Net, point::Point};
 pub fn as_boundaries() -> Html {
     let ases = use_selector(|net: &Net| {
         let mut ases: BTreeMap<ASN, BTreeMap<RouterId, Point>> = Default::default();
-        for d in net.net().devices() {
-            let p = net.pos(d.router_id());
-            ases.entry(d.asn()).or_default().insert(d.router_id(), p);
+        for r in net.net().routers() {
+            let p = net.pos(r.router_id());
+            ases.entry(r.asn()).or_default().insert(r.router_id(), p);
         }
         ases
     });

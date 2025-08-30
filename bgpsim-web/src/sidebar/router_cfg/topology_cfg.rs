@@ -32,7 +32,7 @@ use crate::{
     state::{Flash, State},
 };
 
-use super::{multi_select::MultiSelect, Divider, Element, TextField};
+use super::super::{multi_select::MultiSelect, Divider, Element, TextField};
 
 pub struct TopologyCfg {
     net: Rc<Net>,
@@ -48,7 +48,6 @@ pub enum Msg {
 #[derive(Properties, PartialEq, Eq)]
 pub struct Properties {
     pub router: RouterId,
-    pub only_internal: bool,
     pub disabled: Option<bool>,
 }
 
@@ -72,12 +71,8 @@ impl Component for TopologyCfg {
             .map(|e| e.dst())
             .collect::<HashSet<RouterId>>();
         let mut link_options: Vec<(RouterId, String, bool)> = net_borrow
-            .device_indices()
-            .filter(|r| {
-                *r != ctx.props().router
-                    && (!ctx.props().only_internal
-                        || self.net.net().get_internal_router(*r).is_ok())
-            })
+            .indices()
+            .filter(|r| *r != ctx.props().router)
             .map(|r| (r, r.fmt(&self.net.net()).to_string(), neigh.contains(&r)))
             .collect();
         link_options.sort_by(|(_, n1, _), (_, n2, _)| n1.cmp(n2));
@@ -150,7 +145,7 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
     let disabled = props.disabled.unwrap_or(false);
 
     // early exit if one of the links is towards an external router.
-    if info.src_asn.is_none() || info.dst_asn.is_none() || info.src_asn != info.dst_asn {
+    if info.src_asn != info.dst_asn {
         return html!();
     }
 
@@ -219,14 +214,16 @@ fn LinkWeightCfg(props: &LinkWeightProperties) -> Html {
 #[derive(PartialEq)]
 struct LinkWeightInfo {
     element_text: String,
-    src_asn: Option<ASN>,
-    dst_asn: Option<ASN>,
+    src_asn: ASN,
+    dst_asn: ASN,
     area: OspfArea,
     weight: LinkWeight,
 }
 
 impl LinkWeightInfo {
     fn new(src: RouterId, dst: RouterId, net: &Net) -> Self {
+        let src_asn = net.get_asn(src);
+        let dst_asn = net.get_asn(dst);
         let net = &net.net();
         let mut weight = net.ospf_network().get_weight(src, dst);
         if weight.is_infinite() {
@@ -234,8 +231,8 @@ impl LinkWeightInfo {
         }
         Self {
             element_text: format!("→ {}", dst.fmt(net)),
-            src_asn: net.get_device(src).ok().map(|x| x.asn()),
-            dst_asn: net.get_device(dst).ok().map(|x| x.asn()),
+            src_asn,
+            dst_asn,
             area: net
                 .ospf_network()
                 .get_area(src, dst)

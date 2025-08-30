@@ -44,9 +44,8 @@ pub fn Propagation(props: &Properties) -> Html {
     let selected = use_selector_with_deps(
         |net: &Net, (src, dst, prefix)| {
             net.net()
-                .get_device(*dst)
+                .get_router(*dst)
                 .ok()
-                .and_then(|r| r.internal())
                 .and_then(|r| r.bgp.get_route(*prefix))
                 .map(|r| r.from_id == *src)
                 .unwrap_or(false)

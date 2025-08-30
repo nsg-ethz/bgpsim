@@ -242,7 +242,7 @@ pub fn CanvasLinks() -> Html {
 
 #[function_component]
 pub fn CanvasRouters() -> Html {
-    let nodes = use_selector(|net: &Net| net.net().device_indices().collect::<Vec<_>>());
+    let nodes = use_selector(|net: &Net| net.net().indices().collect::<Vec<_>>());
 
     log::debug!("render CanvasRouters");
 
@@ -255,7 +255,7 @@ pub fn CanvasRouters() -> Html {
 
 #[function_component]
 pub fn CanvasFwState() -> Html {
-    let nodes = use_selector(|net: &Net| net.net().internal_indices().collect::<Vec<_>>());
+    let nodes = use_selector(|net: &Net| net.net().indices().collect::<Vec<_>>());
     let state = use_selector(|state: &State| (state.layer(), state.prefix()));
 
     log::debug!("render CanvasFwState");
@@ -304,7 +304,7 @@ pub fn CanvasBgpConfig() -> Html {
 
 #[function_component]
 pub fn CanvasEventQueue() -> Html {
-    let nodes = use_selector(|net: &Net| net.net().device_indices().collect::<Vec<_>>());
+    let nodes = use_selector(|net: &Net| net.net().indices().collect::<Vec<_>>());
     let state = use_selector(|state: &State| match (state.hover(), state.disable_hover) {
         (Hover::Message { src, dst, .. }, false) => Some((src, dst)),
         _ => None,

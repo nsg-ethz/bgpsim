@@ -18,7 +18,6 @@
 pub mod button;
 pub mod divider;
 pub mod element;
-pub mod external_router_cfg;
 pub mod help;
 pub mod multi_select;
 pub mod queue_cfg;
@@ -27,7 +26,6 @@ pub mod router_cfg;
 pub mod select;
 pub mod text_field;
 pub mod toggle;
-pub mod topology_cfg;
 pub mod verifier_viewer;
 
 pub use button::Button;
@@ -39,7 +37,6 @@ pub use select::Select;
 pub use text_field::TextField;
 pub use toggle::Toggle;
 
-use external_router_cfg::ExternalRouterCfg;
 use gloo_events::EventListener;
 use gloo_utils::window;
 use queue_cfg::QueueCfg;
@@ -67,8 +64,7 @@ pub fn Sidebar() -> Html {
                 <p class="text-main-ia italic"> { "nothing selected!" } </p>
             </div>
         },
-        Selected::Router(r, false) => html! { <RouterCfg router={r} /> },
-        Selected::Router(r, true) => html! { <ExternalRouterCfg router={r} /> },
+        Selected::Router(r, _) => html! { <RouterCfg router={r} /> },
         Selected::Queue => html! { <QueueCfg /> },
         Selected::Replay => html! { <ReplayCfg /> },
         Selected::Verifier => html! { <VerifierViewer /> },

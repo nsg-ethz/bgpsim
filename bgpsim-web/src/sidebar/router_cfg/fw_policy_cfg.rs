@@ -342,14 +342,6 @@ fn node_to_path_condition(
                     r => net.get_router_id(r).map(Waypoint::Fix).ok(),
                 })
                 .collect::<Option<Vec<_>>>()?;
-            // collect path condition ending in an external router
-            if path.len() == 2 && path[0] == Waypoint::Star {
-                if let Waypoint::Fix(r) = path[1] {
-                    if net.get_external_router(r).is_ok() {
-                        return Some(PathCondition::Node(r));
-                    }
-                }
-            }
             // collect path condition with a single node surrounded by *.
             if path.len() == 3 && path[0] == Waypoint::Star && path[2] == Waypoint::Star {
                 if let Waypoint::Fix(r) = path[1] {

@@ -30,8 +30,9 @@ use bgpsim::{
     network::Network,
     ospf::{LocalOspf, OspfProcess},
     policies::{FwPolicy, PolicyError},
+    router::Router,
     topology_zoo::TopologyZoo,
-    types::{NetworkDevice, NetworkDeviceRef, PhysicalNetwork, RouterId},
+    types::{PhysicalNetwork, RouterId, ASN},
 };
 
 use serde::{Deserialize, Serialize};
@@ -41,7 +42,6 @@ use yewdux::{mrc::Mrc, prelude::*};
 use crate::{
     dim::Dim,
     http_serde::{export_json_str, trigger_download},
-    latex_export,
     point::Point,
 };
 
@@ -81,7 +81,7 @@ impl EventQueue<Pfx> for Queue {
     fn push<Ospf: OspfProcess>(
         &mut self,
         event: Event<Pfx, Self::Priority>,
-        _: &HashMap<RouterId, NetworkDevice<Pfx, Ospf>>,
+        _: &HashMap<RouterId, Router<Pfx, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         self.0.push_back(event)
@@ -109,7 +109,7 @@ impl EventQueue<Pfx> for Queue {
 
     fn update_params<Ospf: OspfProcess>(
         &mut self,
-        _: &HashMap<RouterId, NetworkDevice<Pfx, Ospf>>,
+        _: &HashMap<RouterId, Router<Pfx, Ospf>>,
         _: &PhysicalNetwork,
     ) {
     }
@@ -132,6 +132,7 @@ pub struct Net {
     pub replay: Mrc<Replay>,
     pub dim: Dim,
     pub topology_zoo: Option<TopologyZoo>,
+    pub last_asn: ASN,
     speed: Mrc<HashMap<RouterId, Point>>,
 }
 
@@ -145,6 +146,7 @@ impl Default for Net {
             dim: Default::default(),
             topology_zoo: None,
             speed: Default::default(),
+            last_asn: ASN(100),
         }
     }
 }
@@ -152,6 +154,14 @@ impl Default for Net {
 impl Net {
     pub fn net(&self) -> impl Deref<Target = Network<Pfx, Queue, LocalOspf>> + '_ {
         self.net.borrow()
+    }
+
+    pub fn get_asn(&self, router: RouterId) -> ASN {
+        self.net
+            .borrow()
+            .get_router(router)
+            .map(|r| r.asn())
+            .unwrap_or(ASN(0))
     }
 
     pub fn net_mut(&mut self) -> impl DerefMut<Target = Network<Pfx, Queue, LocalOspf>> + '_ {
@@ -213,32 +223,13 @@ impl Net {
     pub fn get_route_propagation(&self, prefix: Pfx) -> Vec<(RouterId, RouterId, BgpRoute<Pfx>)> {
         let net = self.net.borrow();
         let mut results = Vec::new();
-        for id in net.device_indices() {
-            match net.get_device(id) {
-                Ok(NetworkDeviceRef::InternalRouter(r)) => {
-                    if let Some(rib) = r.bgp.get_rib_in().get(&prefix) {
-                        results.extend(
-                            rib.iter()
-                                .map(|(src, entry)| (*src, id, entry.route.clone())),
-                        );
-                    }
-                }
-                Ok(NetworkDeviceRef::ExternalRouter(r)) => {
-                    results.extend(
-                        r.get_bgp_sessions()
-                            .iter()
-                            .filter_map(|n| net.get_internal_router(*n).ok().map(|r| (*n, r)))
-                            .filter_map(|(n, r)| {
-                                r.bgp
-                                    .get_rib_out()
-                                    .get(&prefix)
-                                    .and_then(|x| x.get(&id))
-                                    .map(|r| (n, r))
-                            })
-                            .map(|(n, e)| (n, id, e.route.clone())),
-                    );
-                }
-                Err(_) => {}
+        for id in net.indices() {
+            let Ok(r) = net.get_router(id) else { continue };
+            if let Some(rib) = r.bgp.get_rib_in().get(&prefix) {
+                results.extend(
+                    rib.iter()
+                        .map(|(src, entry)| (*src, id, entry.route.clone())),
+                );
             }
         }
         results
@@ -251,7 +242,7 @@ impl Net {
             let pos = pos_borrow.deref_mut();
             // generate the network from scratch
             let mut g = PhysicalNetwork::default();
-            for _ in 0..=(net.device_indices().map(|x| x.index()).max().unwrap_or(0)) {
+            for _ in 0..=(net.indices().map(|x| x.index()).max().unwrap_or(0)) {
                 g.add_node(());
             }
             for e in net.ospf_network().edges() {
@@ -304,10 +295,10 @@ impl Net {
         trigger_download(export_json_str(false), "bgpsim.json");
     }
 
-    /// export to latex
-    pub fn export_latex(&self) {
-        trigger_download(latex_export::generate_latex(self), "bgpsim.tex");
-    }
+    // /// export to latex
+    // pub fn export_latex(&self) {
+    //     trigger_download(latex_export::generate_latex(self), "bgpsim.tex");
+    // }
 
     pub fn import_net(&mut self, n: Net) {
         log::debug!("Import a network");

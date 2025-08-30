@@ -17,10 +17,7 @@
 
 use std::{collections::HashSet, ops::Deref, rc::Rc};
 
-use bgpsim::{
-    formatter::NetworkFormatter, network::DEFAULT_INTERNAL_ASN, prelude::BgpSessionType,
-    types::RouterId,
-};
+use bgpsim::{formatter::NetworkFormatter, prelude::BgpSessionType, types::RouterId};
 use yew::prelude::*;
 use yewdux::prelude::*;
 
@@ -28,6 +25,7 @@ use crate::net::Net;
 
 use super::{
     super::{Divider, Element, MultiSelect, Select},
+    advertised_routes_cfg::AdvertisedRoutesCfg,
     route_maps_cfg::RouteMapsCfg,
 };
 
@@ -64,10 +62,7 @@ impl Component for BgpCfg {
     fn view(&self, ctx: &Context<Self>) -> Html {
         let router = ctx.props().router;
         let n = &self.net.net();
-        let asn = n
-            .get_device(router)
-            .map(|r| r.asn())
-            .unwrap_or(DEFAULT_INTERNAL_ASN);
+        let asn = self.net.get_asn(router);
         let disabled = ctx.props().disabled.unwrap_or(false);
 
         let bgp_sessions = get_sessions(router, &self.net);
@@ -81,11 +76,8 @@ impl Component for BgpCfg {
             .collect::<HashSet<RouterId>>();
 
         let bgp_options = n
-            .device_indices()
-            .filter(|r| {
-                *r != router
-                    && (n.get_internal_router(*r).is_ok() || n.ospf_network().has_edge(router, *r))
-            })
+            .indices()
+            .filter(|r| *r != router && n.ospf_network().has_edge(router, *r))
             .map(|r| (r, r.fmt(n).to_string(), sessions_dict.contains(&r)))
             .collect::<Vec<_>>();
 
@@ -112,6 +104,7 @@ impl Component for BgpCfg {
                     }).collect::<Html>()
                 }
             <RouteMapsCfg {router} {asn} {bgp_peers} {disabled} />
+            <AdvertisedRoutesCfg {router} {asn} {disabled} />
             </>
         }
     }

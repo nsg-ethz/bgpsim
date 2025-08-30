@@ -93,15 +93,9 @@ fn distribute_ospf_state_per_area(props: &DistributedOspfStateProps) -> Html {
     let hover = use_selector(|s: &State| s.hover());
     let asn = props.asn;
     let global_state = props.global_state.clone();
-    let (net, _) = use_store::<Net>();
 
     if let Hover::Router(router) = *hover {
-        let is_external = net.net().get_device(router).unwrap().is_external();
-        if is_external {
-            html! { <GlobalOspfState {asn} {global_state}/> }
-        } else {
-            html! { <LocalOspfState {router} {asn} {global_state} /> }
-        }
+        html! { <LocalOspfState {router} {asn} {global_state} /> }
     } else {
         html! { <GlobalOspfState {asn} {global_state}/> }
     }
@@ -171,7 +165,7 @@ fn local_ospf_state(props: &LocalOspfStateProps) -> Html {
     let global_state = props.global_state.clone();
     let router_state = net
         .net()
-        .get_internal_router(props.router)
+        .get_router(props.router)
         .unwrap()
         .ospf
         .data()
@@ -318,6 +312,8 @@ fn ospf_link_weight(props: &LinkWeightProperties) -> Html {
 
     let (p1, p2) = use_pos_pair(src, dst);
 
+    let asn = use_selector(move |n: &Net| n.get_asn(src));
+
     let dist = p1.dist(p2);
     let dist = if dist > ROUTER_RADIUS * 45.0 {
         ROUTER_RADIUS * 15.0
@@ -332,7 +328,7 @@ fn ospf_link_weight(props: &LinkWeightProperties) -> Html {
         callback!(|_| ())
     } else {
         state.reduce_mut_callback(move |s| {
-            s.set_selected(Selected::Router(src, false));
+            s.set_selected(Selected::Router(src, *asn));
             s.set_flash(Flash::LinkConfig(dst));
         })
     };

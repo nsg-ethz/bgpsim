@@ -18,7 +18,7 @@
 use bgpsim::{
     bgp::BgpRoute,
     route_map::{RouteMap, RouteMapDirection},
-    types::RouterId,
+    types::{RouterId, ASN},
 };
 use gloo_events::EventListener;
 use gloo_timers::callback::Timeout;
@@ -351,13 +351,13 @@ struct ThemeMessage {
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum Selected {
     None,
-    /// Router `.0`, that is external if `.1`.
-    Router(RouterId, bool),
+    /// Router `.0` wtih AS number `.1`.
+    Router(RouterId, ASN),
     Queue,
     Replay,
     Verifier,
-    /// Create a connection from src `.0` (that is external router with `.1`) of kind `.2`.
-    CreateConnection(RouterId, bool, Connection),
+    /// Create a connection from src `.0` (wtih ASN `.1`) of kind `.2`.
+    CreateConnection(RouterId, ASN, Connection),
 }
 
 impl Default for Selected {
@@ -466,8 +466,7 @@ impl Layer {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ContextMenu {
     None,
-    InternalRouterContext(RouterId, Point),
-    ExternalRouterContext(RouterId, Point),
+    RouterContext(RouterId, ASN, Point),
     DeleteLink(RouterId, RouterId, Point),
     DeleteSession(RouterId, RouterId, Point),
 }
@@ -486,8 +485,7 @@ impl ContextMenu {
     pub(crate) fn point(&self) -> Option<Point> {
         match self {
             ContextMenu::None => None,
-            ContextMenu::InternalRouterContext(_, p)
-            | ContextMenu::ExternalRouterContext(_, p)
+            ContextMenu::RouterContext(_, _, p)
             | ContextMenu::DeleteLink(_, _, p)
             | ContextMenu::DeleteSession(_, _, p) => Some(*p),
         }

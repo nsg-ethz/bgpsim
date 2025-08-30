@@ -18,7 +18,7 @@
 use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 
-use bgpsim::{types::NetworkDeviceRef, types::RouterId};
+use bgpsim::types::{RouterId, ASN};
 use gloo_events::EventListener;
 use gloo_utils::window;
 use itertools::Itertools;
@@ -59,15 +59,10 @@ pub fn Router(props: &Properties) -> Html {
     let oncontextmenu = if s.simple {
         Callback::noop()
     } else {
-        let external = r.external;
         Callback::from(move |e: MouseEvent| {
             e.prevent_default();
             let p = Point::new(e.client_x(), e.client_y());
-            let new_context = if external {
-                ContextMenu::ExternalRouterContext(id, p)
-            } else {
-                ContextMenu::InternalRouterContext(id, p)
-            };
+            let new_context = ContextMenu::RouterContext(id, r.asn, p);
             Dispatch::<State>::new().reduce_mut(move |s| s.set_context_menu(new_context))
         })
     };
@@ -86,31 +81,14 @@ pub fn Router(props: &Properties) -> Html {
     let pointer = if clickable { "" } else { "cursor-not-allowed" };
     let id = if s.selected { "selected-router" } else { "" };
 
-    if r.external {
-        let path = format!(
-            "M {} {} m 10 10 h -17 a 14 14 0 1 1 13.42 -18 h 3.58 a 9 9 0 1 1 0 18 z",
-            p.x(),
-            p.y()
-        );
-        html! {
-            <>
-                <path d={path} {id}
-                    class={classes!("fill-current", "hover:drop-shadow-xl", "transition-svg", "ease-in-out" , color, border, pointer)}
-                    style="cursor"
-                    cx={p.x()} cy={p.y()} r={radius}
-                    {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup} {oncontextmenu}/>
-            </>
-        }
-    } else {
-        html! {
-            <>
-                <circle {id}
-            class={classes!("fill-current", "hover:drop-shadow-xl", "transition-svg", "ease-in-out" , color, border, pointer)}
-                    style="cursor"
-                    cx={p.x()} cy={p.y()} r={radius}
-                    {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup} {oncontextmenu}/>
-            </>
-        }
+    html! {
+        <>
+            <circle {id}
+        class={classes!("fill-current", "hover:drop-shadow-xl", "transition-svg", "ease-in-out" , color, border, pointer)}
+                style="cursor"
+                cx={p.x()} cy={p.y()} r={radius}
+                {onclick} {onmouseenter} {onmouseleave} {onmousedown} {onmouseup} {oncontextmenu}/>
+        </>
     }
 }
 
@@ -118,8 +96,8 @@ pub fn Router(props: &Properties) -> Html {
 struct RouterState {
     igp_neighbors: Vec<RouterId>,
     bgp_neighbors: Vec<RouterId>,
-    external: bool,
     dim_scale: Point,
+    asn: ASN,
 }
 
 impl RouterState {
@@ -128,23 +106,21 @@ impl RouterState {
         let n = net.net();
         let igp_neighbors: Vec<RouterId> =
             n.ospf_network().neighbors(id).map(|e| e.src()).collect();
-        let (external, bgp_neighbors) = match n.get_device(id) {
-            Ok(NetworkDeviceRef::InternalRouter(r)) => (
-                false,
-                r.bgp.get_sessions().keys().copied().sorted().collect(),
-            ),
-            Ok(NetworkDeviceRef::ExternalRouter(r)) => (
-                true,
-                r.get_bgp_sessions().iter().copied().sorted().collect(),
-            ),
-            Err(_) => (false, Default::default()),
-        };
+        let (asn, bgp_neighbors) = n
+            .get_router(id)
+            .map(|r| {
+                (
+                    r.asn(),
+                    r.bgp.get_sessions().keys().copied().sorted().collect(),
+                )
+            })
+            .unwrap_or_else(|_| (ASN(0), Default::default()));
 
         Self {
             igp_neighbors,
             bgp_neighbors,
-            external,
             dim_scale,
+            asn,
         }
     }
 }
@@ -154,7 +130,7 @@ struct VisualizationState {
     selected: bool,
     glow: bool,
     simple: bool,
-    create_connection: Option<(RouterId, bool, Connection)>,
+    create_connection: Option<(RouterId, ASN, Connection)>,
 }
 
 impl VisualizationState {
@@ -166,8 +142,8 @@ impl VisualizationState {
         };
         match state.selected() {
             Selected::Router(x, _) if x == id => s.selected = true,
-            Selected::CreateConnection(src, ext, con) => {
-                s.create_connection = Some((src, ext, con))
+            Selected::CreateConnection(src, asn, con) => {
+                s.create_connection = Some((src, asn, con))
             }
             _ => {}
         }
@@ -223,8 +199,8 @@ fn prepare_onclick(
     s: &Rc<VisualizationState>,
     state: &Dispatch<State>,
 ) -> (Callback<MouseEvent>, bool) {
-    let external = r.external;
-    if let Some((src, src_external, conn)) = s.create_connection {
+    let r_asn = r.asn;
+    if let Some((src, src_asn, conn)) = s.create_connection {
         // the default (false) path will result in returning that this router cannot be chosen.
         match conn {
             Connection::Link => {
@@ -253,7 +229,7 @@ fn prepare_onclick(
                 }
             }
             Connection::BgpSession(true) => {
-                if r.bgp_neighbors.binary_search(&src).is_err() && !external && !src_external {
+                if r.bgp_neighbors.binary_search(&src).is_err() && r_asn == src_asn {
                     let clear_selection =
                         state.reduce_mut_callback(move |s| s.set_selected(Selected::None));
                     let update_net = move |_: MouseEvent| {
@@ -268,7 +244,7 @@ fn prepare_onclick(
         (Callback::noop(), false)
     } else {
         (
-            state.reduce_mut_callback(move |s| s.set_selected(Selected::Router(id, external))),
+            state.reduce_mut_callback(move |s| s.set_selected(Selected::Router(id, r_asn))),
             true,
         )
     }
