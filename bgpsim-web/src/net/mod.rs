@@ -18,7 +18,7 @@
 mod spring_layout;
 
 use std::{
-    collections::{vec_deque::Iter, BTreeSet, HashMap, HashSet, VecDeque},
+    collections::{vec_deque::Iter, BTreeMap, BTreeSet, HashMap, HashSet, VecDeque},
     ops::{Deref, DerefMut},
     rc::Rc,
 };
@@ -81,7 +81,7 @@ impl EventQueue<Pfx> for Queue {
     fn push<Ospf: OspfProcess>(
         &mut self,
         event: Event<Pfx, Self::Priority>,
-        _: &HashMap<RouterId, Router<Pfx, Ospf>>,
+        _: &BTreeMap<RouterId, Router<Pfx, Ospf>>,
         _: &PhysicalNetwork,
     ) {
         self.0.push_back(event)
@@ -109,7 +109,7 @@ impl EventQueue<Pfx> for Queue {
 
     fn update_params<Ospf: OspfProcess>(
         &mut self,
-        _: &HashMap<RouterId, Router<Pfx, Ospf>>,
+        _: &BTreeMap<RouterId, Router<Pfx, Ospf>>,
         _: &PhysicalNetwork,
     ) {
     }
