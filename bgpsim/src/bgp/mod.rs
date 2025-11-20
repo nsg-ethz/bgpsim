@@ -76,9 +76,9 @@ pub const GRACEFUL_SHUTDOWN: Community = Community {
 /// towards the destination.
 ///
 /// A BGP speaker receiving an announcement tagged with the BLACKHOLE community SHOULD add the
-/// NO_ADVERTISE or NO_EXPORT community as defined in [RFC1997], or a similar community, to prevent
-/// propagation of the prefix outside the local AS.  The community to prevent propagation SHOULD be
-/// chosen according to the operator's routing policy.
+/// NO_ADVERTISE or NO_EXPORT community as defined in [RFC1997](https://www.rfc-editor.org/rfc/rfc1997.html),
+/// or a similar community, to prevent propagation of the prefix outside the local AS. The
+/// community to prevent propagation SHOULD be chosen according to the operator's routing policy.
 ///
 /// Whether to honor this community is a choice made by each operator.
 pub const BLACKHOLE: Community = Community {
