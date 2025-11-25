@@ -21,6 +21,7 @@ use itertools::{join, Itertools};
 
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute},
+    builder::GaoRexfordPeerType,
     config::{Config, ConfigExpr, ConfigExprKey, ConfigModifier, ConfigPatch, RouteMapEdit},
     event::{BasicEventQueue, Event, FmtPriority},
     forwarding_state::{ForwardingState, TO_DST},
@@ -1140,6 +1141,20 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl<Process = LocalOspfProcess>> NetworkFormat
 {
     fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
         OspfProcess::fmt(self, net)
+    }
+}
+
+//
+// Gao-Rexford
+//
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for GaoRexfordPeerType {
+    fn fmt(&self, _: &'n Network<P, Q, Ospf>) -> String {
+        match self {
+            GaoRexfordPeerType::Peer => "Peer".to_string(),
+            GaoRexfordPeerType::Provider => "Provider".to_string(),
+            GaoRexfordPeerType::Customer => "Customer".to_string(),
+            GaoRexfordPeerType::Ignore => "Ignore".to_string(),
+        }
     }
 }
 

@@ -167,7 +167,7 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
     }
 }
 
-/// Timing model based on geological information. This timing model uses seconds as time unit.
+/// Timing model based on geographical information. This timing model uses seconds as time unit.
 ///
 /// The delay of a message from `a` to `b` is computed as follows: First, we compute the message's
 /// path through the network (based on the current IGP table). For each traversed link, we add the
@@ -315,7 +315,9 @@ impl<P: Prefix> GeoTimingModel<P> {
 
     /// Set the distance between two nodes in light seconds
     pub fn set_distance(&mut self, src: RouterId, dst: RouterId, dist: f64) {
-        let dist = NotNan::new(dist).unwrap();
+        let mut dist = NotNan::new(dist).unwrap();
+        // dist is in light seconds (c [m/s] * [s]), need to normalize for the speed of light
+        dist /= GEO_TIMING_MODEL_F_LIGHT_SPEED;
         self.distances.insert((src, dst), dist);
         self.distances.insert((dst, src), dist);
     }
@@ -443,6 +445,9 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
             } => {
                 // compute the next time
                 let key = (src, dst);
+                // add any existing propagation delay introduced from external queues
+                // TODO: check that putting this here is correct (I think that normally this is always 0 and not really used)
+                next_time += *t;
                 // compute the propagation time
                 next_time += self.propagation_time(src, dst, &mut rng);
                 // compute the processing time
@@ -540,6 +545,7 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
                 );
             }
         }
+        // TODO: add external routers to this
     }
 
     unsafe fn clone_events(&self, conquered: Self) -> Self {
