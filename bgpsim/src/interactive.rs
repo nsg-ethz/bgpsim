@@ -264,7 +264,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
         let mut remaining_iter = self.stop_after;
         'timeout: loop {
             // While there are events in the queue
-            'queue: while let Some(event) = self.queue().peek() {
+            'queue: while !self.queue().is_empty() {
                 // Ensure the convergence limit is not overstepped
                 if let Some(rem) = remaining_iter {
                     if rem == 0 {
@@ -273,24 +273,23 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
                     }
                     remaining_iter = Some(rem - 1);
                 }
-
-                // Straddle the trigger_event function with the pre- and post-event hooks
-                f(self, event, None);
                 // Safety: This is safe because we trigger the next event in the queue and
                 // we still push all resulting events to the queue. The extracted events as well as the
                 // reference to the network are all immutable in this closure and won't be modified.
                 //
                 // The check below however is still needed, because `EventQueue::peek()` is allowed
                 // to return an event that is actually not returned by `EventQueue::pop()`
-                let Some(popped_event) = self.queue_mut().pop() else {
+                let Some(event) = self.queue_mut().pop() else {
                     break 'queue;
                 };
-                let result = unsafe { self.trigger_event(popped_event.clone())? };
-                f(self, &popped_event, Some(&result));
+                // Straddle the trigger_event function with the pre- and post-event hooks
+                f(self, &event, None);
+                let result = unsafe { self.trigger_event(event.clone())? };
+                f(self, &event, Some(&result));
 
                 self.enqueue_events(result.1);
 
-                if matches!(popped_event, Event::Ospf { .. }) {
+                if matches!(event, Event::Ospf { .. }) {
                     // OSPF event received! Check the BGP session state
                     self.refresh_bgp_sessions()?;
                 }

@@ -122,10 +122,6 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         Some(event)
     }
 
-    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
-        self.q.peek().map(|(e, _)| e)
-    }
-
     fn len(&self) -> usize {
         self.q.len()
     }
@@ -503,10 +499,6 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
             Event::Ospf { .. } => {}
         }
         Some(event)
-    }
-
-    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
-        self.q.peek().map(|(e, _)| e)
     }
 
     fn len(&self) -> usize {
