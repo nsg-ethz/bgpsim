@@ -57,13 +57,6 @@ pub trait EventQueue<P: Prefix> {
     /// Pop the next event.
     fn pop(&mut self) -> Option<Event<P, Self::Priority>>;
 
-    /// peek the next event.
-    ///
-    /// *Note*: `Self::peek` is allowed to return an event that is actually not returned by
-    /// `Self::pop`. You must, however, maintain the invariant that `Self::peek` **cannot** return
-    /// `None` while `Self::pop` returns `Some(e)`.
-    fn peek(&self) -> Option<&Event<P, Self::Priority>>;
-
     /// Get the number of enqueued events
     ///
     /// *Note*: `Self::len` is allowed to overapproximate the number of events that are actually
@@ -77,7 +70,7 @@ pub trait EventQueue<P: Prefix> {
     /// `None`. This function, however, is not allowed to return `true` while `Self::pop` returns
     /// `Some(e)`.
     fn is_empty(&self) -> bool {
-        self.peek().is_none()
+        self.len() == 0
     }
 
     /// Remove all events from the queue.
@@ -141,10 +134,6 @@ impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
 
     fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
         self.0.pop_front()
-    }
-
-    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
-        self.0.front()
     }
 
     fn len(&self) -> usize {
@@ -246,10 +235,6 @@ impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
         }
         self.num_events -= 1;
         Some(ev)
-    }
-
-    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
-        Some(self.events.first_key_value()?.1.front().unwrap())
     }
 
     fn len(&self) -> usize {
