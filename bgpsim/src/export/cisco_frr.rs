@@ -985,6 +985,7 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
                     .update_source(self.iface(self.router, *neighbor, addressor)?)
                     .remote_as(INTERNAL_AS)
                     .next_hop_self()
+                    .soft_reconfiguration_inbound()
                     .route_map_in(EXTERNAL_RM_IN)
                     .route_map_out(EXTERNAL_RM_OUT),
             );
@@ -1057,9 +1058,6 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
             prefix_list.prefix(prefix_net);
         }
 
-        // write the bgp config
-        config.push_str(&bgp_config.build(self.target));
-
         // write the route-map
         let mut route_map =
             RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.as_num() as u16 + 1, true);
@@ -1070,6 +1068,9 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
             route_map.set_community(INTERNAL_AS, *c);
         }
         config.push_str(&route_map.build(self.target));
+
+        // write the bgp config
+        config.push_str(&bgp_config.build(self.target));
 
         Ok(config)
     }

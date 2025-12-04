@@ -42,7 +42,7 @@ pub use exabgp::ExaBgpCfgGen;
 
 /// Link index used in the IP addressor.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
-pub struct LinkId(RouterId, RouterId);
+pub struct LinkId(pub RouterId, pub RouterId);
 
 impl LinkId {
     /// Create a new Link ID
