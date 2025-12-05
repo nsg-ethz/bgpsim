@@ -1025,6 +1025,8 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
         addressor: &mut A,
         route: &BgpRoute<P>,
     ) -> Result<String, ExportError> {
+        net.get_device(self.router)?.external_or_err()?;
+
         // check if the prefix is already present. If so, first withdraw the route
         if self.advertised_external_routes.contains(&route.prefix) {
             self.withdraw_route(net, addressor, route.prefix)?;
@@ -1033,17 +1035,16 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
 
         let mut config = String::new();
 
-        let mut prefix_list = PrefixList::new(format!("prefix-list-{}", route.prefix.as_num()));
-        let mut bgp_config = RouterBgp::new(self.as_id);
-
-        // add all loopback ip addresses. This is special if we can store multiple IP addresses on
-        // the same loopback interface
+        // Add all loopback ip addresses. This step depends on wether we can store multiple IP addresses on
+        // the same loopback interface, which is not always the case
         for address in addressor.prefix_address(route.prefix)? {
+            // If there is only one loopback interface we can add multiple IP addresses on it
             if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
                 let mut iface = Interface::new(loopback_iface(self.target, 0));
                 iface.ip_address(address);
                 config.push_str(&iface.build(self.target))
             } else {
+                // If not, we need to add a custom interface for this prefix
                 config.push_str(
                     &Interface::new(self.get_loopback_iface(address)?)
                         .ip_address(address)
@@ -1052,24 +1053,32 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
             }
         }
 
-        // add all networks to the bgp config and prefix list
+        // Based on how complex the route our external router advertises is, we may or may not need a routemap
+        if !(route.as_path == &[self.as_id] && route.community.is_empty() && route.med == None) {
+            // We need to adjust those attributes with a routemap (and associated prefix list)
+            let mut prefix_list = PrefixList::new(format!("prefix-list-{}", route.prefix.as_num()));
+            // add all networks to the prefix list
+            for prefix_net in addressor.prefix(route.prefix)? {
+                prefix_list.prefix(prefix_net);
+            }
+
+            // Write the prefix lists and route-map configurations
+            let mut route_map =
+                RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.as_num() as u16 + 1, true);
+            route_map.match_prefix_list(prefix_list);
+            route_map.prepend_as_path(route.as_path.iter().skip(1));
+            route_map.set_med(route.med.unwrap_or(0));
+            for c in route.community.iter() {
+                route_map.set_community(INTERNAL_AS, *c);
+            }
+            config.push_str(&route_map.build(self.target));
+        }
+
+        // The network command needs to be applied in any case to mark the prefix for advertisement
+        let mut bgp_config = RouterBgp::new(self.as_id);
         for prefix_net in addressor.prefix(route.prefix)? {
             bgp_config.network(prefix_net);
-            prefix_list.prefix(prefix_net);
         }
-
-        // write the route-map
-        let mut route_map =
-            RouteMapItem::new(EXTERNAL_RM_OUT, route.prefix.as_num() as u16 + 1, true);
-        route_map.match_prefix_list(prefix_list);
-        route_map.prepend_as_path(route.as_path.iter().skip(1));
-        route_map.set_med(route.med.unwrap_or(0));
-        for c in route.community.iter() {
-            route_map.set_community(INTERNAL_AS, *c);
-        }
-        config.push_str(&route_map.build(self.target));
-
-        // write the bgp config
         config.push_str(&bgp_config.build(self.target));
 
         Ok(config)
@@ -1077,16 +1086,18 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
 
     fn withdraw_route(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf>,
         addressor: &mut A,
         prefix: P,
     ) -> Result<String, ExportError> {
+        net.get_device(self.router)?.external_or_err()?;
+
         self.advertised_external_routes.remove(&prefix);
 
         let mut config = String::new();
 
-        // add all loopback ip addresses. This is special if we can store multiple IP addresses on
-        // the same loopback interface
+        // Remove all loopback ip addresses. As above, this process depends on wether we can store
+        // multiple IP addresses on the same loopback interface, which is not always the case
         for network in addressor.prefix_address(prefix)? {
             if loopback_iface(self.target, 0) == loopback_iface(self.target, 1) {
                 let mut iface = Interface::new(loopback_iface(self.target, 0));
@@ -1103,14 +1114,14 @@ impl<P: Prefix, A: Addressor<P>, Ospf: OspfImpl, Q> ExternalCfgGen<P, Q, Ospf, A
             }
         }
 
-        // remove all advertisements in BGP
+        // Remove all BGP advertisements
         let mut bgp_config = RouterBgp::new(self.as_id);
         for net in addressor.prefix(prefix)? {
             bgp_config.no_network(net);
         }
         config.push_str(&bgp_config.build(self.target));
 
-        // remote the route-map
+        // Remove the route map if it was added
         config.push_str(
             &RouteMapItem::new(EXTERNAL_RM_OUT, prefix.as_num() as u16 + 1, true)
                 .match_prefix_list(PrefixList::new(format!("prefix-list-{}", prefix.as_num())))
@@ -1157,7 +1168,7 @@ fn order(old: i16) -> u16 {
     ((old as i32) - (i16::MIN as i32)) as u16
 }
 
-/// Extrat the prefix list that is matched in the route-map
+/// Extract the prefix list that is matched in the route-map
 fn rm_match_prefix_list<P: Prefix>(rm: &RouteMap<P>) -> Option<P::Set> {
     let mut prefixes: Option<P::Set> = None;
 
