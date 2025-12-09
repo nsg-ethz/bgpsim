@@ -142,7 +142,31 @@ fmt_iterable! {Vec<T>, fmt_list, fmt_list_multiline}
 fmt_iterable! {std::collections::HashSet<T>, fmt_set, fmt_set_multiline}
 fmt_iterable! {std::collections::BTreeSet<T>, fmt_set, fmt_set_multiline}
 fmt_iterable! {std::collections::VecDeque<T>, fmt_list, fmt_list_multiline}
-fmt_iterable! {std::collections::BinaryHeap<T>, fmt_list, fmt_list_multiline}
+
+macro_rules! fmt_ordered_iterable {
+    ($t:ty, $k:ident, $k_multiline:ident) => {
+        impl<'n, P, Q, Ospf, T> NetworkFormatter<'n, P, Q, Ospf> for $t
+        where
+            P: Prefix,
+            Ospf: OspfImpl,
+            T: NetworkFormatter<'n, P, Q, Ospf> + Ord + Clone,
+        {
+            fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+                let mut sorted: Vec<_> = self.iter().collect();
+                sorted.sort();
+                sorted.iter().$k(net)
+            }
+
+            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+                let mut sorted: Vec<_> = self.iter().collect();
+                sorted.sort();
+                sorted.iter().$k_multiline(net, indent)
+            }
+        }
+    };
+}
+
+fmt_ordered_iterable! {std::collections::BinaryHeap<T>, fmt_list, fmt_list_multiline}
 
 macro_rules! fmt_mapping {
     ($t:ty) => {
