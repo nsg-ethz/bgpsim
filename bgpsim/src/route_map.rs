@@ -20,7 +20,10 @@
 use crate::{
     bgp::BgpRibEntry,
     ospf::LinkWeight,
-    types::{AsId, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixSet, RouterId},
+    types::{
+        AsId, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixSet, RouterId, SimplePrefix, SinglePrefix,
+        SinglePrefixSet,
+    },
 };
 
 use ordered_float::NotNan;
@@ -137,6 +140,24 @@ impl<P: Prefix> IntoIpv4Prefix for RouteMap<P> {
                 .map(|x| x.into_ipv4_prefix())
                 .collect(),
             set: self.set,
+            flow: self.flow,
+        }
+    }
+}
+
+impl RouteMap<SimplePrefix> {
+    pub(crate) fn to_single_prefix(&self, p: &SimplePrefix) -> RouteMap<SinglePrefix> {
+        RouteMap {
+            order: self.order,
+            state: self.state,
+            // Since the match statements of the RouteMap are connected in an 'and' we can just
+            // map all conditions to their SinglePrefix counterpart. This will convert matches on
+            // a prefix to a single boolean. If false, the route-map will never match.
+            //
+            // TODO: While correct, this approach is a bit inefficient, as we end up keeping all
+            //       route maps for every prefix, even those that are irrelevant
+            conds: self.conds.iter().map(|x| x.to_single_prefix(p)).collect(),
+            set: self.set.clone(),
             flow: self.flow,
         }
     }
@@ -518,6 +539,20 @@ impl<P: Prefix> IntoIpv4Prefix for RouteMapMatch<P> {
             RouteMapMatch::NextHop(x) => RouteMapMatch::NextHop(x),
             RouteMapMatch::Community(x) => RouteMapMatch::Community(x),
             RouteMapMatch::DenyCommunity(x) => RouteMapMatch::DenyCommunity(x),
+        }
+    }
+}
+
+impl RouteMapMatch<SimplePrefix> {
+    pub(crate) fn to_single_prefix(&self, p: &SimplePrefix) -> RouteMapMatch<SinglePrefix> {
+        match self {
+            // Mapped to a single prefix, this RouteMapMatch is just a boolean
+            RouteMapMatch::Prefix(x) => RouteMapMatch::Prefix(SinglePrefixSet(x.contains(p))),
+            // These matches have nothing to do with the prefix, which means we can forward them directly
+            RouteMapMatch::AsPath(x) => RouteMapMatch::AsPath(x.clone()),
+            RouteMapMatch::NextHop(x) => RouteMapMatch::NextHop(x.clone()),
+            RouteMapMatch::Community(x) => RouteMapMatch::Community(x.clone()),
+            RouteMapMatch::DenyCommunity(x) => RouteMapMatch::DenyCommunity(x.clone()),
         }
     }
 }

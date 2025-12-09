@@ -31,7 +31,8 @@ use crate::{
     event::{Event, EventOutcome},
     ospf::{global::GlobalOspfProcess, IgpTarget, OspfProcess},
     types::{
-        AsId, DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate,
+        AsId, DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, SimplePrefix,
+        SinglePrefix, StepUpdate,
     },
 };
 use itertools::Itertools;
@@ -300,5 +301,26 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
             },
             self.ospf,
         )
+    }
+}
+
+impl<Ospf> Router<SimplePrefix, Ospf>
+where
+    Ospf: Clone,
+{
+    /// Extract a 'slice' of this router that is responsible for the routing of a specific prefix
+    pub fn to_single_prefix(&self, p: &SimplePrefix) -> Router<SinglePrefix, Ospf> {
+        // Extract the slice of the static route and bgp processes responsible for a single prefix
+        let sr = self.sr.to_single_prefix(p);
+        let bgp = self.bgp.to_single_prefix(p);
+        Router::<SinglePrefix, Ospf> {
+            name: self.name.clone(),
+            router_id: self.router_id,
+            as_id: self.as_id,
+            do_load_balancing: self.do_load_balancing,
+            ospf: self.ospf.clone(),
+            sr,
+            bgp,
+        }
     }
 }

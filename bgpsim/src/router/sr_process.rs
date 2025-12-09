@@ -30,7 +30,10 @@
 use crate::{
     formatter::NetworkFormatter,
     ospf::{IgpTarget, OspfImpl},
-    types::{IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId},
+    types::{
+        IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, SimplePrefix, SinglePrefix,
+        SinglePrefixMap,
+    },
 };
 use itertools::Itertools;
 use serde::{Deserialize, Serialize};
@@ -52,6 +55,16 @@ impl<P: Prefix> IntoIpv4Prefix for SrProcess<P> {
                 .into_iter()
                 .map(|(p, sr)| (p.into_ipv4_prefix(), sr))
                 .collect(),
+        }
+    }
+}
+
+impl SrProcess<SimplePrefix> {
+    // Extracting an eventual static route to a single prefix is relatively simple: we keep it iff
+    // a static route to the prefix exists
+    pub(crate) fn to_single_prefix(&self, p: &SimplePrefix) -> SrProcess<SinglePrefix> {
+        SrProcess {
+            static_routes: SinglePrefixMap(self.static_routes.get(p).cloned()),
         }
     }
 }

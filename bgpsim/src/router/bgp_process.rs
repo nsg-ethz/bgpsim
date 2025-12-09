@@ -41,6 +41,7 @@ use crate::{
     },
     types::{
         AsId, DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, PrefixSet, RouterId,
+        SimplePrefix, SinglePrefix, SinglePrefixMap, SinglePrefixSet,
     },
 };
 use itertools::Itertools;
@@ -867,6 +868,65 @@ impl<P: Prefix> IntoIpv4Prefix for BgpProcess<P> {
                 .into_iter()
                 .map(Prefix::into_ipv4_prefix)
                 .collect(),
+        }
+    }
+}
+
+impl BgpProcess<SimplePrefix> {
+    pub(crate) fn to_single_prefix(&self, p: &SimplePrefix) -> BgpProcess<SinglePrefix> {
+        BgpProcess {
+            // These fields are the same for every prefix
+            router_id: self.router_id,
+            as_id: self.as_id,
+            igp_cost: self.igp_cost.clone(),
+            sessions: self.sessions.clone(),
+            // The ribs are more complicated, we only keep the relevant entries
+            rib: SinglePrefixMap(self.rib.get(p).and_then(|x| x.to_single_prefix(p))),
+            rib_in: SinglePrefixMap(self.rib_in.get(p).and_then(|rib| {
+                Some(
+                    // Mind that this filter_map is most likely useless, I doubt we will
+                    // have entries to a different prefix in the rib_in entry under a
+                    // specific prefix
+                    rib.iter()
+                        .filter_map(|(n, e)| {
+                            e.to_single_prefix(p).and_then(|single| Some((*n, single)))
+                        })
+                        .collect(),
+                )
+            })),
+            rib_out: SinglePrefixMap(self.rib_out.get(p).and_then(|rib| {
+                Some(
+                    rib.iter()
+                        .filter_map(|(n, e)| {
+                            e.to_single_prefix(p).and_then(|single| Some((*n, single)))
+                        })
+                        .collect(),
+                )
+            })),
+            // The route maps are a little more complicated, as they have logic in them
+            // that is tied to the prefixes
+            route_maps_in: self
+                .route_maps_in
+                .iter()
+                .map(|(n, rms)| {
+                    (
+                        *n,
+                        rms.iter().map(|rm| rm.to_single_prefix(p)).collect_vec(),
+                    )
+                })
+                .collect(),
+            route_maps_out: self
+                .route_maps_out
+                .iter()
+                .map(|(n, rms)| {
+                    (
+                        *n,
+                        rms.iter().map(|rm| rm.to_single_prefix(p)).collect_vec(),
+                    )
+                })
+                .collect(),
+            // Slicing a set by only keeping the relevant prefix is also pretty easy
+            known_prefixes: SinglePrefixSet(self.known_prefixes.get(p).is_some()),
         }
     }
 }

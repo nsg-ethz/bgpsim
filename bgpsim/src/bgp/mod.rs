@@ -20,7 +20,7 @@ pub use state::*;
 
 use crate::{
     ospf::LinkWeight,
-    types::{AsId, IntoIpv4Prefix, Ipv4Prefix, Prefix, RouterId},
+    types::{AsId, IntoIpv4Prefix, Ipv4Prefix, Prefix, RouterId, SimplePrefix, SinglePrefix},
 };
 
 use ordered_float::NotNan;
@@ -66,6 +66,25 @@ impl<P: Prefix> IntoIpv4Prefix for BgpRoute<P> {
             community: self.community,
             originator_id: self.originator_id,
             cluster_list: self.cluster_list,
+        }
+    }
+}
+
+impl BgpRoute<SimplePrefix> {
+    pub(crate) fn to_single_prefix(&self, p: &SimplePrefix) -> Option<BgpRoute<SinglePrefix>> {
+        if let Some(prefix) = self.prefix.to_single_prefix(p) {
+            Some(BgpRoute {
+                prefix,
+                as_path: self.as_path.clone(),
+                next_hop: self.next_hop,
+                local_pref: self.local_pref,
+                med: self.med,
+                community: self.community.clone(),
+                originator_id: self.originator_id,
+                cluster_list: self.cluster_list.clone(),
+            })
+        } else {
+            None
         }
     }
 }
@@ -310,6 +329,23 @@ impl<P: Prefix> IntoIpv4Prefix for BgpRibEntry<P> {
             to_id: self.to_id,
             igp_cost: self.igp_cost,
             weight: self.weight,
+        }
+    }
+}
+
+impl BgpRibEntry<SimplePrefix> {
+    pub(crate) fn to_single_prefix(&self, p: &SimplePrefix) -> Option<BgpRibEntry<SinglePrefix>> {
+        if let Some(route) = self.route.to_single_prefix(p) {
+            Some(BgpRibEntry {
+                route,
+                from_type: self.from_type,
+                from_id: self.from_id,
+                to_id: self.to_id,
+                igp_cost: self.igp_cost,
+                weight: self.weight,
+            })
+        } else {
+            None
         }
     }
 }

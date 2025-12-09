@@ -591,6 +591,16 @@ where
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash, Debug, Clone, Copy)]
 pub struct SimplePrefix(u32);
 
+impl SimplePrefix {
+    pub(crate) fn to_single_prefix(&self, p: &Self) -> Option<SinglePrefix> {
+        if self == p {
+            Some(SinglePrefix)
+        } else {
+            None
+        }
+    }
+}
+
 impl Serialize for SimplePrefix {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
