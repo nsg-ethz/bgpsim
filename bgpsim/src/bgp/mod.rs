@@ -298,6 +298,14 @@ impl<P: Prefix> BgpEvent<P> {
             Self::Update(r) => r.prefix,
         }
     }
+
+    /// Change the prefix type of the event.
+    pub fn with_prefix<P2: Prefix>(self, prefix: P2) -> BgpEvent<P2> {
+        match self {
+            BgpEvent::Withdraw(_) => BgpEvent::Withdraw(prefix),
+            BgpEvent::Update(route) => BgpEvent::Update(route.with_prefix(prefix)),
+        }
+    }
 }
 
 /// BGP RIB Table entry
