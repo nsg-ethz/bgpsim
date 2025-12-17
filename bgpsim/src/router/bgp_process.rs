@@ -881,27 +881,19 @@ impl BgpProcess<SimplePrefix> {
             igp_cost: self.igp_cost.clone(),
             sessions: self.sessions.clone(),
             // The ribs are more complicated, we only keep the relevant entries
-            rib: SinglePrefixMap(self.rib.get(p).and_then(|x| x.to_single_prefix(p))),
-            rib_in: SinglePrefixMap(self.rib_in.get(p).and_then(|rib| {
-                Some(
-                    // Mind that this filter_map is most likely useless, I doubt we will
-                    // have entries to a different prefix in the rib_in entry under a
-                    // specific prefix
-                    rib.iter()
-                        .filter_map(|(n, e)| {
-                            e.to_single_prefix(p).and_then(|single| Some((*n, single)))
-                        })
-                        .collect(),
-                )
+            rib: SinglePrefixMap(self.rib.get(p).map(|x| {
+                x.to_matching_single_prefix(p)
+                    .expect("RIB entry must match prefix")
             })),
-            rib_out: SinglePrefixMap(self.rib_out.get(p).and_then(|rib| {
-                Some(
-                    rib.iter()
-                        .filter_map(|(n, e)| {
-                            e.to_single_prefix(p).and_then(|single| Some((*n, single)))
-                        })
-                        .collect(),
-                )
+            rib_in: SinglePrefixMap(self.rib_in.get(p).map(|rib| {
+                rib.iter()
+                    .map(|(n, e)| (*n, e.to_matching_single_prefix(p).expect("Already matched")))
+                    .collect()
+            })),
+            rib_out: SinglePrefixMap(self.rib_out.get(p).map(|rib| {
+                rib.iter()
+                    .map(|(n, e)| (*n, e.to_matching_single_prefix(p).expect("Already matched")))
+                    .collect()
             })),
             // The route maps are a little more complicated, as they have logic in them
             // that is tied to the prefixes
@@ -926,7 +918,7 @@ impl BgpProcess<SimplePrefix> {
                 })
                 .collect(),
             // Slicing a set by only keeping the relevant prefix is also pretty easy
-            known_prefixes: SinglePrefixSet(self.known_prefixes.get(p).is_some()),
+            known_prefixes: SinglePrefixSet(self.known_prefixes.contains(p)),
         }
     }
 }

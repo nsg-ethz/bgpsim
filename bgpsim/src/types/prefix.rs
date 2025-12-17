@@ -592,12 +592,8 @@ where
 pub struct SimplePrefix(u32);
 
 impl SimplePrefix {
-    pub(crate) fn to_single_prefix(&self, p: &Self) -> Option<SinglePrefix> {
-        if self == p {
-            Some(SinglePrefix)
-        } else {
-            None
-        }
+    pub(crate) fn to_matching_single_prefix(&self, p: &Self) -> Option<SinglePrefix> {
+        (self == p).then_some(SinglePrefix)
     }
 }
 

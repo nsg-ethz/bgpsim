@@ -71,8 +71,11 @@ impl<P: Prefix> IntoIpv4Prefix for BgpRoute<P> {
 }
 
 impl BgpRoute<SimplePrefix> {
-    pub(crate) fn to_single_prefix(&self, p: &SimplePrefix) -> Option<BgpRoute<SinglePrefix>> {
-        if let Some(prefix) = self.prefix.to_single_prefix(p) {
+    pub(crate) fn to_matching_single_prefix(
+        &self,
+        p: &SimplePrefix,
+    ) -> Option<BgpRoute<SinglePrefix>> {
+        if let Some(prefix) = self.prefix.to_matching_single_prefix(p) {
             Some(BgpRoute {
                 prefix,
                 as_path: self.as_path.clone(),
@@ -342,8 +345,11 @@ impl<P: Prefix> IntoIpv4Prefix for BgpRibEntry<P> {
 }
 
 impl BgpRibEntry<SimplePrefix> {
-    pub(crate) fn to_single_prefix(&self, p: &SimplePrefix) -> Option<BgpRibEntry<SinglePrefix>> {
-        if let Some(route) = self.route.to_single_prefix(p) {
+    pub(crate) fn to_matching_single_prefix(
+        &self,
+        p: &SimplePrefix,
+    ) -> Option<BgpRibEntry<SinglePrefix>> {
+        if let Some(route) = self.route.to_matching_single_prefix(p) {
             Some(BgpRibEntry {
                 route,
                 from_type: self.from_type,
