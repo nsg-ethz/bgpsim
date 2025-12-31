@@ -81,6 +81,8 @@ pub struct BgpProcess<P: Prefix> {
     pub(crate) route_maps_out: HashMap<RouterId, Vec<RouteMap<P>>>,
     /// Set of known bgp prefixes
     pub(crate) known_prefixes: P::Set,
+    /// When this flag set, updates will be echoed back to their originating router
+    echo_updates: bool,
 }
 
 impl<P: Prefix> BgpProcess<P> {
@@ -97,6 +99,7 @@ impl<P: Prefix> BgpProcess<P> {
             route_maps_in: Default::default(),
             route_maps_out: Default::default(),
             known_prefixes: Default::default(),
+            echo_updates: true,
         }
     }
 
@@ -389,6 +392,18 @@ impl<P: Prefix> BgpProcess<P> {
             .map(|events| (Some(old_map), events))
     }
 
+    /// Set the redistribution behaviour of updates. If `false`, the default behaviour of not
+    /// echoing updates back to the originator is kept. If `true`, incoming updates will be
+    /// retransmitted to their origin
+    pub fn set_echo_updates(&mut self, value: bool) {
+        self.echo_updates = value;
+    }
+
+    /// Get the redistribution behaviour of updates
+    pub fn get_echo_updates(&self) -> bool {
+        self.echo_updates
+    }
+
     /*
      * Update functions
      */
@@ -589,7 +604,7 @@ impl<P: Prefix> BgpProcess<P> {
             // before applying route maps, we check if neither the old, nor the new routes should be
             // advertised
             let will_advertise = rib_best
-                .map(|r| should_export_route(r.from_id, r.from_type, *peer, *peer_type))
+                .map(|r| self.should_export_route(r.from_id, r.from_type, *peer, *peer_type))
                 .unwrap_or(false);
 
             // early exit if nothing will change
@@ -634,6 +649,7 @@ impl<P: Prefix> BgpProcess<P> {
                     }
                 }
             };
+            // println!("\tEvent to {}: {:?}", peer.index(), event);
             // add the event to the queue
             if let Some(event) = event {
                 events.push(Event::bgp(T::default(), self.router_id, *peer, event));
@@ -661,6 +677,11 @@ impl<P: Prefix> BgpProcess<P> {
             .sessions
             .get(&from)
             .ok_or(DeviceError::NoBgpSession(from))?;
+
+        // If our AS number is detected in the AS_PATH, trigger loop prevention and ignore this route
+        if route.as_path.contains(&self.as_id) {
+            return Ok((route.prefix, false));
+        }
 
         // if the ORIGINATOR_ID field equals the id of the router, then ignore this route and return
         // nothing.
@@ -795,6 +816,30 @@ impl<P: Prefix> BgpProcess<P> {
         Ok(Some(entry))
     }
 
+    /// returns a bool which tells to export the route to the target, which was advertised by the
+    /// source.
+    #[inline(always)]
+    fn should_export_route(
+        &self,
+        from: RouterId,
+        from_type: BgpSessionType,
+        to: RouterId,
+        to_type: BgpSessionType,
+    ) -> bool {
+        // If we don't echo our updates, never advertise a route to the receiver
+        if !self.echo_updates && from == to {
+            return false;
+        }
+
+        matches!(
+            (from_type, to_type),
+            (BgpSessionType::EBgp, _)
+                | (BgpSessionType::IBgpClient, _)
+                | (_, BgpSessionType::EBgp)
+                | (_, BgpSessionType::IBgpClient)
+        )
+    }
+
     /*
      * Formatting Things
      */
@@ -868,6 +913,7 @@ impl<P: Prefix> IntoIpv4Prefix for BgpProcess<P> {
                 .into_iter()
                 .map(Prefix::into_ipv4_prefix)
                 .collect(),
+            echo_updates: self.echo_updates,
         }
     }
 }
@@ -919,6 +965,7 @@ impl BgpProcess<SimplePrefix> {
                 .collect(),
             // Slicing a set by only keeping the relevant prefix is also pretty easy
             known_prefixes: SinglePrefixSet(self.known_prefixes.contains(p)),
+            echo_updates: self.echo_updates,
         }
     }
 }
@@ -964,29 +1011,6 @@ impl<P: Prefix + PartialEq> PartialEq for BgpProcess<P> {
 
         true
     }
-}
-
-/// returns a bool which tells to export the route to the target, which was advertised by the
-/// source.
-#[inline(always)]
-fn should_export_route(
-    from: RouterId,
-    from_type: BgpSessionType,
-    to: RouterId,
-    to_type: BgpSessionType,
-) -> bool {
-    // never advertise a route to the receiver
-    if from == to {
-        return false;
-    }
-
-    matches!(
-        (from_type, to_type),
-        (BgpSessionType::EBgp, _)
-            | (BgpSessionType::IBgpClient, _)
-            | (_, BgpSessionType::EBgp)
-            | (_, BgpSessionType::IBgpClient)
-    )
 }
 
 /// The outcome of a modification to the router. This is a result of a tuple value, where the first
