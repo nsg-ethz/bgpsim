@@ -671,6 +671,11 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
             RouteMapSet::Weight(None) => "clear Weight".to_string(),
             RouteMapSet::LocalPref(Some(lp)) => format!("LocalPref = {lp}"),
             RouteMapSet::LocalPref(None) => "clear LocalPref".to_string(),
+            RouteMapSet::LocalPrefDelta(delta) => format!(
+                "LocalPref {}= {}",
+                if *delta >= 0 { "+" } else { "-" },
+                delta.abs()
+            ),
             RouteMapSet::Med(Some(med)) => format!("MED = {med}"),
             RouteMapSet::Med(None) => "clear MED".to_string(),
             RouteMapSet::IgpCost(w) => format!("IgpCost = {w:.2}"),

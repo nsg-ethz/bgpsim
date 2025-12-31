@@ -1978,7 +1978,7 @@ pub struct RouteMapItem {
     match_next_hop_pl: Vec<(PrefixList, bool)>,
     set_next_hop: Option<(Ipv4Addr, bool)>,
     set_weight: Option<(u16, bool)>,
-    set_local_pref: Option<(u32, bool)>,
+    set_local_pref: Option<(LocalPref, bool)>,
     set_med: Option<(u32, bool)>,
     set_community: Vec<(String, bool)>,
     delete_community: Vec<(CommunityList, bool)>,
@@ -2396,20 +2396,28 @@ impl RouteMapItem {
         self
     }
 
-    /// Set the local-preference of the route
+    /// Set the local-preference of the route by either providing an absolute value or a
+    /// delta to increment or decrease the local-preference
     ///
     /// ```
-    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target};
+    /// # use bgpsim::export::cisco_frr_generators::{RouteMapItem, Target, LocalPref};
     /// assert_eq!(
-    ///     RouteMapItem::new("test", 10, true).set_local_pref(200).build(Target::Frr),
+    ///     RouteMapItem::new("test", 10, true).set_local_pref(LocalPref::Absolute(200)).build(Target::Frr),
     ///     "\
     /// route-map test permit 10
     ///   set local-preference 200
     /// exit
+    /// ");
+    /// assert_eq!(
+    ///     RouteMapItem::new("test", 10, true).set_local_pref_delta(LocalPref::Delta(-10)).build(Target::Frr),
+    ///     "\
+    /// route-map test permit 10
+    ///   set local-preference -10
+    /// exit
     /// "
     /// );
     /// ```
-    pub fn set_local_pref(&mut self, local_pref: u32) -> &mut Self {
+    pub fn set_local_pref(&mut self, local_pref: LocalPref) -> &mut Self {
         self.set_local_pref = Some((local_pref, true));
         self
     }
@@ -2428,7 +2436,7 @@ impl RouteMapItem {
     /// );
     /// ```
     pub fn no_set_local_pref(&mut self) -> &mut Self {
-        self.set_local_pref = Some((0, false));
+        self.set_local_pref = Some((LocalPref::Absolute(0), false));
         self
     }
 
@@ -2797,9 +2805,9 @@ impl RouteMapItem {
             Some((_, false)) => cfg.push_str("  no set weight\n"),
             None => {}
         }
-        // set_local_pref: Option<(u32, bool)>,
-        match self.set_local_pref {
-            Some((x, true)) => cfg.push_str(&format!("  set local-preference {x}\n")),
+        // set_local_pref: Option<(LocalPref, bool)>,
+        match &self.set_local_pref {
+            Some((lp, true)) => cfg.push_str(&lp.build()),
             Some((_, false)) => cfg.push_str("  no set local-preference\n"),
             None => {}
         }
@@ -2842,6 +2850,26 @@ impl RouteMapItem {
 
         cfg.push_str("exit\n");
         cfg
+    }
+}
+
+/// Local Preferences can be set as an absolute value or a delta which either increments or
+/// decrements an existing value
+#[derive(Debug, Clone)]
+pub enum LocalPref {
+    /// Set a local preference with an absolute value
+    Absolute(u32),
+    /// Modify an existing local preference by a delta
+    Delta(i32),
+}
+
+impl LocalPref {
+    /// Build the local-preference action
+    pub fn build(&self) -> String {
+        match self {
+            Self::Absolute(lp) => format!("  set local-preference {lp}\n"),
+            Self::Delta(lp_delta) => format!("  set local-preference {lp_delta:+}\n"),
+        }
     }
 }
 

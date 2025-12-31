@@ -42,9 +42,9 @@ use crate::{
 
 use super::{
     cisco_frr_generators::{
-        enable_bgp, enable_ospf, loopback_iface, AsPathList, CommunityList, Interface, PrefixList,
-        RouteMapItem, RouterBgp, RouterBgpNeighbor, RouterOspf, StaticRoute as StaticRouteGen,
-        Target,
+        enable_bgp, enable_ospf, loopback_iface, AsPathList, CommunityList, Interface, LocalPref,
+        PrefixList, RouteMapItem, RouterBgp, RouterBgpNeighbor, RouterOspf,
+        StaticRoute as StaticRouteGen, Target,
     },
     Addressor, ExportError, ExternalCfgGen, InternalCfgGen,
 };
@@ -526,7 +526,7 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
         // prefix-list
         // Here, we make sure that we use the prefix equivalence classes. If the prefix list only
         // contains that equivalence class, directly match it. Otherwise, if it contains the
-        // equivalence class among others, add all netowrks of that equivalence class to the list.
+        // equivalence class among others, add all networks of that equivalence class to the list.
         if let Some(prefixes) = rm_match_prefix_list(rm) {
             let prefixes = prefixes.iter().copied().sorted().collect_vec();
             if prefixes.len() == 1 && addressor.get_pecs().contains_key(&prefixes[0]) {
@@ -594,8 +594,12 @@ impl<P: Prefix> CiscoFrrCfgGen<P> {
                 }
                 RouteMapSet::Weight(Some(w)) => route_map_item.set_weight(*w as u16),
                 RouteMapSet::Weight(None) => route_map_item.set_weight(100),
-                RouteMapSet::LocalPref(Some(lp)) => route_map_item.set_local_pref(*lp),
-                RouteMapSet::LocalPref(None) => route_map_item.set_local_pref(100),
+                RouteMapSet::LocalPref(lp) => {
+                    route_map_item.set_local_pref(LocalPref::Absolute(lp.unwrap_or(100)))
+                }
+                RouteMapSet::LocalPrefDelta(d) => {
+                    route_map_item.set_local_pref(LocalPref::Delta(*d))
+                }
                 RouteMapSet::Med(Some(m)) => route_map_item.set_med(*m),
                 RouteMapSet::Med(None) => route_map_item.set_med(0),
                 RouteMapSet::IgpCost(_) => {
