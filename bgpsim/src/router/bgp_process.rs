@@ -760,7 +760,7 @@ impl<P: Prefix> BgpProcess<P> {
     /// The entry is cloned and modified. This function will also modify the ORIGINATOR_ID and the
     /// CLUSTER_LIST if the route is "reflected". A route is reflected if the router forwards it
     /// from an internal router to another internal router.
-    fn process_rib_out_route(
+    pub fn process_rib_out_route(
         &self,
         mut entry: BgpRibEntry<P>,
         target_peer: RouterId,
@@ -819,7 +819,7 @@ impl<P: Prefix> BgpProcess<P> {
     /// returns a bool which tells to export the route to the target, which was advertised by the
     /// source.
     #[inline(always)]
-    fn should_export_route(
+    pub fn should_export_route(
         &self,
         from: RouterId,
         from_type: BgpSessionType,
