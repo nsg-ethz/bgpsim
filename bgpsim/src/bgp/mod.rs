@@ -229,7 +229,7 @@ impl<P: Prefix> Hash for BgpRoute<P> {
 }
 
 /// Type of a BGP session
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize, Hash)]
 pub enum BgpSessionType {
     /// iBGP session with a peer (or from a client with a Route Reflector)
     IBgpPeer,
@@ -312,7 +312,7 @@ impl<P: Prefix> BgpEvent<P> {
 }
 
 /// BGP RIB Table entry
-#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, Eq, Serialize, Deserialize, Hash)]
 #[serde(bound(deserialize = "P: for<'a> Deserialize<'a>"))]
 pub struct BgpRibEntry<P: Prefix> {
     /// the actual bgp route
