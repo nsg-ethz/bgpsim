@@ -312,7 +312,7 @@ impl<P: Prefix> BgpEvent<P> {
 }
 
 /// BGP RIB Table entry
-#[derive(Debug, Clone, Eq, Serialize, Deserialize, Hash)]
+#[derive(Debug, Clone, Eq, Serialize, Deserialize)]
 #[serde(bound(deserialize = "P: for<'a> Deserialize<'a>"))]
 pub struct BgpRibEntry<P: Prefix> {
     /// the actual bgp route
@@ -327,6 +327,16 @@ pub struct BgpRibEntry<P: Prefix> {
     pub igp_cost: Option<NotNan<LinkWeight>>,
     /// Local weight of that route, which is the most preferred metric of the entire route.
     pub weight: u32,
+}
+
+impl<P: Prefix> std::hash::Hash for BgpRibEntry<P> {
+    fn hash<H: std::hash::Hasher>(&self, state: &mut H) {
+        // Keep Hash consistent with PartialEq: only hash the fields that participate in equality.
+        self.route.hash(state);
+        self.from_id.hash(state);
+        self.weight.hash(state);
+        self.igp_cost.unwrap_or_default().hash(state);
+    }
 }
 
 impl<P: Prefix> IntoIpv4Prefix for BgpRibEntry<P> {
