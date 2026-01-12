@@ -22,7 +22,7 @@ Instead, the protocols are simplified (e.g., routers don't exchange OSPF hello a
     - [x] Route reflection
     - [ ] Confederations
     - [ ] Additional-paths
-    - [ ] Inter-domain topologies
+    - [x] Inter-domain topologies
   - [x] OSPF
     - [x] Multiple areas
     - [x] ECMP

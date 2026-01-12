@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 bgpsim_version=$(cargo metadata --no-deps --format-version 1 | jq -r ".packages[] | select(.name == \"bgpsim\").version" | sed "s/\./_/g")
 
