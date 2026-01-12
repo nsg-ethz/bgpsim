@@ -679,7 +679,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
             for i in 0..j {
                 let pi = &positions[i];
                 let pj = &positions[j];
-                let distance: f64 = (0..dim).map(|x| (pi[x] - pj[x])).map(|x| x * x).sum();
+                let distance: f64 = (0..dim).map(|x| pi[x] - pj[x]).map(|x| x * x).sum();
                 let (i, j) = (i as IndexType, j as IndexType);
                 if distance < dist2 {
                     links.push((RouterId::from(i), RouterId::from(j)));

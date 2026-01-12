@@ -244,7 +244,7 @@ impl<P: Prefix> Config<P> {
     }
 
     /// Returns an iterator over all expressions in the configuration.
-    pub fn iter(&self) -> std::collections::hash_map::Values<ConfigExprKey<P>, ConfigExpr<P>> {
+    pub fn iter(&self) -> std::collections::hash_map::Values<'_, ConfigExprKey<P>, ConfigExpr<P>> {
         self.expr.values()
     }
 
