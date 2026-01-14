@@ -99,6 +99,31 @@ impl<P: Prefix, T> Event<P, T> {
         }
     }
 
+    /// Change the prefix type of the event.
+    pub fn with_prefix<P2: Prefix>(self, prefix: P2) -> Event<P2, T> {
+        match self {
+            Event::Bgp { p, src, dst, e } => Event::Bgp {
+                p,
+                src,
+                dst,
+                e: e.with_prefix(prefix),
+            },
+            Event::Ospf {
+                p,
+                src,
+                dst,
+                area,
+                e,
+            } => Event::Ospf {
+                p,
+                src,
+                dst,
+                area,
+                e,
+            },
+        }
+    }
+
     /// Get a reference to the priority of this event.
     pub fn priority(&self) -> &T {
         match self {
