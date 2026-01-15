@@ -627,7 +627,11 @@ impl<P: Prefix> BgpProcess<P> {
                 };
                 match (best_route, current_route) {
                     (Some(best_r), Some(current_r)) if best_r.route == current_r.route => {
-                        // Nothing to do, no new route received
+                        // update the rib-out, but do not send any update.
+                        self.rib_out
+                            .get_mut_or_default(prefix)
+                            .insert(*peer, best_r);
+                        // no need to send an update.
                         None
                     }
                     (Some(best_r), _) => {
