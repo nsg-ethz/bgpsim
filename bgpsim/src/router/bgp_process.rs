@@ -786,8 +786,8 @@ impl<P: Prefix> BgpProcess<P> {
         if entry.from_type.is_ibgp() && target_session_type.is_ibgp() {
             // route is to be reflected. Modify the ORIGINATOR_ID and the CLUSTER_LIST.
             entry.route.originator_id.get_or_insert(entry.from_id);
-            // append self to the cluster_list
-            entry.route.cluster_list.push(self.router_id);
+            // prepend self to the cluster_list
+            entry.route.cluster_list.insert(0, self.router_id);
         }
 
         // set the to_id to the target peer
