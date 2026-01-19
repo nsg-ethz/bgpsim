@@ -38,21 +38,11 @@ pub trait EventQueue<P: Prefix> {
     type Priority: Default + FmtPriority + Clone;
 
     /// Enqueue a new event.
-    fn push<Ospf: OspfProcess>(
-        &mut self,
-        event: Event<P, Self::Priority>,
-        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
-        net: &PhysicalNetwork,
-    );
+    fn push(&mut self, event: Event<P, Self::Priority>);
 
     /// Enqueue multiple events at once.
-    fn push_many<Ospf: OspfProcess>(
-        &mut self,
-        events: Vec<Event<P, Self::Priority>>,
-        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
-        net: &PhysicalNetwork,
-    ) {
-        events.into_iter().for_each(|e| self.push(e, routers, net))
+    fn push_many(&mut self, events: Vec<Event<P, Self::Priority>>) {
+        events.into_iter().for_each(|e| self.push(e))
     }
 
     /// Pop the next event.
@@ -87,9 +77,9 @@ pub trait EventQueue<P: Prefix> {
     /// Update the model parameters. This function will always be called after some externally
     /// triggered event occurs. It will still happen, even if the network was set to manual
     /// simulation.
-    fn update_params<Ospf: OspfProcess>(
+    fn update_params<Ospf: OspfProcess, R>(
         &mut self,
-        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf, R>>,
         net: &PhysicalNetwork,
     );
 
@@ -131,12 +121,7 @@ impl<P: Prefix> BasicEventQueue<P> {
 impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
     type Priority = ();
 
-    fn push<Ospf: OspfProcess>(
-        &mut self,
-        event: Event<P, Self::Priority>,
-        _: &BTreeMap<RouterId, Router<P, Ospf>>,
-        _: &PhysicalNetwork,
-    ) {
+    fn push(&mut self, event: Event<P, Self::Priority>) {
         self.0.push_back(event)
     }
 
@@ -164,9 +149,9 @@ impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
         None
     }
 
-    fn update_params<Ospf: OspfProcess>(
+    fn update_params<Ospf: OspfProcess, R>(
         &mut self,
-        _: &BTreeMap<RouterId, Router<P, Ospf>>,
+        _: &BTreeMap<RouterId, Router<P, Ospf, R>>,
         _: &PhysicalNetwork,
     ) {
     }
@@ -226,12 +211,7 @@ impl<P: Prefix> Default for PerRouterQueue<P> {
 impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
     type Priority = ();
 
-    fn push<Ospf: OspfProcess>(
-        &mut self,
-        event: Event<P, Self::Priority>,
-        _routers: &BTreeMap<RouterId, Router<P, Ospf>>,
-        _net: &PhysicalNetwork,
-    ) {
+    fn push(&mut self, event: Event<P, Self::Priority>) {
         self.events
             .entry(event.router())
             .or_default()
@@ -266,9 +246,9 @@ impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
         self.num_events = 0;
     }
 
-    fn update_params<Ospf: OspfProcess>(
+    fn update_params<Ospf: OspfProcess, R>(
         &mut self,
-        _routers: &BTreeMap<RouterId, Router<P, Ospf>>,
+        _routers: &BTreeMap<RouterId, Router<P, Ospf, R>>,
         _net: &PhysicalNetwork,
     ) {
     }

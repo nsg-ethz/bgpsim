@@ -49,7 +49,7 @@ pub struct BgpState<P: Prefix> {
 impl<P: Prefix> BgpState<P> {
     /// Create a new `BgpStateRef` from the network for the given prefix.
     #[inline]
-    pub fn from_net<Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>, prefix: P) -> Self {
+    pub fn from_net<Q, Ospf: OspfImpl, R>(net: &Network<P, Q, Ospf, R>, prefix: P) -> Self {
         Self {
             prefix,
             g: BgpStateGraph::from_net(net, prefix, |e| e.clone()),
@@ -148,7 +148,7 @@ impl<P: Prefix> BgpState<P> {
 impl<'n, P: Prefix> BgpStateRef<'n, P> {
     /// Create a new `BgpStateRef` from the network for the given prefix.
     #[inline]
-    pub fn from_net<Q, Ospf: OspfImpl>(net: &'n Network<P, Q, Ospf>, prefix: P) -> Self {
+    pub fn from_net<Q, Ospf: OspfImpl, R>(net: &'n Network<P, Q, Ospf, R>, prefix: P) -> Self {
         Self {
             prefix,
             g: BgpStateGraph::from_net(net, prefix, |e| e),
@@ -306,8 +306,8 @@ impl<T> FromIterator<(RouterId, BgpStateNode<T>)> for BgpStateGraph<T> {
 }
 
 impl<T> BgpStateGraph<T> {
-    fn from_net<'n, P: Prefix, Ospf: OspfImpl, F: Fn(&'n BgpRoute<P>) -> T, Q>(
-        net: &'n Network<P, Q, Ospf>,
+    fn from_net<'n, P: Prefix, Ospf: OspfImpl, R, F: Fn(&'n BgpRoute<P>) -> T, Q>(
+        net: &'n Network<P, Q, Ospf, R>,
         prefix: P,
         f: F,
     ) -> Self {

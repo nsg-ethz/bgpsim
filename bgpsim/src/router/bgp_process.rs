@@ -893,9 +893,9 @@ impl<P: Prefix> BgpProcess<P> {
      */
 
     /// Return a formatted string for the BGP table of the given prefix.
-    pub fn fmt_prefix_table<Q, Ospf: OspfImpl>(
+    pub fn fmt_prefix_table<Q, Ospf: OspfImpl, R>(
         &self,
-        net: &'_ Network<P, Q, Ospf>,
+        net: &'_ Network<P, Q, Ospf, R>,
         prefix: P,
     ) -> String {
         let table = self.get_processed_rib_for_prefix(prefix);
@@ -965,8 +965,8 @@ impl<P: Prefix> IntoIpv4Prefix for BgpProcess<P> {
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpProcess<P> {
-    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for BgpProcess<P> {
+    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf, R>) -> String {
         self.get_processed_rib_in()
             .iter()
             .map(|(p, table)| {

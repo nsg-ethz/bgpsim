@@ -30,17 +30,17 @@ use rand::{prelude::*, rngs::StdRng};
 /// A function that selects a router.
 pub trait RouterSelector {
     /// Select a router of the given AS.
-    fn select<P: Prefix, Q, Ospf: OspfImpl>(
+    fn select<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
         asn: ASN,
     ) -> impl Iterator<Item = RouterId>;
 }
 
 impl RouterSelector for Vec<RouterId> {
-    fn select<P: Prefix, Q, Ospf: OspfImpl>(
+    fn select<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
         asn: ASN,
     ) -> impl Iterator<Item = RouterId> {
         self.iter()
@@ -50,9 +50,9 @@ impl RouterSelector for Vec<RouterId> {
 }
 
 impl RouterSelector for &[RouterId] {
-    fn select<P: Prefix, Q, Ospf: OspfImpl>(
+    fn select<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
         asn: ASN,
     ) -> impl Iterator<Item = RouterId> {
         self.iter()
@@ -62,9 +62,9 @@ impl RouterSelector for &[RouterId] {
 }
 
 impl RouterSelector for HashSet<RouterId> {
-    fn select<P: Prefix, Q, Ospf: OspfImpl>(
+    fn select<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
         asn: ASN,
     ) -> impl Iterator<Item = RouterId> {
         self.iter()
@@ -74,9 +74,9 @@ impl RouterSelector for HashSet<RouterId> {
 }
 
 impl RouterSelector for BTreeSet<RouterId> {
-    fn select<P: Prefix, Q, Ospf: OspfImpl>(
+    fn select<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
         asn: ASN,
     ) -> impl Iterator<Item = RouterId> {
         self.iter()
@@ -129,9 +129,9 @@ impl HighestDegreeRouters {
 }
 
 impl RouterSelector for HighestDegreeRouters {
-    fn select<P: Prefix, Q, Ospf: OspfImpl>(
+    fn select<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
         asn: ASN,
     ) -> impl Iterator<Item = RouterId> {
         let ospf = net.ospf_network();
@@ -199,9 +199,9 @@ impl<R> RandomRouters<R> {
 
 #[cfg(feature = "rand")]
 impl<R: RngCore> RouterSelector for RandomRouters<R> {
-    fn select<P: Prefix, Q, Ospf: OspfImpl>(
+    fn select<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
         asn: ASN,
     ) -> impl Iterator<Item = RouterId> {
         let mut routers = net

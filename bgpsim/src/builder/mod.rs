@@ -31,6 +31,7 @@ use std::collections::{BTreeMap, BTreeSet};
 
 use crate::{
     bgp::BgpSessionType,
+    custom_protocol::CustomProto,
     event::EventQueue,
     network::Network,
     ospf::OspfImpl,
@@ -289,8 +290,8 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     fn build_connected_graph_in_as(&mut self, asn: impl Into<ASN>) -> Result<(), NetworkError>;
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
-    for Network<P, Q, Ospf>
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> NetworkBuilder<P, Q, Ospf>
+    for Network<P, Q, Ospf, R>
 {
     fn build_ibgp_full_mesh(&mut self) -> Result<(), NetworkError> {
         let sessions = self
@@ -635,8 +636,8 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
     }
 }
 
-fn _ibgp_route_reflection_in_as<P: Prefix, Q, Ospf: OspfImpl, S: RouterSelector>(
-    net: &Network<P, Q, Ospf>,
+fn _ibgp_route_reflection_in_as<P: Prefix, Q, Ospf: OspfImpl, R: CustomProto, S: RouterSelector>(
+    net: &Network<P, Q, Ospf, R>,
     asn: ASN,
     routers: Vec<RouterId>,
     sessions: &mut Vec<(RouterId, RouterId, Option<bool>)>,

@@ -29,9 +29,9 @@ use rand::{distributions::Uniform, prelude::*, rngs::StdRng};
 /// A function that samples the link weight. You can directly use `LinkWeight` as a constant weight.
 pub trait WeightSampler {
     /// Select a router of the given AS.
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
         asn: ASN,
         src: RouterId,
         dst: RouterId,
@@ -39,9 +39,9 @@ pub trait WeightSampler {
 }
 
 impl WeightSampler for LinkWeight {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
         _asn: ASN,
         _src: RouterId,
         _dst: RouterId,
@@ -96,9 +96,9 @@ impl<S> Lookup<S> {
 }
 
 impl<S: WeightSampler> WeightSampler for Lookup<S> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
         asn: ASN,
         src: RouterId,
         dst: RouterId,
@@ -173,9 +173,9 @@ impl<R> UniformWeights<R> {
 
 #[cfg(feature = "rand")]
 impl<R: RngCore> WeightSampler for UniformWeights<R> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
         _asn: ASN,
         _src: RouterId,
         _dst: RouterId,

@@ -73,6 +73,7 @@ use log::debug;
 
 use crate::{
     bgp::Community,
+    custom_protocol::CustomProto,
     event::EventQueue,
     formatter::NetworkFormatter,
     network::Network,
@@ -385,6 +386,13 @@ pub enum ConfigExpr<P: Prefix> {
         /// advertised on eBGP sessions (except those of the receiving AS).
         community: BTreeSet<Community>,
     },
+    /// The configuration for a custom protocol.
+    CustomProto {
+        /// The router to be configured
+        router: RouterId,
+        /// The configuration as a raw (serialized) string.
+        config: String,
+    },
 }
 
 impl<P: Prefix + PartialEq> PartialEq for ConfigExpr<P> {
@@ -476,6 +484,16 @@ impl<P: Prefix + PartialEq> PartialEq for ConfigExpr<P> {
                     community: c2,
                 },
             ) => (r1, p1, apl1, med1, c1) == (r2, p2, apl2, med2, c2),
+            (
+                ConfigExpr::CustomProto {
+                    router: r1,
+                    config: c1,
+                },
+                ConfigExpr::CustomProto {
+                    router: r2,
+                    config: c2,
+                },
+            ) => (r1, c1) == (r2, c2),
             // Here, we match explicitly all other types, so that we never forget adding a new one!
             (ConfigExpr::IgpLinkWeight { .. }, _)
             | (ConfigExpr::OspfArea { .. }, _)
@@ -483,7 +501,8 @@ impl<P: Prefix + PartialEq> PartialEq for ConfigExpr<P> {
             | (ConfigExpr::BgpRouteMap { .. }, _)
             | (ConfigExpr::StaticRoute { .. }, _)
             | (ConfigExpr::LoadBalancing { .. }, _)
-            | (ConfigExpr::AdvertiseRoute { .. }, _) => false,
+            | (ConfigExpr::AdvertiseRoute { .. }, _)
+            | (ConfigExpr::CustomProto { .. }, _) => false,
         }
     }
 }
@@ -558,6 +577,7 @@ impl<P: Prefix> ConfigExpr<P> {
                 router: *router,
                 prefix: *prefix,
             },
+            ConfigExpr::CustomProto { router, .. } => ConfigExprKey::CustomProto(*router),
         }
     }
 
@@ -571,6 +591,7 @@ impl<P: Prefix> ConfigExpr<P> {
             ConfigExpr::StaticRoute { router, .. } => vec![*router],
             ConfigExpr::LoadBalancing { router } => vec![*router],
             ConfigExpr::AdvertiseRoute { router, .. } => vec![*router],
+            ConfigExpr::CustomProto { router, .. } => vec![*router],
         }
     }
 }
@@ -643,6 +664,8 @@ pub enum ConfigExprKey<P> {
         /// The prefix (network) to advertise
         prefix: P,
     },
+    /// The configuration for a custom protocol on a specific router.
+    CustomProto(RouterId),
 }
 
 impl<P> ConfigExprKey<P> {
@@ -853,7 +876,9 @@ pub trait NetworkConfig<P: Prefix> {
     fn get_config(&self) -> Result<Config<P>, NetworkError>;
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P, Q, Ospf> {
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> NetworkConfig<P>
+    for Network<P, Q, Ospf, R>
+{
     /// Set the provided network-wide configuration. The network first computes the patch from the
     /// current configuration to the next one, and applies the patch. If the patch cannot be
     /// applied, then an error is returned. Note, that this function may apply a large number of
@@ -959,6 +984,9 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     )?;
                     Ok(())
                 }
+                ConfigExpr::CustomProto { router, config } => {
+                    todo!()
+                }
             },
             ConfigModifier::Remove(expr) => match expr {
                 ConfigExpr::IgpLinkWeight {
@@ -998,6 +1026,9 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                 ConfigExpr::AdvertiseRoute { router, prefix, .. } => {
                     self.withdraw_route(*router, *prefix)?;
                     Ok(())
+                }
+                ConfigExpr::CustomProto { router, config } => {
+                    todo!()
                 }
             },
             ConfigModifier::BatchRouteMapEdit { router, updates } => {
@@ -1047,6 +1078,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     .get_router(*router)
                     .map(|r| r.bgp.get_advertised_route(*prefix).is_none())
                     .unwrap_or(false),
+                ConfigExpr::CustomProto { .. } => true,
             },
             ConfigModifier::Remove(x) | ConfigModifier::Update { from: x, .. } => match x {
                 ConfigExpr::IgpLinkWeight { source, target, .. } => {
@@ -1086,6 +1118,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     .get_router(*router)
                     .map(|r| r.bgp.get_advertised_route(*prefix).is_some())
                     .unwrap_or(false),
+                ConfigExpr::CustomProto { .. } => true,
             },
             ConfigModifier::BatchRouteMapEdit { router, updates } => {
                 if let Ok(r) = self.get_router(*router) {
@@ -1232,6 +1265,15 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkConfig<P> for Network<P
                     community: route.community.clone(),
                 })?;
             }
+
+            // add the custom protocol
+            let custom_config = r.custom_proto.export_config();
+            if !custom_config.is_empty() {
+                c.add(ConfigExpr::CustomProto {
+                    router: rid,
+                    config: custom_config,
+                })?;
+            }
         }
 
         Ok(c)
@@ -1337,6 +1379,9 @@ impl<P: Prefix> IntoIpv4Prefix for ConfigExpr<P> {
                 med,
                 community,
             },
+            ConfigExpr::CustomProto { router, config } => {
+                ConfigExpr::CustomProto { router, config }
+            }
         }
     }
 }

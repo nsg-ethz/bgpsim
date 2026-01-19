@@ -871,7 +871,7 @@ impl OspfProcess for LocalOspfProcess {
         self.areas.remove_unreachable_lsas();
     }
 
-    fn fmt<P, Q, Ospf>(&self, net: &Network<P, Q, Ospf>) -> String
+    fn fmt<P, Q, Ospf, R>(&self, net: &Network<P, Q, Ospf, R>) -> String
     where
         P: Prefix,
         Ospf: OspfImpl<Process = Self>,

@@ -22,6 +22,7 @@ use std::collections::BTreeMap;
 use log::debug;
 
 use crate::{
+    custom_protocol::CustomProto,
     event::{ConcurrentEventQueue, Event, EventQueue},
     formatter::NetworkFormatter,
     network::Network,
@@ -32,11 +33,12 @@ use crate::{
 
 /// Trait that allows you to interact with the simulator on a per message level. It exposes an
 /// interface to simulate a single event, inspect the queue of the network, and even reorder events.
-pub trait InteractiveNetwork<P, Q, Ospf>
+pub trait InteractiveNetwork<P, Q, Ospf, R>
 where
     P: Prefix,
     Q: EventQueue<P>,
     Ospf: OspfImpl,
+    R: CustomProto,
 {
     /// Setup the network to automatically simulate each change of the network. This is the default
     /// behavior. Disable auto-simulation by using [`InteractiveNetwork::manual_simulation`].
@@ -148,11 +150,12 @@ where
 }
 
 /// Trait that allows you to run simulations in parallel.
-pub trait ParallelNetwork<P, Q, Ospf>
+pub trait ParallelNetwork<P, Q, Ospf, R>
 where
     P: Prefix + Send + Sync,
     Q: ConcurrentEventQueue<P>,
     Ospf: OspfImpl,
+    R: CustomProto,
 {
     /// Simulate the network behavior, given the current event queue. This function will execute all
     /// events (that may trigger new events), until either the event queue is empt (i.e., the
@@ -163,8 +166,8 @@ where
     fn simulate_parallel(&mut self, num_threads: Option<usize>) -> Result<(), NetworkError>;
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
-    for Network<P, Q, Ospf>
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> InteractiveNetwork<P, Q, Ospf, R>
+    for Network<P, Q, Ospf, R>
 {
     fn auto_simulation(&mut self) {
         self.skip_queue = false;
@@ -367,12 +370,13 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> InteractiveNetwork<P, Q, Ospf>
     }
 }
 
-impl<P, Q, Ospf> ParallelNetwork<P, Q, Ospf> for Network<P, Q, Ospf>
+impl<P, Q, Ospf, R> ParallelNetwork<P, Q, Ospf, R> for Network<P, Q, Ospf, R>
 where
     P: Prefix,
     Q: ConcurrentEventQueue<P>,
     Q::Priority: Send + Sync + 'static,
     Ospf: OspfImpl,
+    R: CustomProto + Send + 'static,
 {
     fn simulate_parallel(&mut self, num_threads: Option<usize>) -> Result<(), NetworkError> {
         let mut remaining_iter = self.stop_after;
@@ -395,9 +399,9 @@ where
 
         // create two channels, bounded by the number of routers in the network
         let (task_sender, task_receiver) =
-            bounded::<Job<P, Q::Priority, Ospf::Process>>(routers.len() + 1);
+            bounded::<Job<P, Q::Priority, Ospf::Process, R>>(routers.len() + 1);
         let (result_sender, result_receiver) =
-            bounded::<Res<P, Q::Priority, Ospf::Process>>(routers.len() + 1);
+            bounded::<Res<P, Q::Priority, Ospf::Process, R>>(routers.len() + 1);
 
         let workers = (0..num_threads)
             .map(|_| {
@@ -411,7 +415,6 @@ where
 
         let num_routers = routers.len();
         let mut result = Ok(());
-        let empty = BTreeMap::<RouterId, Router<P, Ospf::Process>>::new();
 
         // start the process
         'main: loop {
@@ -454,7 +457,7 @@ where
             // now, receive the next task
             let (r, events, success) = result_receiver.recv().unwrap();
             routers.push(r);
-            self.queue.push_many(events, &empty, &self.net);
+            self.queue.push_many(events);
             result = result.and(success.map_err(NetworkError::DeviceError));
 
             // check if we have an error
@@ -473,7 +476,7 @@ where
         // been pulled.)
         while let Ok((r, events, success)) = result_receiver.recv() {
             routers.push(r);
-            self.queue.push_many(events, &empty, &self.net);
+            self.queue.push_many(events);
             result = result.and(success.map_err(NetworkError::DeviceError));
         }
 
@@ -484,12 +487,16 @@ where
     }
 }
 
-type Job<P, T, Ospf> = (Router<P, Ospf>, Vec<Event<P, T>>);
-type Res<P, T, Ospf> = (Router<P, Ospf>, Vec<Event<P, T>>, Result<(), DeviceError>);
+type Job<P, T, Ospf, R> = (Router<P, Ospf, R>, Vec<Event<P, T>>);
+type Res<P, T, Ospf, R> = (
+    Router<P, Ospf, R>,
+    Vec<Event<P, T>>,
+    Result<(), DeviceError>,
+);
 
-fn worker<P: Prefix, T: Default, Ospf: OspfProcess>(
-    recv: Receiver<Job<P, T, Ospf>>,
-    send: Sender<Res<P, T, Ospf>>,
+fn worker<P: Prefix, T: Default, Ospf: OspfProcess, R: CustomProto>(
+    recv: Receiver<Job<P, T, Ospf, R>>,
+    send: Sender<Res<P, T, Ospf, R>>,
 ) {
     loop {
         let Ok((mut r, events)) = recv.recv() else {
@@ -558,8 +565,8 @@ fn worker<P: Prefix, T: Default, Ospf: OspfProcess>(
 /// # fn main() {}
 /// ```
 #[derive(Debug)]
-pub struct PartialClone<'a, P: Prefix, Q> {
-    source: &'a Network<P, Q, GlobalOspf>,
+pub struct PartialClone<'a, P: Prefix, Q, R> {
+    source: &'a Network<P, Q, GlobalOspf, R>,
     reuse_config: bool,
     reuse_advertisements: bool,
     reuse_igp_state: bool,
@@ -567,9 +574,9 @@ pub struct PartialClone<'a, P: Prefix, Q> {
     reuse_queue_params: bool,
 }
 
-impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
+impl<'a, P: Prefix, Q, R> PartialClone<'a, P, Q, R> {
     /// Create a new partial clone of a network
-    pub fn new(net: &'a Network<P, Q, GlobalOspf>) -> PartialClone<'a, P, Q> {
+    pub fn new(net: &'a Network<P, Q, GlobalOspf, R>) -> PartialClone<'a, P, Q, R> {
         PartialClone {
             source: net,
             reuse_igp_state: false,
@@ -639,9 +646,10 @@ impl<'a, P: Prefix, Q> PartialClone<'a, P, Q> {
     /// # Safety
     /// You must ensure that the physical topology of both the source and the conquered network is
     /// identical.
-    pub unsafe fn conquer(self, other: Network<P, Q, GlobalOspf>) -> Network<P, Q, GlobalOspf>
+    pub unsafe fn conquer(self, other: Network<P, Q, GlobalOspf, R>) -> Network<P, Q, GlobalOspf, R>
     where
         Q: Clone + EventQueue<P>,
+        R: Clone,
     {
         // assert that the properties are correct
         if self.reuse_igp_state && !self.reuse_config {

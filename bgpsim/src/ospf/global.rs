@@ -175,10 +175,10 @@ impl OspfCoordinator for GlobalOspfCoordinator {
         }
     }
 
-    fn update<P: Prefix, T: Default>(
+    fn update<P: Prefix, T: Default, R>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: BTreeMap<RouterId, &mut Router<P, GlobalOspfProcess>>,
+        routers: BTreeMap<RouterId, &mut Router<P, GlobalOspfProcess, R>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
@@ -268,10 +268,10 @@ impl GlobalOspfCoordinator {
 
     /// Perform all scheduled actions. This may also cause some routers to recompute their BGP
     /// tables.
-    fn perform_actions<P: Prefix, T: Default>(
+    fn perform_actions<P: Prefix, T: Default, R>(
         &mut self,
         actions: Actions,
-        mut routers: BTreeMap<RouterId, &mut Router<P, GlobalOspfProcess>>,
+        mut routers: BTreeMap<RouterId, &mut Router<P, GlobalOspfProcess, R>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {

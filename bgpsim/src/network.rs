@@ -21,6 +21,7 @@
 use crate::{
     bgp::{BgpRoute, BgpSessionType, BgpState, BgpStateRef, Community},
     config::{NetworkConfig, RouteMapEdit},
+    custom_protocol::CustomProto,
     event::{BasicEventQueue, Event, EventQueue},
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
@@ -86,17 +87,18 @@ pub const DEFAULT_INTERNAL_ASN: ASN = ASN(65500);
 #[serde_as]
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(bound(
-    serialize = "Q: serde::Serialize",
-    deserialize = "P: for<'a> serde::Deserialize<'a>, Q: for<'a> serde::Deserialize<'a>"
+    serialize = "Q: serde::Serialize, R: serde::Serialize",
+    deserialize = "P: for<'a> serde::Deserialize<'a>, Q: for<'a> serde::Deserialize<'a>, R: for<'a> serde::Deserialize<'a>"
 ))]
 pub struct Network<
-    P: Prefix = SimplePrefix,
-    Q = BasicEventQueue<SimplePrefix>,
-    Ospf: OspfImpl = GlobalOspf,
+    P: Prefix,      // = SimplePrefix,
+    Q,              // = BasicEventQueue<SimplePrefix>,
+    Ospf: OspfImpl, // = GlobalOspf,
+    R,              // = (),
 > {
     pub(crate) net: PhysicalNetwork,
     pub(crate) ospf: OspfNetwork<Ospf::Coordinator>,
-    pub(crate) routers: BTreeMap<RouterId, Router<P, Ospf::Process>>,
+    pub(crate) routers: BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     #[serde_as(as = "Vec<(_, _)>")]
     pub(crate) bgp_sessions: BTreeMap<(RouterId, RouterId), Option<bool>>,
     pub(crate) known_prefixes: P::Set,
@@ -105,7 +107,7 @@ pub struct Network<
     pub(crate) skip_queue: bool,
 }
 
-impl<P: Prefix, Q: Clone, Ospf: OspfImpl> Clone for Network<P, Q, Ospf> {
+impl<P: Prefix, Q: Clone, Ospf: OspfImpl, R: Clone> Clone for Network<P, Q, Ospf, R> {
     /// Cloning the network does not clone the event history.
     fn clone(&self) -> Self {
         log::debug!("Cloning the network!");
@@ -123,13 +125,13 @@ impl<P: Prefix, Q: Clone, Ospf: OspfImpl> Clone for Network<P, Q, Ospf> {
     }
 }
 
-impl<P: Prefix, Ospf: OspfImpl> Default for Network<P, BasicEventQueue<P>, Ospf> {
+impl<P: Prefix, Ospf: OspfImpl, R> Default for Network<P, BasicEventQueue<P>, Ospf, R> {
     fn default() -> Self {
         Self::new(BasicEventQueue::new())
     }
 }
 
-impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
+impl<P: Prefix, Q, Ospf: OspfImpl, R> Network<P, Q, Ospf, R> {
     /// Generate an empty Network
     pub fn new(queue: Q) -> Self {
         Self {
@@ -142,6 +144,139 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
             queue,
             skip_queue: false,
         }
+    }
+
+    /// Return the IGP network
+    pub fn ospf_network(&self) -> &OspfNetwork<Ospf::Coordinator> {
+        &self.ospf
+    }
+
+    /// Set the router name.
+    pub fn set_router_name(
+        &mut self,
+        router: RouterId,
+        name: impl Into<String>,
+    ) -> Result<(), NetworkError> {
+        self.routers
+            .get_mut(&router)
+            .ok_or(NetworkError::DeviceNotFound(router))?
+            .set_name(name.into());
+        Ok(())
+    }
+
+    /// Compute and return the current BGP state as a reference for the given prefix. The returned
+    /// structure contains references into `self`. In order to get a BGP state that does not keep an
+    /// immutable reference to `self`, use [`Self::get_bgp_state_owned`].
+    pub fn get_bgp_state(&self, prefix: P) -> BgpStateRef<'_, P> {
+        BgpStateRef::from_net(self, prefix)
+    }
+
+    /// Compute and return the current BGP state for the given prefix. This function clones many
+    /// routes of the network. See [`Self::get_bgp_state`] in case you wish to keep references
+    /// instead.
+    pub fn get_bgp_state_owned(&self, prefix: P) -> BgpState<P> {
+        BgpState::from_net(self, prefix)
+    }
+
+    /// Generate a forwarding state that represents the OSPF routing state. Each router with
+    /// [`RouterId`] `id` advertises its own prefix `id.index().into()`. The stored paths represent
+    /// the routing decisions performed by OSPF.
+    ///
+    /// The returned lookup table maps each router id to its prefix. You can also obtain the prefix
+    /// of a router with ID `id` by computing `id.index().into()`.
+    pub fn get_ospf_forwarding_state(
+        &self,
+    ) -> (
+        ForwardingState<SimplePrefix>,
+        HashMap<RouterId, SimplePrefix>,
+    ) {
+        self.ospf.get_forwarding_state(&self.routers)
+    }
+
+    /*
+     * Get routers and router IDs
+     */
+
+    /// Return an iterator over all device indices.
+    pub fn indices(&self) -> Indices<'_, P, Ospf::Process, R> {
+        Indices {
+            i: self.routers.keys(),
+        }
+    }
+
+    /// Get a list of all router indices (both internal and external) in a given AS
+    pub fn indices_in_as(&self, asn: ASN) -> IndicesInAs<'_> {
+        IndicesInAs {
+            i: self.ospf.routers.iter(),
+            asn,
+        }
+    }
+
+    /// Return an iterator over all internal routers.
+    pub fn routers(
+        &self,
+    ) -> std::collections::btree_map::Values<'_, RouterId, Router<P, Ospf::Process, R>> {
+        self.routers.values()
+    }
+
+    /// Get all ASes found in the network.
+    pub fn ases(&self) -> BTreeSet<ASN> {
+        self.ospf.domains.keys().copied().collect()
+    }
+
+    /// Get a list of all routers (both internal and external) in a given AS
+    pub fn routers_in_as(&self, asn: ASN) -> RoutersInAs<'_, P, Ospf::Process, R> {
+        RoutersInAs {
+            i: self.routers.values(),
+            asn,
+        }
+    }
+
+    /// Return an iterator over all internal routers as mutable references.
+    pub(crate) fn routers_mut(
+        &mut self,
+    ) -> std::collections::btree_map::ValuesMut<'_, RouterId, Router<P, Ospf::Process, R>> {
+        self.routers.values_mut()
+    }
+
+    /// Returns the number of devices in the topology
+    pub fn num_routers(&self) -> usize {
+        self.routers.len()
+    }
+
+    /// Returns a reference to an internal router
+    pub fn get_router(&self, id: RouterId) -> Result<&Router<P, Ospf::Process, R>, NetworkError> {
+        self.routers
+            .get(&id)
+            .ok_or(NetworkError::DeviceNotFound(id))
+    }
+
+    /// Returns a reference to an internal router
+    pub(crate) fn get_router_mut(
+        &mut self,
+        id: RouterId,
+    ) -> Result<&mut Router<P, Ospf::Process, R>, NetworkError> {
+        self.routers
+            .get_mut(&id)
+            .ok_or(NetworkError::DeviceNotFound(id))
+    }
+
+    /// Get the RouterID with the given name. If multiple routers have the same name, then the first
+    /// occurence of this name is returned. If the name was not found, an error is returned.
+    pub fn get_router_id(&self, name: impl AsRef<str>) -> Result<RouterId, NetworkError> {
+        self.routers
+            .iter()
+            .filter(|(_, r)| r.name() == name.as_ref())
+            .map(|(id, _)| *id)
+            .next()
+            .ok_or_else(|| NetworkError::DeviceNameNotFound(name.as_ref().to_string()))
+    }
+}
+
+impl<P: Prefix, Q, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
+    /// Compute and return the current forwarding state.
+    pub fn get_forwarding_state(&self) -> ForwardingState<P> {
+        ForwardingState::from_net(self)
     }
 
     /// Add a new router to the topology with given AS number. This function returns the ID of the
@@ -202,7 +337,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
 
         // remove the router from OSPF. Ignore all events!
         self.ospf
-            .remove_router::<P, ()>(router_id, &mut self.routers)?;
+            .remove_router::<P, (), R>(router_id, &mut self.routers)?;
 
         // change the AS number
         let new_asn = asn.into();
@@ -217,7 +352,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
 
         // add all links. Ignore all events!
         self.ospf
-            .add_links_from::<P, (), _>(links, &mut self.routers)?;
+            .add_links_from::<P, (), R, _>(links, &mut self.routers)?;
 
         // reset OSPF
         let events = self.ospf.reset(&mut self.routers)?;
@@ -251,137 +386,6 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// add a node to the graph and return the node ID. This does not yet create a router!
     pub(crate) fn _prepare_node(&mut self) -> RouterId {
         self.net.add_node(())
-    }
-
-    /// Set the router name.
-    pub fn set_router_name(
-        &mut self,
-        router: RouterId,
-        name: impl Into<String>,
-    ) -> Result<(), NetworkError> {
-        self.routers
-            .get_mut(&router)
-            .ok_or(NetworkError::DeviceNotFound(router))?
-            .set_name(name.into());
-        Ok(())
-    }
-
-    /// Compute and return the current forwarding state.
-    pub fn get_forwarding_state(&self) -> ForwardingState<P> {
-        ForwardingState::from_net(self)
-    }
-
-    /// Compute and return the current BGP state as a reference for the given prefix. The returned
-    /// structure contains references into `self`. In order to get a BGP state that does not keep an
-    /// immutable reference to `self`, use [`Self::get_bgp_state_owned`].
-    pub fn get_bgp_state(&self, prefix: P) -> BgpStateRef<'_, P> {
-        BgpStateRef::from_net(self, prefix)
-    }
-
-    /// Compute and return the current BGP state for the given prefix. This function clones many
-    /// routes of the network. See [`Self::get_bgp_state`] in case you wish to keep references
-    /// instead.
-    pub fn get_bgp_state_owned(&self, prefix: P) -> BgpState<P> {
-        BgpState::from_net(self, prefix)
-    }
-
-    /// Return the IGP network
-    pub fn ospf_network(&self) -> &OspfNetwork<Ospf::Coordinator> {
-        &self.ospf
-    }
-
-    /// Generate a forwarding state that represents the OSPF routing state. Each router with
-    /// [`RouterId`] `id` advertises its own prefix `id.index().into()`. The stored paths represent
-    /// the routing decisions performed by OSPF.
-    ///
-    /// The returned lookup table maps each router id to its prefix. You can also obtain the prefix
-    /// of a router with ID `id` by computing `id.index().into()`.
-    pub fn get_ospf_forwarding_state(
-        &self,
-    ) -> (
-        ForwardingState<SimplePrefix>,
-        HashMap<RouterId, SimplePrefix>,
-    ) {
-        self.ospf.get_forwarding_state(&self.routers)
-    }
-
-    /*
-     * Get routers and router IDs
-     */
-
-    /// Return an iterator over all device indices.
-    pub fn indices(&self) -> Indices<'_, P, Ospf::Process> {
-        Indices {
-            i: self.routers.keys(),
-        }
-    }
-
-    /// Get a list of all router indices (both internal and external) in a given AS
-    pub fn indices_in_as(&self, asn: ASN) -> IndicesInAs<'_> {
-        IndicesInAs {
-            i: self.ospf.routers.iter(),
-            asn,
-        }
-    }
-
-    /// Return an iterator over all internal routers.
-    pub fn routers(
-        &self,
-    ) -> std::collections::btree_map::Values<'_, RouterId, Router<P, Ospf::Process>> {
-        self.routers.values()
-    }
-
-    /// Get all ASes found in the network.
-    pub fn ases(&self) -> BTreeSet<ASN> {
-        self.ospf.domains.keys().copied().collect()
-    }
-
-    /// Get a list of all routers (both internal and external) in a given AS
-    pub fn routers_in_as(&self, asn: ASN) -> RoutersInAs<'_, P, Ospf::Process> {
-        RoutersInAs {
-            i: self.routers.values(),
-            asn,
-        }
-    }
-
-    /// Return an iterator over all internal routers as mutable references.
-    pub(crate) fn routers_mut(
-        &mut self,
-    ) -> std::collections::btree_map::ValuesMut<'_, RouterId, Router<P, Ospf::Process>> {
-        self.routers.values_mut()
-    }
-
-    /// Returns the number of devices in the topology
-    pub fn num_routers(&self) -> usize {
-        self.routers.len()
-    }
-
-    /// Returns a reference to an internal router
-    pub fn get_router(&self, id: RouterId) -> Result<&Router<P, Ospf::Process>, NetworkError> {
-        self.routers
-            .get(&id)
-            .ok_or(NetworkError::DeviceNotFound(id))
-    }
-
-    /// Returns a reference to an internal router
-    pub(crate) fn get_router_mut(
-        &mut self,
-        id: RouterId,
-    ) -> Result<&mut Router<P, Ospf::Process>, NetworkError> {
-        self.routers
-            .get_mut(&id)
-            .ok_or(NetworkError::DeviceNotFound(id))
-    }
-
-    /// Get the RouterID with the given name. If multiple routers have the same name, then the first
-    /// occurence of this name is returned. If the name was not found, an error is returned.
-    pub fn get_router_id(&self, name: impl AsRef<str>) -> Result<RouterId, NetworkError> {
-        self.routers
-            .iter()
-            .filter(|(_, r)| r.name() == name.as_ref())
-            .map(|(id, _)| *id)
-            .next()
-            .ok_or_else(|| NetworkError::DeviceNameNotFound(name.as_ref().to_string()))
     }
 
     // ********************
@@ -448,16 +452,16 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
     }
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
     /// Swap out the queue with a different one. The caller is responsible to ensure that the two
     /// queues contain an equivalent set of events.
-    pub fn swap_queue<QA>(self, mut queue: QA) -> Network<P, QA, Ospf>
+    pub fn swap_queue<QA>(self, mut queue: QA) -> Network<P, QA, Ospf, R>
     where
         QA: EventQueue<P>,
     {
         queue.update_params(&self.routers, &self.net);
 
-        Network {
+        Network::<P, QA, Ospf, R> {
             net: self.net,
             ospf: self.ospf,
             routers: self.routers,
@@ -1025,11 +1029,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// Enqueue all events
     #[inline(always)]
     pub(crate) fn enqueue_events(&mut self, events: Vec<Event<P, Q::Priority>>) {
-        self.queue.push_many(events, &self.routers, &self.net)
+        self.queue.push_many(events)
     }
 }
 
-impl<P: Prefix, Q: EventQueue<P>> Network<P, Q, GlobalOspf> {
+impl<P: Prefix, Q: EventQueue<P>, R: CustomProto> Network<P, Q, GlobalOspf, R> {
     /// Enable the OSPF implementation that passes messages.
     ///
     /// This function will convert a `Network<P, Q, GlobalOspf` into `Network<P, Q, LocalOspf>`. The
@@ -1042,16 +1046,16 @@ impl<P: Prefix, Q: EventQueue<P>> Network<P, Q, GlobalOspf> {
     /// `into_local_ospf` before applying the event that we you to measure.
     ///
     /// This function will ensure that the network has fully converged!
-    pub fn into_local_ospf(self) -> Result<Network<P, Q, LocalOspf>, NetworkError> {
-        Network::<P, Q, LocalOspf>::from_global_ospf(self)
+    pub fn into_local_ospf(self) -> Result<Network<P, Q, LocalOspf, R>, NetworkError> {
+        Network::<P, Q, LocalOspf, R>::from_global_ospf(self)
     }
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
+impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
     /// Convert a network that uses GlobalOSPF into a network that uses a different kind of OSPF
     /// implementation (according to the type parameter `Ospf`). See [`Network::into_local_ospf`] in
     /// case you wish to create a network that computes the OSPF state by exchanging OSPF messages.
-    pub fn from_global_ospf(net: Network<P, Q, GlobalOspf>) -> Result<Self, NetworkError> {
+    pub fn from_global_ospf(net: Network<P, Q, GlobalOspf, R>) -> Result<Self, NetworkError> {
         net.swap_ospf(|global_c, mut global_p, c, p| {
             let coordinators = (c, global_c);
             let processes = p
@@ -1067,7 +1071,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// `GlobalOspf` state.
     ///
     /// This function will convert a `Network<P, Q, LocalOspf` into `Network<P, Q, GlobalOspf>`.
-    pub fn into_global_ospf(self) -> Result<Network<P, Q, GlobalOspf>, NetworkError> {
+    pub fn into_global_ospf(self) -> Result<Network<P, Q, GlobalOspf, R>, NetworkError> {
         self.swap_ospf(|c, p, global_c, mut global_p| {
             let coordinators = (c, global_c);
             let processes = p
@@ -1081,7 +1085,10 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     /// Transforms `self` into a network using the `Ipv4Prefix` type. The entire queue will be
     /// sewapped accordingly (see [`Network::swap_queue`]).
     #[allow(clippy::result_large_err)]
-    pub fn into_ipv4_prefix<QA>(self, mut queue: QA) -> Result<Network<Ipv4Prefix, QA, Ospf>, Self>
+    pub fn into_ipv4_prefix<QA>(
+        self,
+        mut queue: QA,
+    ) -> Result<Network<Ipv4Prefix, QA, Ospf, R>, Self>
     where
         QA: EventQueue<Ipv4Prefix>,
     {
@@ -1098,7 +1105,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
 
         queue.update_params(&routers, &self.net);
 
-        Ok(Network {
+        Ok(Network::<Ipv4Prefix, QA, Ospf, R> {
             net: self.net,
             ospf: self.ospf,
             routers,
@@ -1115,11 +1122,12 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
     }
 }
 
-impl<P, Q, Ospf> Network<P, Q, Ospf>
+impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
     Q: EventQueue<P> + PartialEq,
     Ospf: OspfImpl,
+    R: CustomProto,
 {
     /// Checks for weak equivalence, by only comparing the IGP and BGP tables, as well as the event
     /// queue. The function also checks that the same routers are present.
@@ -1199,6 +1207,8 @@ where
             }
         }
 
+        // TODO compare R
+
         true
     }
 }
@@ -1207,11 +1217,12 @@ where
 /// checks "simple" conditions, like the configuration, before checking the state of each individual
 /// router. Use the `Network::weak_eq` function to skip some checks, which can be known beforehand.
 /// This implementation will check the configuration, advertised prefixes and all routers.
-impl<P, Q, Ospf> PartialEq for Network<P, Q, Ospf>
+impl<P, Q, Ospf, R> PartialEq for Network<P, Q, Ospf, R>
 where
     P: Prefix,
     Q: EventQueue<P> + PartialEq,
     Ospf: OspfImpl,
+    R: CustomProto + PartialEq,
 {
     fn eq(&self, other: &Self) -> bool {
         if self.routers != other.routers {
@@ -1238,11 +1249,11 @@ where
 
 /// Iterator of all router indices in the network.
 #[derive(Debug)]
-pub struct Indices<'a, P: Prefix, Ospf> {
-    i: std::collections::btree_map::Keys<'a, RouterId, Router<P, Ospf>>,
+pub struct Indices<'a, P: Prefix, Ospf, R> {
+    i: std::collections::btree_map::Keys<'a, RouterId, Router<P, Ospf, R>>,
 }
 
-impl<P: Prefix, Ospf> Iterator for Indices<'_, P, Ospf> {
+impl<P: Prefix, Ospf, R> Iterator for Indices<'_, P, Ospf, R> {
     type Item = RouterId;
 
     fn next(&mut self) -> Option<Self::Item> {
@@ -1250,9 +1261,9 @@ impl<P: Prefix, Ospf> Iterator for Indices<'_, P, Ospf> {
     }
 }
 
-impl<P: Prefix, Ospf> FusedIterator for Indices<'_, P, Ospf> {}
+impl<P: Prefix, Ospf, R> FusedIterator for Indices<'_, P, Ospf, R> {}
 
-impl<P: Prefix, Ospf> Indices<'_, P, Ospf> {
+impl<P: Prefix, Ospf, R> Indices<'_, P, Ospf, R> {
     /// Detach the iterator from the network itself
     pub fn detach(self) -> std::vec::IntoIter<RouterId> {
         self.collect::<Vec<RouterId>>().into_iter()
@@ -1288,13 +1299,13 @@ impl IndicesInAs<'_> {
 
 /// Iterator of all external routers in the network.
 #[derive(Debug)]
-pub struct RoutersInAs<'a, P: Prefix, Ospf> {
-    i: std::collections::btree_map::Values<'a, RouterId, Router<P, Ospf>>,
+pub struct RoutersInAs<'a, P: Prefix, Ospf, R> {
+    i: std::collections::btree_map::Values<'a, RouterId, Router<P, Ospf, R>>,
     asn: ASN,
 }
 
-impl<'a, P: Prefix, Ospf> Iterator for RoutersInAs<'a, P, Ospf> {
-    type Item = &'a Router<P, Ospf>;
+impl<'a, P: Prefix, Ospf, R> Iterator for RoutersInAs<'a, P, Ospf, R> {
+    type Item = &'a Router<P, Ospf, R>;
 
     fn next(&mut self) -> Option<Self::Item> {
         self.i.by_ref().find(|&r| r.asn() == self.asn)

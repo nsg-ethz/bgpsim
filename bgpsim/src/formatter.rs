@@ -38,15 +38,15 @@ use crate::{
 };
 
 /// Trait to format a type that contains RouterIds
-pub trait NetworkFormatter<'n, P: Prefix, Q, Ospf: OspfImpl> {
+pub trait NetworkFormatter<'n, P: Prefix, Q, Ospf: OspfImpl, R> {
     /// Return a formatted string by looking up router IDs in the network.
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String;
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String;
 
     /// Return a multiline struct that can be formatted and displayed.
     ///
     /// You should typically not have to re-implement that function. Instead, re-implement the
     /// `fmt_multiline_indent` function if you want your type to have a multiline formatting output.
-    fn fmt_multiline(&self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt_multiline(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         self.fmt_multiline_indent(net, 0)
     }
 
@@ -55,52 +55,52 @@ pub trait NetworkFormatter<'n, P: Prefix, Q, Ospf: OspfImpl> {
     /// Overwrite this function for your type to give the type a special multiline formatting
     /// output. If you don't overwrite this function, then your type will not have a special
     /// multiline output.
-    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, _indent: usize) -> String {
+    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf, R>, _indent: usize) -> String {
         self.fmt(net)
     }
 }
 
 /// A specialized network formatter, to be defined for types on which the `NetworkFormatter` is
 /// already defined (automatically)
-pub trait NetworkFormatterExt<'n, P: Prefix, Q, Ospf: OspfImpl> {
+pub trait NetworkFormatterExt<'n, P: Prefix, Q, Ospf: OspfImpl, R> {
     /// Return a special formatted string.
-    fn fmt_ext(&self, net: &'n Network<P, Q, Ospf>) -> String;
+    fn fmt_ext(&self, net: &'n Network<P, Q, Ospf, R>) -> String;
 }
 
-impl<'n, P, Q, Ospf, T> NetworkFormatter<'n, P, Q, Ospf> for &T
+impl<'n, P, Q, Ospf, R, T> NetworkFormatter<'n, P, Q, Ospf, R> for &T
 where
     P: Prefix,
     Ospf: OspfImpl,
-    T: NetworkFormatter<'n, P, Q, Ospf>,
+    T: NetworkFormatter<'n, P, Q, Ospf, R>,
 {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         T::fmt(*self, net)
     }
 
-    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
         T::fmt_multiline_indent(*self, net, indent)
     }
 }
 
-impl<'n, P, Q, Ospf, T> NetworkFormatter<'n, P, Q, Ospf> for &mut T
+impl<'n, P, Q, Ospf, R, T> NetworkFormatter<'n, P, Q, Ospf, R> for &mut T
 where
     P: Prefix,
     Ospf: OspfImpl,
-    T: NetworkFormatter<'n, P, Q, Ospf>,
+    T: NetworkFormatter<'n, P, Q, Ospf, R>,
 {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         T::fmt(*self, net)
     }
 
-    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
         T::fmt_multiline_indent(*self, net, indent)
     }
 }
 
 macro_rules! fmt_with_display {
     ($t:ty) => {
-        impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for $t {
-            fn fmt(&self, _net: &'n Network<P, Q, Ospf>) -> String {
+        impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for $t {
+            fn fmt(&self, _net: &'n Network<P, Q, Ospf, R>) -> String {
                 self.to_string()
             }
         }
@@ -119,17 +119,21 @@ fmt_with_display! {std::io::Error}
 
 macro_rules! fmt_iterable {
     ($t:ty, $k:ident, $k_multiline:ident) => {
-        impl<'n, P, Q, Ospf, T> NetworkFormatter<'n, P, Q, Ospf> for $t
+        impl<'n, P, Q, Ospf, R, T> NetworkFormatter<'n, P, Q, Ospf, R> for $t
         where
             P: Prefix,
             Ospf: OspfImpl,
-            T: NetworkFormatter<'n, P, Q, Ospf>,
+            T: NetworkFormatter<'n, P, Q, Ospf, R>,
         {
-            fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+            fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
                 self.iter().$k(net)
             }
 
-            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+            fn fmt_multiline_indent(
+                &self,
+                net: &'n Network<P, Q, Ospf, R>,
+                indent: usize,
+            ) -> String {
                 self.iter().$k_multiline(net, indent)
             }
         }
@@ -142,19 +146,19 @@ fmt_iterable! {std::collections::HashSet<T>, fmt_set, fmt_set_multiline}
 fmt_iterable! {std::collections::BTreeSet<T>, fmt_set, fmt_set_multiline}
 fmt_iterable! {std::collections::VecDeque<T>, fmt_list, fmt_list_multiline}
 
-impl<'n, P, Q, Ospf, T> NetworkFormatter<'n, P, Q, Ospf> for std::collections::BinaryHeap<T>
+impl<'n, P, Q, Ospf, R, T> NetworkFormatter<'n, P, Q, Ospf, R> for std::collections::BinaryHeap<T>
 where
     P: Prefix,
     Ospf: OspfImpl,
-    T: NetworkFormatter<'n, P, Q, Ospf> + Ord + Clone,
+    T: NetworkFormatter<'n, P, Q, Ospf, R> + Ord + Clone,
 {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         let mut sorted: Vec<_> = self.iter().collect();
         sorted.sort();
         sorted.iter().fmt_list(net)
     }
 
-    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
         let mut sorted: Vec<_> = self.iter().collect();
         sorted.sort();
         sorted.iter().fmt_list_multiline(net, indent)
@@ -163,18 +167,22 @@ where
 
 macro_rules! fmt_mapping {
     ($t:ty) => {
-        impl<'n, P, Q, Ospf, K, V> NetworkFormatter<'n, P, Q, Ospf> for $t
+        impl<'n, P, Q, Ospf, R, K, V> NetworkFormatter<'n, P, Q, Ospf, R> for $t
         where
             P: Prefix,
             Ospf: OspfImpl,
-            K: NetworkFormatter<'n, P, Q, Ospf>,
-            V: NetworkFormatter<'n, P, Q, Ospf>,
+            K: NetworkFormatter<'n, P, Q, Ospf, R>,
+            V: NetworkFormatter<'n, P, Q, Ospf, R>,
         {
-            fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+            fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
                 self.iter().fmt_map(net)
             }
 
-            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+            fn fmt_multiline_indent(
+                &self,
+                net: &'n Network<P, Q, Ospf, R>,
+                indent: usize,
+            ) -> String {
                 self.iter().fmt_map_multiline(net, indent)
             }
         }
@@ -186,18 +194,22 @@ fmt_mapping! {std::collections::BTreeMap<K, V>}
 
 macro_rules! fmt_prefix_trie {
     ($t:ty) => {
-        impl<'n, P, Q, Ospf, K, V> NetworkFormatter<'n, P, Q, Ospf> for $t
+        impl<'n, P, Q, Ospf, R, K, V> NetworkFormatter<'n, P, Q, Ospf, R> for $t
         where
             P: Prefix,
             Ospf: OspfImpl,
-            K: NetworkFormatter<'n, P, Q, Ospf> + prefix_trie::Prefix,
-            V: NetworkFormatter<'n, P, Q, Ospf>,
+            K: NetworkFormatter<'n, P, Q, Ospf, R> + prefix_trie::Prefix,
+            V: NetworkFormatter<'n, P, Q, Ospf, R>,
         {
-            fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+            fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
                 self.iter().fmt_map(net)
             }
 
-            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+            fn fmt_multiline_indent(
+                &self,
+                net: &'n Network<P, Q, Ospf, R>,
+                indent: usize,
+            ) -> String {
                 self.iter().fmt_map_multiline(net, indent)
             }
         }
@@ -209,20 +221,20 @@ fmt_prefix_trie! {prefix_trie::trieview::TrieView<'_, K, V>}
 
 macro_rules! fmt_tuple {
     () => {
-        impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for () {
-            fn fmt(&self, _net: &'n Network<P, Q, Ospf>) -> String {
+        impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for () {
+            fn fmt(&self, _net: &'n Network<P, Q, Ospf, R>) -> String {
                 "()".to_string()
             }
         }
     };
     ($t1:ident, ) => {
-        impl<'n, P, Q, Ospf, $t1> NetworkFormatter<'n, P, Q, Ospf> for ($t1,)
+        impl<'n, P, Q, Ospf, R, $t1> NetworkFormatter<'n, P, Q, Ospf, R> for ($t1,)
         where
             P: Prefix,
             Ospf: OspfImpl,
-            $t1: NetworkFormatter<'n, P, Q, Ospf>,
+            $t1: NetworkFormatter<'n, P, Q, Ospf, R>,
         {
-            fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+            fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
                 #[allow(non_snake_case)]
                 let ($t1,) = self;
                 let mut s = "(".to_string();
@@ -231,7 +243,7 @@ macro_rules! fmt_tuple {
                 s
             }
 
-            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
                 #[allow(non_snake_case)]
                 let ($t1,) = self;
                 let mut s = "(".to_string();
@@ -242,14 +254,14 @@ macro_rules! fmt_tuple {
         }
     };
     ($t1:ident, $($t:ident),+) => {
-        impl<'n, P, Q, Ospf, $t1, $($t),*> NetworkFormatter<'n, P, Q, Ospf> for ($t1, $($t),*)
+        impl<'n, P, Q, Ospf, R, $t1, $($t),*> NetworkFormatter<'n, P, Q, Ospf, R> for ($t1, $($t),*)
         where
             P: Prefix,
             Ospf: OspfImpl,
-            $t1: NetworkFormatter<'n, P, Q, Ospf>,
-            $($t: NetworkFormatter<'n, P, Q, Ospf>),*
+            $t1: NetworkFormatter<'n, P, Q, Ospf, R>,
+            $($t: NetworkFormatter<'n, P, Q, Ospf, R>),*
         {
-            fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+            fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
                 #[allow(non_snake_case)]
                 let ($t1, $($t),*) = self;
                 let mut s = "(".to_string();
@@ -262,7 +274,7 @@ macro_rules! fmt_tuple {
                 s
             }
 
-            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+            fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
                 let spc = " ".repeat(indent);
                 #[allow(non_snake_case)]
                 let ($t1, $($t),*) = self;
@@ -293,8 +305,8 @@ fmt_tuple!(T1, T2, T3, T4, T5, T6);
 fmt_tuple!(T1, T2, T3, T4, T5, T6, T7);
 fmt_tuple!(T1, T2, T3, T4, T5, T6, T7, T8);
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for RouterId {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for RouterId {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match net.get_router(*self) {
             Ok(r) => r.name().to_string(),
             Err(_) => "?".to_string(),
@@ -302,20 +314,20 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
     }
 }
 
-impl<'n, P, Q, Ospf, T> NetworkFormatter<'n, P, Q, Ospf> for Option<T>
+impl<'n, P, Q, Ospf, R, T> NetworkFormatter<'n, P, Q, Ospf, R> for Option<T>
 where
     P: Prefix,
     Ospf: OspfImpl,
-    T: NetworkFormatter<'n, P, Q, Ospf>,
+    T: NetworkFormatter<'n, P, Q, Ospf, R>,
 {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             Some(x) => format!("Some({})", x.fmt(net)),
             None => "None".to_string(),
         }
     }
 
-    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
         match self {
             Some(x) => format!("Some({})", x.fmt_multiline_indent(net, indent)),
             None => "None".to_string(),
@@ -323,21 +335,21 @@ where
     }
 }
 
-impl<'n, P, Q, Ospf, T, E> NetworkFormatter<'n, P, Q, Ospf> for Result<T, E>
+impl<'n, P, Q, Ospf, R, T, E> NetworkFormatter<'n, P, Q, Ospf, R> for Result<T, E>
 where
     P: Prefix,
     Ospf: OspfImpl,
-    T: NetworkFormatter<'n, P, Q, Ospf>,
-    E: NetworkFormatter<'n, P, Q, Ospf>,
+    T: NetworkFormatter<'n, P, Q, Ospf, R>,
+    E: NetworkFormatter<'n, P, Q, Ospf, R>,
 {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             Ok(x) => format!("Ok({})", x.fmt(net)),
             Err(x) => format!("Err({})", x.fmt(net)),
         }
     }
 
-    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+    fn fmt_multiline_indent(&self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
         match self {
             Ok(x) => format!("Ok({})", x.fmt_multiline_indent(net, indent)),
             Err(x) => format!("Err({})", x.fmt_multiline_indent(net, indent)),
@@ -346,42 +358,42 @@ where
 }
 
 /// Formatting a sequence as a set, list, or a path.
-pub trait NetworkFormatterSequence<'n, P, Q, Ospf>
+pub trait NetworkFormatterSequence<'n, P, Q, Ospf, R>
 where
     P: Prefix,
     Ospf: OspfImpl,
 {
     /// Format the iterator as a set, e.g., `{a, b, c}`.
-    fn fmt_set(self, net: &'n Network<P, Q, Ospf>) -> String;
+    fn fmt_set(self, net: &'n Network<P, Q, Ospf, R>) -> String;
 
     /// Format the iterator as a set over multiple lines.
-    fn fmt_set_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String;
+    fn fmt_set_multiline(self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String;
 
     /// Format the iterator as a list, e.g., `[a, b, c]`.
-    fn fmt_list(self, net: &'n Network<P, Q, Ospf>) -> String;
+    fn fmt_list(self, net: &'n Network<P, Q, Ospf, R>) -> String;
 
     /// Format the iterator as a milti-line list.
-    fn fmt_list_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String;
+    fn fmt_list_multiline(self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String;
 
     /// Format the iterator as a path, e.g., `a -> b -> c`.
-    fn fmt_path(self, net: &'n Network<P, Q, Ospf>) -> String;
+    fn fmt_path(self, net: &'n Network<P, Q, Ospf, R>) -> String;
 }
 
-impl<'n, P, Q, Ospf, I, T> NetworkFormatterSequence<'n, P, Q, Ospf> for I
+impl<'n, P, Q, Ospf, R, I, T> NetworkFormatterSequence<'n, P, Q, Ospf, R> for I
 where
     P: Prefix,
     Ospf: OspfImpl,
     I: IntoIterator<Item = T>,
-    T: NetworkFormatter<'n, P, Q, Ospf>,
+    T: NetworkFormatter<'n, P, Q, Ospf, R>,
 {
-    fn fmt_set(self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt_set(self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "{{{}}}",
             self.into_iter().map(|t| t.fmt(net).to_string()).join(", ")
         )
     }
 
-    fn fmt_set_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+    fn fmt_set_multiline(self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
         let spc = " ".repeat(indent);
         format!(
             "{{\n{spc}  {}\n{spc}}}",
@@ -391,14 +403,14 @@ where
         )
     }
 
-    fn fmt_list(self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt_list(self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "[{}]",
             self.into_iter().map(|t| t.fmt(net).to_string()).join(", ")
         )
     }
 
-    fn fmt_list_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+    fn fmt_list_multiline(self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
         let spc = " ".repeat(indent);
         format!(
             "[\n{spc}  {}\n{spc}]",
@@ -408,7 +420,7 @@ where
         )
     }
 
-    fn fmt_path(self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt_path(self, net: &'n Network<P, Q, Ospf, R>) -> String {
         self.into_iter()
             .map(|t| t.fmt(net).to_string())
             .join(" -> ")
@@ -416,27 +428,27 @@ where
 }
 
 /// Formatting a mapping
-pub trait NetworkFormatterMap<'n, P, Q, Ospf>
+pub trait NetworkFormatterMap<'n, P, Q, Ospf, R>
 where
     P: Prefix,
     Ospf: OspfImpl,
 {
     /// Format the map on a single line, e.g., `{a: 1, b: 2}`
-    fn fmt_map(self, net: &'n Network<P, Q, Ospf>) -> String;
+    fn fmt_map(self, net: &'n Network<P, Q, Ospf, R>) -> String;
 
     /// Format the iterator as a list, e.g., `[a, b, c]`.
-    fn fmt_map_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String;
+    fn fmt_map_multiline(self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String;
 }
 
-impl<'n, P, Q, Ospf, I, K, V> NetworkFormatterMap<'n, P, Q, Ospf> for I
+impl<'n, P, Q, Ospf, R, I, K, V> NetworkFormatterMap<'n, P, Q, Ospf, R> for I
 where
     P: Prefix,
     Ospf: OspfImpl,
     I: IntoIterator<Item = (K, V)>,
-    K: NetworkFormatter<'n, P, Q, Ospf>,
-    V: NetworkFormatter<'n, P, Q, Ospf>,
+    K: NetworkFormatter<'n, P, Q, Ospf, R>,
+    V: NetworkFormatter<'n, P, Q, Ospf, R>,
 {
-    fn fmt_map(self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt_map(self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "{{{}}}",
             self.into_iter()
@@ -445,7 +457,7 @@ where
         )
     }
 
-    fn fmt_map_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+    fn fmt_map_multiline(self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
         let spc = " ".repeat(indent);
         format!(
             "{{\n{spc}  {}\n{spc}}}",
@@ -461,40 +473,40 @@ where
 }
 
 /// Formatting a sequence of sequences.
-pub trait NetworkFormatterNestedSequence<'n, P, Q, Ospf>
+pub trait NetworkFormatterNestedSequence<'n, P, Q, Ospf, R>
 where
     P: Prefix,
     Ospf: OspfImpl,
 {
     /// Format path options on a single line, e.g., `a -> b -> c | a -> c`
-    fn fmt_path_options(self, net: &'n Network<P, Q, Ospf>) -> String;
+    fn fmt_path_options(self, net: &'n Network<P, Q, Ospf, R>) -> String;
 
     /// Format path options as a set on a single line, e.g., `{a -> b -> c, a -> c}`
-    fn fmt_path_set(self, net: &'n Network<P, Q, Ospf>) -> String;
+    fn fmt_path_set(self, net: &'n Network<P, Q, Ospf, R>) -> String;
 
     /// Format path options as a seton multiple lines.
-    fn fmt_path_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String;
+    fn fmt_path_multiline(self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String;
 }
 
-impl<'n, P, Q, Ospf, I, T> NetworkFormatterNestedSequence<'n, P, Q, Ospf> for I
+impl<'n, P, Q, Ospf, R, I, T> NetworkFormatterNestedSequence<'n, P, Q, Ospf, R> for I
 where
     P: Prefix,
     Ospf: OspfImpl,
     I: IntoIterator<Item = T>,
-    T: NetworkFormatterSequence<'n, P, Q, Ospf>,
+    T: NetworkFormatterSequence<'n, P, Q, Ospf, R>,
 {
-    fn fmt_path_options(self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt_path_options(self, net: &'n Network<P, Q, Ospf, R>) -> String {
         self.into_iter().map(|p| p.fmt_path(net)).join(" | ")
     }
 
-    fn fmt_path_set(self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt_path_set(self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "{{{}}}",
             self.into_iter().map(|p| p.fmt_path(net)).join(", ")
         )
     }
 
-    fn fmt_path_multiline(self, net: &'n Network<P, Q, Ospf>, indent: usize) -> String {
+    fn fmt_path_multiline(self, net: &'n Network<P, Q, Ospf, R>, indent: usize) -> String {
         let spc = " ".repeat(indent);
         format!(
             "{{\n{spc}  {}\n}}",
@@ -509,8 +521,10 @@ where
 // Forwarding State
 //
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for ForwardingState<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R>
+    for ForwardingState<P>
+{
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         let mut result = String::new();
         let f = &mut result;
         for (router, table) in self.state.iter() {
@@ -545,10 +559,10 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Forw
 // Event
 //
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl, T: FmtPriority> NetworkFormatter<'n, P, Q, Ospf>
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R, T: FmtPriority> NetworkFormatter<'n, P, Q, Ospf, R>
     for Event<P, T>
 {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             Event::Bgp { p, src, dst, e } => format!(
                 "BGP Event: {} -> {}: {} {}",
@@ -574,8 +588,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl, T: FmtPriority> NetworkFormatter<'n, P, Q
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpEvent<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for BgpEvent<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             BgpEvent::Withdraw(prefix) => format!("Withdraw {prefix}"),
             BgpEvent::Update(route) => format!("Update {}", route.fmt(net)),
@@ -587,8 +601,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpE
 // BGP Route
 //
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpRoute<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for BgpRoute<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "{{ {}, path: [{}], next hop: {}{}{}{} }}",
             self.prefix,
@@ -617,8 +631,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpR
 // BGP RIB Entry
 //
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpRibEntry<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for BgpRibEntry<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "{p}, as_path: {path:?}, weight: {w}, local_pref: {lp}, MED: {med}, IGP Cost: {cost}, next_hop: {nh}, from: {next}{comm}",
             p = self.route.prefix,
@@ -642,8 +656,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpR
 // Route Map
 //
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for RouteMapMatch<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for RouteMapMatch<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             RouteMapMatch::Prefix(_pl) => {
                 format!("Prefix in {{{}}}", _pl.iter().join(", "))
@@ -656,8 +670,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for RouteMapSet {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for RouteMapSet {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             RouteMapSet::NextHop(nh) => format!("NextHop = {}", nh.fmt(net)),
             RouteMapSet::Weight(Some(w)) => format!("Weight = {w}"),
@@ -673,8 +687,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for RouteMap<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for RouteMap<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "{} {}{}.",
             match self.state {
@@ -699,8 +713,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
 // Configuration
 //
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for ConfigExpr<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for ConfigExpr<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             ConfigExpr::IgpLinkWeight {
                 source,
@@ -787,12 +801,15 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conf
                 };
                 format!("Advertise Route on {} for {prefix}{opt}", router.fmt(net))
             }
+            ConfigExpr::CustomProto { router, config } => {
+                format!("Configure CustomProto on {}: {config}", router.fmt(net))
+            }
         }
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for ConfigExprKey<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for ConfigExprKey<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             ConfigExprKey::IgpLinkWeight { source, target } => format!(
                 "IGP Link Weight: {} -> {}",
@@ -831,12 +848,17 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conf
             ConfigExprKey::AdvertiseRoute { router, prefix } => {
                 format!("Advertise Route on {} for {prefix}", router.fmt(net))
             }
+            ConfigExprKey::CustomProto(router) => {
+                format!("Configure CustomProto on {}", router.fmt(net))
+            }
         }
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for ConfigModifier<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R>
+    for ConfigModifier<P>
+{
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             ConfigModifier::Insert(e) => format!("INSERT {}", e.fmt(net)),
             ConfigModifier::Remove(e) => format!("REMOVE {}", e.fmt(net)),
@@ -850,8 +872,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conf
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for RouteMapEdit<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for RouteMapEdit<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         let dir = match self.direction {
             RouteMapDirection::Incoming => "in",
             RouteMapDirection::Outgoing => "out",
@@ -866,8 +888,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for ConfigPatch<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for ConfigPatch<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         let mut result = String::new();
         let f = &mut result;
         writeln!(f, "ConfigPatch {{").unwrap();
@@ -879,8 +901,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conf
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Config<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for Config<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         let mut result = String::new();
         let f = &mut result;
         writeln!(f, "Config {{").unwrap();
@@ -896,8 +918,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conf
 // Recording
 //
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatterExt<'n, P, Q, Ospf> for FwDelta {
-    fn fmt_ext(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatterExt<'n, P, Q, Ospf, R> for FwDelta {
+    fn fmt_ext(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "{}: {} => {}",
             self.0.fmt(net),
@@ -907,8 +929,10 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatterExt<'n, P, Q, Ospf> for F
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatterExt<'n, P, Q, Ospf> for ConvergenceTrace {
-    fn fmt_ext(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatterExt<'n, P, Q, Ospf, R>
+    for ConvergenceTrace
+{
+    fn fmt_ext(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         self.iter()
             .enumerate()
             .map(|(i, (deltas, time))| {
@@ -925,8 +949,10 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatterExt<'n, P, Q, Ospf> for C
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for ConvergenceRecording {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R>
+    for ConvergenceRecording
+{
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         self.trace().fmt_ext(net)
     }
 }
@@ -935,8 +961,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Conv
 // Policies
 //
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for FwPolicy<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for FwPolicy<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             Self::Reachable(r, p) => {
                 format!("Reachable({}, {})", r.fmt(net), p)
@@ -959,8 +985,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for FwPo
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Edge {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for Edge {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             Edge::Internal(i) => i.fmt(net),
             Edge::External(e) => e.fmt(net),
@@ -968,8 +994,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Edge
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for InternalEdge {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for InternalEdge {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "{} -> {} (weight {}, area {})",
             self.src.fmt(net),
@@ -980,14 +1006,14 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Inte
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for ExternalEdge {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for ExternalEdge {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!("{} -> {}", self.int.fmt(net), self.ext.fmt(net))
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for PathCondition {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for PathCondition {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             Self::Node(r) => format!("[* {} *]", r.fmt(net)),
             Self::Edge(a, b) => format!("[* ({},{}) *]", a.fmt(net), b.fmt(net)),
@@ -1001,8 +1027,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Path
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Waypoint {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for Waypoint {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             Waypoint::Any => "?".to_string(),
             Waypoint::Star => "*".to_string(),
@@ -1011,14 +1037,14 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Wayp
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for PathConditionCNF {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for PathConditionCNF {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         PathCondition::from(self.clone()).fmt(net)
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for PolicyError<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for PolicyError<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             PolicyError::BlackHole { router, prefix } => {
                 format!("Black hole for {} at {}", prefix, router.fmt(net),)
@@ -1060,8 +1086,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Poli
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for StaticRoute {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for StaticRoute {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             StaticRoute::Direct(r) => r.fmt(net).to_string(),
             StaticRoute::Indirect(r) => format!("{} (indirect)", r.fmt(net)),
@@ -1070,8 +1096,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Stat
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for NetworkError {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for NetworkError {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             NetworkError::DeviceError(e) => e.fmt(net),
             NetworkError::ConfigError(e) => e.fmt(net).to_string(),
@@ -1117,8 +1143,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Netw
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for DeviceError {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for DeviceError {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             DeviceError::RouterNotFound(r) => {
                 format!("Router {} was not found in the IGP table!", r.fmt(net))
@@ -1149,10 +1175,10 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Devi
     }
 }
 
-impl<'n, P: Prefix + std::fmt::Debug, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf>
+impl<'n, P: Prefix + std::fmt::Debug, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R>
     for ConfigError
 {
-    fn fmt(&self, _net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt(&self, _net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             ConfigError::ConfigExprOverload { old, new } => {
                 format!("Adding `{old:?}` would overwrite `{new:?}`!",)
@@ -1165,8 +1191,10 @@ impl<'n, P: Prefix + std::fmt::Debug, Q, Ospf: OspfImpl> NetworkFormatter<'n, P,
 //
 // Formatting the queue
 //
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BasicEventQueue<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R>
+    for BasicEventQueue<P>
+{
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         self.0.iter().map(|e| e.fmt(net)).join("\n")
     }
 }
@@ -1174,8 +1202,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Basi
 //
 // formatting OSPF Rib Entries
 //
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for OspfRibEntry {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for OspfRibEntry {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         let kind = if self.inter_area { "R" } else { "I" };
         let nhs = self.fibs.iter().map(|r| r.fmt(net)).join(" || ");
         let nhs = if nhs.is_empty() {
@@ -1188,18 +1216,18 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Ospf
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl<Process = GlobalOspfProcess>> NetworkFormatter<'n, P, Q, Ospf>
-    for GlobalOspfProcess
+impl<'n, P: Prefix, Q, Ospf: OspfImpl<Process = GlobalOspfProcess>, R>
+    NetworkFormatter<'n, P, Q, Ospf, R> for GlobalOspfProcess
 {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         OspfProcess::fmt(self, net)
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl<Process = LocalOspfProcess>> NetworkFormatter<'n, P, Q, Ospf>
-    for LocalOspfProcess
+impl<'n, P: Prefix, Q, Ospf: OspfImpl<Process = LocalOspfProcess>, R>
+    NetworkFormatter<'n, P, Q, Ospf, R> for LocalOspfProcess
 {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         OspfProcess::fmt(self, net)
     }
 }

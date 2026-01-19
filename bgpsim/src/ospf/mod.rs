@@ -30,6 +30,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
 
 use crate::{
+    custom_protocol::CustomProto,
     event::Event,
     formatter::NetworkFormatter,
     forwarding_state::{ForwardingState, TO_DST},
@@ -207,9 +208,9 @@ where
         self.external_links.insert(id, Default::default());
     }
 
-    pub(crate) fn reset<P: Prefix, T: Default>(
+    pub(crate) fn reset<P: Prefix, T: Default, R>(
         &mut self,
-        mut routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
+        mut routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         // first, reset all processes
         routers
@@ -250,10 +251,10 @@ where
         )
     }
 
-    pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
+    pub(crate) fn add_links_from<P: Prefix, T: Default, R, I>(
         &mut self,
         links: I,
-        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId)>,
@@ -309,12 +310,12 @@ where
         )
     }
 
-    pub(crate) fn set_weight<P: Prefix, T: Default>(
+    pub(crate) fn set_weight<P: Prefix, T: Default, R>(
         &mut self,
         src: RouterId,
         dst: RouterId,
         weight: LinkWeight,
-        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process, R>>,
     ) -> Result<(Vec<Event<P, T>>, LinkWeight), NetworkError> {
         let (w, a) = self
             .links
@@ -342,10 +343,10 @@ where
         Ok((events, old_weight))
     }
 
-    pub(crate) fn set_link_weights_from<P: Prefix, T: Default, I>(
+    pub(crate) fn set_link_weights_from<P: Prefix, T: Default, R, I>(
         &mut self,
         weights: I,
-        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
@@ -432,12 +433,12 @@ where
             .unwrap_or(LinkWeight::INFINITY)
     }
 
-    pub(crate) fn set_area<P: Prefix, T: Default>(
+    pub(crate) fn set_area<P: Prefix, T: Default, R>(
         &mut self,
         a: RouterId,
         b: RouterId,
         area: OspfArea,
-        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process, R>>,
     ) -> Result<(Vec<Event<P, T>>, OspfArea), NetworkError> {
         let (w_a_b, aa) = self
             .links
@@ -479,11 +480,11 @@ where
     }
 
     /// a must be in the same AS, and b can be in a different AS
-    pub(crate) fn remove_link<P: Prefix, T: Default>(
+    pub(crate) fn remove_link<P: Prefix, T: Default, R>(
         &mut self,
         a: RouterId,
         b: RouterId,
-        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         assert!(self.is_internal(a));
         let update = if self.is_internal(b) {
@@ -524,10 +525,10 @@ where
         )
     }
 
-    pub(crate) fn remove_router<P: Prefix, T: Default>(
+    pub(crate) fn remove_router<P: Prefix, T: Default, R>(
         &mut self,
         r: RouterId,
-        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut deltas = Vec::new();
         if self.is_external(r) {
@@ -571,11 +572,11 @@ where
 
     /// Returns true if `a` can reach `b`, and vice-versa. `a` must be in this domain, while `b` can
     /// be in another domain.
-    pub fn is_reachable<P: Prefix>(
+    pub fn is_reachable<P: Prefix, R>(
         &self,
         a: RouterId,
         b: RouterId,
-        routers: &BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> bool {
         // `a` must be in that domain. otherwise, it is not reachable (from that domain)
         if self.is_external(a) || !routers.contains_key(&a) || !routers.contains_key(&b) {
@@ -714,11 +715,11 @@ where
             .unwrap_or(false)
     }
 
-    fn split<'a, P: Prefix>(
+    fn split<'a, P: Prefix, R>(
         &self,
         asn: ASN,
-        routers: &'a mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
-    ) -> BTreeMap<RouterId, &'a mut Router<P, Ospf::Process>> {
+        routers: &'a mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
+    ) -> BTreeMap<RouterId, &'a mut Router<P, Ospf::Process, R>> {
         routers
             .iter_mut()
             .map(|(router_id, device)| {
@@ -734,10 +735,10 @@ where
             .collect()
     }
 
-    fn split_all<'a, P: Prefix>(
+    fn split_all<'a, P: Prefix, R>(
         &self,
-        routers: &'a mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
-    ) -> BTreeMap<ASN, BTreeMap<RouterId, &'a mut Router<P, Ospf::Process>>> {
+        routers: &'a mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
+    ) -> BTreeMap<ASN, BTreeMap<RouterId, &'a mut Router<P, Ospf::Process, R>>> {
         let mut result: BTreeMap<_, BTreeMap<_, _>> = BTreeMap::new();
         for (router_id, device) in routers.iter_mut() {
             let asn = self
@@ -751,9 +752,9 @@ where
     }
 
     /// Reset all OSPF data and computations
-    pub(crate) fn reset<P: Prefix, T: Default>(
+    pub(crate) fn reset<P: Prefix, T: Default, R>(
         &mut self,
-        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut events = Vec::new();
         let mut routers = self.split_all(routers);
@@ -779,19 +780,19 @@ where
             .add_router(id);
     }
 
-    pub(crate) fn add_link<P: Prefix, T: Default>(
+    pub(crate) fn add_link<P: Prefix, T: Default, R>(
         &mut self,
         a: RouterId,
         b: RouterId,
-        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         self.add_links_from([(a, b)], routers)
     }
 
-    pub(crate) fn add_links_from<P: Prefix, T: Default, I>(
+    pub(crate) fn add_links_from<P: Prefix, T: Default, R, I>(
         &mut self,
         links: I,
-        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId)>,
@@ -828,12 +829,12 @@ where
             .collect())
     }
 
-    pub(crate) fn set_weight<P: Prefix, T: Default>(
+    pub(crate) fn set_weight<P: Prefix, T: Default, R>(
         &mut self,
         src: RouterId,
         dst: RouterId,
         weight: LinkWeight,
-        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> Result<(Vec<Event<P, T>>, LinkWeight), NetworkError> {
         let asn = self
             .routers
@@ -846,10 +847,10 @@ where
             .set_weight(src, dst, weight, routers)
     }
 
-    pub(crate) fn set_link_weights_from<P: Prefix, T: Default, I>(
+    pub(crate) fn set_link_weights_from<P: Prefix, T: Default, R, I>(
         &mut self,
         weights: I,
-        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>
     where
         I: IntoIterator<Item = (RouterId, RouterId, LinkWeight)>,
@@ -891,12 +892,12 @@ where
             .unwrap_or(LinkWeight::INFINITY)
     }
 
-    pub(crate) fn set_area<P: Prefix, T: Default>(
+    pub(crate) fn set_area<P: Prefix, T: Default, R>(
         &mut self,
         a: RouterId,
         b: RouterId,
         area: OspfArea,
-        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> Result<(Vec<Event<P, T>>, OspfArea), NetworkError> {
         let asn = self
             .routers
@@ -917,11 +918,11 @@ where
             .and_then(|x| x.get_area(a, b))
     }
 
-    pub(crate) fn remove_link<P: Prefix, T: Default>(
+    pub(crate) fn remove_link<P: Prefix, T: Default, R>(
         &mut self,
         a: RouterId,
         b: RouterId,
-        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let a_asn = self
             .routers
@@ -949,10 +950,10 @@ where
         Ok(events)
     }
 
-    pub(crate) fn remove_router<P: Prefix, T: Default>(
+    pub(crate) fn remove_router<P: Prefix, T: Default, R>(
         &mut self,
         r: RouterId,
-        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &mut BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
         let mut routers = self.split_all(routers);
         // remove the router from all domains
@@ -976,11 +977,11 @@ where
     }
 
     /// Returns true if `a` can reach `b`, and vice-versa
-    pub fn is_reachable<P: Prefix>(
+    pub fn is_reachable<P: Prefix, R>(
         &self,
         a: RouterId,
         b: RouterId,
-        routers: &BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> bool {
         let Some(a_asn) = self.routers.get(&a) else {
             return false;
@@ -1012,9 +1013,9 @@ where
     ///
     /// The returned lookup table maps each router id to its prefix. You can also obtain the prefix
     /// of a router with ID `id` by computing `id.index().into()`.
-    pub(crate) fn get_forwarding_state<P: Prefix>(
+    pub(crate) fn get_forwarding_state<P: Prefix, R>(
         &self,
-        routers: &BTreeMap<RouterId, Router<P, Ospf::Process>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf::Process, R>>,
     ) -> (
         ForwardingState<SimplePrefix>,
         HashMap<RouterId, SimplePrefix>,
@@ -1237,10 +1238,10 @@ pub trait OspfCoordinator: std::fmt::Debug + Clone + for<'de> Deserialize<'de> +
     fn new(asn: ASN) -> Self;
 
     /// Handle a neighborhood change
-    fn update<P: Prefix, T: Default>(
+    fn update<P: Prefix, T: Default, R>(
         &mut self,
         delta: NeighborhoodChange,
-        routers: BTreeMap<RouterId, &mut Router<P, Self::Process>>,
+        routers: BTreeMap<RouterId, &mut Router<P, Self::Process, R>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError>;
@@ -1337,7 +1338,7 @@ pub trait OspfProcess:
     fn remove_unreachable_lsas(&mut self) {}
 
     /// Get a formatted string of the process.
-    fn fmt<P, Q, Ospf>(&self, net: &Network<P, Q, Ospf>) -> String
+    fn fmt<P, Q, Ospf, R>(&self, net: &Network<P, Q, Ospf, R>) -> String
     where
         P: Prefix,
         Ospf: OspfImpl<Process = Self>,
@@ -1358,12 +1359,14 @@ pub trait OspfProcess:
     }
 }
 
-impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Ospf> {
+impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl, R: CustomProto>
+    Network<P, Q, Ospf, R>
+{
     /// Swap the OSPF implementation. Only used internally.
     pub(crate) fn swap_ospf<F, Ospf2>(
         mut self,
         mut convert: F,
-    ) -> Result<Network<P, Q, Ospf2>, NetworkError>
+    ) -> Result<Network<P, Q, Ospf2, R>, NetworkError>
     where
         Ospf2: OspfImpl,
         F: FnMut(
@@ -1410,7 +1413,7 @@ impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Os
                             .map(|(r, d)| (*r, d))
                             .collect::<BTreeMap<_, _>>();
 
-                        let events = OspfCoordinator::update::<P, ()>(
+                        let events = OspfCoordinator::update::<P, (), R>(
                             &mut ospf_domain.coordinator,
                             NeighborhoodChange::AddExternalNetwork { int: r, ext: n },
                             routers,
@@ -1434,7 +1437,7 @@ impl<P: Prefix, Q: crate::event::EventQueue<P>, Ospf: OspfImpl> Network<P, Q, Os
                             .collect::<BTreeMap<_, _>>();
 
                         let weight_rev = links[&b][&a].0;
-                        let events = OspfCoordinator::update::<P, ()>(
+                        let events = OspfCoordinator::update::<P, (), R>(
                             &mut ospf_domain.coordinator,
                             NeighborhoodChange::AddLink {
                                 a,
@@ -1512,8 +1515,8 @@ impl From<RouterId> for IgpTarget {
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for IgpTarget {
-    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for IgpTarget {
+    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf, R>) -> String {
         match self {
             IgpTarget::Neighbor(r) => format!("{} (neighbor)", r.fmt(net)),
             IgpTarget::Ospf(r) => r.fmt(net).to_string(),

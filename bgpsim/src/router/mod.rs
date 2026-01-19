@@ -28,8 +28,9 @@
 //! Module defining an internal router with BGP functionality.
 
 use crate::{
+    custom_protocol::CustomProto,
     event::{Event, EventOutcome},
-    ospf::{global::GlobalOspfProcess, IgpTarget, OspfProcess},
+    ospf::{IgpTarget, OspfProcess},
     types::{
         DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate, ASN,
     },
@@ -46,8 +47,14 @@ pub use sr_process::{SrProcess, StaticRoute};
 
 /// Bgp Router
 #[derive(Debug, PartialEq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "P: for<'a> Deserialize<'a>, Ospf: for<'a> Deserialize<'a>"))]
-pub struct Router<P: Prefix, Ospf = GlobalOspfProcess> {
+#[serde(bound(
+    deserialize = "P: for<'a> Deserialize<'a>, Ospf: for<'a> Deserialize<'a>, R: for<'a> Deserialize<'a>"
+))]
+pub struct Router<
+    P: Prefix,
+    Ospf, // = GlobalOspfProcess,
+    R,    // = ()
+> {
     /// Name of the router
     name: String,
     /// ID of the router
@@ -60,6 +67,8 @@ pub struct Router<P: Prefix, Ospf = GlobalOspfProcess> {
     pub sr: SrProcess<P>,
     /// The BGP routing process
     pub bgp: BgpProcess<P>,
+    /// The custom routing protocol
+    pub custom_proto: R,
     /// Flag to tell if load balancing is enabled. If load balancing is enabled, then the router
     /// will load balance packets towards a destination if multiple paths exist with equal
     /// cost. load balancing will only work within OSPF. BGP Additional Paths is not yet
@@ -67,8 +76,8 @@ pub struct Router<P: Prefix, Ospf = GlobalOspfProcess> {
     pub(crate) do_load_balancing: bool,
 }
 
-impl<P: Prefix, Ospf> IntoIpv4Prefix for Router<P, Ospf> {
-    type T = Router<Ipv4Prefix, Ospf>;
+impl<P: Prefix, Ospf, R> IntoIpv4Prefix for Router<P, Ospf, R> {
+    type T = Router<Ipv4Prefix, Ospf, R>;
 
     fn into_ipv4_prefix(self) -> Self::T {
         Router {
@@ -78,12 +87,13 @@ impl<P: Prefix, Ospf> IntoIpv4Prefix for Router<P, Ospf> {
             ospf: self.ospf,
             sr: self.sr.into_ipv4_prefix(),
             bgp: self.bgp.into_ipv4_prefix(),
+            custom_proto: self.custom_proto,
             do_load_balancing: self.do_load_balancing,
         }
     }
 }
 
-impl<P: Prefix, Ospf: Clone> Clone for Router<P, Ospf> {
+impl<P: Prefix, Ospf: Clone, R: Clone> Clone for Router<P, Ospf, R> {
     fn clone(&self) -> Self {
         Router {
             name: self.name.clone(),
@@ -92,12 +102,13 @@ impl<P: Prefix, Ospf: Clone> Clone for Router<P, Ospf> {
             ospf: self.ospf.clone(),
             sr: self.sr.clone(),
             bgp: self.bgp.clone(),
+            custom_proto: self.custom_proto.clone(),
             do_load_balancing: self.do_load_balancing,
         }
     }
 }
 
-impl<P: Prefix, Ospf> Router<P, Ospf> {
+impl<P: Prefix, Ospf, R> Router<P, Ospf, R> {
     /// Return the idx of the Router
     pub fn router_id(&self) -> RouterId {
         self.router_id
@@ -141,8 +152,62 @@ impl<P: Prefix, Ospf> Router<P, Ospf> {
     }
 }
 
-impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
-    pub(crate) fn new(name: String, router_id: RouterId, asn: ASN) -> Router<P, Ospf> {
+impl<P: Prefix, Ospf: OspfProcess, R> Router<P, Ospf, R> {
+    /// Returns `true` if some process of that router is waiting for some timeout to expire. Only
+    /// OSPF might trigger such a timeout at the moment.
+    pub(crate) fn is_waiting_for_timeout(&self) -> bool {
+        self.ospf.is_waiting_for_timeout()
+    }
+
+    /// Trigger any timeout event that might be registered on that device. Only OSPF might trigger
+    /// such a timeout at the moment.
+    pub(crate) fn trigger_timeout<T: Default>(&mut self) -> Result<Vec<Event<P, T>>, DeviceError> {
+        self.update_ospf(|ospf| ospf.trigger_timeout())
+    }
+
+    /// Execute a function on the ospf process. Then, update the BGP process if there was any
+    /// change in OSPF.
+    ///
+    /// The function must return both the triggered events, and a boolean flag describing whether
+    /// BGP must be recomputed.
+    pub(crate) fn update_ospf<F, T: Default>(
+        &mut self,
+        f: F,
+    ) -> Result<Vec<Event<P, T>>, DeviceError>
+    where
+        F: FnOnce(&mut Ospf) -> Result<(bool, Vec<Event<P, T>>), DeviceError>,
+    {
+        let (recompute_bgp, mut ospf_events) = f(&mut self.ospf)?;
+        if recompute_bgp {
+            // changes to BGP necessary
+            self.bgp.update_igp(&self.ospf);
+            let mut bgp_events = self.bgp.update_tables(false)?;
+            ospf_events.append(&mut bgp_events);
+        }
+        Ok(ospf_events)
+    }
+
+    /// Swap out the OSPF process by `Ospf2`. The new value of `ospf` will be set to the default
+    /// value by calling `OspfProcess::new`.
+    pub(crate) fn swap_ospf<Ospf2: OspfProcess>(self) -> (Router<P, Ospf2, R>, Ospf) {
+        (
+            Router {
+                name: self.name,
+                router_id: self.router_id,
+                asn: self.asn,
+                ospf: Ospf2::new(self.router_id),
+                sr: self.sr,
+                bgp: self.bgp,
+                custom_proto: self.custom_proto,
+                do_load_balancing: self.do_load_balancing,
+            },
+            self.ospf,
+        )
+    }
+}
+
+impl<P: Prefix, Ospf: OspfProcess, R: CustomProto> Router<P, Ospf, R> {
+    pub(crate) fn new(name: String, router_id: RouterId, asn: ASN) -> Router<P, Ospf, R> {
         Router {
             name,
             router_id,
@@ -150,6 +215,7 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
             ospf: Ospf::new(router_id),
             sr: SrProcess::new(),
             bgp: BgpProcess::new(router_id, asn),
+            custom_proto: R::new(router_id),
             do_load_balancing: false,
         }
     }
@@ -200,18 +266,6 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
                 Err(DeviceError::WrongRouter(self.router_id, dst))
             }
         }
-    }
-
-    /// Returns `true` if some process of that router is waiting for some timeout to expire. Only
-    /// OSPF might trigger such a timeout at the moment.
-    pub(crate) fn is_waiting_for_timeout(&self) -> bool {
-        self.ospf.is_waiting_for_timeout()
-    }
-
-    /// Trigger any timeout event that might be registered on that device. Only OSPF might trigger
-    /// such a timeout at the moment.
-    pub(crate) fn trigger_timeout<T: Default>(&mut self) -> Result<Vec<Event<P, T>>, DeviceError> {
-        self.update_ospf(|ospf| ospf.trigger_timeout())
     }
 
     /// Get the forwarding table of the router. The forwarding table is a mapping from each prefix
@@ -266,44 +320,5 @@ impl<P: Prefix, Ospf: OspfProcess> Router<P, Ospf> {
         } else {
             vec![nhs[0]]
         }
-    }
-
-    /// Execute a function on the ospf process. Then, update the BGP process if there was any
-    /// change in OSPF.
-    ///
-    /// The function must return both the triggered events, and a boolean flag describing whether
-    /// BGP must be recomputed.
-    pub(crate) fn update_ospf<F, T: Default>(
-        &mut self,
-        f: F,
-    ) -> Result<Vec<Event<P, T>>, DeviceError>
-    where
-        F: FnOnce(&mut Ospf) -> Result<(bool, Vec<Event<P, T>>), DeviceError>,
-    {
-        let (recompute_bgp, mut ospf_events) = f(&mut self.ospf)?;
-        if recompute_bgp {
-            // changes to BGP necessary
-            self.bgp.update_igp(&self.ospf);
-            let mut bgp_events = self.bgp.update_tables(false)?;
-            ospf_events.append(&mut bgp_events);
-        }
-        Ok(ospf_events)
-    }
-
-    /// Swap out the OSPF process by `Ospf2`. The new value of `ospf` will be set to the default
-    /// value by calling `OspfProcess::new`.
-    pub(crate) fn swap_ospf<Ospf2: OspfProcess>(self) -> (Router<P, Ospf2>, Ospf) {
-        (
-            Router {
-                name: self.name,
-                router_id: self.router_id,
-                asn: self.asn,
-                ospf: Ospf2::new(self.router_id),
-                sr: self.sr,
-                bgp: self.bgp,
-                do_load_balancing: self.do_load_balancing,
-            },
-            self.ospf,
-        )
     }
 }

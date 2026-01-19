@@ -1710,10 +1710,10 @@ impl SptNode {
     }
 }
 
-impl<'n, P: crate::types::Prefix, Q> crate::formatter::NetworkFormatter<'n, P, Q, super::LocalOspf>
-    for OspfRib
+impl<'n, P: crate::types::Prefix, Q, R>
+    crate::formatter::NetworkFormatter<'n, P, Q, super::LocalOspf, R> for OspfRib
 {
-    fn fmt(&self, net: &'n crate::network::Network<P, Q, super::LocalOspf>) -> String {
+    fn fmt(&self, net: &'n crate::network::Network<P, Q, super::LocalOspf, R>) -> String {
         let external_lsas = format!(
             "external LSAs: {{\n  {}\n}}",
             self.external_lsas
@@ -1730,10 +1730,10 @@ impl<'n, P: crate::types::Prefix, Q> crate::formatter::NetworkFormatter<'n, P, Q
     }
 }
 
-impl<'n, P: crate::types::Prefix, Q> crate::formatter::NetworkFormatter<'n, P, Q, super::LocalOspf>
-    for AreaDataStructure
+impl<'n, P: crate::types::Prefix, Q, R>
+    crate::formatter::NetworkFormatter<'n, P, Q, super::LocalOspf, R> for AreaDataStructure
 {
-    fn fmt(&self, net: &'n crate::network::Network<P, Q, super::LocalOspf>) -> String {
+    fn fmt(&self, net: &'n crate::network::Network<P, Q, super::LocalOspf, R>) -> String {
         format!(
             "{} LSAs: {{\n  {}\n}}",
             self.area,

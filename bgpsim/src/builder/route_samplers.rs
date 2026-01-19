@@ -29,43 +29,43 @@ pub trait RouteSampler {
     /// Return an iterator of routes to advertise. Each item should be a tuple of RouterId (the
     /// router that advertises the route) and the AS path length that should be advertised from that
     /// router.
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (RouterId, usize)>;
 }
 
 impl RouteSampler for Vec<(RouterId, usize)> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (RouterId, usize)> {
         self.iter().copied()
     }
 }
 
 impl RouteSampler for &[(RouterId, usize)] {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (RouterId, usize)> {
         self.iter().copied()
     }
 }
 
 impl RouteSampler for HashMap<RouterId, usize> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (RouterId, usize)> {
         self.iter().map(|(r, l)| (*r, *l))
     }
 }
 
 impl RouteSampler for BTreeMap<RouterId, usize> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (RouterId, usize)> {
         self.iter().map(|(r, l)| (*r, *l))
     }
@@ -111,9 +111,9 @@ impl EqualPreference {
 }
 
 impl RouteSampler for EqualPreference {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (RouterId, usize)> {
         let ases = net.ases();
         let ases: Vec<ASN> = if let Some(ext) = &self.ext {
@@ -196,9 +196,9 @@ impl UniquePreference {
 }
 
 impl RouteSampler for UniquePreference {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (RouterId, usize)> {
         let ases = net.ases();
         #[allow(unused_mut)]
@@ -289,9 +289,9 @@ impl SingleBestOthersEqual {
 }
 
 impl RouteSampler for SingleBestOthersEqual {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (RouterId, usize)> {
         let ases = net.ases();
         #[allow(unused_mut)]

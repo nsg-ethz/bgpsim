@@ -373,8 +373,8 @@ impl RouterLsaLink {
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for LsaHeader {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for LsaHeader {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         let max_age = if self.is_max_age() { " MaxAge" } else { "" };
         match self.lsa_type {
             LsaType::Router => format!(
@@ -432,8 +432,8 @@ impl std::fmt::Debug for LsaHeader {
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for LsaData {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for LsaData {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
             LsaData::Router(x) => format!("{{{}}}", x.iter().map(|x| x.fmt(net)).join(", ")),
             LsaData::Summary(weight) => format!("{weight}"),
@@ -454,8 +454,8 @@ impl std::fmt::Debug for LsaData {
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Lsa {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for Lsa {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!("{} => {}", self.header.fmt(net), self.data.fmt(net))
     }
 }
@@ -466,8 +466,8 @@ impl std::fmt::Debug for Lsa {
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for RouterLsaLink {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for RouterLsaLink {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         let ty = match self.link_type {
             LinkType::PointToPoint => "",
             LinkType::Virtual => " [v]",
@@ -581,8 +581,8 @@ impl From<&Lsa> for LsaKey {
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for LsaKey {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for LsaKey {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self.lsa_type {
             LsaType::Router => format!("RouterLSA({})", self.router.fmt(net),),
             LsaType::Summary => format!(

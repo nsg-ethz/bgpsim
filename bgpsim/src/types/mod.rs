@@ -160,8 +160,8 @@ impl<P> FwDelta<P> {
     }
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for FwDelta<P> {
-    fn fmt(&self, net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for FwDelta<P> {
+    fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         format!(
             "{}: {} --> {}",
             self.prefix,
@@ -187,7 +187,11 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for FwDe
 
 impl<P: Prefix> StepUpdate<P> {
     /// Get a struct to display the StepUpdate
-    pub fn fmt<Q, Ospf: OspfImpl>(&self, net: &Network<P, Q, Ospf>, router: RouterId) -> String {
+    pub fn fmt<Q, Ospf: OspfImpl, R>(
+        &self,
+        net: &Network<P, Q, Ospf, R>,
+        router: RouterId,
+    ) -> String {
         match self {
             StepUpdate::Unchanged => String::from("Unchanged"),
             StepUpdate::Single(delta) => format!("{} => {}", router.fmt(net), delta.fmt(net)),

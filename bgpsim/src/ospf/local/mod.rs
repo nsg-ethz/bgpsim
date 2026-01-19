@@ -237,10 +237,10 @@ impl OspfCoordinator for LocalOspfCoordinator {
         Self(asn)
     }
 
-    fn update<P: Prefix, T: Default>(
+    fn update<P: Prefix, T: Default, R>(
         &mut self,
         delta: NeighborhoodChange,
-        mut routers: BTreeMap<RouterId, &mut Router<P, Self::Process>>,
+        mut routers: BTreeMap<RouterId, &mut Router<P, Self::Process, R>>,
         _links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         _external_links: &HashMap<RouterId, HashSet<RouterId>>,
     ) -> Result<Vec<Event<P, T>>, NetworkError> {
@@ -279,8 +279,8 @@ pub enum OspfEvent {
     },
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for OspfEvent {
-    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> for OspfEvent {
+    fn fmt(&self, net: &'n crate::network::Network<P, Q, Ospf, R>) -> String {
         match self {
             OspfEvent::DatabaseDescription { headers, .. } => format!(
                 "DatabaseDescription {{{}}}",

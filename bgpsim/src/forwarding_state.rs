@@ -18,6 +18,7 @@
 //! the state.
 
 use crate::{
+    custom_protocol::CustomProto,
     network::Network,
     ospf::OspfImpl,
     record::FwDelta,
@@ -41,6 +42,9 @@ lazy_static! {
 /// We use indices to refer to specific routers (their ID), and to prefixes. This improves
 /// performance. However, we know that the network cannot delete any router, so the generated
 /// routers will have monotonically increasing indices. Thus, we simply use that.
+///
+/// **Warning**: This forwarding state only includes the computation for OSPF + BGP. The custom
+/// protocol is ignored.
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ForwardingState<P: Prefix> {
     /// The forwarding state
@@ -81,7 +85,7 @@ impl<P: Prefix> PartialEq for ForwardingState<P> {
 
 impl<P: Prefix> ForwardingState<P> {
     /// Extracts the forwarding state from the network.
-    pub fn from_net<Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>) -> Self {
+    pub fn from_net<Q, Ospf: OspfImpl, R: CustomProto>(net: &Network<P, Q, Ospf, R>) -> Self {
         // initialize the prefix lookup
         let mut state: HashMap<RouterId, P::Map<Vec<RouterId>>> =
             HashMap::with_capacity(net.num_routers());

@@ -29,6 +29,7 @@ use serde_json::json;
 use crate::topology_zoo::TopologyZoo;
 use crate::{
     config::{ConfigExpr, ConfigModifier, NetworkConfig},
+    custom_protocol::CustomProto,
     event::{BasicEventQueue, Event, EventQueue},
     network::Network,
     ospf::{LocalOspf, OspfImpl},
@@ -44,11 +45,12 @@ type ExportRouters = Vec<(RouterId, String, ASN)>;
 type ExportLinks = Vec<(RouterId, RouterId)>;
 type ExportTuple<P> = (ExportConfig<P>, ExportRouters, ExportLinks);
 
-impl<P, Q, Ospf> Network<P, Q, Ospf>
+impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
     Q: EventQueue<P> + Serialize,
     Ospf: OspfImpl,
+    R: CustomProto + Serialize,
 {
     /// Create a json string from the network. This string will contain both the actual network
     /// state and the configuration. In case the network state can no longer be deserialized, the
@@ -77,11 +79,12 @@ where
     }
 }
 
-impl<P, Q, Ospf> Network<P, Q, Ospf>
+impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
     Q: EventQueue<P>,
     Ospf: OspfImpl,
+    R: CustomProto,
 {
     /// Create a json value containing the configuration.
     fn as_topo_config(&self) -> ExportTuple<P> {
@@ -108,7 +111,7 @@ where
 #[derive(Debug, Serialize)]
 #[allow(clippy::type_complexity)]
 pub struct WebExporter {
-    net: Option<Network<Ipv4Prefix, BasicEventQueue<Ipv4Prefix>, LocalOspf>>,
+    net: Option<Network<Ipv4Prefix, BasicEventQueue<Ipv4Prefix>, LocalOspf, ()>>,
     config_node_routes: ExportTuple<Ipv4Prefix>,
     pos: Option<HashMap<RouterId, Point>>,
     spec:
@@ -123,7 +126,7 @@ pub struct WebExporter {
 impl WebExporter {
     /// Create a new, empty web exporter.
     pub fn new<P: Prefix, Q: EventQueue<P> + Clone, Ospf: OspfImpl>(
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
     ) -> Self {
         // transform the queue into a basic event queue
         let mut net = net.clone();
@@ -305,12 +308,14 @@ pub struct Point {
     pub y: f64,
 }
 
-impl<P, Q, Ospf> Network<P, Q, Ospf>
+impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
     Q: EventQueue<P>,
     Ospf: OspfImpl,
     for<'a> Q: Deserialize<'a>,
+    R: CustomProto,
+    for<'a> R: Deserialize<'a>,
 {
     /// Read a json file containing the network and create the network. If the network cannot be
     /// deserialized directly, reconstruct it from the configuration that should also be part of the
@@ -347,11 +352,12 @@ where
     }
 }
 
-impl<P, Q, Ospf> Network<P, Q, Ospf>
+impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
     Q: EventQueue<P>,
     Ospf: OspfImpl,
+    R: CustomProto,
 {
     /// Deserialize the json structure containing configuration, nodes and routes.
     fn from_config_nodes_routes<F>(
@@ -451,6 +457,10 @@ where
                     as_path,
                     med,
                     community,
+                },
+                ConfigExpr::CustomProto { router, config } => ConfigExpr::CustomProto {
+                    router: node(router)?,
+                    config,
                 },
             };
             net.apply_modifier(&ConfigModifier::Insert(expr))?;

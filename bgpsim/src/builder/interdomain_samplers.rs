@@ -28,43 +28,43 @@ use rand::{prelude::*, rngs::StdRng};
 pub trait AsLevelSampler {
     /// Return a lookup of each ASN and its level. ASes that are not retuned will be left
     /// unconfigured.
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (ASN, usize)>;
 }
 
 impl AsLevelSampler for &[(ASN, usize)] {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (ASN, usize)> {
         self.iter().copied()
     }
 }
 
 impl AsLevelSampler for Vec<(ASN, usize)> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (ASN, usize)> {
         self.iter().copied()
     }
 }
 
 impl AsLevelSampler for HashMap<ASN, usize> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (ASN, usize)> {
         self.iter().map(|(asn, level)| (*asn, *level))
     }
 }
 
 impl AsLevelSampler for BTreeMap<ASN, usize> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        _net: &Network<P, Q, Ospf>,
+        _net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (ASN, usize)> {
         self.iter().map(|(asn, level)| (*asn, *level))
     }
@@ -85,9 +85,9 @@ impl InterDomainTree {
 }
 
 impl AsLevelSampler for InterDomainTree {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, R>,
     ) -> impl IntoIterator<Item = (ASN, usize)> {
         let mut result = BTreeMap::new();
 
