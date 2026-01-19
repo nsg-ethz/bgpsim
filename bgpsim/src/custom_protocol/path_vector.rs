@@ -20,11 +20,14 @@ use super::{routing_algebra::RoutingAlgebra, CustomProto, FwDecision};
 pub struct PathVector<A> {
     router_id: RouterId,
     neighbors: BTreeSet<RouterId>,
+    default_edge_attribute: A,
     edge_attributes: BTreeMap<RouterId, A>,
     /// For each destination (router ID), we store information about what paths we learned and
     /// what next-hops we prefer.
     rib: BTreeMap<RouterId, Rib<A>>,
 }
+
+type Event<A> = (RouterId, A, Vec<RouterId>);
 
 /// The data for a single destination
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -51,11 +54,25 @@ impl<A: RoutingAlgebra> Default for Rib<A> {
 }
 
 impl<A: RoutingAlgebra> PathVector<A> {
+    /// Set the default edge attribute (initially bullet). Make sure that all events are processed.
+    pub fn set_default_edge_attribute(&mut self, attr: impl Into<A>) -> Vec<(RouterId, Event<A>)> {
+        self.default_edge_attribute = attr.into();
+        self.update_all()
+    }
+
+    /// Set a specific edge edge attribute. Make sure all events are processed.
+    pub fn set_edge_attribute(
+        &mut self,
+        neighbor: RouterId,
+        attr: impl Into<A>,
+    ) -> Vec<(RouterId, Event<A>)> {
+        self.edge_attributes.insert(neighbor, attr.into());
+        self.update_all()
+    }
+
     /// Update the local tables.
-    fn update(&mut self, destination: RouterId) -> Vec<(RouterId, (RouterId, A, Vec<RouterId>))> {
+    fn update(&mut self, destination: RouterId) -> Vec<(RouterId, Event<A>)> {
         let rib = self.rib.entry(destination).or_default();
-        let old_best = rib.best.clone();
-        let old_best_path = rib.best_path.clone();
         let mut new_best = A::bullet();
         let mut new_best_path = Vec::new();
         let mut new_next_hop = None::<RouterId>;
@@ -63,29 +80,24 @@ impl<A: RoutingAlgebra> PathVector<A> {
             let attr = self
                 .edge_attributes
                 .get(from)
-                .cloned()
-                .unwrap_or(A::bullet())
-                + attr.clone();
-            let attr = self
-                .edge_attributes
-                .get(from)
-                .cloned()
-                .unwrap_or(A::bullet())
+                .unwrap_or(&self.default_edge_attribute)
+                .clone()
                 + attr.clone();
             let next_hop_ord = new_next_hop.map(|x| from.cmp(&x)).unwrap_or(Ordering::Less);
-            match attr.cmp(&new_best).then(next_hop_ord) {
-                Ordering::Less => {
-                    new_best = attr;
-                    new_best_path = path.clone();
-                    new_next_hop = Some(*from);
-                }
-                _ => {}
+            if attr.cmp(&new_best).then(next_hop_ord) == Ordering::Less {
+                new_best = attr;
+                new_best_path = path.clone();
+                new_best_path.push(self.router_id);
+                new_next_hop = Some(*from);
             }
         }
-        rib.best = new_best;
-        rib.best_path = new_best_path;
         // update neighbors if necessary
-        if (&rib.best, &rib.best_path) != (&old_best, &old_best_path) {
+        if (&new_best, &new_best_path) != (&rib.best, &rib.best_path)
+            && (new_best < A::bullet() || rib.best < A::bullet())
+        {
+            rib.best = new_best;
+            rib.best_path = new_best_path;
+            rib.next_hop = new_next_hop;
             self.neighbors
                 .iter()
                 .map(|neighbor| {
@@ -96,12 +108,16 @@ impl<A: RoutingAlgebra> PathVector<A> {
                 })
                 .collect()
         } else {
+            // if we don't even learn any route for that destination, remove it from the table
+            if rib.rib_in.is_empty() {
+                self.rib.remove(&destination);
+            }
             Vec::new()
         }
     }
 
     /// Update all destinations at once.
-    fn update_all(&mut self) -> Vec<(RouterId, (RouterId, A, Vec<RouterId>))> {
+    fn update_all(&mut self) -> Vec<(RouterId, Event<A>)> {
         self.rib
             .keys()
             .copied()
@@ -113,14 +129,14 @@ impl<A: RoutingAlgebra> PathVector<A> {
 }
 
 impl<A: RoutingAlgebra + Serialize + for<'de> Deserialize<'de>> CustomProto for PathVector<A> {
-    type Event = (RouterId, A, Vec<RouterId>);
+    type Event = Event<A>;
     type Header = RouterId;
 
     fn new(router_id: RouterId) -> Self {
         let rib = BTreeMap::from_iter(Some((
             router_id,
             Rib {
-                rib_in: BTreeMap::from_iter(Some((router_id, (A::identity(), vec![router_id])))),
+                rib_in: BTreeMap::from_iter(Some((router_id, (A::identity(), vec![])))),
                 best: A::identity(),
                 best_path: vec![router_id],
                 next_hop: Some(router_id),
@@ -129,7 +145,8 @@ impl<A: RoutingAlgebra + Serialize + for<'de> Deserialize<'de>> CustomProto for 
         Self {
             router_id,
             neighbors: Default::default(),
-            edge_attributes: Default::default(),
+            default_edge_attribute: A::bullet(),
+            edge_attributes: BTreeMap::from_iter(Some((router_id, A::identity()))),
             rib,
         }
     }
@@ -179,6 +196,9 @@ impl<A: RoutingAlgebra + Serialize + for<'de> Deserialize<'de>> CustomProto for 
         let Some(next_hop) = rib.next_hop else {
             return FwDecision::Drop;
         };
+        if rib.best >= A::bullet() {
+            return FwDecision::Drop;
+        }
         if next_hop == self.router_id {
             return FwDecision::Deliver;
         }
@@ -194,14 +214,15 @@ impl<A: RoutingAlgebra + Serialize + for<'de> Deserialize<'de>> CustomProto for 
         event: Self::Event,
     ) -> Result<Vec<(RouterId, Self::Event)>, DeviceError> {
         let (dst, attr, path) = event;
-        if attr < A::bullet() {
+        // check the path
+        if path.contains(&self.router_id) {
+            self.rib.entry(dst).or_default().rib_in.remove(&from);
+        } else {
             self.rib
                 .entry(dst)
                 .or_default()
                 .rib_in
                 .insert(from, (attr, path));
-        } else {
-            self.rib.entry(dst).or_default().rib_in.remove(&from);
         }
         Ok(self.update(dst))
     }

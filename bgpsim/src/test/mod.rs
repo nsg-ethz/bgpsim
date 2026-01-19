@@ -105,6 +105,7 @@ macro_rules! test_bad_route {
 
 mod test_builder;
 mod test_config;
+mod test_custom_proto;
 #[cfg(feature = "export")]
 mod test_export;
 mod test_forwarding_state;

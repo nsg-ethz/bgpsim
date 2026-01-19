@@ -31,8 +31,8 @@ use crate::{
     route_map::{RouteMap, RouteMapDirection},
     router::{ForwardOutcome, Router, StaticRoute},
     types::{
-        IntoIpv4Prefix, Ipv4Prefix, NetworkError, NetworkErrorOption, PhysicalNetwork, Prefix,
-        PrefixSet, RouterId, SimplePrefix, ASN,
+        DeviceError, IntoIpv4Prefix, Ipv4Prefix, NetworkError, NetworkErrorOption, PhysicalNetwork,
+        Prefix, PrefixSet, RouterId, SimplePrefix, ASN,
     },
 };
 
@@ -481,6 +481,41 @@ impl<P: Prefix, Q, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
         self.ospf
             .get_area(source, target)
             .ok_or(NetworkError::LinkNotFound(source, target))
+    }
+
+    /// Get all configured BGP sessions. Each session will appear exactly once. The last boolean
+    /// describes whether the session is currently active or not.
+    pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType, bool)> {
+        self.bgp_sessions
+            .iter()
+            .filter_map(|((src, dst), ty)| ty.map(|ty| (*src, *dst, ty)))
+            .filter_map(|(src, dst, is_client)| {
+                let reverse_is_client = self
+                    .bgp_sessions
+                    .get(&(dst, src))
+                    .copied()
+                    .flatten()
+                    .unwrap_or(false);
+                let src_asn = self.routers.get(&src)?.asn();
+                let dst_asn = self.routers.get(&dst)?.asn();
+                let reachable = self.ospf.is_reachable(src, dst, &self.routers);
+                if src_asn == dst_asn {
+                    if is_client {
+                        Some((src, dst, BgpSessionType::IBgpClient, reachable))
+                    } else if reverse_is_client {
+                        None
+                    } else if src.index() <= dst.index() {
+                        Some((src, dst, BgpSessionType::IBgpPeer, reachable))
+                    } else {
+                        None
+                    }
+                } else if src.index() <= dst.index() {
+                    Some((src, dst, BgpSessionType::EBgp, reachable))
+                } else {
+                    None
+                }
+            })
+            .collect()
     }
 }
 
@@ -964,39 +999,24 @@ impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto> Netw
         Ok(())
     }
 
-    /// Get all configured BGP sessions. Each session will appear exactly once. The last boolean
-    /// describes whether the session is currently active or not.
-    pub fn get_bgp_sessions(&self) -> Vec<(RouterId, RouterId, BgpSessionType, bool)> {
-        self.bgp_sessions
-            .iter()
-            .filter_map(|((src, dst), ty)| ty.map(|ty| (*src, *dst, ty)))
-            .filter_map(|(src, dst, is_client)| {
-                let reverse_is_client = self
-                    .bgp_sessions
-                    .get(&(dst, src))
-                    .copied()
-                    .flatten()
-                    .unwrap_or(false);
-                let src_asn = self.routers.get(&src)?.asn();
-                let dst_asn = self.routers.get(&dst)?.asn();
-                let reachable = self.ospf.is_reachable(src, dst, &self.routers);
-                if src_asn == dst_asn {
-                    if is_client {
-                        Some((src, dst, BgpSessionType::IBgpClient, reachable))
-                    } else if reverse_is_client {
-                        None
-                    } else if src.index() <= dst.index() {
-                        Some((src, dst, BgpSessionType::IBgpPeer, reachable))
-                    } else {
-                        None
-                    }
-                } else if src.index() <= dst.index() {
-                    Some((src, dst, BgpSessionType::EBgp, reachable))
-                } else {
-                    None
-                }
+    /// Change properties of the custom routing protocol of one router and enqueue (plus simulate)
+    /// the resulting events (if any).
+    pub fn configure_custom_proto<F>(&mut self, router: RouterId, f: F) -> Result<(), NetworkError>
+    where
+        F: FnOnce(&mut R) -> Result<Vec<(RouterId, R::Event)>, DeviceError>,
+    {
+        let events = f(&mut self.get_router_mut(router)?.custom_proto)?;
+        let events = events
+            .into_iter()
+            .map(|(dst, e)| Event::Custom {
+                p: Q::Priority::default(),
+                src: router,
+                dst,
+                e,
             })
-            .collect()
+            .collect();
+        self.enqueue_events(events);
+        self.do_queue_maybe_skip()
     }
 
     // *******************

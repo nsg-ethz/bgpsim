@@ -81,9 +81,7 @@ impl CustomProto for () {
 
     type Header = Ipv4Net;
 
-    fn new(_: RouterId) -> Self {
-        ()
-    }
+    fn new(_: RouterId) -> Self {}
 
     fn export_config(&self) -> String {
         String::new()

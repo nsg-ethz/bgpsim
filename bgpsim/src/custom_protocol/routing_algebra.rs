@@ -20,8 +20,31 @@ pub trait RoutingAlgebra: Add<Output = Self> + Ord + Sized + Clone + std::fmt::D
 }
 
 /// Shortest-Path Algebra.
-#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, PartialOrd, Ord, Deserialize, Serialize)]
-pub struct ShortestPath(Option<isize>);
+#[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Deserialize, Serialize)]
+pub struct ShortestPath(pub Option<isize>);
+
+impl Ord for ShortestPath {
+    fn cmp(&self, other: &Self) -> Ordering {
+        match (&self.0, &other.0) {
+            (Some(a), Some(b)) => a.cmp(b),
+            (Some(_), None) => Ordering::Less,
+            (None, Some(_)) => Ordering::Greater,
+            (None, None) => Ordering::Equal,
+        }
+    }
+}
+
+impl PartialOrd for ShortestPath {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+
+impl From<isize> for ShortestPath {
+    fn from(value: isize) -> Self {
+        Self(Some(value))
+    }
+}
 
 impl Add for ShortestPath {
     type Output = Self;
@@ -47,6 +70,12 @@ impl RoutingAlgebra for ShortestPath {
 /// Shortest-Path Algebra.
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 pub struct WidestPath(usize);
+
+impl From<usize> for WidestPath {
+    fn from(value: usize) -> Self {
+        Self(value)
+    }
+}
 
 impl Add for WidestPath {
     type Output = Self;
@@ -92,10 +121,7 @@ impl<A: RoutingAlgebra, B: RoutingAlgebra> Add for JointAlgebra<A, B> {
 
 impl<A: RoutingAlgebra, B: RoutingAlgebra> PartialOrd for JointAlgebra<A, B> {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
-        if let Some(ord) = self.0.partial_cmp(&other.0) {
-            return Some(ord);
-        }
-        self.1.partial_cmp(&other.1)
+        Some(self.cmp(other))
     }
 }
 
