@@ -74,10 +74,11 @@ use log::debug;
 use crate::{
     bgp::Community,
     custom_protocol::CustomProto,
-    event::EventQueue,
+    event::{Event, EventQueue},
     formatter::NetworkFormatter,
     network::Network,
     ospf::{LinkWeight, OspfArea, OspfImpl, DEFAULT_LINK_WEIGHT},
+    prelude::InteractiveNetwork,
     route_map::{RouteMap, RouteMapDirection},
     router::StaticRoute,
     types::{
@@ -985,7 +986,19 @@ impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto> Netw
                     Ok(())
                 }
                 ConfigExpr::CustomProto { router, config } => {
-                    todo!()
+                    let events = self
+                        .get_router_mut(*router)?
+                        .custom_proto
+                        .apply_config(config)?
+                        .into_iter()
+                        .map(|(dst, e)| Event::Custom {
+                            p: Q::Priority::default(),
+                            src: *router,
+                            dst,
+                            e,
+                        });
+                    self.enqueue_events(events.collect());
+                    self.simulate()
                 }
             },
             ConfigModifier::Remove(expr) => match expr {
@@ -1027,8 +1040,20 @@ impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto> Netw
                     self.withdraw_route(*router, *prefix)?;
                     Ok(())
                 }
-                ConfigExpr::CustomProto { router, config } => {
-                    todo!()
+                ConfigExpr::CustomProto { router, .. } => {
+                    let events = self
+                        .get_router_mut(*router)?
+                        .custom_proto
+                        .reset_config()?
+                        .into_iter()
+                        .map(|(dst, e)| Event::Custom {
+                            p: Q::Priority::default(),
+                            src: *router,
+                            dst,
+                            e,
+                        });
+                    self.enqueue_events(events.collect());
+                    self.simulate()
                 }
             },
             ConfigModifier::BatchRouteMapEdit { router, updates } => {
