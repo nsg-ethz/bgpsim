@@ -19,13 +19,13 @@ fn main() {
     let (_net, ((_b0, _b1), (_e0, _e1))) = net! {
         Prefix = SimplePrefix;
         links = {
-            b0 -> r0: 1;
-            r0 -> r1: 1;
-            r1 -> b1: 1;
+            b0(10) -> r0: 1;
+            r0(10) -> r1: 1;
+            r1(10) -> b1(10): 1;
         };
         sessions = {
-            b1 -> e1!(1);
-            b0 -> e0!(2);
+            b1 -> e1(1);
+            b0 -> e0(2);
             r0 -> r1: peer;
             r0 -> b0: client;
             r1 -> b1: client;
