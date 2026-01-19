@@ -441,7 +441,7 @@ impl Net {
         // check that every router has one AS number
         for (ident, asn) in self.nodes.iter_mut() {
             if asn.is_none() {
-                *asn = self.default_asn.clone();
+                *asn = self.default_asn;
             }
             // check if asn is still none
             if asn.is_none() {

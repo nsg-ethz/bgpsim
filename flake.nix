@@ -22,6 +22,7 @@
           rustfmt
           rustc
           trunk
+          clippy
           tailwindcss_3
           llvmPackages.bintools
         ];

@@ -244,7 +244,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         let asn = asn.into();
         let new_router = Router::new(name.into(), router_id, asn);
         let router_id = new_router.router_id();
-        self.routers.insert(router_id, new_router.into());
+        self.routers.insert(router_id, new_router);
         self.ospf.add_router(router_id, asn);
     }
 
@@ -1297,11 +1297,6 @@ impl<'a, P: Prefix, Ospf> Iterator for RoutersInAs<'a, P, Ospf> {
     type Item = &'a Router<P, Ospf>;
 
     fn next(&mut self) -> Option<Self::Item> {
-        for r in self.i.by_ref() {
-            if r.asn() == self.asn {
-                return Some(r);
-            }
-        }
-        None
+        self.i.by_ref().find(|&r| r.asn() == self.asn)
     }
 }
