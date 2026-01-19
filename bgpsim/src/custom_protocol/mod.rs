@@ -10,6 +10,10 @@ use crate::{
     types::{DeviceError, Prefix, RouterId},
 };
 
+pub mod distance_vector;
+pub mod path_vector;
+pub mod routing_algebra;
+
 /// A trait that defines a custom routing protocol.
 pub trait CustomProto {
     /// En event for communication.
