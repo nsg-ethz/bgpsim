@@ -34,25 +34,25 @@ mod t2 {
 
         let mut r = Router::<P>::new("test".to_string(), 0.into(), ASN(65001));
         r.bgp
-            .set_session::<()>(100.into(), Some((ASN(1), false)))
+            .set_session::<(), ()>(100.into(), Some((ASN(1), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(1.into(), Some((ASN(65001), false)))
+            .set_session::<(), ()>(1.into(), Some((ASN(65001), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(2.into(), Some((ASN(65001), false)))
+            .set_session::<(), ()>(2.into(), Some((ASN(65001), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(3.into(), Some((ASN(65001), false)))
+            .set_session::<(), ()>(3.into(), Some((ASN(65001), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(4.into(), Some((ASN(65001), true)))
+            .set_session::<(), ()>(4.into(), Some((ASN(65001), true)))
             .unwrap();
         r.bgp
-            .set_session::<()>(5.into(), Some((ASN(65001), true)))
+            .set_session::<(), ()>(5.into(), Some((ASN(65001), true)))
             .unwrap();
         r.bgp
-            .set_session::<()>(6.into(), Some((ASN(65001), true)))
+            .set_session::<(), ()>(6.into(), Some((ASN(65001), true)))
             .unwrap();
         r.ospf.ospf_table = btreemap! {
             100.into() => (vec![100.into()], 0.0),
@@ -265,7 +265,7 @@ mod t2 {
                     assert_eq!(dst, 5.into());
                     assert_eq!(prefix, P::from(200));
                 }
-                Event::Ospf { .. } => unreachable!(),
+                Event::Ospf { .. } | Event::Custom { .. } => unreachable!(),
             }
         }
 
@@ -328,7 +328,7 @@ mod t2 {
                     assert_eq!(dst, 100.into());
                     assert_eq!(prefix, P::from(200));
                 }
-                Event::Ospf { .. } => unreachable!(),
+                Event::Ospf { .. } | Event::Custom { .. } => unreachable!(),
             }
         }
 
@@ -371,10 +371,10 @@ mod t2 {
 
         let mut r = Router::<P>::new("test".to_string(), 0.into(), ASN(65001));
         r.bgp
-            .set_session::<()>(100.into(), Some((ASN(1), false)))
+            .set_session::<(), ()>(100.into(), Some((ASN(1), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(1.into(), Some((ASN(65001), false)))
+            .set_session::<(), ()>(1.into(), Some((ASN(65001), false)))
             .unwrap();
         r.ospf.ospf_table = btreemap! {
             100.into() => (vec![100.into()], 0.0),
@@ -555,16 +555,16 @@ mod ipv4 {
     fn test_hierarchical_bgp() {
         let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), ASN(65001));
         r.bgp
-            .set_session::<()>(100.into(), Some((ASN(1), false)))
+            .set_session::<(), ()>(100.into(), Some((ASN(1), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(1.into(), Some((ASN(65001), false)))
+            .set_session::<(), ()>(1.into(), Some((ASN(65001), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(2.into(), Some((ASN(65001), false)))
+            .set_session::<(), ()>(2.into(), Some((ASN(65001), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(3.into(), Some((ASN(65001), true)))
+            .set_session::<(), ()>(3.into(), Some((ASN(65001), true)))
             .unwrap();
         r.ospf.ospf_table = btreemap! {
             100.into() => (vec![100.into()], 0.0),
@@ -648,16 +648,16 @@ mod ipv4 {
     fn next_hop_static_route() {
         let mut r = Router::<Ipv4Prefix>::new("test".to_string(), 0.into(), ASN(65001));
         r.bgp
-            .set_session::<()>(100.into(), Some((ASN(1), false)))
+            .set_session::<(), ()>(100.into(), Some((ASN(1), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(1.into(), Some((ASN(65001), false)))
+            .set_session::<(), ()>(1.into(), Some((ASN(65001), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(2.into(), Some((ASN(65001), false)))
+            .set_session::<(), ()>(2.into(), Some((ASN(65001), false)))
             .unwrap();
         r.bgp
-            .set_session::<()>(3.into(), Some((ASN(65001), true)))
+            .set_session::<(), ()>(3.into(), Some((ASN(65001), true)))
             .unwrap();
         r.ospf.ospf_table = btreemap! {
             100.into() => (vec![100.into()], 0.0),

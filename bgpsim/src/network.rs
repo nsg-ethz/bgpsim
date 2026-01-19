@@ -91,10 +91,10 @@ pub const DEFAULT_INTERNAL_ASN: ASN = ASN(65500);
     deserialize = "P: for<'a> serde::Deserialize<'a>, Q: for<'a> serde::Deserialize<'a>, R: for<'a> serde::Deserialize<'a>"
 ))]
 pub struct Network<
-    P: Prefix,      // = SimplePrefix,
-    Q,              // = BasicEventQueue<SimplePrefix>,
-    Ospf: OspfImpl, // = GlobalOspf,
-    R,              // = (),
+    P: Prefix = SimplePrefix,
+    Q = BasicEventQueue<SimplePrefix, ()>,
+    Ospf: OspfImpl = GlobalOspf,
+    R = (),
 > {
     pub(crate) net: PhysicalNetwork,
     pub(crate) ospf: OspfNetwork<Ospf::Coordinator>,

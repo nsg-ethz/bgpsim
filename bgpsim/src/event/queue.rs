@@ -105,7 +105,7 @@ pub trait ConcurrentEventQueue<P: Prefix, C>: EventQueue<P, C> {
 #[serde(bound(
     deserialize = "P: for<'a> serde::Deserialize<'a>, C: for<'a> serde::Deserialize<'a>"
 ))]
-pub struct BasicEventQueue<P: Prefix, C>(pub(crate) VecDeque<Event<P, (), C>>);
+pub struct BasicEventQueue<P: Prefix, C = ()>(pub(crate) VecDeque<Event<P, (), C>>);
 
 impl<P: Prefix, C> Default for BasicEventQueue<P, C> {
     fn default() -> Self {

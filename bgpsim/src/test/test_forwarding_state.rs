@@ -363,7 +363,7 @@ mod ipv4 {
         // add the link to the two routers
         router
             .ospf
-            .handle_neighborhood_change::<Ipv4Prefix, ()>(
+            .handle_neighborhood_change::<Ipv4Prefix, (), ()>(
                 LocalNeighborhoodChange::SetExternalLink {
                     ext: e1,
                     weight: Some(1.0),
@@ -372,7 +372,7 @@ mod ipv4 {
             .unwrap();
         router
             .ospf
-            .handle_neighborhood_change::<Ipv4Prefix, ()>(
+            .handle_neighborhood_change::<Ipv4Prefix, (), ()>(
                 LocalNeighborhoodChange::SetExternalLink {
                     ext: e2,
                     weight: Some(1.0),
@@ -381,7 +381,7 @@ mod ipv4 {
             .unwrap();
         router
             .ospf
-            .handle_neighborhood_change::<Ipv4Prefix, ()>(
+            .handle_neighborhood_change::<Ipv4Prefix, (), ()>(
                 LocalNeighborhoodChange::SetExternalLink {
                     ext: e3,
                     weight: Some(1.0),
@@ -392,11 +392,11 @@ mod ipv4 {
         // add the bgp sessions
         router
             .bgp
-            .set_session::<()>(e1, Some((ASN(1), false)))
+            .set_session::<(), ()>(e1, Some((ASN(1), false)))
             .unwrap();
         router
             .bgp
-            .set_session::<()>(e2, Some((ASN(2), false)))
+            .set_session::<(), ()>(e2, Some((ASN(2), false)))
             .unwrap();
 
         router.bgp.update_igp(&router.ospf);
@@ -404,7 +404,7 @@ mod ipv4 {
         // advertise some routes
         router
             .bgp
-            .handle_event::<()>(
+            .handle_event::<(), ()>(
                 e1,
                 BgpEvent::Update(BgpRoute {
                     prefix: prefix!("1.0.0.0/8" as),
@@ -422,7 +422,7 @@ mod ipv4 {
         // advertise some routes
         router
             .bgp
-            .handle_event::<()>(
+            .handle_event::<(), ()>(
                 e2,
                 BgpEvent::Update(BgpRoute {
                     prefix: prefix!("1.1.1.0/24" as),

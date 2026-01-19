@@ -64,7 +64,7 @@ use serde::{Deserialize, Serialize};
 /// use bgpsim::types::SimplePrefix as P;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
-/// let mut net = TopologyZoo::Abilene.build::<_, _, GlobalOspf>(BasicEventQueue::<P>::new());
+/// let mut net = TopologyZoo::Abilene.build::<_, _, GlobalOspf, ()>(BasicEventQueue::<P, ()>::new(), 65500, 1);
 /// let prefix = P::from(0);
 ///
 /// // Make sure that at least 3 external routers exist

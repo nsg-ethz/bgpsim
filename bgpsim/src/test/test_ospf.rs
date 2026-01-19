@@ -47,7 +47,7 @@ type Routers = (
 #[allow(clippy::type_complexity)]
 fn test_net<Ospf: OspfImpl>() -> Result<
     (
-        Network<Prefix, BasicEventQueue<Prefix>, Ospf>,
+        Network<Prefix, BasicEventQueue<Prefix, ()>, Ospf, ()>,
         Routers,
         Prefix,
         Prefix,
@@ -55,7 +55,7 @@ fn test_net<Ospf: OspfImpl>() -> Result<
     ),
     NetworkError,
 > {
-    let mut net: Network<Prefix, BasicEventQueue<Prefix>, Ospf> = Network::default();
+    let mut net: Network<Prefix, BasicEventQueue<Prefix, ()>, Ospf, ()> = Network::default();
 
     let r0 = net.add_router("R0", 65500);
     let r1 = net.add_router("R1", 65500);
@@ -117,14 +117,14 @@ fn test_net<Ospf: OspfImpl>() -> Result<
 #[allow(clippy::type_complexity)]
 fn test_net_disconnected<Ospf: OspfImpl>() -> Result<
     (
-        Network<Prefix, BasicEventQueue<Prefix>, Ospf>,
+        Network<Prefix, BasicEventQueue<Prefix, ()>, Ospf, ()>,
         Routers,
         Prefix,
         Prefix,
     ),
     NetworkError,
 > {
-    let mut net: Network<Prefix, BasicEventQueue<Prefix>, Ospf> = Network::default();
+    let mut net: Network<Prefix, BasicEventQueue<Prefix, ()>, Ospf, ()> = Network::default();
 
     let r0 = net.add_router("R0", 65500);
     let r1 = net.add_router("R1", 65500);
@@ -544,8 +544,8 @@ mod t {
 
 #[track_caller]
 fn check(
-    nets_g: &[Network<Prefix, BasicEventQueue<Prefix>, GlobalOspf>],
-    nets_l: &[Network<Prefix, BasicEventQueue<Prefix>, LocalOspf>],
+    nets_g: &[Network<Prefix, BasicEventQueue<Prefix, ()>, GlobalOspf, ()>],
+    nets_l: &[Network<Prefix, BasicEventQueue<Prefix, ()>, LocalOspf, ()>],
     disconnected: bool,
 ) {
     let empty_h = HashMap::new();
@@ -730,14 +730,14 @@ fn check(
 }
 
 fn do_clone(
-    nets_g: &mut Vec<Network<Prefix, BasicEventQueue<Prefix>, GlobalOspf>>,
-    nets_l: &mut Vec<Network<Prefix, BasicEventQueue<Prefix>, LocalOspf>>,
+    nets_g: &mut Vec<Network<Prefix, BasicEventQueue<Prefix, ()>, GlobalOspf, ()>>,
+    nets_l: &mut Vec<Network<Prefix, BasicEventQueue<Prefix, ()>, LocalOspf, ()>>,
 ) {
     nets_l.push(nets_g[0].clone().into_local_ospf().unwrap());
     nets_g.push(nets_l[0].clone().into_global_ospf().unwrap());
 }
 
-type Net<Ospf> = Network<Prefix, BasicEventQueue<Prefix>, Ospf>;
+type Net<Ospf> = Network<Prefix, BasicEventQueue<Prefix, ()>, Ospf, ()>;
 
 #[track_caller]
 fn modify<Ospf: OspfImpl, R, F: Fn(&mut Net<Ospf>) -> Result<R, NetworkError>>(
@@ -777,8 +777,8 @@ fn test_conversion() {
     let _ = env_logger::try_init();
 
     // create the networks
-    let mut net_g = Network::<Prefix, BasicEventQueue<Prefix>, GlobalOspf>::default();
-    let mut net_l = Network::<Prefix, BasicEventQueue<Prefix>, LocalOspf>::default();
+    let mut net_g = Network::<Prefix, BasicEventQueue<Prefix, ()>, GlobalOspf, ()>::default();
+    let mut net_l = Network::<Prefix, BasicEventQueue<Prefix, ()>, LocalOspf, ()>::default();
 
     // add all routers
     net_g.add_router("R0", 65500);
@@ -879,8 +879,8 @@ fn test_conversion() {
 #[test]
 fn test_disconnected_conversion() {
     // create the networks
-    let mut net_g = Network::<Prefix, BasicEventQueue<Prefix>, GlobalOspf>::default();
-    let mut net_l = Network::<Prefix, BasicEventQueue<Prefix>, LocalOspf>::default();
+    let mut net_g = Network::<Prefix, BasicEventQueue<Prefix, ()>, GlobalOspf, ()>::default();
+    let mut net_l = Network::<Prefix, BasicEventQueue<Prefix, ()>, LocalOspf, ()>::default();
 
     // add all routers
     net_g.add_router("R0", 65500);

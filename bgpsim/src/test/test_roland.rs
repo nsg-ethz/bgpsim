@@ -35,7 +35,7 @@ use pretty_assertions::assert_eq;
 #[test]
 fn roland_pacificwave() {
     // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
+    let queue = SimpleTimingModel::<P, ()>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Pacificwave.build(queue, ASN(65500), ASN(1));
     let prefix = P::from(1);
 
@@ -98,7 +98,7 @@ fn roland_pacificwave() {
 #[test]
 fn roland_pacificwave_manual() {
     // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
+    let queue = SimpleTimingModel::<P, ()>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net: Network<_, _, GlobalOspf> =
         TopologyZoo::Pacificwave.build(queue, ASN(65500), ASN(1));
     let prefix = P::from(1);
@@ -201,7 +201,7 @@ fn roland_pacificwave_manual() {
 #[test]
 fn roland_arpanet() {
     // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
+    let queue = SimpleTimingModel::<P, ()>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net = TopologyZoo::Arpanet196912.build(queue, ASN(65500), ASN(1));
     let prefix = P::from(1);
 
@@ -264,7 +264,7 @@ fn roland_arpanet() {
 #[test]
 fn roland_arpanet_manual() {
     // generate the network precisely as roland did:
-    let queue = SimpleTimingModel::<P>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
+    let queue = SimpleTimingModel::<P, ()>::new(ModelParams::new(1.0, 1.0, 2.0, 5.0, 0.5));
     let mut net: Network<_, _, GlobalOspf> =
         TopologyZoo::Arpanet196912.build(queue, ASN(65500), ASN(1));
     let prefix = P::from(0);
@@ -372,7 +372,7 @@ fn roland_arpanet_manual() {
 #[test]
 fn roland_arpanet_complete() {
     // setup basic timing model
-    let queue = SimpleTimingModel::<P>::new(ModelParams::new(
+    let queue = SimpleTimingModel::<P, ()>::new(ModelParams::new(
         1.0, // offset: 1.0,
         1.0, // scale: 1.0,
         2.0, // alpha: 2.0,
@@ -433,22 +433,23 @@ fn roland_arpanet_complete() {
 
     let trace = vec![(diff, Some(0.0).into())];
 
-    let sample_func = |(mut t, mut trace): (Network<P, SimpleTimingModel<P>>, ConvergenceTrace)| {
-        while let Some((step, event)) = t.simulate_step().unwrap() {
-            match step {
-                StepUpdate::Unchanged => {}
-                StepUpdate::Multiple => unreachable!("OSPF events should be disabled"),
-                StepUpdate::Single(delta) => {
-                    trace.push((
-                        vec![(event.router(), delta.old, delta.new)],
-                        net.queue().get_time().map(|x| x - t0).into(),
-                    ));
+    let sample_func =
+        |(mut t, mut trace): (Network<P, SimpleTimingModel<P, ()>>, ConvergenceTrace)| {
+            while let Some((step, event)) = t.simulate_step().unwrap() {
+                match step {
+                    StepUpdate::Unchanged => {}
+                    StepUpdate::Multiple => unreachable!("OSPF events should be disabled"),
+                    StepUpdate::Single(delta) => {
+                        trace.push((
+                            vec![(event.router(), delta.old, delta.new)],
+                            net.queue().get_time().map(|x| x - t0).into(),
+                        ));
+                    }
                 }
             }
-        }
 
-        trace
-    };
+            trace
+        };
 
     // record update for the event
     let mut traces: HashSet<ConvergenceTrace> = HashSet::new();

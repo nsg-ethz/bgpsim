@@ -18,6 +18,7 @@
 use crate::{
     event::EventQueue,
     network::Network,
+    ospf::GlobalOspf,
     record::RecordNetwork,
     types::{NetworkError, RouterId, SinglePrefix as P, ASN},
 };
@@ -35,10 +36,10 @@ use pretty_assertions::assert_eq;
 /// |        |    external
 /// e0       e1
 fn setup_simple<Q>(
-    net: &mut Network<P, Q>,
+    net: &mut Network<P, Q, GlobalOspf, ()>,
 ) -> Result<(RouterId, RouterId, RouterId, RouterId, RouterId, RouterId), NetworkError>
 where
-    Q: EventQueue<P>,
+    Q: EventQueue<P, ()>,
 {
     let e0 = net.add_router("E0", ASN(1));
     let b0 = net.add_router("B0", 65500);
@@ -70,7 +71,7 @@ where
 
 #[test]
 fn test_simple_deterministic() {
-    let mut net: Network<P, _> = Network::default();
+    let mut net: Network<P, _, GlobalOspf, ()> = Network::default();
     let prefix = P::from(0);
 
     let (e0, b0, r0, r1, b1, e1) = setup_simple(&mut net).unwrap();

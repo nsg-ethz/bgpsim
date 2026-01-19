@@ -195,7 +195,7 @@ impl<P: Prefix, C: Hash + Eq> PartialEq for SimpleTimingModel<P, C> {
 /// use bgpsim::topology_zoo::TopologyZoo;
 ///
 /// # #[cfg(all(feature = "rand_queue", feature = "topology_zoo"))]
-/// let _queue = GeoTimingModel::<P>::new(
+/// let _queue = GeoTimingModel::<P, ()>::new(
 ///     ModelParams::new(0.1, 0.1, 2.0, 5.0, 0.01),
 ///     ModelParams::new(0.000_1, 0.000_1, 2.0, 5.0, 0.0),
 ///     &TopologyZoo::EliBackbone.geo_location(),

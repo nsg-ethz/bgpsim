@@ -19,9 +19,9 @@ use crate::{
     types::{NetworkError, Prefix, RouterId},
 };
 
-fn path_result_str<P: Prefix, Q, Ospf: OspfImpl>(
+fn path_result_str<P: Prefix, Q, Ospf: OspfImpl, R>(
     paths: Result<Vec<Vec<RouterId>>, NetworkError>,
-    net: &Network<P, Q, Ospf>,
+    net: &Network<P, Q, Ospf, R>,
 ) -> String {
     match paths {
         Ok(paths) => format!(
@@ -50,16 +50,16 @@ fn path_result_str<P: Prefix, Q, Ospf: OspfImpl>(
     }
 }
 
-fn paths_names<'n, P: Prefix, Q, Ospf: OspfImpl>(
+fn paths_names<'n, P: Prefix, Q, Ospf: OspfImpl, R>(
     paths: &[Vec<RouterId>],
-    net: &'n Network<P, Q, Ospf>,
+    net: &'n Network<P, Q, Ospf, R>,
 ) -> Result<Vec<Vec<&'n str>>, NetworkError> {
     paths.iter().map(|p| path_names(p.iter(), net)).collect()
 }
 
-fn path_names<'a, 'n, P: Prefix, Q, Ospf: OspfImpl>(
+fn path_names<'a, 'n, P: Prefix, Q, Ospf: OspfImpl, R>(
     path: impl Iterator<Item = &'a RouterId>,
-    net: &'n Network<P, Q, Ospf>,
+    net: &'n Network<P, Q, Ospf, R>,
 ) -> Result<Vec<&'n str>, NetworkError> {
     path.map(|r| net.get_router(*r).map(|r| r.name())).collect()
 }

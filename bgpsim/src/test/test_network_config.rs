@@ -66,7 +66,7 @@ mod t {
     ) -> (RouterId, RouterId, RouterId, RouterId, RouterId, RouterId)
     where
         P: Prefix,
-        Q: EventQueue<P>,
+        Q: EventQueue<P, ()>,
     {
         let e0 = net.add_router("E0", ASN(1));
         let b0 = net.add_router("B0", 65500);
@@ -165,7 +165,7 @@ mod t {
     ) -> (RouterId, RouterId, RouterId, RouterId, RouterId, RouterId)
     where
         P: Prefix,
-        Q: EventQueue<P>,
+        Q: EventQueue<P, ()>,
     {
         // add routers
         let r1 = net.add_router("r1", 65500);

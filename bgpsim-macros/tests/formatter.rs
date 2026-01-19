@@ -3,7 +3,7 @@ use std::collections::BTreeMap;
 use bgpsim::prelude::*;
 use bgpsim_macros::NetworkFormatter;
 
-type Net = Network<SimplePrefix, BasicEventQueue<SimplePrefix>, GlobalOspf>;
+type Net = Network<SimplePrefix, BasicEventQueue<SimplePrefix, ()>, GlobalOspf, ()>;
 
 #[test]
 fn unit_struct() {
@@ -171,8 +171,8 @@ struct Ext {
     b: usize,
 }
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatterExt<'n, P, Q, Ospf> for Ext {
-    fn fmt_ext(&self, _net: &'n Network<P, Q, Ospf>) -> String {
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatterExt<'n, P, Q, Ospf, R> for Ext {
+    fn fmt_ext(&self, _net: &'n Network<P, Q, Ospf, R>) -> String {
         format!("({}--{})", self.a, self.b)
     }
 }
@@ -322,25 +322,25 @@ fn skip_attribute() {
     assert_eq!(v6.fmt_multiline(&net), "NamedSkipAll {}");
 }
 
-fn fmt_bar<P: Prefix, Q, Ospf: OspfImpl>(_: &usize, _: &Network<P, Q, Ospf>) -> String {
+fn fmt_bar<P: Prefix, Q, Ospf: OspfImpl, R>(_: &usize, _: &Network<P, Q, Ospf, R>) -> String {
     String::from("bar")
 }
 
-fn fmt_baz<P: Prefix, Q, Ospf: OspfImpl>(_: &usize, _: &Network<P, Q, Ospf>) -> String {
+fn fmt_baz<P: Prefix, Q, Ospf: OspfImpl, R>(_: &usize, _: &Network<P, Q, Ospf, R>) -> String {
     String::from("baz")
 }
 
-fn fmt_multi_bar<P: Prefix, Q, Ospf: OspfImpl>(
+fn fmt_multi_bar<P: Prefix, Q, Ospf: OspfImpl, R>(
     _: &usize,
-    _: &Network<P, Q, Ospf>,
+    _: &Network<P, Q, Ospf, R>,
     _: usize,
 ) -> String {
     String::from("multibar")
 }
 
-fn fmt_multi_baz<P: Prefix, Q, Ospf: OspfImpl>(
+fn fmt_multi_baz<P: Prefix, Q, Ospf: OspfImpl, R>(
     _: &usize,
-    _: &Network<P, Q, Ospf>,
+    _: &Network<P, Q, Ospf, R>,
     _: usize,
 ) -> String {
     String::from("multibaz")

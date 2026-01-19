@@ -29,7 +29,7 @@ pub(crate) fn derive(input: TokenStream) -> TokenStream {
 
     let x = generics.params.iter();
     let impl_generics = quote! {
-        <'__n, __P: ::bgpsim::types::Prefix, __Q, __OSPF: ::bgpsim::ospf::OspfImpl, #(#x),*>
+        <'__n, __P: ::bgpsim::types::Prefix, __Q, __OSPF: ::bgpsim::ospf::OspfImpl, __R, #(#x),*>
     };
 
     let type_params = generics
@@ -58,7 +58,7 @@ pub(crate) fn derive(input: TokenStream) -> TokenStream {
     let type_bounds = generics
         .type_params()
         .map(|x| x.ident.clone())
-        .map(|x| quote!(#x: ::bgpsim::formatter::NetworkFormatter<'__n, __P, __Q, __OSPF>))
+        .map(|x| quote!(#x: ::bgpsim::formatter::NetworkFormatter<'__n, __P, __Q, __OSPF, __R>))
         .collect::<Vec<_>>();
 
     let fmt_impl = match generate_fmt_impl(&ident, &data) {
@@ -72,16 +72,16 @@ pub(crate) fn derive(input: TokenStream) -> TokenStream {
 
     quote!{
         #[automatically_derived]
-        impl #impl_generics ::bgpsim::formatter::NetworkFormatter<'__n, __P, __Q, __OSPF> for #ident<#(#type_params),*>
+        impl #impl_generics ::bgpsim::formatter::NetworkFormatter<'__n, __P, __Q, __OSPF, __R> for #ident<#(#type_params),*>
         where
             #(#given_bounds),*
             #(#type_bounds),*
         {
-            fn fmt(&self, __net: &'__n ::bgpsim::network::Network<__P, __Q, __OSPF>) -> String {
+            fn fmt(&self, __net: &'__n ::bgpsim::network::Network<__P, __Q, __OSPF, __R>) -> String {
                 #fmt_impl
             }
 
-            fn fmt_multiline_indent(&self, __net: &'__n ::bgpsim::network::Network<__P, __Q, __OSPF>, __indent: usize) -> String {
+            fn fmt_multiline_indent(&self, __net: &'__n ::bgpsim::network::Network<__P, __Q, __OSPF, __R>, __indent: usize) -> String {
                 #fmt_multiline_impl
             }
         }

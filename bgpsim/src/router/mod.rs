@@ -30,7 +30,7 @@
 use crate::{
     custom_protocol::CustomProto,
     event::{Event, EventOutcome},
-    ospf::{IgpTarget, OspfProcess},
+    ospf::{global::GlobalOspfProcess, IgpTarget, OspfProcess},
     types::{
         DeviceError, IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixMap, RouterId, StepUpdate, ASN,
     },
@@ -50,11 +50,7 @@ pub use sr_process::{SrProcess, StaticRoute};
 #[serde(bound(
     deserialize = "P: for<'a> Deserialize<'a>, Ospf: for<'a> Deserialize<'a>, R: for<'a> Deserialize<'a>"
 ))]
-pub struct Router<
-    P: Prefix,
-    Ospf, // = GlobalOspfProcess,
-    R,    // = ()
-> {
+pub struct Router<P: Prefix, Ospf = GlobalOspfProcess, R = ()> {
     /// Name of the router
     name: String,
     /// ID of the router

@@ -35,6 +35,7 @@ pub(crate) struct Net {
     prefix_ty: Option<Type>,
     ospf_ty: Option<Type>,
     queue_ty: Option<Type>,
+    custom_proto_ty: Option<Type>,
     queue: Option<Expr>,
     nodes: HashMap<Ident, Option<(u32, Span)>>,
     node_order: Vec<Ident>,
@@ -52,6 +53,7 @@ impl Parse for Net {
             prefix_ty: Default::default(),
             ospf_ty: Default::default(),
             queue_ty: Default::default(),
+            custom_proto_ty: Default::default(),
             queue: Default::default(),
             nodes: Default::default(),
             node_order: Default::default(),
@@ -118,6 +120,16 @@ impl Parse for Net {
                         return Err(Error::new(block.span(), "You cannot define both the `Ospf` type and the `Network` type."));
                     }
                     net.ospf_ty = Some(input.parse()?);
+                }
+                "CustomProto" => {
+                    let _: Token![=] = input.parse()?;
+                    if net.custom_proto_ty.is_some() {
+                        return Err(Error::new(block.span(), "You cannot define the `CustomProto` type more than once!"));
+                    }
+                    if net.ty.is_some() {
+                        return Err(Error::new(block.span(), "You cannot define both the `CustomProto` type and the `Network` type."));
+                    }
+                    net.custom_proto_ty = Some(input.parse()?);
                 }
                 "Type" => {
                     let _: Token![=] = input.parse()?;
@@ -279,7 +291,11 @@ impl Net {
                 .ospf_ty
                 .map(|ty| quote!(#ty))
                 .unwrap_or_else(|| quote!(::bgpsim::ospf::global::GlobalOspf));
-            quote!(::bgpsim::prelude::Network<#prefix_ty, #queue_ty, #ospf_ty>)
+            let custom_proto_ty = self
+                .custom_proto_ty
+                .map(|ty| quote!(#ty))
+                .unwrap_or_else(|| quote!(()));
+            quote!(::bgpsim::prelude::Network<#prefix_ty, #queue_ty, #ospf_ty, #custom_proto_ty>)
         };
 
         let returns = if let Some(returns) = self.returns {

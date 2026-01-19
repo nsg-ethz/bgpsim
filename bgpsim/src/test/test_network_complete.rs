@@ -43,11 +43,11 @@ mod t {
     /// |        |    external
     /// e0       e1
     fn setup_simple<P, Q, Ospf>(
-        net: &mut Network<P, Q, Ospf>,
+        net: &mut Network<P, Q, Ospf, ()>,
     ) -> (RouterId, RouterId, RouterId, RouterId, RouterId, RouterId)
     where
         P: Prefix,
-        Q: EventQueue<P>,
+        Q: EventQueue<P, ()>,
         Ospf: OspfImpl,
     {
         let e0 = net.add_router("E0", ASN(1));
@@ -175,11 +175,11 @@ mod t {
     ///          | .-'   |
     ///          r3 ---- r4 ---- e4
     fn setup_external<P, Q, Ospf>(
-        net: &mut Network<P, Q, Ospf>,
+        net: &mut Network<P, Q, Ospf, ()>,
     ) -> (RouterId, RouterId, RouterId, RouterId, RouterId, RouterId)
     where
         P: Prefix,
-        Q: EventQueue<P>,
+        Q: EventQueue<P, ()>,
         Ospf: OspfImpl,
     {
         // add routers

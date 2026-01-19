@@ -33,7 +33,7 @@ fn test_exchange_leader() {
     let mut process = LocalOspfProcess::new(r);
 
     let (changed, events) = process
-        .handle_neighborhood_change::<P, T>(LocalNeighborhoodChange::AddNeighbor {
+        .handle_neighborhood_change::<P, T, ()>(LocalNeighborhoodChange::AddNeighbor {
             neighbor: n,
             area,
             weight: 100.0,
@@ -70,7 +70,7 @@ fn test_exchange_leader() {
             age: 0,
         }],
     };
-    let (changed, events) = process.handle_event::<P, T>(n, area, event).unwrap();
+    let (changed, events) = process.handle_event::<P, T, ()>(n, area, event).unwrap();
     assert!(!changed);
     assert_eq!(
         events,
@@ -93,7 +93,7 @@ fn test_exchange_leader() {
 
     // adding a different link should not create an update for that neighbor.
     let (changed, events) = process
-        .handle_neighborhood_change::<P, T>(LocalNeighborhoodChange::AddNeighbor {
+        .handle_neighborhood_change::<P, T, ()>(LocalNeighborhoodChange::AddNeighbor {
             neighbor: x,
             area,
             weight: 100.0,
@@ -130,7 +130,7 @@ fn test_exchange_leader() {
             age: 0,
         }],
     };
-    let (changed, events) = process.handle_event::<P, T>(n, area, event).unwrap();
+    let (changed, events) = process.handle_event::<P, T, ()>(n, area, event).unwrap();
     assert!(!changed);
     assert_eq!(
         events,
@@ -184,7 +184,7 @@ fn test_exchange_leader() {
         }],
         ack: false,
     };
-    let (changed, events) = process.handle_event::<P, T>(n, area, event).unwrap();
+    let (changed, events) = process.handle_event::<P, T, ()>(n, area, event).unwrap();
     assert!(changed);
     assert_eq!(
         events,
@@ -230,7 +230,7 @@ fn test_exchange_follower() {
     let mut process = LocalOspfProcess::new(r);
 
     let (changed, events) = process
-        .handle_neighborhood_change::<P, T>(LocalNeighborhoodChange::AddNeighbor {
+        .handle_neighborhood_change::<P, T, ()>(LocalNeighborhoodChange::AddNeighbor {
             neighbor: n,
             area,
             weight: 100.0,
@@ -251,7 +251,7 @@ fn test_exchange_follower() {
             age: 0,
         }],
     };
-    let (changed, events) = process.handle_event::<P, T>(n, area, event).unwrap();
+    let (changed, events) = process.handle_event::<P, T, ()>(n, area, event).unwrap();
     assert!(!changed);
     // this returns a database description packet of the router, AND a request list
     assert_eq!(
@@ -292,7 +292,7 @@ fn test_exchange_follower() {
 
     // adding a different link should not create an update for that neighbor.
     let (changed, events) = process
-        .handle_neighborhood_change::<P, T>(LocalNeighborhoodChange::AddNeighbor {
+        .handle_neighborhood_change::<P, T, ()>(LocalNeighborhoodChange::AddNeighbor {
             neighbor: x,
             area,
             weight: 100.0,
@@ -312,7 +312,7 @@ fn test_exchange_follower() {
             age: 0,
         }],
     };
-    let (changed, events) = process.handle_event::<P, T>(n, area, event).unwrap();
+    let (changed, events) = process.handle_event::<P, T, ()>(n, area, event).unwrap();
     assert!(!changed);
     assert_eq!(
         events,
@@ -366,7 +366,7 @@ fn test_exchange_follower() {
         }],
         ack: false,
     };
-    let (changed, events) = process.handle_event::<P, T>(n, area, event).unwrap();
+    let (changed, events) = process.handle_event::<P, T, ()>(n, area, event).unwrap();
     assert!(changed);
     assert_eq!(
         events,

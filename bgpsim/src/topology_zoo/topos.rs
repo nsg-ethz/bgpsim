@@ -324,7 +324,7 @@ flate!(static GRAPHML_Zamren: str from "topology_zoo/Zamren.graphml");
 /// use bgpsim::types::SimplePrefix as P;
 /// # fn main() -> Result<(), Box<dyn Error>> {
 ///
-/// let mut net = TopologyZoo::Abilene.build::<_, _, GlobalOspf>(BasicEventQueue::<P>::new(), 65500, 1);
+/// let mut net = TopologyZoo::Abilene.build::<_, _, GlobalOspf, ()>(BasicEventQueue::<P, ()>::new(), 65500, 1);
 /// let prefix = P::from(0);
 ///
 /// // Create three external routers

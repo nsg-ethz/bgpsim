@@ -21,7 +21,7 @@ use crate::{
     event::BasicEventQueue,
     export::{cisco_frr_generators::Target, Addressor, CfgGen, CiscoFrrCfgGen, DefaultAddressor},
     network::Network,
-    ospf::OspfImpl,
+    ospf::{GlobalOspf, OspfImpl},
     route_map::{RouteMapBuilder, RouteMapDirection},
     types::{NonOverlappingPrefix, Prefix, SimplePrefix, ASN},
 };
@@ -38,13 +38,14 @@ fn iface_names(target: Target) -> Vec<String> {
 }
 
 fn addressor<P: Prefix, Q, Ospf: OspfImpl>(
-    net: &Network<P, Q, Ospf>,
-) -> DefaultAddressor<P, Q, Ospf> {
+    net: &Network<P, Q, Ospf, ()>,
+) -> DefaultAddressor<P, Q, Ospf, ()> {
     DefaultAddressor::new(net, 8, 24, 30).unwrap()
 }
 
 fn generate_internal_config_full_mesh(target: Target) -> String {
-    let mut net = Network::<SimplePrefix, BasicEventQueue<_>>::new(BasicEventQueue::new());
+    let mut net =
+        Network::<SimplePrefix, BasicEventQueue<_>, GlobalOspf, ()>::new(BasicEventQueue::new());
     net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
     net.build_external_routers(ASN(65500), ASN(100), vec![0.into(), 1.into()])
         .unwrap();
@@ -59,7 +60,8 @@ fn generate_internal_config_full_mesh(target: Target) -> String {
 }
 
 fn generate_internal_config_route_reflector(target: Target) -> String {
-    let mut net = Network::<SimplePrefix, BasicEventQueue<_>>::new(BasicEventQueue::new());
+    let mut net =
+        Network::<SimplePrefix, BasicEventQueue<_>, GlobalOspf, ()>::new(BasicEventQueue::new());
     net.build_topology(ASN(65500), CompleteGraph(4)).unwrap();
     net.build_external_routers(ASN(65500), ASN(100), vec![0.into(), 1.into()])
         .unwrap();

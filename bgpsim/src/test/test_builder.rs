@@ -31,12 +31,12 @@ mod t {
 
     #[test]
     fn test_build_complete_graph<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(0)).unwrap();
         assert_eq!(net.indices().count(), 0);
         assert_eq!(net.ospf.edges().count(), 0);
         for n in [1, 2, 10] {
-            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
             net.build_topology(ASN(65500), CompleteGraph(n)).unwrap();
             assert_eq!(net.indices().count(), n);
             assert_eq!(net.ospf.edges().count(), n * (n - 1));
@@ -46,7 +46,7 @@ mod t {
     #[test]
     fn test_build_ibgp_full_mesh<P: Prefix, Ospf: OspfImpl>() {
         for n in [0, 1, 10] {
-            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
             net.build_topology(ASN(65500), CompleteGraph(n)).unwrap();
             net.build_link_weights(1.0).unwrap();
             net.build_ibgp_full_mesh().unwrap();
@@ -69,7 +69,7 @@ mod t {
     #[test]
     fn test_build_ibgp_rr<P: Prefix, Ospf: OspfImpl>() {
         for n in [0, 1, 10] {
-            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
             net.build_topology(ASN(65500), CompleteGraph(n)).unwrap();
             net.build_link_weights(1.0).unwrap();
             let rrs = net
@@ -130,7 +130,7 @@ mod t {
 
     #[test]
     fn test_build_external_routers<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
         assert_eq!(net.ases().len(), 1);
         net.add_router("R1", ASN(1));
@@ -148,7 +148,7 @@ mod t {
 
     #[test]
     fn test_build_ebgp_sessions<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
@@ -170,7 +170,7 @@ mod t {
 
     #[test]
     fn test_build_link_weights<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
@@ -203,7 +203,7 @@ mod t {
     #[cfg(feature = "rand")]
     #[test]
     fn test_build_link_weights_random<P: Prefix, Ospf: OspfImpl>() {
-        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
@@ -230,7 +230,7 @@ mod t {
     fn test_build_link_weights_random_integer<P: Prefix, Ospf: OspfImpl>() {
         use crate::ospf::LinkWeight;
 
-        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
             .unwrap();
@@ -258,7 +258,7 @@ mod t {
     fn test_build_advertisements<P: Prefix, Ospf: OspfImpl>() {
         use crate::types::NetworkError;
 
-        let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+        let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
         net.build_topology(ASN(65500), CompleteGraph(10)).unwrap();
 
         net.build_external_routers(ASN(65500), ASN(100), HighestDegreeRouters::new(3))
@@ -350,7 +350,7 @@ mod t {
 
         let mut i = 0;
         while i < 10 {
-            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
             net.build_topology(ASN(65500), GnpGraph::new(20, 0.03))
                 .unwrap();
             let g: Graph<_, _, _, _> = net
@@ -385,7 +385,7 @@ mod t {
     #[test]
     fn test_build_gnm<P: Prefix, Ospf: OspfImpl>() {
         for _ in 0..10 {
-            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
             net.build_topology(ASN(65500), GnmGraph::new(20, 20))
                 .unwrap();
             assert_eq!(net.indices().count(), 20);
@@ -397,7 +397,7 @@ mod t {
     #[test]
     fn test_build_geometric_complete_graph<P: Prefix, Ospf: OspfImpl>() {
         for _ in 0..10 {
-            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
             net.build_topology(ASN(65500), GeometricGraph::new(20, 2, 2.0f64.sqrt()))
                 .unwrap();
             assert_eq!(net.indices().count(), 20);
@@ -409,7 +409,7 @@ mod t {
     #[test]
     fn test_build_geometric_less_complete<P: Prefix, Ospf: OspfImpl>() {
         for _ in 0..10 {
-            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
             net.build_topology(ASN(65500), GeometricGraph::new(20, 2, 0.5))
                 .unwrap();
             assert_eq!(net.indices().count(), 20);
@@ -424,7 +424,7 @@ mod t {
         use petgraph::algo::connected_components;
 
         for _ in 0..10 {
-            let mut net = Network::<P, Queue<P>, Ospf>::new(Queue::new());
+            let mut net = Network::<P, Queue<P, ()>, Ospf, ()>::new(Queue::new());
             net.build_topology(ASN(65500), BarabasiAlbertGraph::new(20, 3))
                 .unwrap();
             assert_eq!(net.indices().count(), 20);
@@ -516,7 +516,7 @@ mod t {
 
     #[track_caller]
     fn check_rms<P: Prefix, Q, Ospf: OspfImpl>(
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         r: RouterId,
         n: RouterId,
         dir: RouteMapDirection,
@@ -533,7 +533,7 @@ mod t {
         }
     }
 
-    fn assert_igp_reachability<P: Prefix, Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>) {
+    fn assert_igp_reachability<P: Prefix, Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf, ()>) {
         for src in net.indices() {
             let r = net.get_router(src).unwrap();
             let igp_table = r.ospf.get_table();
