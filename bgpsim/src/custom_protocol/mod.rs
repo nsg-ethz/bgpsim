@@ -1,10 +1,13 @@
 //! Custom routing protocol abstraction and implementations. We provide a custom distance-vector and
 //! path-vector protocol for an arbitrary routing algebra, as well as MPLS.
 
+use ipnet::Ipv4Net;
+
 use crate::{
+    event::Event,
     formatter::NetworkFormatter,
     ospf::OspfImpl,
-    types::{DeviceError, NetworkError, Prefix, RouterId},
+    types::{DeviceError, Prefix, RouterId},
 };
 
 /// A trait that defines a custom routing protocol.
@@ -21,16 +24,45 @@ pub trait CustomProto {
     fn export_config(&self) -> String;
 
     /// Apply an already exported configuration from a string.
-    fn apply_config(&mut self, config: &str) -> Result<Vec<(RouterId, Self::Event)>, NetworkError>;
+    fn apply_config(&mut self, config: &str) -> Result<Vec<(RouterId, Self::Event)>, DeviceError>;
 
     /// Reset the configuration to the default one.
-    fn reset_config(&mut self) -> Result<Vec<(RouterId, Self::Event)>, NetworkError>;
+    fn reset_config(&mut self) -> Result<Vec<(RouterId, Self::Event)>, DeviceError>;
 
     /// Any time the physical neighbors of that router change, this function is called.
-    fn neighbor_event(&mut self, neighbor: RouterId, up: bool);
+    fn neighbor_event(
+        &mut self,
+        neighbor: RouterId,
+        up: bool,
+    ) -> Result<Vec<(RouterId, Self::Event)>, DeviceError>;
 
-    /// Compute the forwarding decision for the given packet.
-    fn forward(&mut self, from: RouterId, header: Self::Header) -> FwDecision<Self::Header>;
+    /// Call `neighbor_event` and wrap the resulting custom events into network events.
+    fn neighbor_event_wrapper<P: Prefix, T: Default>(
+        &mut self,
+        router: RouterId,
+        neighbor: RouterId,
+        up: bool,
+    ) -> Result<Vec<Event<P, T, Self::Event>>, DeviceError> {
+        Ok(self
+            .neighbor_event(neighbor, up)?
+            .into_iter()
+            .map(|(dst, e)| Event::Custom {
+                p: T::default(),
+                src: router,
+                dst,
+                e,
+            })
+            .collect())
+    }
+
+    /// Compute the forwarding decision for the given packet. `from` is `None` if and only if the
+    /// the packet was originated by this router.
+    fn forward(
+        &self,
+        from: Option<RouterId>,
+        flow_id: usize,
+        header: Self::Header,
+    ) -> FwDecision<Self::Header>;
 
     /// Handle a routing event and process it.
     fn handle_event(
@@ -43,7 +75,7 @@ pub trait CustomProto {
 impl CustomProto for () {
     type Event = ();
 
-    type Header = ipnet::Ipv4Net;
+    type Header = Ipv4Net;
 
     fn new(_: RouterId) -> Self {
         ()
@@ -53,20 +85,31 @@ impl CustomProto for () {
         String::new()
     }
 
-    fn apply_config(&mut self, _: &str) -> Result<Vec<(RouterId, Self::Event)>, NetworkError> {
+    fn apply_config(&mut self, _: &str) -> Result<Vec<(RouterId, Self::Event)>, DeviceError> {
         Ok(Vec::new())
     }
 
-    fn reset_config(&mut self) -> Result<Vec<(RouterId, Self::Event)>, NetworkError> {
+    fn reset_config(&mut self) -> Result<Vec<(RouterId, Self::Event)>, DeviceError> {
         Ok(Vec::new())
     }
 
-    fn neighbor_event(&mut self, _: RouterId, _: bool) {}
+    fn neighbor_event(
+        &mut self,
+        _: RouterId,
+        _: bool,
+    ) -> Result<Vec<(RouterId, Self::Event)>, DeviceError> {
+        Ok(Vec::new())
+    }
 
-    fn forward(&mut self, _: RouterId, header: Self::Header) -> FwDecision<Self::Header> {
+    fn forward(
+        &self,
+        _: Option<RouterId>,
+        _: usize,
+        header: Self::Header,
+    ) -> FwDecision<Self::Header> {
         FwDecision::ForwardWithBgp {
             destination: header,
-            header,
+            header: PacketHeader::Ip(header),
         }
     }
 
@@ -107,10 +150,34 @@ pub enum FwDecision<H> {
     ForwardWithBgp {
         /// Compute the optimal path (in BGP and OSPF) to that node and deliver the packet to the
         /// next hop along that path.
-        destination: ipnet::Ipv4Net,
+        destination: Ipv4Net,
         /// The headers that the next-hop should process.
-        header: H,
+        header: PacketHeader<H>,
     },
+}
+
+/// A packet as it traverses through the network. Think of this packet as a probe packet that
+/// collects information as it traverses the network, including the propagation path.
+#[derive(Debug)]
+pub struct Packet<H> {
+    /// The forwarding path the packet has already propagated on.
+    ///
+    /// This information is not available to the routing protocol, but used to reconstruct the
+    /// entire forwarding path, and additional information about the packet.
+    pub path: Vec<RouterId>,
+    /// A flow-ID, used to select out of multiple next-hops in case of ECMP.
+    pub flow_id: usize,
+    /// The packet header used for forwarding
+    pub header: PacketHeader<H>,
+}
+
+/// The header of a packet.
+#[derive(Debug)]
+pub enum PacketHeader<H> {
+    /// Forward using traditional IP forwarding (OSPF + BGP)
+    Ip(Ipv4Net),
+    /// Forward using a custom header
+    Custom(H),
 }
 
 impl<'n, P: Prefix, Q, Ospf: OspfImpl, R, H: std::fmt::Debug> NetworkFormatter<'n, P, Q, Ospf, R>

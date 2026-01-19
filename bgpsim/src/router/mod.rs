@@ -28,7 +28,7 @@
 //! Module defining an internal router with BGP functionality.
 
 use crate::{
-    custom_protocol::CustomProto,
+    custom_protocol::{CustomProto, FwDecision, Packet, PacketHeader},
     event::{Event, EventOutcome},
     ospf::{global::GlobalOspfProcess, IgpTarget, OspfProcess},
     types::{
@@ -302,7 +302,8 @@ impl<P: Prefix, Ospf: OspfProcess, R: CustomProto> Router<P, Ospf, R> {
 
     /// Get the IGP next hop for a prefix. Prefixes are matched using longest prefix match.
     ///
-    /// TODO make this function return a slice
+    /// This function only relies on BGP and OSPF. If you are looking for simulating packet
+    /// forwarding including your custom protocol, see [`Router::forward`].
     pub fn get_next_hop(&self, prefix: P) -> Vec<RouterId> {
         // get the next hop according to both SR and BGP
         let sr_target = self.sr.get_table().get_lpm(&prefix);
@@ -333,4 +334,91 @@ impl<P: Prefix, Ospf: OspfProcess, R: CustomProto> Router<P, Ospf, R> {
             vec![nhs[0]]
         }
     }
+
+    /// Get the forward behavior for the given packet.
+    pub fn forward(&self, packet: Packet<R::Header>) -> ForwardOutcome<R::Header> {
+        let Packet {
+            mut path,
+            flow_id,
+            header,
+        } = packet;
+        let decision = match header {
+            PacketHeader::Ip(prefix) => FwDecision::ForwardWithBgp {
+                destination: prefix,
+                header: PacketHeader::Ip(prefix),
+            },
+            PacketHeader::Custom(header) => {
+                let from = if path.len() < 2 {
+                    None
+                } else {
+                    Some(path[path.len() - 2])
+                };
+                self.custom_proto.forward(from, packet.flow_id, header)
+            }
+        };
+
+        match decision {
+            FwDecision::Drop => ForwardOutcome::Drop(path),
+            FwDecision::Deliver => ForwardOutcome::Deliver(path),
+            FwDecision::Forward { next_hop, header } => {
+                path.push(next_hop);
+                ForwardOutcome::Forward(Packet {
+                    path,
+                    flow_id,
+                    header: PacketHeader::Custom(header),
+                })
+            }
+            FwDecision::ForwardWithIgp {
+                indirect_next_hop,
+                header,
+            } => {
+                let nhs = self.ospf.get(indirect_next_hop);
+                self.choose_next_hop(nhs, path, flow_id, PacketHeader::Custom(header))
+            }
+            FwDecision::ForwardWithBgp {
+                destination,
+                header,
+            } => {
+                let nhs = self.get_next_hop(P::from(destination));
+                self.choose_next_hop(&nhs, path, flow_id, header)
+            }
+        }
+    }
+
+    fn choose_next_hop<H>(
+        &self,
+        next_hops: &[RouterId],
+        mut path: Vec<RouterId>,
+        flow_id: usize,
+        header: PacketHeader<H>,
+    ) -> ForwardOutcome<H> {
+        let mut next_hops = next_hops.iter().copied().collect::<Vec<_>>();
+        next_hops.sort();
+        let next_hop = match next_hops.len() {
+            0 => return ForwardOutcome::Drop(path),
+            1 => next_hops[0],
+            x => next_hops[flow_id % x],
+        };
+        path.push(next_hop);
+        if next_hop == self.router_id {
+            ForwardOutcome::Deliver(path)
+        } else {
+            ForwardOutcome::Forward(Packet {
+                path,
+                flow_id,
+                header,
+            })
+        }
+    }
+}
+
+#[derive(Debug)]
+/// The outcome of a forwarding decision.
+pub enum ForwardOutcome<H> {
+    /// Drop the packet. The path describes the path up to this router that dropped it.
+    Drop(Vec<RouterId>),
+    /// The packet is delivered to the destination after traversing the given path.
+    Deliver(Vec<RouterId>),
+    /// The packet must still be forwarded to the next router.
+    Forward(Packet<H>),
 }

@@ -21,7 +21,7 @@
 use crate::{
     bgp::{BgpRoute, BgpSessionType, BgpState, BgpStateRef, Community},
     config::{NetworkConfig, RouteMapEdit},
-    custom_protocol::CustomProto,
+    custom_protocol::{CustomProto, Packet, PacketHeader},
     event::{BasicEventQueue, Event, EventQueue},
     forwarding_state::ForwardingState,
     interactive::InteractiveNetwork,
@@ -29,7 +29,7 @@ use crate::{
         global::GlobalOspf, LinkWeight, LocalOspf, OspfArea, OspfImpl, OspfNetwork, OspfProcess,
     },
     route_map::{RouteMap, RouteMapDirection},
-    router::{Router, StaticRoute},
+    router::{ForwardOutcome, Router, StaticRoute},
     types::{
         IntoIpv4Prefix, Ipv4Prefix, NetworkError, NetworkErrorOption, PhysicalNetwork, Prefix,
         PrefixSet, RouterId, SimplePrefix, ASN,
@@ -281,6 +281,36 @@ impl<P: Prefix, Q, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
         ForwardingState::from_net(self)
     }
 
+    /// Compute a forwarding path. If the function returns `Ok(path)`, the packet was ultimately
+    /// deliver to the destination. If it returns `Err(path)`, then the packet was dropped after
+    /// traversing the given path.
+    pub fn get_forwarding_path(
+        &self,
+        from: RouterId,
+        flow_id: usize,
+        header: PacketHeader<R::Header>,
+        ttl: usize,
+    ) -> Result<Vec<RouterId>, Vec<RouterId>> {
+        let mut packet = Packet {
+            path: vec![from],
+            flow_id,
+            header,
+        };
+        loop {
+            let Ok(r) = self.get_router(*packet.path.last().unwrap()) else {
+                return Err(packet.path);
+            };
+            packet = match r.forward(packet) {
+                ForwardOutcome::Drop(path) => return Err(path),
+                ForwardOutcome::Deliver(path) => return Ok(path),
+                ForwardOutcome::Forward(packet) => packet,
+            };
+            if packet.path.len() > ttl {
+                return Err(packet.path);
+            }
+        }
+    }
+
     /// Add a new router to the topology with given AS number. This function returns the ID of the
     /// router, which can be used to reference it while confiugring the network.
     pub fn add_router(&mut self, name: impl Into<String>, asn: impl Into<ASN>) -> RouterId {
@@ -494,8 +524,18 @@ impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto> Netw
     pub fn add_link(&mut self, a: RouterId, b: RouterId) -> Result<(), NetworkError> {
         if !self.net.contains_edge(a, b) {
             self.net.add_edge(a, b, ());
-            let events = self.ospf.add_link(a, b, &mut self.routers)?;
-            self.enqueue_events(events);
+            let ospf_events = self.ospf.add_link(a, b, &mut self.routers)?;
+            self.enqueue_events(ospf_events);
+            let custom_events_a = self
+                .get_router_mut(a)?
+                .custom_proto
+                .neighbor_event_wrapper(a, b, true)?;
+            let custom_events_b = self
+                .get_router_mut(b)?
+                .custom_proto
+                .neighbor_event_wrapper(b, a, true)?;
+            self.enqueue_events(custom_events_a);
+            self.enqueue_events(custom_events_b);
             self.refresh_bgp_sessions()?;
             self.do_queue_maybe_skip()?;
         }
@@ -846,6 +886,18 @@ impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto> Netw
             .remove_link(router_a, router_b, &mut self.routers)?;
 
         self.enqueue_events(events);
+
+        let custom_events_a = self
+            .get_router_mut(router_a)?
+            .custom_proto
+            .neighbor_event_wrapper(router_a, router_b, false)?;
+        let custom_events_b = self
+            .get_router_mut(router_b)?
+            .custom_proto
+            .neighbor_event_wrapper(router_b, router_a, false)?;
+        self.enqueue_events(custom_events_a);
+        self.enqueue_events(custom_events_b);
+
         self.refresh_bgp_sessions()?;
         self.do_queue_maybe_skip()?;
         Ok(())
@@ -890,6 +942,14 @@ impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto> Netw
 
         // remove the node from the list
         self.routers.remove(&router);
+        // Notify the custom protocol about all removed links.
+        for neighbor in self.net.neighbors(router).collect::<Vec<_>>() {
+            let custom_events = self
+                .get_router_mut(neighbor)?
+                .custom_proto
+                .neighbor_event_wrapper(neighbor, router, false)?;
+            self.enqueue_events(custom_events);
+        }
         self.net.remove_node(router);
 
         // simulate all remaining events
