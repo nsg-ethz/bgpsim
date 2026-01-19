@@ -68,22 +68,23 @@ fn main() {
         };
         println!("Generating {topo_name}");
         // generate the network
-        let net: Network<_, _, GlobalOspf> = match TopologyZooParser::new(&content).and_then(|p| {
-            p.get_network(
-                BasicEventQueue::<SimplePrefix>::new(),
-                ASN(65500),
-                Some(ASN(1)),
-            )
-        }) {
-            Ok(net) => net,
-            Err(_) => continue,
-        };
+        let net: Network<_, _, GlobalOspf, ()> =
+            match TopologyZooParser::new(&content).and_then(|p| {
+                p.get_network(
+                    BasicEventQueue::<SimplePrefix, ()>::new(),
+                    ASN(65500),
+                    Some(ASN(1)),
+                )
+            }) {
+                Ok(net) => net,
+                Err(_) => continue,
+            };
 
         // also, try to generate the internal only network, just to be sure this also works
         if TopologyZooParser::new(&content)
             .and_then(|p| {
-                p.get_network::<_, _, GlobalOspf>(
-                    BasicEventQueue::<SimplePrefix>::new(),
+                p.get_network::<_, _, GlobalOspf, ()>(
+                    BasicEventQueue::<SimplePrefix, ()>::new(),
                     ASN(65500),
                     None,
                 )

@@ -164,9 +164,9 @@ impl<R> RandomAsLevels<R> {
 
 #[cfg(feature = "rand")]
 impl<R: RngCore> AsLevelSampler for RandomAsLevels<R> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, RP>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, RP>,
     ) -> impl IntoIterator<Item = (ASN, usize)> {
         net.ases()
             .into_iter()

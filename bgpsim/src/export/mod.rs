@@ -65,14 +65,14 @@ pub trait CfgGen<P: Prefix, Q, Ospf: OspfImpl, A> {
     /// Generate all configuration files for the device.
     fn generate_config(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
     ) -> Result<String, ExportError>;
 
     /// generate the reconfiguration command(s) for a config modification
     fn generate_command(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
         cmd: ConfigModifier<P>,
     ) -> Result<String, ExportError>;

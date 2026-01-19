@@ -31,8 +31,8 @@ use crate::{
 
 /// The default IP addressor uses.
 #[derive(Debug, Clone)]
-pub struct DefaultAddressor<'a, P: Prefix, Q, Ospf: OspfImpl> {
-    net: &'a Network<P, Q, Ospf>,
+pub struct DefaultAddressor<'a, P: Prefix, Q, Ospf: OspfImpl, R> {
+    net: &'a Network<P, Q, Ospf, R>,
     /// Prefix length of each router (loopback) network.
     router_prefix_len: u8,
     /// Prefix length of each interface network.
@@ -146,13 +146,13 @@ impl DefaultAsAddressor {
     }
 }
 
-impl<'a, P: Prefix, Q, Ospf: OspfImpl> DefaultAddressor<'a, P, Q, Ospf> {
+impl<'a, P: Prefix, Q, Ospf: OspfImpl, R> DefaultAddressor<'a, P, Q, Ospf, R> {
     /// Create a new Default IP Addressor. As a good starting point, choose `as_prefix_len` as 8,
     /// `router_prefix_len` as 24 and `iface_prefix_len` as 30.
     ///
     /// **Warning**: `as_prefix_len` is set to a minimum of 8.
     pub fn new(
-        net: &'a Network<P, Q, Ospf>,
+        net: &'a Network<P, Q, Ospf, R>,
         mut as_prefix_len: u8,
         router_prefix_len: u8,
         iface_prefix_len: u8,
@@ -219,7 +219,7 @@ impl<'a, P: Prefix, Q, Ospf: OspfImpl> DefaultAddressor<'a, P, Q, Ospf> {
     }
 }
 
-impl<P: Prefix, Q, Ospf: OspfImpl> Addressor<P> for DefaultAddressor<'_, P, Q, Ospf> {
+impl<P: Prefix, Q, Ospf: OspfImpl, R> Addressor<P> for DefaultAddressor<'_, P, Q, Ospf, R> {
     fn as_network(&mut self, asn: ASN) -> Result<Ipv4Net, ExportError> {
         Ok(self.as_addressor(asn)?.network)
     }

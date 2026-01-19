@@ -71,7 +71,7 @@ pub struct CiscoFrrCfgGen {
 impl CiscoFrrCfgGen {
     /// Create a new config generator for the specified router.
     pub fn new<P: Prefix, Q, Ospf: OspfImpl>(
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         router: RouterId,
         target: Target,
         ifaces: Vec<String>,
@@ -204,7 +204,7 @@ impl CiscoFrrCfgGen {
     /// Create all the interface configuration
     fn iface_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -278,8 +278,8 @@ impl CiscoFrrCfgGen {
     /// Create the static route config
     fn static_route_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q, Ospf>,
-        router: &Router<P, Ospf::Process>,
+        net: &Network<P, Q, Ospf, ()>,
+        router: &Router<P, Ospf::Process, ()>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::from("!\n! Static Routes\n!\n");
@@ -296,7 +296,7 @@ impl CiscoFrrCfgGen {
     /// Generate a single static route line
     fn static_route<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
         prefix: P,
         sr: StaticRoute,
@@ -324,7 +324,7 @@ impl CiscoFrrCfgGen {
     /// Create the ospf configuration
     fn ospf_config<P: Prefix, A: Addressor<P>, Ospf: OspfProcess>(
         &self,
-        router: &Router<P, Ospf>,
+        router: &Router<P, Ospf, ()>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -341,8 +341,8 @@ impl CiscoFrrCfgGen {
     /// Create the BGP configuration
     fn bgp_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q, Ospf>,
-        router: &Router<P, Ospf::Process>,
+        net: &Network<P, Q, Ospf, ()>,
+        router: &Router<P, Ospf::Process, ()>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -395,7 +395,7 @@ impl CiscoFrrCfgGen {
     /// Create the configuration for a BGP neighbor
     fn bgp_neighbor_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
         n: RouterId,
         is_client: bool,
@@ -430,7 +430,7 @@ impl CiscoFrrCfgGen {
     /// Create all route-maps
     fn route_map_config<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -525,7 +525,7 @@ impl CiscoFrrCfgGen {
         name: &str,
         rm: &RouteMap<P>,
         next_ord: Option<i16>,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
     ) -> Result<RouteMapItem, ExportError> {
         let ord = order(rm.order);
@@ -629,7 +629,7 @@ impl CiscoFrrCfgGen {
     /// Update the continue statement of the route-map that is coming before `order`.
     fn fix_prev_rm_continue<P: Prefix, Q, Ospf: OspfImpl>(
         &self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         neighbor: RouterId,
         direction: RmDir,
         ord: i16,
@@ -653,7 +653,7 @@ impl CiscoFrrCfgGen {
     fn router_id_to_ip<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl>(
         &self,
         r: RouterId,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
     ) -> Result<Ipv4Addr, ExportError> {
         if net.get_router(r)?.asn() == net.get_router(self.router)?.asn() {
@@ -687,8 +687,8 @@ impl CiscoFrrCfgGen {
 }
 
 /// Get the full route-map name, including `in` and `out`
-fn full_rm_name<P: Prefix, Q, Ospf: OspfImpl>(
-    net: &Network<P, Q, Ospf>,
+fn full_rm_name<P: Prefix, Q, Ospf: OspfImpl, R>(
+    net: &Network<P, Q, Ospf, R>,
     router: RouterId,
     direction: RmDir,
 ) -> String {
@@ -703,7 +703,10 @@ fn full_rm_name<P: Prefix, Q, Ospf: OspfImpl>(
     }
 }
 
-fn rm_name<P: Prefix, Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>, router: RouterId) -> String {
+fn rm_name<P: Prefix, Q, Ospf: OspfImpl>(
+    net: &Network<P, Q, Ospf, ()>,
+    router: RouterId,
+) -> String {
     if let Ok(d) = net.get_router(router) {
         format!("neighbor-{}", d.name())
     } else {
@@ -714,7 +717,7 @@ fn rm_name<P: Prefix, Q, Ospf: OspfImpl>(net: &Network<P, Q, Ospf>, router: Rout
 impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> CfgGen<P, Q, Ospf, A> for CiscoFrrCfgGen {
     fn generate_config(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
     ) -> Result<String, ExportError> {
         let mut config = String::new();
@@ -737,7 +740,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> CfgGen<P, Q, Ospf, A> for Ci
 
     fn generate_command(
         &mut self,
-        net: &Network<P, Q, Ospf>,
+        net: &Network<P, Q, Ospf, ()>,
         addressor: &mut A,
         cmd: ConfigModifier<P>,
     ) -> Result<String, ExportError> {
@@ -827,6 +830,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> CfgGen<P, Q, Ospf, A> for Ci
                     community,
                     ..
                 } => self.advertise_route(addressor, prefix, as_path, med, community),
+                ConfigExpr::CustomProto { .. } => unreachable!(),
             },
             ConfigModifier::Remove(c) => match c {
                 ConfigExpr::IgpLinkWeight { source, target, .. } => {
@@ -886,6 +890,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> CfgGen<P, Q, Ospf, A> for Ci
                     Ok(RouterOspf::new().maximum_paths(1).build(self.target))
                 }
                 ConfigExpr::AdvertiseRoute { prefix, .. } => self.withdraw_route(addressor, prefix),
+                ConfigExpr::CustomProto { .. } => unreachable!(),
             },
             ConfigModifier::Update { from, to } => match to {
                 ConfigExpr::IgpLinkWeight {
@@ -965,6 +970,7 @@ impl<P: Prefix, A: Addressor<P>, Q, Ospf: OspfImpl> CfgGen<P, Q, Ospf, A> for Ci
                     community,
                     ..
                 } => self.advertise_route(addressor, prefix, as_path, med, community),
+                ConfigExpr::CustomProto { .. } => unreachable!(),
             },
             ConfigModifier::BatchRouteMapEdit { router, updates } => updates
                 .into_iter()

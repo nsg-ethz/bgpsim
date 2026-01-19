@@ -31,6 +31,7 @@ use serde::{Deserialize, Serialize};
 use std::{
     cmp::Reverse,
     collections::{BTreeMap, HashMap, HashSet},
+    hash::Hash,
     iter::zip,
 };
 
@@ -41,17 +42,19 @@ use super::{Event, EventQueue};
 /// The processing delay depends on a single beta distribution (see [`ModelParams`]) with parameters
 /// that can be tuned for each pair of routers.
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+#[serde(bound(
+    deserialize = "P: for<'a> serde::Deserialize<'a>, C: for<'a> serde::Deserialize<'a>"
+))]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
-pub struct SimpleTimingModel<P: Prefix> {
-    q: PriorityQueue<Event<P, NotNan<f64>>, Reverse<NotNan<f64>>>,
+pub struct SimpleTimingModel<P: Prefix, C: Hash + Eq> {
+    q: PriorityQueue<Event<P, NotNan<f64>, C>, Reverse<NotNan<f64>>>,
     messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
     model: HashMap<(RouterId, RouterId), ModelParams>,
     default_params: ModelParams,
     current_time: NotNan<f64>,
 }
 
-impl<P: Prefix> SimpleTimingModel<P> {
+impl<P: Prefix, C: Hash + Eq> SimpleTimingModel<P, C> {
     /// Create a new, empty model queue with given default parameters
     pub fn new(default_params: ModelParams) -> Self {
         Self {
@@ -69,15 +72,10 @@ impl<P: Prefix> SimpleTimingModel<P> {
     }
 }
 
-impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
+impl<P: Prefix, C: Hash + Eq + Clone> EventQueue<P, C> for SimpleTimingModel<P, C> {
     type Priority = NotNan<f64>;
 
-    fn push<Ospf: OspfProcess>(
-        &mut self,
-        mut event: Event<P, Self::Priority>,
-        _routers: &BTreeMap<RouterId, Router<P, Ospf>>,
-        _net: &PhysicalNetwork,
-    ) {
+    fn push(&mut self, mut event: Event<P, Self::Priority, C>) {
         let mut next_time = self.current_time;
         let mut rng = thread_rng();
 
@@ -89,8 +87,9 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         let beta = self.model.get_mut(&key).unwrap_or(&mut self.default_params);
         next_time += NotNan::new(beta.sample(&mut rng)).unwrap();
 
-        // in case of a BGP message, we also need to ensure TCP ordering
-        if event.is_bgp_event() {
+        // in case of a BGP message (or custom message), we also need to ensure TCP ordering
+
+        if matches!(event, Event::Bgp { .. } | Event::Custom { .. }) {
             // check if there is already something enqueued for this session
             if let Some((ref mut num, ref mut time)) = self.messages.get_mut(&key) {
                 if *num > 0 && *time > next_time {
@@ -108,11 +107,11 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         self.q.push(event, Reverse(next_time));
     }
 
-    fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
+    fn pop(&mut self) -> Option<Event<P, Self::Priority, C>> {
         let (event, _) = self.q.pop()?;
         self.current_time = *event.priority();
         match event {
-            Event::Bgp { src, dst, .. } => {
+            Event::Bgp { src, dst, .. } | Event::Custom { src, dst, .. } => {
                 if let Some((num, _)) = self.messages.get_mut(&(src, dst)) {
                     *num -= 1;
                 }
@@ -123,7 +122,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         Some(event)
     }
 
-    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
+    fn peek(&self) -> Option<&Event<P, Self::Priority, C>> {
         self.q.peek().map(|(e, _)| e)
     }
 
@@ -145,9 +144,9 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params<Ospf: OspfProcess>(
+    fn update_params<Ospf: OspfProcess, R>(
         &mut self,
-        _: &BTreeMap<RouterId, Router<P, Ospf>>,
+        _: &BTreeMap<RouterId, Router<P, Ospf, R>>,
         _: &PhysicalNetwork,
     ) {
     }
@@ -162,7 +161,7 @@ impl<P: Prefix> EventQueue<P> for SimpleTimingModel<P> {
     }
 }
 
-impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
+impl<P: Prefix, C: Hash + Eq> PartialEq for SimpleTimingModel<P, C> {
     fn eq(&self, other: &Self) -> bool {
         self.q.iter().collect::<Vec<_>>() == other.q.iter().collect::<Vec<_>>()
     }
@@ -253,10 +252,12 @@ impl<P: Prefix> PartialEq for SimpleTimingModel<P> {
 /// # fn main() {}
 /// ```
 #[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
+#[serde(bound(
+    deserialize = "P: for<'a> serde::Deserialize<'a>, C: for<'a> serde::Deserialize<'a>"
+))]
 #[cfg_attr(docsrs, doc(cfg(feature = "rand_queue")))]
-pub struct GeoTimingModel<P: Prefix> {
-    q: PriorityQueue<Event<P, NotNan<f64>>, Reverse<NotNan<f64>>>,
+pub struct GeoTimingModel<P: Prefix, C: Hash + Eq> {
+    q: PriorityQueue<Event<P, NotNan<f64>, C>, Reverse<NotNan<f64>>>,
     messages: HashMap<(RouterId, RouterId), (usize, NotNan<f64>)>,
     processing_params: HashMap<RouterId, ModelParams>,
     default_processing_params: ModelParams,
@@ -270,7 +271,7 @@ const GEO_TIMING_MODEL_DEFAULT_DELAY: f64 = 0.0001;
 const GEO_TIMING_MODEL_MAX_DELAY: f64 = 10.0;
 const GEO_TIMING_MODEL_F_LIGHT_SPEED: f64 = 1.0 / 299792458.0;
 
-impl<P: Prefix> GeoTimingModel<P> {
+impl<P: Prefix, C: Hash + Eq + Clone> GeoTimingModel<P, C> {
     /// Create a new, empty model queue with given default parameters
     pub fn new(
         default_processing_params: ModelParams,
@@ -326,12 +327,12 @@ impl<P: Prefix> GeoTimingModel<P> {
     /// Recursively update the paths of the routers.
     ///
     /// **TODO**: this function needs improvements!
-    fn recursive_compute_paths<Ospf: OspfProcess>(
+    fn recursive_compute_paths<Ospf: OspfProcess, R>(
         &mut self,
         router: RouterId,
         target: RouterId,
         loop_protection: &mut HashSet<RouterId>,
-        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf, R>>,
         path_cache: &mut HashMap<(RouterId, RouterId), Option<Vec<RouterId>>>,
     ) {
         if router == target {
@@ -418,26 +419,27 @@ impl<P: Prefix> GeoTimingModel<P> {
     }
 }
 
-impl<P: Prefix> PartialEq for GeoTimingModel<P> {
+impl<P: Prefix, C: Hash + Eq> PartialEq for GeoTimingModel<P, C> {
     fn eq(&self, other: &Self) -> bool {
         self.q.iter().collect::<Vec<_>>() == other.q.iter().collect::<Vec<_>>()
     }
 }
 
-impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
+impl<P: Prefix, C: Hash + Eq + Clone> EventQueue<P, C> for GeoTimingModel<P, C> {
     type Priority = NotNan<f64>;
 
-    fn push<Ospf: OspfProcess>(
-        &mut self,
-        mut event: Event<P, Self::Priority>,
-        _: &BTreeMap<RouterId, Router<P, Ospf>>,
-        _: &PhysicalNetwork,
-    ) {
+    fn push(&mut self, mut event: Event<P, Self::Priority, C>) {
         let mut next_time = self.current_time;
         let mut rng = thread_rng();
         // match on the event
         match event {
             Event::Bgp {
+                p: ref mut t,
+                src,
+                dst,
+                ..
+            }
+            | Event::Custom {
                 p: ref mut t,
                 src,
                 dst,
@@ -487,11 +489,11 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         self.q.push(event, Reverse(next_time));
     }
 
-    fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
+    fn pop(&mut self) -> Option<Event<P, Self::Priority, C>> {
         let (event, _) = self.q.pop()?;
         self.current_time = *event.priority();
         match event {
-            Event::Bgp { src, dst, .. } => {
+            Event::Bgp { src, dst, .. } | Event::Custom { src, dst, .. } => {
                 if let Some((num, _)) = self.messages.get_mut(&(src, dst)) {
                     *num -= 1;
                 }
@@ -502,7 +504,7 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         Some(event)
     }
 
-    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
+    fn peek(&self) -> Option<&Event<P, Self::Priority, C>> {
         self.q.peek().map(|(e, _)| e)
     }
 
@@ -524,9 +526,9 @@ impl<P: Prefix> EventQueue<P> for GeoTimingModel<P> {
         Some(self.current_time.into_inner())
     }
 
-    fn update_params<Ospf: OspfProcess>(
+    fn update_params<Ospf: OspfProcess, R>(
         &mut self,
-        routers: &BTreeMap<RouterId, Router<P, Ospf>>,
+        routers: &BTreeMap<RouterId, Router<P, Ospf, R>>,
         _: &PhysicalNetwork,
     ) {
         self.paths.clear();

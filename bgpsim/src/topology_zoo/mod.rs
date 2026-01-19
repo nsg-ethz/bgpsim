@@ -51,6 +51,7 @@ use thiserror::Error;
 use xmltree::{Element, ParseError as XmlParseError};
 
 use crate::{
+    custom_protocol::CustomProto,
     event::EventQueue,
     network::Network,
     ospf::OspfImpl,
@@ -116,13 +117,13 @@ impl TopologyZooParser {
     /// internal and external, if given), and add all edges. All internal routers will have the
     /// given `internal_asn`, while external ones will get a unique one, starting from
     /// `external_asn`.
-    pub fn get_network<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
+    pub fn get_network<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto>(
         &self,
         queue: Q,
         internal_asn: ASN,
         external_asn: Option<ASN>,
-    ) -> Result<Network<P, Q, Ospf>, TopologyZooError> {
-        let mut net: Network<P, Q, GlobalOspf> = Network::new(queue);
+    ) -> Result<Network<P, Q, Ospf, R>, TopologyZooError> {
+        let mut net: Network<P, Q, GlobalOspf, R> = Network::new(queue);
         let mut routers_to_ignore = HashSet::new();
 
         let nodes_lut: HashMap<&str, RouterId> = self

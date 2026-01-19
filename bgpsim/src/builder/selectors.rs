@@ -199,9 +199,9 @@ impl<R> RandomRouters<R> {
 
 #[cfg(feature = "rand")]
 impl<R: RngCore> RouterSelector for RandomRouters<R> {
-    fn select<P: Prefix, Q, Ospf: OspfImpl, R>(
+    fn select<P: Prefix, Q, Ospf: OspfImpl, RP>(
         &mut self,
-        net: &Network<P, Q, Ospf, R>,
+        net: &Network<P, Q, Ospf, RP>,
         asn: ASN,
     ) -> impl Iterator<Item = RouterId> {
         let mut routers = net

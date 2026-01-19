@@ -37,6 +37,7 @@
 
 use super::TopologyZooParser;
 use crate::{
+    custom_protocol::CustomProto,
     event::EventQueue,
     network::Network,
     ospf::OspfImpl,
@@ -2710,12 +2711,12 @@ pub enum TopologyZoo {
 impl TopologyZoo {
     /// Generate the network. All internal routers will get the provided internal ASN, while
     /// external routers will get a unique ASN starting from `external_asn`.
-    pub fn build<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
+    pub fn build<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto>(
         &self,
         queue: Q,
         internal_asn: impl Into<ASN>,
         external_asn: impl Into<ASN>,
-    ) -> Network<P, Q, Ospf> {
+    ) -> Network<P, Q, Ospf, R> {
         TopologyZooParser::new(self.graphml())
             .unwrap()
             .get_network(queue, internal_asn.into(), Some(external_asn.into()))
@@ -2724,11 +2725,11 @@ impl TopologyZoo {
 
     /// Generate the internal network only. All internal routers will get the provided internal ASN,
     /// while no external routers will be created.
-    pub fn build_internal<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl>(
+    pub fn build_internal<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto>(
         &self,
         queue: Q,
         internal_asn: impl Into<ASN>,
-    ) -> Network<P, Q, Ospf> {
+    ) -> Network<P, Q, Ospf, R> {
         TopologyZooParser::new(self.graphml())
             .unwrap()
             .get_network(queue, internal_asn.into(), None)

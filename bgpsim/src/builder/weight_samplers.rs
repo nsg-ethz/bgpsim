@@ -173,9 +173,9 @@ impl<R> UniformWeights<R> {
 
 #[cfg(feature = "rand")]
 impl<R: RngCore> WeightSampler for UniformWeights<R> {
-    fn sample<P: Prefix, Q, Ospf: OspfImpl, R>(
+    fn sample<P: Prefix, Q, Ospf: OspfImpl, RP>(
         &mut self,
-        _net: &Network<P, Q, Ospf, R>,
+        _net: &Network<P, Q, Ospf, RP>,
         _asn: ASN,
         _src: RouterId,
         _dst: RouterId,
