@@ -238,6 +238,9 @@ pub enum DeviceError {
     /// OSPF Neighborhood does not exists.
     #[error("Routers {0:?} and {1:?} are not OSPF neighbors.")]
     NotAnOspfNeighbor(RouterId, RouterId),
+    /// A custom error from a custom protocol
+    #[error("Custom protocol error at router {0:?}: {1}")]
+    Custom(RouterId, String),
 }
 
 /// Network Errors

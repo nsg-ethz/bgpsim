@@ -876,7 +876,7 @@ pub trait NetworkConfig<P: Prefix> {
     fn get_config(&self) -> Result<Config<P>, NetworkError>;
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> NetworkConfig<P>
+impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto> NetworkConfig<P>
     for Network<P, Q, Ospf, R>
 {
     /// Set the provided network-wide configuration. The network first computes the patch from the

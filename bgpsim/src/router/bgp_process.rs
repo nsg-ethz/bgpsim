@@ -253,11 +253,11 @@ impl<P: Prefix> BgpProcess<P> {
      */
 
     /// Advertise the given route in BGP (or stop advertising it).
-    pub(crate) fn advertise_route<T: Default>(
+    pub(crate) fn advertise_route<T: Default, C>(
         &mut self,
         prefix: P,
         route: Option<BgpRoute<P>>,
-    ) -> Result<Vec<Event<P, T>>, DeviceError> {
+    ) -> Result<Vec<Event<P, T, C>>, DeviceError> {
         // essentially this is treated identicaly to as if the router got an update or withdraw.
         let event = match route {
             Some(r) => {
@@ -276,11 +276,11 @@ impl<P: Prefix> BgpProcess<P> {
     /// type. Finally, the BGP tables are updated, and events are generated. This function will
     /// return the old session type (if it exists). This function will also return the set of events
     /// triggered by this action.
-    pub(crate) fn set_session<T: Default>(
+    pub(crate) fn set_session<T: Default, C>(
         &mut self,
         target: RouterId,
         info: Option<(ASN, bool)>,
-    ) -> UpdateOutcome<BgpSessionType, P, T> {
+    ) -> UpdateOutcome<BgpSessionType, P, T, C> {
         let old_info = if let Some((target_asn, c)) = info {
             let ty = BgpSessionType::new(self.asn, target_asn, c);
             self.sessions.insert(target, (target_asn, c, ty))
@@ -307,12 +307,12 @@ impl<P: Prefix> BgpProcess<P> {
     /// action.
     ///
     /// To remove a route map, use [`Router::remove_bgp_route_map`].
-    pub(crate) fn set_route_map<T: Default>(
+    pub(crate) fn set_route_map<T: Default, C>(
         &mut self,
         neighbor: RouterId,
         direction: RouteMapDirection,
         mut route_map: RouteMap<P>,
-    ) -> UpdateOutcome<RouteMap<P>, P, T> {
+    ) -> UpdateOutcome<RouteMap<P>, P, T, C> {
         let _order = route_map.order;
         let old_map = match direction {
             Incoming => {
@@ -351,10 +351,10 @@ impl<P: Prefix> BgpProcess<P> {
     /// Update or remove multiple route-map items. Any existing route-map entry for the same
     /// neighbor in the same direction under the same order will be replaced. This function will
     /// also return all events triggered by this action.
-    pub(crate) fn batch_update_route_maps<T: Default>(
+    pub(crate) fn batch_update_route_maps<T: Default, C>(
         &mut self,
         updates: &[RouteMapEdit<P>],
-    ) -> Result<Vec<Event<P, T>>, DeviceError> {
+    ) -> Result<Vec<Event<P, T, C>>, DeviceError> {
         for update in updates {
             let neighbor = update.neighbor;
             let direction = update.direction;
@@ -398,12 +398,12 @@ impl<P: Prefix> BgpProcess<P> {
     /// return all events triggered by this action.
     ///
     /// To add or update a route map, use [`Router::set_bgp_route_map`].
-    pub(crate) fn remove_route_map<T: Default>(
+    pub(crate) fn remove_route_map<T: Default, C>(
         &mut self,
         neighbor: RouterId,
         direction: RouteMapDirection,
         order: i16,
-    ) -> UpdateOutcome<RouteMap<P>, P, T> {
+    ) -> UpdateOutcome<RouteMap<P>, P, T, C> {
         let old_map = match direction {
             Incoming => {
                 let maps = match self.route_maps_in.get_mut(&neighbor) {
@@ -445,11 +445,11 @@ impl<P: Prefix> BgpProcess<P> {
 
     /// handle an `Event`. This function returns all events triggered by this function, and a
     /// boolean to check if there was an update or not.
-    pub(crate) fn handle_event<T: Default>(
+    pub(crate) fn handle_event<T: Default, C>(
         &mut self,
         from: RouterId,
         event: BgpEvent<P>,
-    ) -> Result<Vec<Event<P, T>>, DeviceError> {
+    ) -> Result<Vec<Event<P, T, C>>, DeviceError> {
         // first, check if the event was received from a bgp peer (or from itself)
         if !self.sessions.contains_key(&from) && from != self.router_id {
             log::warn!("Received a bgp event form a non-neighbor! Ignore event!");
@@ -495,10 +495,10 @@ impl<P: Prefix> BgpProcess<P> {
 
     /// Update the bgp tables only. If `force_dissemination` is set to true, then this function will
     /// always perform route dissemionation, no matter if the route has changed.
-    pub(super) fn update_tables<T: Default>(
+    pub(super) fn update_tables<T: Default, C>(
         &mut self,
         force_dissemination: bool,
-    ) -> Result<Vec<Event<P, T>>, DeviceError> {
+    ) -> Result<Vec<Event<P, T, C>>, DeviceError> {
         let mut events = Vec::new();
         // run the decision process
         for prefix in self.known_prefixes.iter().copied().collect::<Vec<_>>() {
@@ -607,10 +607,10 @@ impl<P: Prefix> BgpProcess<P> {
     }
 
     /// only run bgp route dissemination (phase 3) and return the events triggered by the dissemination
-    fn run_dissemination_for_prefix<T: Default>(
+    fn run_dissemination_for_prefix<T: Default, C>(
         &mut self,
         prefix: P,
-    ) -> Result<Vec<Event<P, T>>, DeviceError> {
+    ) -> Result<Vec<Event<P, T, C>>, DeviceError> {
         let mut events = Vec::new();
 
         let rib_best = self.rib.get(&prefix);
@@ -1033,4 +1033,5 @@ fn should_export_route(
 
 /// The outcome of a modification to the router. This is a result of a tuple value, where the first
 /// entry is the old value (`Old`), and the second is a set of events that must be enqueued.
-pub(crate) type UpdateOutcome<Old, P, T> = Result<(Option<Old>, Vec<Event<P, T>>), DeviceError>;
+pub(crate) type UpdateOutcome<Old, P, T, C> =
+    Result<(Option<Old>, Vec<Event<P, T, C>>), DeviceError>;

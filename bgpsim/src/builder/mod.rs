@@ -290,8 +290,8 @@ pub trait NetworkBuilder<P, Q, Ospf: OspfImpl> {
     fn build_connected_graph_in_as(&mut self, asn: impl Into<ASN>) -> Result<(), NetworkError>;
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> NetworkBuilder<P, Q, Ospf>
-    for Network<P, Q, Ospf, R>
+impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto>
+    NetworkBuilder<P, Q, Ospf> for Network<P, Q, Ospf, R>
 {
     fn build_ibgp_full_mesh(&mut self) -> Result<(), NetworkError> {
         let sessions = self

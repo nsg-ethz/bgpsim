@@ -22,6 +22,7 @@ use itertools::{join, Itertools};
 use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute},
     config::{Config, ConfigExpr, ConfigExprKey, ConfigModifier, ConfigPatch, RouteMapEdit},
+    custom_protocol::CustomProto,
     event::{BasicEventQueue, Event, FmtPriority},
     forwarding_state::{ForwardingState, TO_DST},
     network::Network,
@@ -559,8 +560,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R>
 // Event
 //
 
-impl<'n, P: Prefix, Q, Ospf: OspfImpl, R, T: FmtPriority> NetworkFormatter<'n, P, Q, Ospf, R>
-    for Event<P, T>
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R: CustomProto, T: FmtPriority>
+    NetworkFormatter<'n, P, Q, Ospf, R> for Event<P, T, R::Event>
 {
     fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         match self {
@@ -582,6 +583,12 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl, R, T: FmtPriority> NetworkFormatter<'n, P
                 src.fmt(net),
                 dst.fmt(net),
                 e.fmt(net),
+                p.fmt()
+            ),
+            Event::Custom { p, src, dst, e } => format!(
+                "Custom Event: {} -> {}: {e:?} {}",
+                src.fmt(net),
+                dst.fmt(net),
                 p.fmt()
             ),
         }
@@ -1171,6 +1178,9 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R> fo
                 executing.fmt(net),
                 recipiant.fmt(net)
             ),
+            DeviceError::Custom(router, msg) => {
+                format!("Custom protocol error at router {}: {msg}", router.fmt(net))
+            }
         }
     }
 }
@@ -1191,8 +1201,8 @@ impl<'n, P: Prefix + std::fmt::Debug, Q, Ospf: OspfImpl, R> NetworkFormatter<'n,
 //
 // Formatting the queue
 //
-impl<'n, P: Prefix, Q, Ospf: OspfImpl, R> NetworkFormatter<'n, P, Q, Ospf, R>
-    for BasicEventQueue<P>
+impl<'n, P: Prefix, Q, Ospf: OspfImpl, R: CustomProto> NetworkFormatter<'n, P, Q, Ospf, R>
+    for BasicEventQueue<P, R::Event>
 {
     fn fmt(&self, net: &'n Network<P, Q, Ospf, R>) -> String {
         self.0.iter().map(|e| e.fmt(net)).join("\n")
@@ -1240,7 +1250,7 @@ mod test {
 
     use super::*;
 
-    type Net = Network<SimplePrefix, BasicEventQueue<SimplePrefix>, GlobalOspf>;
+    type Net = Network<SimplePrefix, BasicEventQueue<SimplePrefix>, GlobalOspf, ()>;
 
     #[test]
     fn fmt_list() {

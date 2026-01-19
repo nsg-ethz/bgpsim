@@ -125,7 +125,9 @@ impl<P: Prefix, Q: Clone, Ospf: OspfImpl, R: Clone> Clone for Network<P, Q, Ospf
     }
 }
 
-impl<P: Prefix, Ospf: OspfImpl, R> Default for Network<P, BasicEventQueue<P>, Ospf, R> {
+impl<P: Prefix, Ospf: OspfImpl, R: CustomProto> Default
+    for Network<P, BasicEventQueue<P, R::Event>, Ospf, R>
+{
     fn default() -> Self {
         Self::new(BasicEventQueue::new())
     }
@@ -294,7 +296,7 @@ impl<P: Prefix, Q, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
     /// *Warning*: The network will simulate all enqueued events.
     pub fn set_asn(&mut self, router_id: RouterId, asn: impl Into<ASN>) -> Result<ASN, NetworkError>
     where
-        Q: EventQueue<P>,
+        Q: EventQueue<P, R::Event>,
     {
         let old_skip = self.skip_queue;
         let old_stop_after = self.stop_after;
@@ -452,12 +454,12 @@ impl<P: Prefix, Q, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
     }
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
+impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
     /// Swap out the queue with a different one. The caller is responsible to ensure that the two
     /// queues contain an equivalent set of events.
     pub fn swap_queue<QA>(self, mut queue: QA) -> Network<P, QA, Ospf, R>
     where
-        QA: EventQueue<P>,
+        QA: EventQueue<P, R::Event>,
     {
         queue.update_params(&self.routers, &self.net);
 
@@ -1028,12 +1030,12 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> Network<P, Q, 
 
     /// Enqueue all events
     #[inline(always)]
-    pub(crate) fn enqueue_events(&mut self, events: Vec<Event<P, Q::Priority>>) {
+    pub(crate) fn enqueue_events(&mut self, events: Vec<Event<P, Q::Priority, R::Event>>) {
         self.queue.push_many(events)
     }
 }
 
-impl<P: Prefix, Q: EventQueue<P>, R: CustomProto> Network<P, Q, GlobalOspf, R> {
+impl<P: Prefix, Q: EventQueue<P, R::Event>, R: CustomProto> Network<P, Q, GlobalOspf, R> {
     /// Enable the OSPF implementation that passes messages.
     ///
     /// This function will convert a `Network<P, Q, GlobalOspf` into `Network<P, Q, LocalOspf>`. The
@@ -1051,7 +1053,7 @@ impl<P: Prefix, Q: EventQueue<P>, R: CustomProto> Network<P, Q, GlobalOspf, R> {
     }
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
+impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto> Network<P, Q, Ospf, R> {
     /// Convert a network that uses GlobalOSPF into a network that uses a different kind of OSPF
     /// implementation (according to the type parameter `Ospf`). See [`Network::into_local_ospf`] in
     /// case you wish to create a network that computes the OSPF state by exchanging OSPF messages.
@@ -1090,7 +1092,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> Network<P, Q, 
         mut queue: QA,
     ) -> Result<Network<Ipv4Prefix, QA, Ospf, R>, Self>
     where
-        QA: EventQueue<Ipv4Prefix>,
+        QA: EventQueue<Ipv4Prefix, R::Event>,
     {
         if !self.queue.is_empty() {
             return Err(self);
@@ -1125,7 +1127,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> Network<P, Q, 
 impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
-    Q: EventQueue<P> + PartialEq,
+    Q: EventQueue<P, R::Event> + PartialEq,
     Ospf: OspfImpl,
     R: CustomProto,
 {
@@ -1220,7 +1222,7 @@ where
 impl<P, Q, Ospf, R> PartialEq for Network<P, Q, Ospf, R>
 where
     P: Prefix,
-    Q: EventQueue<P> + PartialEq,
+    Q: EventQueue<P, R::Event> + PartialEq,
     Ospf: OspfImpl,
     R: CustomProto + PartialEq,
 {

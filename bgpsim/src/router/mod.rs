@@ -152,7 +152,7 @@ impl<P: Prefix, Ospf, R> Router<P, Ospf, R> {
     }
 }
 
-impl<P: Prefix, Ospf: OspfProcess, R> Router<P, Ospf, R> {
+impl<P: Prefix, Ospf: OspfProcess, R: CustomProto> Router<P, Ospf, R> {
     /// Returns `true` if some process of that router is waiting for some timeout to expire. Only
     /// OSPF might trigger such a timeout at the moment.
     pub(crate) fn is_waiting_for_timeout(&self) -> bool {
@@ -161,7 +161,9 @@ impl<P: Prefix, Ospf: OspfProcess, R> Router<P, Ospf, R> {
 
     /// Trigger any timeout event that might be registered on that device. Only OSPF might trigger
     /// such a timeout at the moment.
-    pub(crate) fn trigger_timeout<T: Default>(&mut self) -> Result<Vec<Event<P, T>>, DeviceError> {
+    pub(crate) fn trigger_timeout<T: Default>(
+        &mut self,
+    ) -> Result<Vec<Event<P, T, R::Event>>, DeviceError> {
         self.update_ospf(|ospf| ospf.trigger_timeout())
     }
 
@@ -173,9 +175,9 @@ impl<P: Prefix, Ospf: OspfProcess, R> Router<P, Ospf, R> {
     pub(crate) fn update_ospf<F, T: Default>(
         &mut self,
         f: F,
-    ) -> Result<Vec<Event<P, T>>, DeviceError>
+    ) -> Result<Vec<Event<P, T, R::Event>>, DeviceError>
     where
-        F: FnOnce(&mut Ospf) -> Result<(bool, Vec<Event<P, T>>), DeviceError>,
+        F: FnOnce(&mut Ospf) -> Result<(bool, Vec<Event<P, T, R::Event>>), DeviceError>,
     {
         let (recompute_bgp, mut ospf_events) = f(&mut self.ospf)?;
         if recompute_bgp {
@@ -228,8 +230,8 @@ impl<P: Prefix, Ospf: OspfProcess, R: CustomProto> Router<P, Ospf, R> {
     /// with that properly.
     pub unsafe fn trigger_event<T: Default>(
         &mut self,
-        event: Event<P, T>,
-    ) -> Result<EventOutcome<P, T>, DeviceError> {
+        event: Event<P, T, R::Event>,
+    ) -> Result<EventOutcome<P, T, R::Event>, DeviceError> {
         self.handle_event(event)
     }
 
@@ -237,8 +239,8 @@ impl<P: Prefix, Ospf: OspfProcess, R: CustomProto> Router<P, Ospf, R> {
     /// boolean to check if there was an update or not.
     pub(crate) fn handle_event<T: Default>(
         &mut self,
-        event: Event<P, T>,
-    ) -> Result<EventOutcome<P, T>, DeviceError> {
+        event: Event<P, T, R::Event>,
+    ) -> Result<EventOutcome<P, T, R::Event>, DeviceError> {
         match event {
             Event::Bgp { src, dst, e, .. } if dst == self.router_id => {
                 let prefix = e.prefix();
@@ -262,7 +264,21 @@ impl<P: Prefix, Ospf: OspfProcess, R: CustomProto> Router<P, Ospf, R> {
                     Ok((StepUpdate::Unchanged, ospf_events))
                 }
             }
-            Event::Bgp { dst, .. } | Event::Ospf { dst, .. } => {
+            Event::Custom { src, dst, e, .. } if dst == self.router_id => {
+                let events = self
+                    .custom_proto
+                    .handle_event(src, e)?
+                    .into_iter()
+                    .map(|(dst, e)| Event::Custom {
+                        p: T::default(),
+                        src: self.router_id,
+                        dst,
+                        e,
+                    })
+                    .collect();
+                Ok((StepUpdate::Multiple, events))
+            }
+            Event::Bgp { dst, .. } | Event::Ospf { dst, .. } | Event::Custom { dst, .. } => {
                 Err(DeviceError::WrongRouter(self.router_id, dst))
             }
         }

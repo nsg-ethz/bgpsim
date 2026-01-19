@@ -23,6 +23,7 @@ use serde::{Deserialize, Serialize};
 use serde_with::{As, Same};
 
 use crate::{
+    custom_protocol::CustomProto,
     event::Event,
     ospf::{
         local::{
@@ -175,13 +176,13 @@ impl OspfCoordinator for GlobalOspfCoordinator {
         }
     }
 
-    fn update<P: Prefix, T: Default, R>(
+    fn update<P: Prefix, T: Default, R: CustomProto>(
         &mut self,
         delta: NeighborhoodChange,
         routers: BTreeMap<RouterId, &mut Router<P, GlobalOspfProcess, R>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
-    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+    ) -> Result<Vec<Event<P, T, R::Event>>, NetworkError> {
         let actions = self.prepare_actions(delta);
         self.perform_actions(actions, routers, links, external_links)
     }
@@ -268,13 +269,13 @@ impl GlobalOspfCoordinator {
 
     /// Perform all scheduled actions. This may also cause some routers to recompute their BGP
     /// tables.
-    fn perform_actions<P: Prefix, T: Default, R>(
+    fn perform_actions<P: Prefix, T: Default, R: CustomProto>(
         &mut self,
         actions: Actions,
         mut routers: BTreeMap<RouterId, &mut Router<P, GlobalOspfProcess, R>>,
         links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         external_links: &HashMap<RouterId, HashSet<RouterId>>,
-    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+    ) -> Result<Vec<Event<P, T, R::Event>>, NetworkError> {
         let Actions {
             recompute_intra_area_routes,
             mut recompute_inter_area_routes,
@@ -999,12 +1000,12 @@ impl OspfProcess for GlobalOspfProcess {
         &self.neighbors
     }
 
-    fn handle_event<P: Prefix, T: Default>(
+    fn handle_event<P: Prefix, T: Default, C>(
         &mut self,
         _src: RouterId,
         _area: OspfArea,
         _event: super::local::OspfEvent,
-    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+    ) -> Result<(bool, Vec<Event<P, T, C>>), DeviceError> {
         // ignore any event.
         log::error!("Received an OSPF event when using a global OSPF process! Event is ignored");
         Ok((false, Vec::new()))
@@ -1014,9 +1015,9 @@ impl OspfProcess for GlobalOspfProcess {
         false
     }
 
-    fn trigger_timeout<P: Prefix, T: Default>(
+    fn trigger_timeout<P: Prefix, T: Default, C>(
         &mut self,
-    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+    ) -> Result<(bool, Vec<Event<P, T, C>>), DeviceError> {
         // ignore any event.
         log::error!("Triggered a timeout event on a global OSPF process!");
         Ok((false, Vec::new()))

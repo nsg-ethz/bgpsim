@@ -277,16 +277,16 @@ impl Neighbor {
     /// datastructures, as it might modify it. It returns a set of LSA keys that were updated, and
     /// a flag describing whether the OSPF RIB got updated. Finally, it returns (potentially) a new
     /// event, i.e., a message to the neighbor.
-    pub(super) fn handle_event<P: Prefix, T: Default>(
+    pub(super) fn handle_event<P: Prefix, T: Default, C>(
         &mut self,
         event: NeighborEvent,
         areas: &mut OspfRib,
-    ) -> NeighborActions<P, T> {
+    ) -> NeighborActions<P, T, C> {
         let event_name = event.name();
         // handle the event by matching on it. If none of the patterns match, then the expression is
         // None. This Option will be unwrapped further below, generating warnings for any unhandled
         // events.
-        let result: Option<NeighborActions<P, T>> = match event {
+        let result: Option<NeighborActions<P, T, C>> = match event {
             NeighborEvent::Start => match (&self.state, self.relation) {
                 // transition to exchange, sending the database description packet
                 (NeighborState::Init, Relation::Leader) => {
@@ -427,13 +427,13 @@ impl Neighbor {
     /// All types of LSAs, other than AS-external-LSAs, are associated with a specific area.
     /// However, LSAs do not contain an area field. An LSA's area must be deduced from the Link
     /// State Update packet header.
-    fn handle_update<P: Prefix, T: Default>(
+    fn handle_update<P: Prefix, T: Default, C>(
         &mut self,
         lsa_list: Vec<Lsa>,
         ack: bool,
         partial_sync: bool,
         areas: &mut OspfRib,
-    ) -> NeighborActions<P, T> {
+    ) -> NeighborActions<P, T, C> {
         // handle acks separately
         if ack {
             lsa_list.into_iter().for_each(|lsa| self.recv_ack(lsa));
@@ -470,10 +470,10 @@ impl Neighbor {
 
     /// Prepare the transition from Exchange to either Loading or Full, depending on the
     /// summary-list received from the neighbor
-    fn transition_exchange<P: Prefix, T: Default>(
+    fn transition_exchange<P: Prefix, T: Default, C>(
         &mut self,
         headers: &[LsaHeader],
-    ) -> NeighborActions<P, T> {
+    ) -> NeighborActions<P, T, C> {
         let mut actions = NeighborActions::new();
         self.request_list = compute_request_list(&self.summary_list, headers);
         if self.request_list.is_empty() {
@@ -871,9 +871,9 @@ impl Neighbor {
 }
 
 /// Structure that defines that actions to take upon receiving any kind of OSPF event.
-pub(super) struct NeighborActions<P: Prefix, T: Default> {
+pub(super) struct NeighborActions<P: Prefix, T: Default, C> {
     /// The OSPF events to immediately send out.
-    pub events: Vec<Event<P, T>>,
+    pub events: Vec<Event<P, T, C>>,
     /// The LSAs to flood out to all *other* neighbors.
     pub flood: Vec<Lsa>,
     /// The new keys to track their max-age, and the corresponding LSA to put into the database once
@@ -881,7 +881,7 @@ pub(super) struct NeighborActions<P: Prefix, T: Default> {
     pub track_max_age: Vec<(LsaKey, Option<Lsa>)>,
 }
 
-impl<P: Prefix, T: Default> Default for NeighborActions<P, T> {
+impl<P: Prefix, T: Default, C> Default for NeighborActions<P, T, C> {
     fn default() -> Self {
         Self {
             events: Vec::new(),
@@ -891,18 +891,18 @@ impl<P: Prefix, T: Default> Default for NeighborActions<P, T> {
     }
 }
 
-impl<P: Prefix, T: Default> NeighborActions<P, T> {
+impl<P: Prefix, T: Default, C> NeighborActions<P, T, C> {
     pub fn new() -> Self {
         Self::default()
     }
 
-    pub fn event(&mut self, event: Event<P, T>) -> &mut Self {
+    pub fn event(&mut self, event: Event<P, T, C>) -> &mut Self {
         self.events.push(event);
         self
     }
 }
 
-impl<P: Prefix, T: Default> std::ops::AddAssign for NeighborActions<P, T> {
+impl<P: Prefix, T: Default, C> std::ops::AddAssign for NeighborActions<P, T, C> {
     fn add_assign(&mut self, mut rhs: Self) {
         self.events.append(&mut rhs.events);
         self.flood.append(&mut rhs.flood);

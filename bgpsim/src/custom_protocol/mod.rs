@@ -4,13 +4,13 @@
 use crate::{
     formatter::NetworkFormatter,
     ospf::OspfImpl,
-    types::{NetworkError, Prefix, RouterId},
+    types::{DeviceError, NetworkError, Prefix, RouterId},
 };
 
 /// A trait that defines a custom routing protocol.
 pub trait CustomProto {
     /// En event for communication.
-    type Event;
+    type Event: Clone + std::fmt::Debug;
     /// Data in the header that is used to forward packets in that protocol.
     type Header;
 
@@ -37,7 +37,7 @@ pub trait CustomProto {
         &mut self,
         from: RouterId,
         event: Self::Event,
-    ) -> Result<Vec<(RouterId, Self::Event)>, NetworkError>;
+    ) -> Result<Vec<(RouterId, Self::Event)>, DeviceError>;
 }
 
 impl CustomProto for () {
@@ -74,7 +74,7 @@ impl CustomProto for () {
         &mut self,
         _: RouterId,
         _: Self::Event,
-    ) -> Result<Vec<(RouterId, Self::Event)>, NetworkError> {
+    ) -> Result<Vec<(RouterId, Self::Event)>, DeviceError> {
         Ok(Vec::new())
     }
 }

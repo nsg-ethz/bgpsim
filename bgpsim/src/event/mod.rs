@@ -35,10 +35,10 @@ use crate::{
 /// Event to handle
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
 #[serde(bound(
-    serialize = "P: Serialize, T: serde::Serialize",
-    deserialize = "P: for<'a> serde::Deserialize<'a>, T: for<'a> serde::Deserialize<'a>"
+    serialize = "P: Serialize, T: serde::Serialize, C: serde::Serialize",
+    deserialize = "P: for<'a> serde::Deserialize<'a>, T: for<'a> serde::Deserialize<'a>, C: for<'a> serde::Deserialize<'a>"
 ))]
-pub enum Event<P: Prefix, T> {
+pub enum Event<P: Prefix, T, C> {
     /// BGP Event from `#1` to `#2`.
     Bgp {
         /// The priority (time). Can be ignored when handling events, (unless you implement a custom
@@ -65,9 +65,21 @@ pub enum Event<P: Prefix, T> {
         /// The specific OSPF event.
         e: OspfEvent,
     },
+    /// An event emitted by the custom routing protocol
+    Custom {
+        /// The priority (time). Can be ignored when handling events, (unless you implement a custom
+        /// queue).
+        p: T,
+        /// The source of the message
+        src: RouterId,
+        /// The target of the message
+        dst: RouterId,
+        /// The generic content of the event.
+        e: C,
+    },
 }
 
-impl<P: Prefix, T> Event<P, T> {
+impl<P: Prefix, T, C> Event<P, T, C> {
     /// Create a new BGP event
     pub fn bgp(p: T, src: RouterId, dst: RouterId, e: BgpEvent<P>) -> Self {
         Self::Bgp { p, src, dst, e }
@@ -96,20 +108,21 @@ impl<P: Prefix, T> Event<P, T> {
                 ..
             } => Some(*prefix),
             Event::Ospf { .. } => None,
+            Event::Custom { .. } => None,
         }
     }
 
     /// Get a reference to the priority of this event.
     pub fn priority(&self) -> &T {
         match self {
-            Event::Bgp { p, .. } | Event::Ospf { p, .. } => p,
+            Event::Bgp { p, .. } | Event::Ospf { p, .. } | Event::Custom { p, .. } => p,
         }
     }
 
     /// Get a reference to the priority of this event.
     pub fn priority_mut(&mut self) -> &mut T {
         match self {
-            Event::Bgp { p, .. } | Event::Ospf { p, .. } => p,
+            Event::Bgp { p, .. } | Event::Ospf { p, .. } | Event::Custom { p, .. } => p,
         }
     }
 
@@ -121,20 +134,20 @@ impl<P: Prefix, T> Event<P, T> {
     /// Return the source of the event.
     pub fn source(&self) -> RouterId {
         match self {
-            Event::Bgp { src, .. } | Event::Ospf { src, .. } => *src,
+            Event::Bgp { src, .. } | Event::Ospf { src, .. } | Event::Custom { src, .. } => *src,
         }
     }
 
     /// Return the router where the event is processed
     pub fn router(&self) -> RouterId {
         match self {
-            Event::Bgp { dst, .. } | Event::Ospf { dst, .. } => *dst,
+            Event::Bgp { dst, .. } | Event::Ospf { dst, .. } | Event::Custom { dst, .. } => *dst,
         }
     }
 }
 
-impl<P: Prefix, T> IntoIpv4Prefix for Event<P, T> {
-    type T = Event<Ipv4Prefix, ()>;
+impl<P: Prefix, T, C> IntoIpv4Prefix for Event<P, T, C> {
+    type T = Event<Ipv4Prefix, (), C>;
 
     fn into_ipv4_prefix(self) -> Self::T {
         match self {
@@ -156,10 +169,11 @@ impl<P: Prefix, T> IntoIpv4Prefix for Event<P, T> {
                 area,
                 e,
             },
+            Event::Custom { src, dst, e, .. } => Event::Custom { p: (), src, dst, e },
         }
     }
 }
 
 /// The outcome of a handled event. This will include a update in the forwarding state (0:
 /// [`StepUpdate`]), and a set of new events that must be enqueued (1: [`Event`]).
-pub(crate) type EventOutcome<P, T> = (StepUpdate<P>, Vec<Event<P, T>>);
+pub(crate) type EventOutcome<P, T, C> = (StepUpdate<P>, Vec<Event<P, T, C>>);

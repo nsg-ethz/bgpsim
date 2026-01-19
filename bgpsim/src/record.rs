@@ -59,7 +59,7 @@ pub trait RecordNetwork<Q> {
 
 impl<Q> RecordNetwork<Q> for Network<SinglePrefix, Q, GlobalOspf, ()>
 where
-    Q: EventQueue<SinglePrefix>,
+    Q: EventQueue<SinglePrefix, ()>,
 {
     fn record<F>(&mut self, f: F) -> Result<ConvergenceRecording, NetworkError>
     where

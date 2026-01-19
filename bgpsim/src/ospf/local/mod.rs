@@ -33,6 +33,7 @@ use itertools::Itertools;
 use serde::{Deserialize, Serialize};
 
 use crate::{
+    custom_protocol::CustomProto,
     event::Event,
     formatter::NetworkFormatter,
     router::Router,
@@ -237,13 +238,13 @@ impl OspfCoordinator for LocalOspfCoordinator {
         Self(asn)
     }
 
-    fn update<P: Prefix, T: Default, R>(
+    fn update<P: Prefix, T: Default, R: CustomProto>(
         &mut self,
         delta: NeighborhoodChange,
         mut routers: BTreeMap<RouterId, &mut Router<P, Self::Process, R>>,
         _links: &HashMap<RouterId, HashMap<RouterId, (LinkWeight, OspfArea)>>,
         _external_links: &HashMap<RouterId, HashSet<RouterId>>,
-    ) -> Result<Vec<Event<P, T>>, NetworkError> {
+    ) -> Result<Vec<Event<P, T, R::Event>>, NetworkError> {
         let mut events = Vec::new();
 
         for (id, change) in LocalNeighborhoodChange::from_global(delta) {

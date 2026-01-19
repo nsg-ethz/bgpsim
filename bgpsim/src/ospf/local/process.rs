@@ -165,19 +165,19 @@ impl LocalOspfProcess {
     }
 
     /// Handle a neighborhood change.
-    pub(crate) fn handle_neighborhood_change<P: Prefix, T: Default>(
+    pub(crate) fn handle_neighborhood_change<P: Prefix, T: Default, C>(
         &mut self,
         change: LocalNeighborhoodChange,
-    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+    ) -> Result<(bool, Vec<Event<P, T, C>>), DeviceError> {
         let actions = self.prepare_neighborhood_change(change)?;
         Ok(self.perform_actions(actions))
     }
 
     /// Prepare the neighborhood change without performing any actions yet.
-    fn prepare_neighborhood_change<P: Prefix, T: Default>(
+    fn prepare_neighborhood_change<P: Prefix, T: Default, C>(
         &mut self,
         change: LocalNeighborhoodChange,
-    ) -> Result<ProcessActions<P, T>, DeviceError> {
+    ) -> Result<ProcessActions<P, T, C>, DeviceError> {
         let mut actions = ProcessActions::new();
         match change {
             LocalNeighborhoodChange::AddNeighbor {
@@ -309,12 +309,12 @@ impl LocalOspfProcess {
     ///
     /// This will change `self.neighbor_links`, update the corresponding LSA, and prepare a list of
     /// SLAs to flood.
-    fn update_weight<P: Prefix, T: Default>(
+    fn update_weight<P: Prefix, T: Default, C>(
         &mut self,
         neighbor: RouterId,
         area: OspfArea,
         weight: Option<LinkWeight>,
-    ) -> ProcessActions<P, T> {
+    ) -> ProcessActions<P, T, C> {
         let mut result = ProcessActions::new();
 
         // update the LSA
@@ -345,12 +345,12 @@ impl LocalOspfProcess {
     /// This function will update the area data structure of both the old and the new area, and
     /// modify the Router-LSA of this router. It then generates a list of events to be flooded. The
     /// function will also update `self.neighbor_links`.
-    fn update_area<P: Prefix, T: Default>(
+    fn update_area<P: Prefix, T: Default, C>(
         &mut self,
         neighbor: RouterId,
         old: OspfArea,
         new: OspfArea,
-    ) -> ProcessActions<P, T> {
+    ) -> ProcessActions<P, T, C> {
         let weight = *self.neighbor_links.get(&neighbor).unwrap();
         let mut actions = ProcessActions::new();
 
@@ -380,11 +380,11 @@ impl LocalOspfProcess {
 
     /// Update the external link (add, modify or remove it), and prepare the LSAs to be flooded. The
     /// function will also update `self.neighbor_links`.
-    fn update_external_link<P: Prefix, T: Default>(
+    fn update_external_link<P: Prefix, T: Default, C>(
         &mut self,
         ext: RouterId,
         weight: Option<LinkWeight>,
-    ) -> ProcessActions<P, T> {
+    ) -> ProcessActions<P, T, C> {
         // update the local neighbors
         if let Some(new_weight) = weight {
             self.neighbor_links.insert(ext, new_weight);
@@ -411,11 +411,11 @@ impl LocalOspfProcess {
 
     /// Handle a neighbor event, and create a ProcessAction structure (without yet flooding events,
     /// or updating the tables.)
-    fn handle_neighbor_event<P: Prefix, T: Default>(
+    fn handle_neighbor_event<P: Prefix, T: Default, C>(
         &mut self,
         neighbor: RouterId,
         event: NeighborEvent,
-    ) -> ProcessActions<P, T> {
+    ) -> ProcessActions<P, T, C> {
         let Some(n) = self.neighbors.get_mut(&neighbor) else {
             log::trace!("received event from non-existing neighbor. Ignoring the event");
             return ProcessActions::new();
@@ -446,10 +446,10 @@ impl LocalOspfProcess {
     ///
     /// The function will return a boolean, whether BGP must be recomputed, and a set of events that
     /// are triggered.
-    fn perform_actions<P: Prefix, T: Default>(
+    fn perform_actions<P: Prefix, T: Default, C>(
         &mut self,
-        actions: ProcessActions<P, T>,
-    ) -> (bool, Vec<Event<P, T>>) {
+        actions: ProcessActions<P, T, C>,
+    ) -> (bool, Vec<Event<P, T, C>>) {
         let ProcessActions {
             mut events,
             mut flood,
@@ -557,7 +557,10 @@ impl LocalOspfProcess {
     /// already received the LSA. However, in these cases the flooding procedure must be absolutely
     /// sure that the neighbors eventually do receive the LSA, so the LSA is still added to each
     /// adjacency's Link state retransmission list. For each eligible interface:
-    fn flood<P: Prefix, T: Default>(&mut self, flood: Vec<(Lsa, FloodFrom)>) -> Vec<Event<P, T>> {
+    fn flood<P: Prefix, T: Default, C>(
+        &mut self,
+        flood: Vec<(Lsa, FloodFrom)>,
+    ) -> Vec<Event<P, T, C>> {
         let mut results = Vec::new();
 
         for n in self.neighbors.values_mut() {
@@ -580,7 +583,7 @@ impl LocalOspfProcess {
                 mut events,
                 flood,
                 track_max_age,
-            } = n.handle_event::<P, T>(NeighborEvent::Flood(flood.clone()), &mut self.areas);
+            } = n.handle_event::<P, T, C>(NeighborEvent::Flood(flood.clone()), &mut self.areas);
             debug_assert!(
                 flood.is_empty(),
                 "`NeighborEvent::Flood` cannot cause other keys to be updated"
@@ -655,9 +658,9 @@ impl LocalOspfProcess {
     }
 }
 
-struct ProcessActions<P: Prefix, T: Default> {
+struct ProcessActions<P: Prefix, T: Default, C> {
     /// The OSPF events to immediately send out.
-    pub events: Vec<Event<P, T>>,
+    pub events: Vec<Event<P, T, C>>,
     /// The LSAs to be flooded
     pub flood: Vec<(Lsa, FloodFrom)>,
     /// The new keys to track their max-age, and the corresponding LSA to put into the database once
@@ -665,7 +668,7 @@ struct ProcessActions<P: Prefix, T: Default> {
     pub track_max_age: BTreeMap<Option<OspfArea>, Vec<(LsaKey, Option<Lsa>)>>,
 }
 
-impl<P: Prefix, T: Default> std::fmt::Debug for ProcessActions<P, T> {
+impl<P: Prefix, T: Default, C> std::fmt::Debug for ProcessActions<P, T, C> {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("ProcessActions")
             .field("events", &self.events.len())
@@ -676,8 +679,12 @@ impl<P: Prefix, T: Default> std::fmt::Debug for ProcessActions<P, T> {
 }
 
 #[allow(dead_code)]
-impl<P: Prefix, T: Default> ProcessActions<P, T> {
-    fn from_neighbor_actions(e: NeighborActions<P, T>, neighbor: RouterId, area: OspfArea) -> Self {
+impl<P: Prefix, T: Default, C> ProcessActions<P, T, C> {
+    fn from_neighbor_actions(
+        e: NeighborActions<P, T, C>,
+        neighbor: RouterId,
+        area: OspfArea,
+    ) -> Self {
         let mut s = Self {
             events: e.events,
             flood: e
@@ -724,12 +731,12 @@ impl<P: Prefix, T: Default> ProcessActions<P, T> {
         self
     }
 
-    fn event(&mut self, event: Event<P, T>) -> &mut Self {
+    fn event(&mut self, event: Event<P, T, C>) -> &mut Self {
         self.events.push(event);
         self
     }
 
-    fn events(&mut self, mut events: Vec<Event<P, T>>) -> &mut Self {
+    fn events(&mut self, mut events: Vec<Event<P, T, C>>) -> &mut Self {
         self.events.append(&mut events);
         self
     }
@@ -750,7 +757,7 @@ impl<P: Prefix, T: Default> ProcessActions<P, T> {
     }
 }
 
-impl<P: Prefix, T: Default> std::ops::AddAssign for ProcessActions<P, T> {
+impl<P: Prefix, T: Default, C> std::ops::AddAssign for ProcessActions<P, T, C> {
     fn add_assign(&mut self, mut rhs: Self) {
         self.events.append(&mut rhs.events);
         self.flood.append(&mut rhs.flood);
@@ -808,12 +815,12 @@ impl OspfProcess for LocalOspfProcess {
         &self.neighbor_links
     }
 
-    fn handle_event<P: Prefix, T: Default>(
+    fn handle_event<P: Prefix, T: Default, C>(
         &mut self,
         src: RouterId,
         _area: OspfArea,
         event: OspfEvent,
-    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+    ) -> Result<(bool, Vec<Event<P, T, C>>), DeviceError> {
         let event = match event {
             OspfEvent::DatabaseDescription { headers } => {
                 NeighborEvent::RecvDatabaseDescription(headers)
@@ -833,9 +840,9 @@ impl OspfProcess for LocalOspfProcess {
         self.neighbors.values().any(|n| n.is_waiting_for_timeout())
     }
 
-    fn trigger_timeout<P: Prefix, T: Default>(
+    fn trigger_timeout<P: Prefix, T: Default, C>(
         &mut self,
-    ) -> Result<(bool, Vec<Event<P, T>>), DeviceError> {
+    ) -> Result<(bool, Vec<Event<P, T, C>>), DeviceError> {
         // get either a random neighbor to trigger the event, or the first one, depending on the
         // `rand` feature.
         #[cfg(not(feature = "rand"))]
@@ -880,7 +887,7 @@ impl OspfProcess for LocalOspfProcess {
     }
 }
 
-fn batch_events<P: Prefix, T: Default>(events: Vec<Event<P, T>>) -> Vec<Event<P, T>> {
+fn batch_events<P: Prefix, T: Default, C>(events: Vec<Event<P, T, C>>) -> Vec<Event<P, T, C>> {
     let mut result = Vec::new();
     let mut upds: BTreeMap<(RouterId, RouterId, OspfArea), BTreeMap<LsaKey, Lsa>> = BTreeMap::new();
     let mut acks: BTreeMap<(RouterId, RouterId, OspfArea), BTreeMap<LsaKey, Lsa>> = BTreeMap::new();

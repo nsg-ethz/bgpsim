@@ -33,27 +33,27 @@ use super::Event;
 /// queue. This filtering can be done in `push` or `pop`. In case it is done in `pop`, then the
 /// functions `peek`, `len`, and `is_empty` are not required to apply the filter, but can
 /// overestimate the queue.
-pub trait EventQueue<P: Prefix> {
+pub trait EventQueue<P: Prefix, C> {
     /// Type of the priority.
     type Priority: Default + FmtPriority + Clone;
 
     /// Enqueue a new event.
-    fn push(&mut self, event: Event<P, Self::Priority>);
+    fn push(&mut self, event: Event<P, Self::Priority, C>);
 
     /// Enqueue multiple events at once.
-    fn push_many(&mut self, events: Vec<Event<P, Self::Priority>>) {
+    fn push_many(&mut self, events: Vec<Event<P, Self::Priority, C>>) {
         events.into_iter().for_each(|e| self.push(e))
     }
 
     /// Pop the next event.
-    fn pop(&mut self) -> Option<Event<P, Self::Priority>>;
+    fn pop(&mut self) -> Option<Event<P, Self::Priority, C>>;
 
     /// peek the next event.
     ///
     /// *Note*: `Self::peek` is allowed to return an event that is actually not returned by
     /// `Self::pop`. You must, however, maintain the invariant that `Self::peek` **cannot** return
     /// `None` while `Self::pop` returns `Some(e)`.
-    fn peek(&self) -> Option<&Event<P, Self::Priority>>;
+    fn peek(&self) -> Option<&Event<P, Self::Priority, C>>;
 
     /// Get the number of enqueued events
     ///
@@ -95,41 +95,43 @@ pub trait EventQueue<P: Prefix> {
 
 /// Interface of a concurrent event queue. Compared to the [`EventQueue`], it yields a list of events
 /// that should all be processed by a single router.
-pub trait ConcurrentEventQueue<P: Prefix>: EventQueue<P> {
+pub trait ConcurrentEventQueue<P: Prefix, C>: EventQueue<P, C> {
     /// pop the next set of events for one specific router.
-    fn pop_events_for(&mut self, destination: RouterId) -> Vec<Event<P, Self::Priority>>;
+    fn pop_events_for(&mut self, destination: RouterId) -> Vec<Event<P, Self::Priority, C>>;
 }
 
 /// Basic event queue
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
-pub struct BasicEventQueue<P: Prefix>(pub(crate) VecDeque<Event<P, ()>>);
+#[serde(bound(
+    deserialize = "P: for<'a> serde::Deserialize<'a>, C: for<'a> serde::Deserialize<'a>"
+))]
+pub struct BasicEventQueue<P: Prefix, C>(pub(crate) VecDeque<Event<P, (), C>>);
 
-impl<P: Prefix> Default for BasicEventQueue<P> {
+impl<P: Prefix, C> Default for BasicEventQueue<P, C> {
     fn default() -> Self {
         Self(Default::default())
     }
 }
 
-impl<P: Prefix> BasicEventQueue<P> {
+impl<P: Prefix, C> BasicEventQueue<P, C> {
     /// Create a new empty event queue
     pub fn new() -> Self {
         Self(VecDeque::new())
     }
 }
 
-impl<P: Prefix> EventQueue<P> for BasicEventQueue<P> {
+impl<P: Prefix, C: Clone> EventQueue<P, C> for BasicEventQueue<P, C> {
     type Priority = ();
 
-    fn push(&mut self, event: Event<P, Self::Priority>) {
+    fn push(&mut self, event: Event<P, Self::Priority, C>) {
         self.0.push_back(event)
     }
 
-    fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
+    fn pop(&mut self) -> Option<Event<P, Self::Priority, C>> {
         self.0.pop_front()
     }
 
-    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
+    fn peek(&self) -> Option<&Event<P, Self::Priority, C>> {
         self.0.front()
     }
 
@@ -193,13 +195,15 @@ impl FmtPriority for () {
 
 /// The basic concurrent event queue that maintains a FIFO queue for each router.
 #[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
-#[serde(bound(deserialize = "P: for<'a> serde::Deserialize<'a>"))]
-pub struct PerRouterQueue<P: Prefix> {
-    pub(crate) events: BTreeMap<RouterId, VecDeque<Event<P, ()>>>,
+#[serde(bound(
+    deserialize = "P: for<'a> serde::Deserialize<'a>, C: for<'a> serde::Deserialize<'a>"
+))]
+pub struct PerRouterQueue<P: Prefix, C> {
+    pub(crate) events: BTreeMap<RouterId, VecDeque<Event<P, (), C>>>,
     pub(crate) num_events: usize,
 }
 
-impl<P: Prefix> Default for PerRouterQueue<P> {
+impl<P: Prefix, C> Default for PerRouterQueue<P, C> {
     fn default() -> Self {
         Self {
             events: BTreeMap::new(),
@@ -208,10 +212,10 @@ impl<P: Prefix> Default for PerRouterQueue<P> {
     }
 }
 
-impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
+impl<P: Prefix, C: Clone> EventQueue<P, C> for PerRouterQueue<P, C> {
     type Priority = ();
 
-    fn push(&mut self, event: Event<P, Self::Priority>) {
+    fn push(&mut self, event: Event<P, Self::Priority, C>) {
         self.events
             .entry(event.router())
             .or_default()
@@ -219,7 +223,7 @@ impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
         self.num_events += 1
     }
 
-    fn pop(&mut self) -> Option<Event<P, Self::Priority>> {
+    fn pop(&mut self) -> Option<Event<P, Self::Priority, C>> {
         let mut e = self.events.first_entry()?;
         let ev = e.get_mut().pop_front().unwrap();
         if e.get().is_empty() {
@@ -229,7 +233,7 @@ impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
         Some(ev)
     }
 
-    fn peek(&self) -> Option<&Event<P, Self::Priority>> {
+    fn peek(&self) -> Option<&Event<P, Self::Priority, C>> {
         Some(self.events.first_key_value()?.1.front().unwrap())
     }
 
@@ -262,8 +266,8 @@ impl<P: Prefix> EventQueue<P> for PerRouterQueue<P> {
     }
 }
 
-impl<P: Prefix> ConcurrentEventQueue<P> for PerRouterQueue<P> {
-    fn pop_events_for(&mut self, destination: RouterId) -> Vec<Event<P, Self::Priority>> {
+impl<P: Prefix, C: Clone> ConcurrentEventQueue<P, C> for PerRouterQueue<P, C> {
+    fn pop_events_for(&mut self, destination: RouterId) -> Vec<Event<P, Self::Priority, C>> {
         let Some(e) = self.events.remove(&destination) else {
             return Vec::new();
         };

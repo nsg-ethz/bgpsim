@@ -48,7 +48,7 @@ type ExportTuple<P> = (ExportConfig<P>, ExportRouters, ExportLinks);
 impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
-    Q: EventQueue<P> + Serialize,
+    Q: EventQueue<P, R::Event> + Serialize,
     Ospf: OspfImpl,
     R: CustomProto + Serialize,
 {
@@ -82,7 +82,7 @@ where
 impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
-    Q: EventQueue<P>,
+    Q: EventQueue<P, R::Event>,
     Ospf: OspfImpl,
     R: CustomProto,
 {
@@ -111,26 +111,26 @@ where
 #[derive(Debug, Serialize)]
 #[allow(clippy::type_complexity)]
 pub struct WebExporter {
-    net: Option<Network<Ipv4Prefix, BasicEventQueue<Ipv4Prefix>, LocalOspf, ()>>,
+    net: Option<Network<Ipv4Prefix, BasicEventQueue<Ipv4Prefix, ()>, LocalOspf, ()>>,
     config_node_routes: ExportTuple<Ipv4Prefix>,
     pos: Option<HashMap<RouterId, Point>>,
     spec:
         Option<HashMap<RouterId, Vec<(FwPolicy<Ipv4Prefix>, Result<(), PolicyError<Ipv4Prefix>>)>>>,
     #[cfg(feature = "topology_zoo")]
     topology_zoo: Option<TopologyZoo>,
-    replay: Option<Vec<(Event<Ipv4Prefix, ()>, Option<usize>)>>,
+    replay: Option<Vec<(Event<Ipv4Prefix, (), ()>, Option<usize>)>>,
     #[serde(skip)]
     compact: bool,
 }
 
 impl WebExporter {
     /// Create a new, empty web exporter.
-    pub fn new<P: Prefix, Q: EventQueue<P> + Clone, Ospf: OspfImpl>(
+    pub fn new<P: Prefix, Q: EventQueue<P, ()> + Clone, Ospf: OspfImpl>(
         net: &Network<P, Q, Ospf, ()>,
     ) -> Self {
         // transform the queue into a basic event queue
         let mut net = net.clone();
-        let mut queue: BasicEventQueue<Ipv4Prefix> = Default::default();
+        let mut queue: BasicEventQueue<Ipv4Prefix, ()> = Default::default();
         while let Some(e) = net.queue.pop() {
             queue.0.push_back(e.into_ipv4_prefix())
         }
@@ -237,7 +237,7 @@ impl WebExporter {
     }
 
     /// Replay a recording of events.
-    pub fn replay<P: Prefix, T>(mut self, events: Vec<Event<P, T>>) -> Self {
+    pub fn replay<P: Prefix, T>(mut self, events: Vec<Event<P, T, ()>>) -> Self {
         self.replay = Some(
             events
                 .into_iter()
@@ -250,7 +250,7 @@ impl WebExporter {
     /// Replay a recording of events. Each event is associated with the index of the event that triggered it.
     pub fn replay_with_trigger<P: Prefix, T>(
         mut self,
-        events: Vec<(Event<P, T>, Option<usize>)>,
+        events: Vec<(Event<P, T, ()>, Option<usize>)>,
     ) -> Self {
         self.replay = Some(
             events
@@ -263,8 +263,8 @@ impl WebExporter {
 
     /// Generate a json string that only contains the replay. This can be imported into
     /// bgpsim.github.io.
-    pub fn replay_only<P: Prefix, T>(events: Vec<Event<P, T>>) -> String {
-        let events: Vec<(Event<Ipv4Prefix, ()>, Option<usize>)> = events
+    pub fn replay_only<P: Prefix, T>(events: Vec<Event<P, T, ()>>) -> String {
+        let events: Vec<(Event<Ipv4Prefix, (), ()>, Option<usize>)> = events
             .into_iter()
             .map(|x| (x.into_ipv4_prefix(), None))
             .collect();
@@ -277,9 +277,9 @@ impl WebExporter {
     /// Generate a json string that only contains the replay. This can be imported into
     /// bgpsim.github.io. Each event is associated with the index of the event that triggered it.
     pub fn replay_only_with_trigger<P: Prefix, T>(
-        events: Vec<(Event<P, T>, Option<usize>)>,
+        events: Vec<(Event<P, T, ()>, Option<usize>)>,
     ) -> String {
-        let events: Vec<(Event<Ipv4Prefix, ()>, Option<usize>)> = events
+        let events: Vec<(Event<Ipv4Prefix, (), ()>, Option<usize>)> = events
             .into_iter()
             .map(|(x, id)| (x.into_ipv4_prefix(), id))
             .collect();
@@ -311,7 +311,7 @@ pub struct Point {
 impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
-    Q: EventQueue<P>,
+    Q: EventQueue<P, R::Event>,
     Ospf: OspfImpl,
     for<'a> Q: Deserialize<'a>,
     R: CustomProto,
@@ -355,7 +355,7 @@ where
 impl<P, Q, Ospf, R> Network<P, Q, Ospf, R>
 where
     P: Prefix,
-    Q: EventQueue<P>,
+    Q: EventQueue<P, R::Event>,
     Ospf: OspfImpl,
     R: CustomProto,
 {

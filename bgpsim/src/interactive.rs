@@ -36,7 +36,7 @@ use crate::{
 pub trait InteractiveNetwork<P, Q, Ospf, R>
 where
     P: Prefix,
-    Q: EventQueue<P>,
+    Q: EventQueue<P, R::Event>,
     Ospf: OspfImpl,
     R: CustomProto,
 {
@@ -90,8 +90,8 @@ where
         &mut self,
         f: impl FnMut(
             &Self,
-            &Event<P, Q::Priority>,
-            Option<&(StepUpdate<P>, Vec<Event<P, Q::Priority>>)>,
+            &Event<P, Q::Priority, R::Event>,
+            Option<&(StepUpdate<P>, Vec<Event<P, Q::Priority, R::Event>>)>,
         ),
     ) -> Result<(), NetworkError>;
 
@@ -122,7 +122,7 @@ where
     #[allow(clippy::type_complexity)]
     fn simulate_step(
         &mut self,
-    ) -> Result<Option<(StepUpdate<P>, Event<P, Q::Priority>)>, NetworkError>;
+    ) -> Result<Option<(StepUpdate<P>, Event<P, Q::Priority, R::Event>)>, NetworkError>;
 
     /// Get a reference to the queue
     fn queue(&self) -> &Q;
@@ -138,22 +138,22 @@ where
     #[allow(clippy::type_complexity)]
     unsafe fn trigger_event(
         &mut self,
-        event: Event<P, Q::Priority>,
-    ) -> Result<(StepUpdate<P>, Vec<Event<P, Q::Priority>>), NetworkError>;
+        event: Event<P, Q::Priority, R::Event>,
+    ) -> Result<(StepUpdate<P>, Vec<Event<P, Q::Priority, R::Event>>), NetworkError>;
 
     /// Manually enqueue a specific event. The event will be executed automatically if the network
     /// is the automatic simulation state.
     ///
     /// # Safety
     /// The network will be in an inconsistent state. Make sure to deal with that properly.
-    unsafe fn enqueue_event(&mut self, event: Event<P, Q::Priority>);
+    unsafe fn enqueue_event(&mut self, event: Event<P, Q::Priority, R::Event>);
 }
 
 /// Trait that allows you to run simulations in parallel.
 pub trait ParallelNetwork<P, Q, Ospf, R>
 where
     P: Prefix + Send + Sync,
-    Q: ConcurrentEventQueue<P>,
+    Q: ConcurrentEventQueue<P, R::Event>,
     Ospf: OspfImpl,
     R: CustomProto,
 {
@@ -166,8 +166,8 @@ where
     fn simulate_parallel(&mut self, num_threads: Option<usize>) -> Result<(), NetworkError>;
 }
 
-impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> InteractiveNetwork<P, Q, Ospf, R>
-    for Network<P, Q, Ospf, R>
+impl<P: Prefix, Q: EventQueue<P, R::Event>, Ospf: OspfImpl, R: CustomProto>
+    InteractiveNetwork<P, Q, Ospf, R> for Network<P, Q, Ospf, R>
 {
     fn auto_simulation(&mut self) {
         self.skip_queue = false;
@@ -193,7 +193,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> InteractiveNet
 
     fn simulate_step(
         &mut self,
-    ) -> Result<Option<(StepUpdate<P>, Event<P, Q::Priority>)>, NetworkError> {
+    ) -> Result<Option<(StepUpdate<P>, Event<P, Q::Priority, R::Event>)>, NetworkError> {
         if let Some(event) = self.queue.pop() {
             // log the job
             log::trace!("{}", event.fmt(self));
@@ -258,8 +258,8 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> InteractiveNet
         &mut self,
         mut f: impl FnMut(
             &Self,
-            &Event<P, Q::Priority>,
-            Option<&(StepUpdate<P>, Vec<Event<P, Q::Priority>>)>,
+            &Event<P, Q::Priority, R::Event>,
+            Option<&(StepUpdate<P>, Vec<Event<P, Q::Priority, R::Event>>)>,
         ),
     ) -> Result<(), NetworkError> {
         let mut remaining_iter = self.stop_after;
@@ -351,8 +351,8 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> InteractiveNet
 
     unsafe fn trigger_event(
         &mut self,
-        event: Event<P, Q::Priority>,
-    ) -> Result<(StepUpdate<P>, Vec<Event<P, Q::Priority>>), NetworkError> {
+        event: Event<P, Q::Priority, R::Event>,
+    ) -> Result<(StepUpdate<P>, Vec<Event<P, Q::Priority, R::Event>>), NetworkError> {
         // log the job
         log::trace!("{}", event.fmt(self));
         // execute the event
@@ -365,7 +365,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> InteractiveNet
         Ok((step_update, events))
     }
 
-    unsafe fn enqueue_event(&mut self, event: Event<P, Q::Priority>) {
+    unsafe fn enqueue_event(&mut self, event: Event<P, Q::Priority, R::Event>) {
         self.enqueue_events(vec![event]);
     }
 }
@@ -373,10 +373,11 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl, R: CustomProto> InteractiveNet
 impl<P, Q, Ospf, R> ParallelNetwork<P, Q, Ospf, R> for Network<P, Q, Ospf, R>
 where
     P: Prefix,
-    Q: ConcurrentEventQueue<P>,
+    Q: ConcurrentEventQueue<P, R::Event>,
     Q::Priority: Send + Sync + 'static,
     Ospf: OspfImpl,
     R: CustomProto + Send + 'static,
+    R::Event: Send + 'static,
 {
     fn simulate_parallel(&mut self, num_threads: Option<usize>) -> Result<(), NetworkError> {
         let mut remaining_iter = self.stop_after;
@@ -487,10 +488,13 @@ where
     }
 }
 
-type Job<P, T, Ospf, R> = (Router<P, Ospf, R>, Vec<Event<P, T>>);
+type Job<P, T, Ospf, R> = (
+    Router<P, Ospf, R>,
+    Vec<Event<P, T, <R as CustomProto>::Event>>,
+);
 type Res<P, T, Ospf, R> = (
     Router<P, Ospf, R>,
-    Vec<Event<P, T>>,
+    Vec<Event<P, T, <R as CustomProto>::Event>>,
     Result<(), DeviceError>,
 );
 
@@ -648,8 +652,8 @@ impl<'a, P: Prefix, Q, R> PartialClone<'a, P, Q, R> {
     /// identical.
     pub unsafe fn conquer(self, other: Network<P, Q, GlobalOspf, R>) -> Network<P, Q, GlobalOspf, R>
     where
-        Q: Clone + EventQueue<P>,
-        R: Clone,
+        Q: Clone + EventQueue<P, R::Event>,
+        R: CustomProto + Clone,
     {
         // assert that the properties are correct
         if self.reuse_igp_state && !self.reuse_config {
