@@ -28,7 +28,7 @@ use yew::prelude::*;
 use yewdux::prelude::*;
 
 use crate::{
-    net::{Net, Pfx, Queue},
+    net::{Ev, Net, Pfx, Queue},
     state::{EventId, Hover, State},
     tooltip::{LsaHeaderTable, LsaListTable, RouteTable},
 };
@@ -73,7 +73,7 @@ pub fn QueueCfg() -> Html {
 }
 
 /// Returns the title and the body of the event content.
-pub fn event_title_body(pos: usize, event: &Event<Pfx, ()>) -> (&'static str, Html) {
+pub fn event_title_body(pos: usize, event: &Ev) -> (&'static str, Html) {
     match event {
         Event::Bgp {
             e: BgpEvent::Update(route),
@@ -122,13 +122,14 @@ pub fn event_title_body(pos: usize, event: &Event<Pfx, ()>) -> (&'static str, Ht
             "OSPF Acknowledgement",
             html! { <LsaListTable lsa_list={lsa_list.clone()} idx={pos} /> },
         ),
+        Event::Custom { .. } => unimplemented!("TODO"),
     }
 }
 
 #[derive(PartialEq, Properties)]
 pub struct QueueEventCfgProps {
     pub pos: usize,
-    pub event: Event<Pfx, ()>,
+    pub event: Ev,
     pub executable: bool,
     pub swappable: bool,
     pub node_ref: NodeRef,

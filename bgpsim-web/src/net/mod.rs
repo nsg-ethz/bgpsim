@@ -26,6 +26,7 @@ use std::{
 pub use bgpsim::types::Ipv4Prefix as Pfx;
 use bgpsim::{
     bgp::{BgpRoute, BgpSessionType},
+    custom_protocol::CustomProto,
     event::{Event, EventQueue},
     network::Network,
     ospf::{LocalOspf, OspfProcess},
@@ -45,9 +46,12 @@ use crate::{
     point::Point,
 };
 
+pub type Proto = ();
+pub type Ev = Event<Pfx, (), <Proto as CustomProto>::Event>;
+
 /// Basic event queue
 #[derive(PartialEq, Eq, Clone, Debug, Default, Serialize, Deserialize)]
-pub struct Queue(VecDeque<Event<Pfx, ()>>);
+pub struct Queue(VecDeque<Ev>);
 
 impl Queue {
     /// Create a new empty event queue
@@ -66,32 +70,27 @@ impl Queue {
         }
     }
 
-    pub fn get(&self, index: usize) -> Option<&Event<Pfx, ()>> {
+    pub fn get(&self, index: usize) -> Option<&Ev> {
         self.0.get(index)
     }
 
-    pub fn iter(&self) -> Iter<'_, Event<Pfx, ()>> {
+    pub fn iter(&self) -> Iter<'_, Ev> {
         self.0.iter()
     }
 }
 
-impl EventQueue<Pfx> for Queue {
+impl EventQueue<Pfx, ()> for Queue {
     type Priority = ();
 
-    fn push<Ospf: OspfProcess>(
-        &mut self,
-        event: Event<Pfx, Self::Priority>,
-        _: &BTreeMap<RouterId, Router<Pfx, Ospf>>,
-        _: &PhysicalNetwork,
-    ) {
+    fn push(&mut self, event: Ev) {
         self.0.push_back(event)
     }
 
-    fn pop(&mut self) -> Option<Event<Pfx, Self::Priority>> {
+    fn pop(&mut self) -> Option<Ev> {
         self.0.pop_front()
     }
 
-    fn peek(&self) -> Option<&Event<Pfx, Self::Priority>> {
+    fn peek(&self) -> Option<&Ev> {
         self.0.front()
     }
 
@@ -107,9 +106,9 @@ impl EventQueue<Pfx> for Queue {
         self.0.clear()
     }
 
-    fn update_params<Ospf: OspfProcess>(
+    fn update_params<Ospf: OspfProcess, R>(
         &mut self,
-        _: &BTreeMap<RouterId, Router<Pfx, Ospf>>,
+        _: &BTreeMap<RouterId, Router<Pfx, Ospf, R>>,
         _: &PhysicalNetwork,
     ) {
     }
@@ -313,14 +312,14 @@ impl Net {
 
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize, Default)]
 pub struct Replay {
-    pub events: Vec<(Event<Pfx, ()>, Option<usize>)>,
+    pub events: Vec<(Ev, Option<usize>)>,
     pub events_in_flight: BTreeSet<usize>,
     pub position: usize,
 }
 
 impl Replay {
     /// Pop the next event and move the counter to the right by one.
-    pub fn pop_next(&mut self) -> Option<Event<Pfx, ()>> {
+    pub fn pop_next(&mut self) -> Option<Ev> {
         let idx = self.position;
         let new_in_flight = self
             .events

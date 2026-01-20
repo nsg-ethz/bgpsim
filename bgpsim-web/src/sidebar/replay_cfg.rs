@@ -22,14 +22,11 @@ use yewdux::prelude::*;
 
 use crate::{
     callback,
-    net::{Net, Pfx},
+    net::{Ev, Net},
     sidebar::queue_cfg::event_title_body,
     state::{EventId, Hover, Selected, State},
 };
-use bgpsim::{
-    event::Event,
-    prelude::{InteractiveNetwork, NetworkFormatter},
-};
+use bgpsim::prelude::{InteractiveNetwork, NetworkFormatter};
 use itertools::Itertools;
 
 use super::divider::Divider;
@@ -89,7 +86,7 @@ pub fn replay_cfg() -> Html {
 #[derive(PartialEq, Properties)]
 pub struct ReplayEventCfgProps {
     pub pos: usize,
-    pub event: Event<Pfx, ()>,
+    pub event: Ev,
     pub is_executed: bool,
     pub is_next: bool,
     pub triggered_id: Option<usize>,

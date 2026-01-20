@@ -119,6 +119,7 @@ pub fn BgpSessionQueue(props: &BgpSessionQueueProps) -> Html {
                     e: OspfEvent::LinkStateUpdate { ack: true, .. },
                     ..
                 } => (src, dst, EventKind::OspfAck),
+                Event::Custom { .. } => unimplemented!("TODO"),
             };
             html! { <EventIcon {p} {src} {dst} {kind} {id} /> }
         })

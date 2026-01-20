@@ -207,6 +207,7 @@ impl Component for Tooltip {
                             "OSPF LSA Update"
                         },
                     ),
+                    Event::Custom { .. } => unimplemented!("TODO"),
                 };
                 html! {
                         <>

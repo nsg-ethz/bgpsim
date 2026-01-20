@@ -37,7 +37,7 @@ use web_sys::HtmlElement;
 use yewdux::{mrc::Mrc, prelude::Dispatch};
 
 use crate::{
-    net::{Net, Pfx, Queue, Replay},
+    net::{Net, Pfx, Queue, Replay, Ev},
     point::Point,
     state::{Features, Layer, State},
 };
@@ -305,7 +305,7 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
     let Some(events) = content.get("replay") else {
         return Err("'replay' is not part of the json file".to_string());
     };
-    let events: Vec<(Event<Pfx, ()>, Option<usize>)> = serde_json::from_value(events.clone())
+    let events: Vec<(Ev, Option<usize>)> = serde_json::from_value(events.clone())
         .map_err(|e| format!("Cannot deserialize recording! {e}"))?;
 
     // ensure that all routers mentioned in the event actually exist, and that there exists BGP
@@ -340,7 +340,7 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
                         )
                     })?;
             }
-            Event::Ospf { src, dst, .. } => {
+            Event::Ospf { src, dst, .. } | Event::Custom { src, dst, ..} => {
                 net.net()
                     .get_router(*src)
                     .map_err(|_| format!("Router {src:?} does not exist"))?;
