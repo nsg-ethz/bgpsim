@@ -645,6 +645,14 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpR
     }
 }
 
+impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatterExt<'n, P, Q, Ospf>
+    for (BgpRibEntry<P>, bool)
+{
+    fn fmt_ext(&self, net: &'n Network<P, Q, Ospf>) -> String {
+        format!("{} {}", if self.1 { "*" } else { " " }, self.0.fmt(net))
+    }
+}
+
 //
 // Route Map
 //

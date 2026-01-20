@@ -31,7 +31,7 @@ use crate::{
     bgp::{BgpEvent, BgpRibEntry, BgpRoute, BgpSessionType},
     config::RouteMapEdit,
     event::Event,
-    formatter::NetworkFormatter,
+    formatter::{NetworkFormatter, NetworkFormatterExt},
     network::Network,
     ospf::{LinkWeight, OspfImpl, OspfProcess},
     route_map::{
@@ -857,8 +857,8 @@ impl<P: Prefix> BgpProcess<P> {
         let table = self.get_processed_rib_for_prefix(prefix);
         let mut result = String::new();
         let f = &mut result;
-        for (entry, selected) in table {
-            writeln!(f, "{} {}", if selected { "*" } else { " " }, entry.fmt(net)).unwrap();
+        for entry in table {
+            writeln!(f, "{}", entry.fmt_ext(net)).unwrap();
         }
         result
     }
@@ -981,14 +981,7 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for BgpP
             .map(|(p, table)| {
                 format!(
                     "{p}:\n  {}",
-                    table
-                        .iter()
-                        .map(|(rib, sel)| format!(
-                            "{} {}",
-                            if *sel { "*" } else { " " },
-                            rib.fmt(net)
-                        ))
-                        .join("  ")
+                    table.iter().map(|entry| entry.fmt_ext(net)).join("  ")
                 )
             })
             .join("\n")
