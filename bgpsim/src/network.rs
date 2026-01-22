@@ -330,8 +330,8 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
         }
     }
 
-    /// Returns a reference to an internal router
-    pub(crate) fn get_internal_router_mut(
+    /// Returns a reference to an internal router.
+    pub fn get_internal_router_mut(
         &mut self,
         id: RouterId,
     ) -> Result<&mut Router<P, Ospf::Process>, NetworkError> {
