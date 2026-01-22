@@ -519,7 +519,7 @@ impl RouteMapState {
 }
 
 /// Match statement of the route map. Can be combined to generate complex match statements
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub enum RouteMapMatch<P: Prefix> {
     /// Matches on the Prefix (exact value or a range)
     Prefix(P::Set),
@@ -531,6 +531,59 @@ pub enum RouteMapMatch<P: Prefix> {
     Community(u32),
     /// Match on the absence of a given community.
     DenyCommunity(u32),
+    /// Probabilistic match
+    #[cfg(feature = "rand")]
+    Probabilistic {
+        /// The probability that this match statement matches.
+        p: NotNan<f64>,
+        /// Counting the number of matches
+        num_matched: std::sync::atomic::AtomicUsize,
+        /// Counting the number of non-matches
+        num_not_matched: std::sync::atomic::AtomicUsize,
+    },
+}
+
+impl<P: Prefix + Clone> Clone for RouteMapMatch<P> {
+    fn clone(&self) -> Self {
+        match self {
+            Self::Prefix(arg0) => Self::Prefix(arg0.clone()),
+            Self::AsPath(arg0) => Self::AsPath(arg0.clone()),
+            Self::NextHop(arg0) => Self::NextHop(arg0.clone()),
+            Self::Community(arg0) => Self::Community(arg0.clone()),
+            Self::DenyCommunity(arg0) => Self::DenyCommunity(arg0.clone()),
+            #[cfg(feature = "rand")]
+            Self::Probabilistic {
+                p,
+                num_matched,
+                num_not_matched,
+            } => Self::Probabilistic {
+                p: p.clone(),
+                num_matched: std::sync::atomic::AtomicUsize::new(
+                    num_matched.load(std::sync::atomic::Ordering::Relaxed),
+                ),
+                num_not_matched: std::sync::atomic::AtomicUsize::new(
+                    num_not_matched.load(std::sync::atomic::Ordering::Relaxed),
+                ),
+            },
+        }
+    }
+}
+
+impl<P: Prefix + Eq> Eq for RouteMapMatch<P> {}
+
+impl<P: Prefix + PartialEq> PartialEq for RouteMapMatch<P> {
+    fn eq(&self, other: &Self) -> bool {
+        match (self, other) {
+            (Self::Prefix(l0), Self::Prefix(r0)) => l0 == r0,
+            (Self::AsPath(l0), Self::AsPath(r0)) => l0 == r0,
+            (Self::NextHop(l0), Self::NextHop(r0)) => l0 == r0,
+            (Self::Community(l0), Self::Community(r0)) => l0 == r0,
+            (Self::DenyCommunity(l0), Self::DenyCommunity(r0)) => l0 == r0,
+            #[cfg(feature = "rand")]
+            (Self::Probabilistic { p: l_p, .. }, Self::Probabilistic { p: r_p, .. }) => l_p == r_p,
+            _ => false,
+        }
+    }
 }
 
 impl<P: Prefix> IntoIpv4Prefix for RouteMapMatch<P> {
@@ -545,6 +598,16 @@ impl<P: Prefix> IntoIpv4Prefix for RouteMapMatch<P> {
             RouteMapMatch::NextHop(x) => RouteMapMatch::NextHop(x),
             RouteMapMatch::Community(x) => RouteMapMatch::Community(x),
             RouteMapMatch::DenyCommunity(x) => RouteMapMatch::DenyCommunity(x),
+            #[cfg(feature = "rand")]
+            RouteMapMatch::Probabilistic {
+                p,
+                num_matched,
+                num_not_matched,
+            } => RouteMapMatch::Probabilistic {
+                p,
+                num_matched,
+                num_not_matched,
+            },
         }
     }
 }
@@ -559,6 +622,20 @@ impl RouteMapMatch<SimplePrefix> {
             RouteMapMatch::NextHop(x) => RouteMapMatch::NextHop(x.clone()),
             RouteMapMatch::Community(x) => RouteMapMatch::Community(x.clone()),
             RouteMapMatch::DenyCommunity(x) => RouteMapMatch::DenyCommunity(x.clone()),
+            #[cfg(feature = "rand")]
+            RouteMapMatch::Probabilistic {
+                p,
+                num_matched,
+                num_not_matched,
+            } => RouteMapMatch::Probabilistic {
+                p: *p,
+                num_matched: std::sync::atomic::AtomicUsize::new(
+                    num_matched.load(std::sync::atomic::Ordering::Relaxed),
+                ),
+                num_not_matched: std::sync::atomic::AtomicUsize::new(
+                    num_not_matched.load(std::sync::atomic::Ordering::Relaxed),
+                ),
+            },
         }
     }
 }
@@ -572,6 +649,24 @@ impl<P: Prefix> RouteMapMatch<P> {
             Self::NextHop(nh) => entry.route.next_hop == *nh,
             Self::Community(com) => entry.route.community.contains(com),
             Self::DenyCommunity(com) => !entry.route.community.contains(com),
+            #[cfg(feature = "rand")]
+            Self::Probabilistic {
+                p,
+                num_matched,
+                num_not_matched,
+            } => {
+                let mut hasher = std::hash::DefaultHasher::new();
+                std::hash::Hash::hash(entry, &mut hasher);
+                let seed = std::hash::Hasher::finish(&mut hasher);
+                let mut rng: rand::rngs::StdRng = rand::SeedableRng::seed_from_u64(seed);
+                let does_match = rand::Rng::gen_bool(&mut rng, p.into_inner());
+                if does_match {
+                    num_matched.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                } else {
+                    num_not_matched.fetch_add(1, std::sync::atomic::Ordering::Relaxed);
+                }
+                does_match
+            }
         }
     }
 }

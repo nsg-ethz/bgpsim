@@ -667,6 +667,8 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),
             RouteMapMatch::Community(c) => format!("Community {c}"),
             RouteMapMatch::DenyCommunity(c) => format!("Deny Community {c}"),
+            #[cfg(feature = "rand")]
+            RouteMapMatch::Probabilistic { p, .. } => format!("With probability {p}"),
         }
     }
 }
