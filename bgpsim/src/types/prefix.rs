@@ -653,7 +653,8 @@ impl From<i32> for SimplePrefix {
 impl From<Ipv4Addr> for SimplePrefix {
     fn from(value: Ipv4Addr) -> Self {
         let num: u32 = value.into();
-        SimplePrefix((num - (100 << 24)) >> 8)
+        // WARNING: Do not merge this before talking to Tibor, this is a hack
+        SimplePrefix(num.saturating_sub(100u32 << 24) >> 8)
     }
 }
 
