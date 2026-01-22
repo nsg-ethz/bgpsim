@@ -145,6 +145,23 @@ impl<P: Prefix> BgpProcess<P> {
         self.sessions.get(&neighbor).copied()
     }
 
+    /// Get a mutable reference to a specific route map item with the given order, or `None`.
+    /// Safety: Modifying the route map will result in undefined behavior!
+    pub unsafe fn get_route_map_mut(
+        &mut self,
+        neighbor: RouterId,
+        direction: RouteMapDirection,
+        order: i16,
+    ) -> Option<&mut RouteMap<P>> {
+        let maps = match direction {
+            Incoming => self.route_maps_in.get_mut(&neighbor)?,
+            Outgoing => self.route_maps_out.get_mut(&neighbor)?,
+        };
+        maps.binary_search_by_key(&order, |rm| rm.order)
+            .ok()
+            .and_then(|p| maps.get_mut(p))
+    }
+
     /// Get a specific route map item with the given order, or `None`.
     pub fn get_route_map(
         &self,
