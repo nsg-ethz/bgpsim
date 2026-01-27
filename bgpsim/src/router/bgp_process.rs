@@ -424,6 +424,15 @@ impl<P: Prefix> BgpProcess<P> {
     /*
      * Update functions
      */
+    /// process a BGP event. This function should only be used with care! It may leave the router
+    /// in an invalid state.
+    pub unsafe fn trigger_event<T: Default>(
+        &mut self,
+        from: RouterId,
+        event: BgpEvent<P>,
+    ) -> Result<Vec<Event<P, T>>, DeviceError> {
+        self.handle_event(from, event)
+    }
 
     /// handle an `Event`. This function returns all events triggered by this function, and a
     /// boolean to check if there was an update or not.
