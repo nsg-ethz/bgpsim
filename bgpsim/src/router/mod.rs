@@ -392,7 +392,7 @@ impl<P: Prefix, Ospf: OspfProcess, R: CustomProto> Router<P, Ospf, R> {
         flow_id: usize,
         header: PacketHeader<H>,
     ) -> ForwardOutcome<H> {
-        let mut next_hops = next_hops.iter().copied().collect::<Vec<_>>();
+        let mut next_hops = next_hops.to_vec();
         next_hops.sort();
         let next_hop = match next_hops.len() {
             0 => return ForwardOutcome::Drop(path),

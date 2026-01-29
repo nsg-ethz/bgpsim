@@ -15,6 +15,8 @@
 
 //! Module containing the actual OSPF router process
 
+#![allow(clippy::type_complexity)]
+
 use std::collections::{BTreeMap, HashMap};
 
 use itertools::Itertools;

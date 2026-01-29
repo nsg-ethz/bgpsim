@@ -683,21 +683,18 @@ impl RouteMapDirection {
 /// applied to a route. It changes what happens when a `allow` route map matches the given
 /// route.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum RouteMapFlow {
     /// If a route matches this route-map, apply the set actions stop.
     Exit,
     /// If a route matches this route-map, apply the set actions and continue to the next entry in the list.
+    #[default]
     Continue,
     /// If a route matches this route-map, apply the set actions and continue to the route-map with
     /// the given index. If the index does not exist, then stop applying route-maps.
     ContinueAt(i16),
 }
 
-impl Default for RouteMapFlow {
-    fn default() -> Self {
-        Self::Continue
-    }
-}
 
 impl fmt::Display for RouteMapFlow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

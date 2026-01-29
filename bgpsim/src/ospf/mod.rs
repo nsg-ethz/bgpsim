@@ -17,6 +17,8 @@
 //! used by routers to write their IGP table. No message passing is simulated, but the final state
 //! is computed using shortest path algorithms.
 
+#![allow(clippy::type_complexity)]
+
 pub mod global;
 mod iterator;
 pub mod local;
@@ -634,35 +636,29 @@ where
     /// Get an iterator over all internal neighbors of an internal router. The iterator is empty if
     /// the router is an external router or does not exist.
     fn internal_neighbors(&self, r: RouterId) -> InternalEdges<'_> {
-        self.is_internal(r)
-            .then(|| InternalEdges {
+        if self.is_internal(r) { InternalEdges {
                 outer: Vec::new(),
                 inner: self.links.get(&r).map(|n| (r, n.iter())),
-            })
-            .unwrap_or_default()
+            } } else { Default::default() }
     }
 
     /// Get an iterator over all external neighbors of an internal router, i.e., all neighbors that
     /// have a different AS number.. The iterator is empty if the router does not exist.
     fn external_neighbors(&self, r: RouterId) -> ExternalEdges<'_> {
-        self.is_internal(r)
-            .then(|| ExternalEdges {
+        if self.is_internal(r) { ExternalEdges {
                 outer: Vec::new(),
                 inner: self.external_links.get(&r).map(|n| (r, n.iter())),
-            })
-            .unwrap_or_default()
+            } } else { Default::default() }
     }
 
     /// Get an iterator over all neighbors of a router. The iterator is empty if the router does not
     /// exist. The iterator will first yield internal edges, and then external ones. The iterator is
     /// empty if the router is not part of this AS.
     fn neighbors(&self, r: RouterId) -> Edges<'_> {
-        self.is_internal(r)
-            .then(|| Edges {
+        if self.is_internal(r) { Edges {
                 int: self.internal_neighbors(r),
                 ext: self.external_neighbors(r),
-            })
-            .unwrap_or_default()
+            } } else { Default::default() }
     }
 }
 

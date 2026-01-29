@@ -257,7 +257,7 @@ impl<R: RngCore> TopologySampler for GeometricGraph<R> {
             .filter(move |(i, j)| {
                 let pi = &positions[*i];
                 let pj = &positions[*j];
-                let distance: f64 = (0..dim).map(|x| (pi[x] - pj[x])).map(|x| x * x).sum();
+                let distance: f64 = (0..dim).map(|x| pi[x] - pj[x]).map(|x| x * x).sum();
                 distance < dist2
             })
     }
@@ -326,8 +326,8 @@ impl<R: RngCore> TopologySampler for BarabasiAlbertGraph<R> {
             .collect();
 
         // update all first `m` routers to have `m-1` neighbors
-        for i in 0..m {
-            degree[i] = m - 1;
+        for d in degree.iter_mut().take(m) {
+            *d = m - 1;
         }
 
         // if n <= (m + 1), then just create a complete graph with n nodes.
@@ -345,12 +345,12 @@ impl<R: RngCore> TopologySampler for BarabasiAlbertGraph<R> {
                     .enumerate()
                     .filter(|(j, _)| *j < i) // only connect with already added nodes
                     .filter(|(j, _)| !added_edges.contains(j)) // only connect with new nodes
-                    .flat_map(|(j, degree)| std::iter::repeat(j).take(*degree))
+                    .flat_map(|(j, degree)| std::iter::repeat_n(j, *degree))
                     .collect();
                 let j = p[rng.gen_range(0..p.len())];
                 links.push((i, j));
-                *(&mut degree[i]) += 1;
-                *(&mut degree[j]) += 1;
+                degree[i] += 1;
+                degree[j] += 1;
                 added_edges.insert(j);
             }
         }

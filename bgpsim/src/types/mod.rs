@@ -96,8 +96,10 @@ pub type PhysicalNetwork = StableGraph<(), (), Undirected, IndexType>;
 
 /// A series of FwDeltas
 #[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
+#[derive(Default)]
 pub enum StepUpdate<P> {
     /// Nothing has changed
+    #[default]
     Unchanged,
     /// There was a single forwarding state change due to a BGP update
     Single(FwDelta<P>),
@@ -105,11 +107,6 @@ pub enum StepUpdate<P> {
     Multiple,
 }
 
-impl<P> Default for StepUpdate<P> {
-    fn default() -> Self {
-        Self::Unchanged
-    }
-}
 
 impl<P> From<FwDelta<P>> for StepUpdate<P> {
     fn from(value: FwDelta<P>) -> Self {
