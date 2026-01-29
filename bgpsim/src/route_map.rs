@@ -682,8 +682,7 @@ impl RouteMapDirection {
 /// Description of the control-flow of route maps. This changes the way a sequence of route maps is
 /// applied to a route. It changes what happens when a `allow` route map matches the given
 /// route.
-#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum RouteMapFlow {
     /// If a route matches this route-map, apply the set actions stop.
     Exit,
@@ -694,7 +693,6 @@ pub enum RouteMapFlow {
     /// the given index. If the index does not exist, then stop applying route-maps.
     ContinueAt(i16),
 }
-
 
 impl fmt::Display for RouteMapFlow {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {

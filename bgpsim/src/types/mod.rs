@@ -95,8 +95,7 @@ where
 pub type PhysicalNetwork = StableGraph<(), (), Undirected, IndexType>;
 
 /// A series of FwDeltas
-#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize)]
-#[derive(Default)]
+#[derive(Debug, Clone, PartialEq, Eq, Hash, Serialize, Deserialize, Default)]
 pub enum StepUpdate<P> {
     /// Nothing has changed
     #[default]
@@ -106,7 +105,6 @@ pub enum StepUpdate<P> {
     /// There are multiple changes due to an OSPF update.
     Multiple,
 }
-
 
 impl<P> From<FwDelta<P>> for StepUpdate<P> {
     fn from(value: FwDelta<P>) -> Self {

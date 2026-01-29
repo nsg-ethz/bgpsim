@@ -37,7 +37,7 @@ use web_sys::HtmlElement;
 use yewdux::{mrc::Mrc, prelude::Dispatch};
 
 use crate::{
-    net::{Net, Pfx, Queue, Replay, Ev},
+    net::{Ev, Net, Pfx, Queue, Replay},
     point::Point,
     state::{Features, Layer, State},
 };
@@ -340,7 +340,7 @@ fn interpret_event_json_str(s: &str) -> Result<Replay, String> {
                         )
                     })?;
             }
-            Event::Ospf { src, dst, .. } | Event::Custom { src, dst, ..} => {
+            Event::Ospf { src, dst, .. } | Event::Custom { src, dst, .. } => {
                 net.net()
                     .get_router(*src)
                     .map_err(|_| format!("Router {src:?} does not exist"))?;

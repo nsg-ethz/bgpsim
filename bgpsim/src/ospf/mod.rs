@@ -636,29 +636,41 @@ where
     /// Get an iterator over all internal neighbors of an internal router. The iterator is empty if
     /// the router is an external router or does not exist.
     fn internal_neighbors(&self, r: RouterId) -> InternalEdges<'_> {
-        if self.is_internal(r) { InternalEdges {
+        if self.is_internal(r) {
+            InternalEdges {
                 outer: Vec::new(),
                 inner: self.links.get(&r).map(|n| (r, n.iter())),
-            } } else { Default::default() }
+            }
+        } else {
+            Default::default()
+        }
     }
 
     /// Get an iterator over all external neighbors of an internal router, i.e., all neighbors that
     /// have a different AS number.. The iterator is empty if the router does not exist.
     fn external_neighbors(&self, r: RouterId) -> ExternalEdges<'_> {
-        if self.is_internal(r) { ExternalEdges {
+        if self.is_internal(r) {
+            ExternalEdges {
                 outer: Vec::new(),
                 inner: self.external_links.get(&r).map(|n| (r, n.iter())),
-            } } else { Default::default() }
+            }
+        } else {
+            Default::default()
+        }
     }
 
     /// Get an iterator over all neighbors of a router. The iterator is empty if the router does not
     /// exist. The iterator will first yield internal edges, and then external ones. The iterator is
     /// empty if the router is not part of this AS.
     fn neighbors(&self, r: RouterId) -> Edges<'_> {
-        if self.is_internal(r) { Edges {
+        if self.is_internal(r) {
+            Edges {
                 int: self.internal_neighbors(r),
                 ext: self.external_neighbors(r),
-            } } else { Default::default() }
+            }
+        } else {
+            Default::default()
+        }
     }
 }
 
