@@ -13,6 +13,7 @@ use crate::{
 pub mod distance_vector;
 pub mod path_vector;
 pub mod routing_algebra;
+pub mod segment_routing;
 
 /// A trait that defines a custom routing protocol.
 pub trait CustomProto {
