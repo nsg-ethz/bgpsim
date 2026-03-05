@@ -38,7 +38,7 @@ pub(crate) struct Net {
     queue: Option<Expr>,
     nodes: HashMap<Ident, Option<(u32, Span)>>,
     node_order: Vec<Ident>,
-    links: HashMap<(Ident, Ident), (f64, Span)>,
+    links: HashMap<(Ident, Ident), Option<(f64, Span)>>,
     sessions: HashMap<(Ident, Ident), Option<Ident>>,
     routes: Vec<Route<Ident>>,
     returns: Option<Returns>,
@@ -173,41 +173,36 @@ impl Net {
             })
             .collect::<Vec<_>>();
 
-        let links = self
-            .links
-            .keys()
-            .map(|(a, b)| {
-                if *a < *b {
-                    (a.clone(), b.clone())
-                } else {
-                    (b.clone(), a.clone())
-                }
-            })
-            .collect::<HashSet<_>>()
-            .into_iter()
-            .map(|(a, b)| {
-                quote! {
-                    _net.add_link(#a, #b).unwrap();
-                }
-            })
-            .collect::<Vec<_>>();
-
-        let weights = self
+        let links_and_weights = self
             .links
             .iter()
-            .filter(|((src, dst), _)| {
-                self.nodes.get(src).map(|x| x.is_none()).unwrap_or(false)
-                    && self.nodes.get(dst).map(|x| x.is_none()).unwrap_or(false)
-            })
-            .map(|((src, dst), (weight, _))| {
-                if self.links.contains_key(&(dst.clone(), src.clone())) {
-                    quote! {
-                        _net.set_link_weight(#src, #dst, #weight).unwrap();
+            .map(|((src, dst), weight)| {
+                if let Some((weight, _)) = weight {
+                    if self.links.contains_key(&(dst.clone(), src.clone())) {
+                        if *src < *dst {
+                            quote! {
+                                _net.add_link(#src, #dst).unwrap();
+                                _net.set_link_weight(#src, #dst, #weight).unwrap();
+                            }
+                        } else {
+                            quote! {
+                                _net.set_link_weight(#src, #dst, #weight).unwrap();
+                            }
+                        }
+                    } else {
+                        quote! {
+                            _net.add_link(#src, #dst).unwrap();
+                            _net.set_link_weight(#src, #dst, #weight).unwrap();
+                            _net.set_link_weight(#dst, #src, #weight).unwrap();
+                        }
                     }
                 } else {
-                    quote! {
-                        _net.set_link_weight(#src, #dst, #weight).unwrap();
-                        _net.set_link_weight(#dst, #src, #weight).unwrap();
+                    if self.links.contains_key(&(dst.clone(), src.clone())) && *src > *dst {
+                        quote! {} // nothing to do in this direction
+                    } else {
+                        quote! {
+                            _net.add_link(#src, #dst).unwrap();
+                        }
                     }
                 }
             })
@@ -293,8 +288,7 @@ impl Net {
             {
                 let mut _net: #ty = ::bgpsim::prelude::Network::new(#queue);
                 #(#nodes)*
-                #(#links)*
-                #(#weights)*
+                #(#links_and_weights)*
                 #(#sessions)*
                 #(#routes)*
                 #returns
@@ -319,17 +313,19 @@ impl Net {
             let src = self.register_node(src)?;
             let dst = self.register_node(dst)?;
             match self.links.entry((src, dst)) {
-                Entry::Occupied(e) if e.get().0 == weight => {}
+                Entry::Occupied(e) if e.get().as_ref().map(|(w, _)| *w) == Some(weight) => {}
                 Entry::Occupied(e) => {
                     let mut err = Error::new(
                         weight_span,
                         "The same link was declared earlier with a different weight!",
                     );
-                    err.combine(Error::new(e.get().1, "Link weas declared here"));
+                    if let Some((_, span)) = e.get() {
+                        err.combine(Error::new(*span, "Link weas declared here"));
+                    }
                     return Err(err);
                 }
                 Entry::Vacant(e) => {
-                    e.insert((weight, weight_span));
+                    e.insert(Some((weight, weight_span)));
                 }
             }
         }
@@ -490,8 +486,7 @@ impl Net {
             if !(self.links.contains_key(&(src.clone(), dst.clone()))
                 || self.links.contains_key(&(dst.clone(), src.clone())))
             {
-                let span = Span::call_site();
-                self.links.insert((src, dst), (1.0, span));
+                self.links.insert((src, dst), None);
             }
         }
     }

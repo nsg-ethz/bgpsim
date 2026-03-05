@@ -87,9 +87,9 @@ use syn::parse_macro_input;
 /// ```rust
 /// use bgpsim::prelude::*;
 ///
-/// let (net, ((b0, b1), (e0, e1))) = net! {
+/// let (net, ((r0, r1), (e0, e1))) = net! {
 ///     Prefix = Ipv4Prefix;
-///     default_asn: 100;
+///     default_asn = 100;
 ///     links = {
 ///         b0 -> r0: 1;
 ///         r0 -> r1: 1;
@@ -98,7 +98,7 @@ use syn::parse_macro_input;
 ///     sessions = {
 ///         b1 -> e1(1);
 ///         b0 -> e0(2);
-///         r0 -> r1: peer;
+///         r0 -> r1;
 ///         r0 -> b0: client;
 ///         r1 -> b1: client;
 ///     };
@@ -106,8 +106,10 @@ use syn::parse_macro_input;
 ///         e0 -> "10.0.0.0/8" as {path: [1, 3, 4], med: 100, community: (0x65535, 666)};
 ///         e1 -> "10.0.0.0/8" as {path: [2, 4]};
 ///     };
-///     return ((b0, b1), (e0, e1))
+///     return ((r0, r1), (e0, e1))
 /// };
+///
+/// assert_eq!(net.ospf_network().get_weight(r0, r1), 1.0);
 /// ```
 ///
 /// This example will be expanded into the following code. This code was cleaned-up, so the
@@ -141,20 +143,20 @@ use syn::parse_macro_input;
 ///     _net.set_link_weight(r0, r1, 1f64).unwrap();
 ///     _net.set_link_weight(r1, r0, 1f64).unwrap();
 ///
-///     _net.set_bgp_session(b0, e0, Some(BgpSessionType::EBgp)).unwrap();
-///     _net.set_bgp_session(r1, b1, Some(BgpSessionType::IBgpClient)).unwrap();
-///     _net.set_bgp_session(r0, r1, Some(BgpSessionType::IBgpPeer)).unwrap();
-///     _net.set_bgp_session(b1, e1, Some(BgpSessionType::EBgp)).unwrap();
-///     _net.set_bgp_session(r0, b0, Some(BgpSessionType::IBgpClient)).unwrap();
+///     _net.set_bgp_session(b0, e0, Some(false)).unwrap();
+///     _net.set_bgp_session(r1, b1, Some(true)).unwrap();
+///     _net.set_bgp_session(r0, r1, Some(false)).unwrap();
+///     _net.set_bgp_session(b1, e1, Some(false)).unwrap();
+///     _net.set_bgp_session(r0, b0, Some(true)).unwrap();
 ///
-///     _net.advertise_external_route(
+///     _net.advertise_route(
 ///             e0,
 ///             Ipv4Net::new(Ipv4Addr::new(10, 0, 0, 0),8).unwrap(),
 ///             [1, 3, 4],
 ///             Some(100),
 ///             [(65535, 666).into()],
 ///         ).unwrap();
-///     _net.advertise_external_route(
+///     _net.advertise_route(
 ///             e1,
 ///             Ipv4Net::new(Ipv4Addr::new(10, 0, 0, 0),8).unwrap(),
 ///             [2, 4],

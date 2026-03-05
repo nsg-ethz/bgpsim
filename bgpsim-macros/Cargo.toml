@@ -1,6 +1,6 @@
 [package]
 name = "bgpsim-macros"
-version = "0.20.0"
+version = "0.20.1"
 edition = "2021"
 license-file = "LICENSE"
 description = "BGPSim Macros for generating networks conveniently"
