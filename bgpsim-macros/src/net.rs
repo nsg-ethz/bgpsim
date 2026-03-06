@@ -173,37 +173,36 @@ impl Net {
             })
             .collect::<Vec<_>>();
 
+        let mut links_added = HashSet::new();
         let links_and_weights = self
             .links
             .iter()
             .map(|((src, dst), weight)| {
+                let link = if *src < *dst {
+                    (src.clone(), dst.clone())
+                } else {
+                    (dst.clone(), src.clone())
+                };
+                let add_link = if links_added.insert(link) {
+                    quote!(_net.add_link(#src, #dst).unwrap();)
+                } else {
+                    quote!()
+                };
                 if let Some((weight, _)) = weight {
                     if self.links.contains_key(&(dst.clone(), src.clone())) {
-                        if *src < *dst {
-                            quote! {
-                                _net.add_link(#src, #dst).unwrap();
-                                _net.set_link_weight(#src, #dst, #weight).unwrap();
-                            }
-                        } else {
-                            quote! {
-                                _net.set_link_weight(#src, #dst, #weight).unwrap();
-                            }
+                        quote! {
+                            #add_link
+                            _net.set_link_weight(#src, #dst, #weight).unwrap();
                         }
                     } else {
                         quote! {
-                            _net.add_link(#src, #dst).unwrap();
+                            #add_link
                             _net.set_link_weight(#src, #dst, #weight).unwrap();
                             _net.set_link_weight(#dst, #src, #weight).unwrap();
                         }
                     }
                 } else {
-                    if self.links.contains_key(&(dst.clone(), src.clone())) && *src > *dst {
-                        quote! {} // nothing to do in this direction
-                    } else {
-                        quote! {
-                            _net.add_link(#src, #dst).unwrap();
-                        }
-                    }
+                    add_link
                 }
             })
             .collect::<Vec<_>>();
