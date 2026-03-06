@@ -610,6 +610,7 @@ impl CiscoFrrCfgGen {
                 }
                 RouteMapSet::SetCommunity(c) => route_map_item.set_community(*c),
                 RouteMapSet::DelCommunity(_) => &mut route_map_item, // nothing to do, already done!
+                RouteMapSet::PrependASPath(as_path) => route_map_item.prepend_as_path(as_path),
             };
         }
 

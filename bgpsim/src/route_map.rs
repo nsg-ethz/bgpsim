@@ -391,6 +391,32 @@ impl<P: Prefix> RouteMapBuilder<P> {
         self
     }
 
+    /// Add a set expression to prepend a single AS to the AS path.
+    ///
+    /// If you call this builder multiple times, all prepend actions are executed one after the
+    /// other (i.e., the last AS or AS path will be prepended last, i.e., will appear first in the
+    /// resulting path).
+    pub fn prepend_asn(&mut self, asn: impl Into<ASN>) -> &mut Self {
+        self.set.push(RouteMapSet::PrependASPath(vec![asn.into()]));
+        self
+    }
+
+    /// Add a set expression to prepend an entire path to the existing AS path.
+    ///
+    /// If you call this builder multiple times, all prepend actions are executed one after the
+    /// other (i.e., the last AS or AS path will be prepended last, i.e., will appear first in the
+    /// resulting path).
+    pub fn prepend_as_path<I>(&mut self, as_path: I) -> &mut Self
+    where
+        I: IntoIterator,
+        I::Item: Into<ASN>,
+    {
+        self.set.push(RouteMapSet::PrependASPath(
+            as_path.into_iter().map(|x| x.into()).collect(),
+        ));
+        self
+    }
+
     /// On a match of this route map, do not apply any subsequent route-maps but exit. This is the
     /// default behavior for `deny` route maps (it will have no effect on `deny` route maps). For
     /// `allow` route maps, it will have the following effect:
@@ -624,6 +650,8 @@ pub enum RouteMapSet {
     SetCommunity(Community),
     /// Remove the community value
     DelCommunity(Community),
+    /// Prepend the given AS path
+    PrependASPath(Vec<ASN>),
 }
 
 impl RouteMapSet {
@@ -644,6 +672,9 @@ impl RouteMapSet {
             }
             Self::DelCommunity(c) => {
                 entry.route.community.remove(c);
+            }
+            Self::PrependASPath(asns) => {
+                entry.route.as_path = asns.iter().chain(&entry.route.as_path).copied().collect()
             }
         }
     }

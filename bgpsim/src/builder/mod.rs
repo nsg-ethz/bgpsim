@@ -50,6 +50,7 @@ use itertools::Itertools;
 ///
 /// type Net = Network<SimplePrefix, BasicEventQueue<SimplePrefix>, GlobalOspf>;
 ///
+/// # #[cfg(feature = "rand")]
 /// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// // Create an empty network
 /// let mut net = Net::new(BasicEventQueue::new());
@@ -68,6 +69,10 @@ use itertools::Itertools;
 /// net.build_link_weights(UniformWeights::new(10.0, 100.0).round())?;
 /// // advertise routes with unique preferences for a single prefix, with the orign AS 100.
 /// net.build_advertisements(Prefix::from(0), UniquePreference::new().internal_asn(65500), ASN(100))?;
+/// # Ok(())
+/// # }
+/// # #[cfg(not(feature = "rand"))]
+/// # fn main() -> Result<(), Box<dyn std::error::Error>> {
 /// # Ok(())
 /// # }
 /// ```

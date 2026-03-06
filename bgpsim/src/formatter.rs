@@ -669,6 +669,9 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
             RouteMapSet::IgpCost(w) => format!("IgpCost = {w:.2}"),
             RouteMapSet::SetCommunity(c) => format!("Set community {c}"),
             RouteMapSet::DelCommunity(c) => format!("Remove community {c}"),
+            RouteMapSet::PrependASPath(path) => {
+                format!("Prepend AS path [{}]", path.iter().join(" "))
+            }
         }
     }
 }
