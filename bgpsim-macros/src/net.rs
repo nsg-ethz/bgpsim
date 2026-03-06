@@ -150,7 +150,7 @@ impl Parse for Net {
                 _ => return Err(Error::new(
                     block.span(),
                     format!(
-                        "Unexpected identifier! Expected `links`, `sessions`, `routes`, `queue`, `Queue`, `Prefix`, `Type`, or `return`, but found `{block}`"
+                        "Unexpected identifier! Expected `links`, `sessions`, `routes`, `route_maps`, `queue`, `Queue`, `Prefix`, `Type`, or `return`, but found `{block}`"
                     )
                 )),
             }
