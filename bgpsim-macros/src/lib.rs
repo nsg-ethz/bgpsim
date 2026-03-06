@@ -67,6 +67,12 @@ use syn::parse_macro_input;
 ///     also either take a single number, an array of numbers, or any other arbitrary expression
 ///     that evaluates to `impl Iterator<Item = I> where I: Into<u32>`.
 ///
+/// - `route_map`: Configure route-maps using `bgpsim::route_map::RouteMap::from_str`. Each
+///   route-map is written as `ROUTER <- NEIGHBOR: match {"MACH" => "ACTION", ...}`. The arrow
+///   indicates the route map direction (`<-` is incoming, `->` is outgoing). The clauses inside the
+///   match are the condition and actions as strings. For their syntax, see the documentation of
+///   `bgpsim::route_map::RouteMap::from_str`.
+///
 /// - `Prefix`: The type of the prefix. Choose either `SinglePrefix`, `SimplePrefix`, or
 ///   `Ipv4Prefix` here (optional).
 ///
@@ -105,6 +111,21 @@ use syn::parse_macro_input;
 ///     routes = {
 ///         e0 -> "10.0.0.0/8" as {path: [1, 3, 4], med: 100, community: (0x65535, 666)};
 ///         e1 -> "10.0.0.0/8" as {path: [2, 4]};
+///     };
+///     route_maps = {
+///         b0 <- e0: match {
+///             "*" => "local-pref 200; community set 100:1",
+///         };
+///         b0 -> e0: match {
+///             "*" => "permit",
+///         };
+///         b1 <- e1: match {
+///             "*" => "local-pref 100; community set 100:2",
+///         };
+///         b1 -> e1: match {
+///             "community 100:2" => "permit",
+///             "*" => "deny",
+///         };
 ///     };
 ///     return ((r0, r1), (e0, e1))
 /// };

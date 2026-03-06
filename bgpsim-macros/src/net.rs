@@ -17,7 +17,7 @@ use std::collections::{hash_map::Entry, HashMap, HashSet};
 
 use proc_macro::TokenStream;
 use proc_macro2::Span;
-use quote::quote;
+use quote::{quote, quote_spanned};
 use syn::{
     braced,
     ext::IdentExt,
@@ -41,6 +41,7 @@ pub(crate) struct Net {
     links: HashMap<(Ident, Ident), Option<(f64, Span)>>,
     sessions: HashMap<(Ident, Ident), Option<Ident>>,
     routes: Vec<Route<Ident>>,
+    route_maps: HashMap<(Ident, Ident, bool), (Vec<RouteMapStatement>, Span)>,
     returns: Option<Returns>,
     default_asn: Option<(u32, Span)>,
 }
@@ -57,6 +58,7 @@ impl Parse for Net {
             node_order: Default::default(),
             links: Default::default(),
             sessions: Default::default(),
+            route_maps: Default::default(),
             routes: Default::default(),
             returns: Default::default(),
             default_asn: Default::default(),
@@ -77,6 +79,10 @@ impl Parse for Net {
                 "sessions" => {
                     let _: Token![=] = input.parse()?;
                     net.parse_sessions(input)?;
+                }
+                "route_maps" => {
+                    let _: Token![=] = input.parse()?;
+                    net.parse_route_maps(input)?;
                 }
                 "routes" => {
                     let _: Token![=] = input.parse()?;
@@ -231,6 +237,17 @@ impl Net {
             })
             .collect::<Vec<_>>();
 
+        let route_maps = self
+            .route_maps
+            .iter()
+            .flat_map(|((router, neighbor, outgoing), (statements, _))| {
+                statements
+                    .iter()
+                    .enumerate()
+                    .map(|(idx, s)| s.quote_add(router, neighbor, outgoing, idx))
+            })
+            .collect::<Vec<_>>();
+
         let routes = self
             .routes
             .iter()
@@ -289,6 +306,7 @@ impl Net {
                 #(#nodes)*
                 #(#links_and_weights)*
                 #(#sessions)*
+                #(#route_maps)*
                 #(#routes)*
                 #returns
             }
@@ -302,30 +320,28 @@ impl Net {
         braced!(links in input);
         let links: Punctuated<Link, Token![;]> = links.parse_terminated(Link::parse, Token![;])?;
 
-        for Link {
-            src,
-            dst,
-            weight,
-            weight_span,
-        } in links.into_iter()
-        {
+        for Link { src, dst, weight } in links.into_iter() {
             let src = self.register_node(src)?;
             let dst = self.register_node(dst)?;
-            match self.links.entry((src, dst)) {
-                Entry::Occupied(e) if e.get().as_ref().map(|(w, _)| *w) == Some(weight) => {}
-                Entry::Occupied(e) => {
-                    let mut err = Error::new(
-                        weight_span,
-                        "The same link was declared earlier with a different weight!",
-                    );
-                    if let Some((_, span)) = e.get() {
-                        err.combine(Error::new(*span, "Link weas declared here"));
+            if let Some((weight, weight_span)) = weight {
+                match self.links.entry((src, dst)) {
+                    Entry::Occupied(e) if e.get().as_ref().map(|(w, _)| *w) == Some(weight) => {}
+                    Entry::Occupied(e) => {
+                        let mut err = Error::new(
+                            weight_span,
+                            "The same link was declared earlier with a different weight!",
+                        );
+                        if let Some((_, span)) = e.get() {
+                            err.combine(Error::new(*span, "Link weas declared here"));
+                        }
+                        return Err(err);
                     }
-                    return Err(err);
+                    Entry::Vacant(e) => {
+                        e.insert(Some((weight, weight_span)));
+                    }
                 }
-                Entry::Vacant(e) => {
-                    e.insert(Some((weight, weight_span)));
-                }
+            } else {
+                self.links.entry((src, dst)).or_default();
             }
         }
 
@@ -364,6 +380,41 @@ impl Net {
                 return Err(err);
             }
             self.sessions.insert((src, dst), ty);
+        }
+
+        Ok(())
+    }
+
+    fn parse_route_maps(&mut self, input: ParseStream) -> Result<()> {
+        // must start with a paren.
+        let route_maps;
+        braced!(route_maps in input);
+        let route_maps: Punctuated<_, Token![;]> =
+            route_maps.parse_terminated(RouteMap::parse, Token![;])?;
+
+        for RouteMap {
+            router,
+            neighbor,
+            outgoing,
+            statements,
+            span,
+        } in route_maps
+        {
+            let router = self.register_node(router)?;
+            let neighbor = self.register_node(neighbor)?;
+            let key = (router, neighbor, outgoing);
+            if let Some((_, other_span)) = self.route_maps.get(&key) {
+                let mut err = Error::new(
+                    span,
+                    "Declared route-maps on the same session and direction twice.",
+                );
+                err.combine(Error::new(
+                    *other_span,
+                    "The route map was originally defined here",
+                ));
+                return Err(err);
+            }
+            self.route_maps.insert(key, (statements, span));
         }
 
         Ok(())
@@ -447,6 +498,44 @@ impl Net {
             }
         }
 
+        // check that there are no link weights configured on inter-domain links
+        let default_asn = self.default_asn.map(|(x, _)| x);
+        for ((src, dst), weight) in self.links.iter() {
+            if let Some((_, span)) = weight {
+                let src_asn = self
+                    .nodes
+                    .get(src)
+                    .and_then(|x| x.map(|(x, _)| x))
+                    .or(default_asn)
+                    .unwrap();
+                let dst_asn = self
+                    .nodes
+                    .get(dst)
+                    .and_then(|x| x.map(|(x, _)| x))
+                    .or(default_asn)
+                    .unwrap();
+
+                if src_asn != dst_asn {
+                    return Err(Error::new(
+                        *span,
+                        "Configuring link weight on an inter-AS link!",
+                    ));
+                }
+            }
+        }
+
+        // check that all bgp sessions exist, for which we configure route-maps
+        for ((src, dst, _), (_, span)) in self.route_maps.iter() {
+            if !(self.sessions.contains_key(&(src.clone(), dst.clone()))
+                || self.sessions.contains_key(&(dst.clone(), src.clone())))
+            {
+                return Err(Error::new(
+                    *span,
+                    "Cannot configure route-maps on a BGP session that does not exist.",
+                ));
+            }
+        }
+
         self.sessions.iter().try_for_each(|((src, dst), ident)| {
             SessionType::check(ident, self.external_session(src, dst))
         })?;
@@ -521,8 +610,7 @@ impl Parse for BgpSession {
 struct Link {
     src: Node,
     dst: Node,
-    weight: f64,
-    weight_span: Span,
+    weight: Option<(f64, Span)>,
 }
 
 impl Parse for Link {
@@ -530,23 +618,22 @@ impl Parse for Link {
         let src: Node = input.parse()?;
         let _: Token![->] = input.parse()?;
         let dst: Node = input.parse()?;
-        let _: Token![:] = input.parse()?;
-        let (weight, weight_span): (f64, Span) = if input.peek(LitInt) {
-            let elem: LitInt = input.parse()?;
-            let num: u128 = elem.base10_parse()?;
-            (num as f64, elem.span())
-        } else if input.peek(LitFloat) {
-            let elem: LitFloat = input.parse()?;
-            (elem.base10_parse()?, elem.span())
-        } else {
-            return Err(input.error("Expected a number (either a decimal number or a float)!"));
+        let mut weight = None;
+        if input.peek(Token![:]) {
+            let _: Token![:] = input.parse()?;
+            let (w, weight_span): (f64, Span) = if input.peek(LitInt) {
+                let elem: LitInt = input.parse()?;
+                let num: u128 = elem.base10_parse()?;
+                (num as f64, elem.span())
+            } else if input.peek(LitFloat) {
+                let elem: LitFloat = input.parse()?;
+                (elem.base10_parse()?, elem.span())
+            } else {
+                return Err(input.error("Expected a number (either a decimal number or a float)!"));
+            };
+            weight = Some((w, weight_span))
         };
-        Ok(Link {
-            src,
-            dst,
-            weight,
-            weight_span,
-        })
+        Ok(Link { src, dst, weight })
     }
 }
 
@@ -718,6 +805,87 @@ impl Parse for Route<Node> {
             med,
             communities,
         })
+    }
+}
+
+struct RouteMap<N> {
+    router: N,
+    neighbor: N,
+    outgoing: bool,
+    statements: Vec<RouteMapStatement>,
+    span: Span,
+}
+
+impl Parse for RouteMap<Node> {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let router: Node = input.parse()?;
+        let outgoing = if input.peek(Token![->]) {
+            let _: Token![->] = input.parse()?;
+            true
+        } else if input.peek(Token![<]) && input.peek2(Token![-]) {
+            let _: Token![<] = input.parse()?;
+            let _: Token![-] = input.parse()?;
+            false
+        } else {
+            Err(input.error("Expected either <- or ->"))?
+        };
+        let neighbor: Node = input.parse()?;
+        let _: Token![:] = input.parse()?;
+        let _: Token![match] = input.parse()?;
+        let content;
+        let bracket = syn::braced!(content in input);
+        let statements = content.parse_terminated(RouteMapStatement::parse, Token![,])?;
+        Ok(Self {
+            router,
+            neighbor,
+            outgoing,
+            statements: statements.into_iter().collect(),
+            span: bracket.span.span(),
+        })
+    }
+}
+
+struct RouteMapStatement {
+    cond: LitStr,
+    action: LitStr,
+}
+
+impl Parse for RouteMapStatement {
+    fn parse(input: ParseStream) -> Result<Self> {
+        let cond = input.parse()?;
+        let _: Token![=>] = input.parse()?;
+        let action = input.parse()?;
+        Ok(Self { cond, action })
+    }
+}
+
+impl RouteMapStatement {
+    fn quote(&self, idx: usize) -> proc_macro2::TokenStream {
+        let span = self.cond.span();
+        let order = LitInt::new(&format!("{}", (idx + 1) * 10), span);
+        let cond = &self.cond;
+        let action = &self.action;
+        quote_spanned! {span=>
+            ::bgpsim::route_map::RouteMap::from_str(#order, #cond, #action, ::bgpsim::route_map::RouteMapFlow::Exit).unwrap()
+        }
+    }
+
+    fn quote_add(
+        &self,
+        router: &Ident,
+        neighbor: &Ident,
+        outgoing: &bool,
+        idx: usize,
+    ) -> proc_macro2::TokenStream {
+        let direction = if *outgoing {
+            quote! { ::bgpsim::route_map::RouteMapDirection::Outgoing }
+        } else {
+            quote! { ::bgpsim::route_map::RouteMapDirection::Incoming }
+        };
+        let route_map = self.quote(idx);
+        quote! {
+            _net.set_bgp_route_map(#router, #neighbor, #direction, #route_map).unwrap();
+        }
     }
 }
 

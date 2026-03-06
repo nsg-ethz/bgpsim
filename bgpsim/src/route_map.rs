@@ -739,3 +739,351 @@ impl fmt::Display for RouteMapFlow {
         }
     }
 }
+
+impl<P: Prefix> RouteMap<P> {
+    /// Parse a string representation of a route map into a structure.
+    ///
+    /// ## Condition:
+    /// The condition can be multiple conditions, separated by a semicolon. If you wish to match
+    /// everything, then you need to proide `*` or `any` or `all`.  Each condition takes the form
+    /// `KIND [ARG1] [ARG2..]`, separated by spaces. The following kinds are supported:
+    /// - `prefix`: [`RouteMapMatch::Prefix`]: All arguments will be added to the set.
+    /// - `community`: [`RouteMapMatch::Community`]: A single community to match on. If
+    ///   the first argument is `not`, it uses [`RouteMapMatch::DenyCommunity`].
+    /// - `community`: [`RouteMapMatch::Community`]: A single community to match on. If
+    ///   the first argument is `not` (or an exclamation mark), it uses
+    ///   [`RouteMapMatch::DenyCommunity`].
+    /// - `path contains`: [`RouteMapMatch::AsPath`] with [`RouteMapMatchAsPath::Contains`].
+    ///   The single argument is an AS number.
+    ///
+    /// ## action:
+    /// The action can either be `deny` or `drop`, or it can have multiple statements to modify
+    /// the route, seaparated by semicolons. Each such set statement takes the form `KIND [ARG]`.
+    /// The following kinds are supported:
+    /// - `local-preference` (or `lp` or `local-pref`): [`RouteMapSet::LocalPref`].
+    /// - `med`: [`RouteMapSet::Med`].
+    /// - `community set`: [`RouteMapSet::SetCommunity`] (alias `add`).
+    /// - `community del`: [`RouteMapSet::DelCommunity`].
+    /// - `path prepend`: [`RouteMapSet::PrependASPath`]. Arguments are parsed as a list.
+    pub fn from_str(
+        order: i16,
+        cond: impl AsRef<str>,
+        action: impl AsRef<str>,
+        flow: RouteMapFlow,
+    ) -> Result<Self, String> {
+        let conds = parser::parse_cond(cond.as_ref())?;
+        let actions = parser::parse_action(action.as_ref())?;
+
+        let (state, set) = match actions {
+            Some(set) => (RouteMapState::Allow, set),
+            None => (RouteMapState::Deny, Vec::new()),
+        };
+
+        Ok(Self::new(order, state, conds, set, flow))
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn from_str() {
+        let got = RouteMap::<Ipv4Prefix>::from_str(
+            10,
+            "community 1:1",
+            "lp 200; comm set 1:100",
+            Default::default(),
+        )
+        .unwrap();
+        let want = RouteMapBuilder::new()
+            .order(10)
+            .allow()
+            .match_community((1, 1))
+            .set_local_pref(200)
+            .set_community((1, 100))
+            .build();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn from_str_no_action() {
+        let got =
+            RouteMap::<Ipv4Prefix>::from_str(10, "community 1:1", "", Default::default()).unwrap();
+        let want = RouteMapBuilder::new()
+            .order(10)
+            .allow()
+            .match_community((1, 1))
+            .build();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn from_str_no_action_permit() {
+        let got =
+            RouteMap::<Ipv4Prefix>::from_str(10, "community 1:1", "permit", Default::default())
+                .unwrap();
+        let want = RouteMapBuilder::new()
+            .order(10)
+            .allow()
+            .match_community((1, 1))
+            .build();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn from_str_deny() {
+        let got = RouteMap::<Ipv4Prefix>::from_str(10, "community 1:1", "deny", Default::default())
+            .unwrap();
+        let want = RouteMapBuilder::new()
+            .order(10)
+            .deny()
+            .match_community((1, 1))
+            .build();
+        assert_eq!(got, want);
+    }
+
+    #[test]
+    fn from_str_no_match() {
+        let got =
+            RouteMap::<Ipv4Prefix>::from_str(10, "*", "lp 200; comm set 1:100", Default::default())
+                .unwrap();
+        let want = RouteMapBuilder::new()
+            .order(10)
+            .allow()
+            .set_local_pref(200)
+            .set_community((1, 100))
+            .build();
+        assert_eq!(got, want);
+    }
+}
+
+/// Module to parse route maps
+mod parser {
+    use ipnet::Ipv4Net;
+
+    use super::{RouteMapMatch, RouteMapMatchAsPath, RouteMapSet};
+    use crate::{
+        bgp::Community,
+        types::{Prefix, ASN},
+    };
+
+    trait StrResult<T> {
+        fn context(self, context: impl std::fmt::Display) -> Result<T, String>;
+    }
+
+    impl<T, E: std::fmt::Display> StrResult<T> for Result<T, E> {
+        fn context(self, context: impl std::fmt::Display) -> Result<T, String> {
+            self.map_err(|e| format!("{context}: {e}"))
+        }
+    }
+
+    impl<T> StrResult<T> for Option<T> {
+        fn context(self, context: impl ToString) -> Result<T, String> {
+            self.ok_or_else(|| context.to_string())
+        }
+    }
+
+    pub(super) fn parse_cond<P: Prefix>(cond: &str) -> Result<Vec<RouteMapMatch<P>>, String> {
+        let cond = cond.trim().to_lowercase();
+        if cond == "*" || cond == "any" || cond == "all" || cond == "" {
+            return Ok(Vec::new());
+        }
+        cond.split(";")
+            .map(|s| s.trim())
+            .filter(|x| !x.is_empty())
+            .map(parse_single_cond)
+            .collect()
+    }
+
+    fn parse_single_cond<P: Prefix>(cond: &str) -> Result<RouteMapMatch<P>, String> {
+        let mut words = cond.split_whitespace();
+        let kind = words.next().context("Got an empty condition")?;
+        match kind {
+            "prefix" => Ok(RouteMapMatch::Prefix(
+                words
+                    .map(|x| {
+                        x.parse::<Ipv4Net>()
+                            .context(format!("Failed to parse `{x}` as `Ipv4Net`"))
+                            .map(|x| P::from(x))
+                    })
+                    .collect::<Result<_, String>>()?,
+            )),
+            "community" | "comm" => {
+                let mut comm = words
+                    .next()
+                    .context("Community requires at least one argument")?;
+                let mut positive = true;
+                if comm == "not" {
+                    positive = !positive;
+                    comm = words
+                        .next()
+                        .context("Negated community requires one argument")?;
+                }
+
+                let comm = comm
+                    .parse::<Community>()
+                    .context(format!("Cannot parse `{comm}` as `Community`"))?;
+
+                Ok(if positive {
+                    RouteMapMatch::Community(comm)
+                } else {
+                    RouteMapMatch::DenyCommunity(comm)
+                })
+            }
+            "aspath" | "path" => {
+                let kind = words
+                    .next()
+                    .context("`aspath` requires at least one additional argument")?;
+                match kind {
+                    "contains" => Ok(RouteMapMatch::AsPath(RouteMapMatchAsPath::Contains(ASN(
+                        words
+                            .next()
+                            .context("`aspath contains` requires at least one additional argument")?
+                            .parse::<u32>()
+                            .context("Cannot parse the argument as number")?,
+                    )))),
+                    s => Err(format!("Unsupported argument to `aspath`: `{s}`")),
+                }
+            }
+            s => Err(format!("Unsupported match kind: `{s}`")),
+        }
+    }
+
+    pub(super) fn parse_action(action: &str) -> Result<Option<Vec<RouteMapSet>>, String> {
+        let action = action.trim().to_lowercase();
+        if action == "drop" || action == "deny" || action == "reject" || action == "discard" {
+            return Ok(None);
+        }
+        if action == "permit" || action == "accept" || action == "" {
+            return Ok(Some(Vec::new()));
+        }
+
+        Ok(Some(
+            action
+                .split(";")
+                .map(|s| s.trim())
+                .filter(|x| !x.is_empty())
+                .map(parse_single_action)
+                .collect::<Result<Vec<_>, String>>()?,
+        ))
+    }
+
+    fn parse_single_action(cond: &str) -> Result<RouteMapSet, String> {
+        let mut words = cond.split_whitespace();
+        let kind = words.next().context("Got an empty action")?;
+        match kind {
+            "local-preference" | "lp" | "local-pref" | "localpreference" | "localpref" => {
+                let num = words
+                    .next()
+                    .context("`local-preference` expects one argument")?;
+                Ok(RouteMapSet::LocalPref(Some(
+                    num.parse::<u32>()
+                        .context(format!("cannot parse `{num}` as a number"))?,
+                )))
+            }
+            "med" => {
+                let num = words.next().context("`med` expects one argument")?;
+                Ok(RouteMapSet::Med(Some(
+                    num.parse::<u32>()
+                        .context(format!("cannot parse `{num}` as a number"))?,
+                )))
+            }
+            "community" | "comm" => {
+                let kind = words
+                    .next()
+                    .context("`community` requires two arguments.")?;
+                let comm = words
+                    .next()
+                    .context("`community` requires two arguments.")?;
+                let comm = comm
+                    .parse::<Community>()
+                    .context(format!("cannot pare `{comm}` as `Community`."))?;
+                match kind {
+                    "set" | "add" => Ok(RouteMapSet::SetCommunity(comm)),
+                    "del" => Ok(RouteMapSet::DelCommunity(comm)),
+                    s => Err(format!(
+                        "Invalid first argument for `community`: `{s}` (expecting `set` or `del`)"
+                    )),
+                }
+            }
+            "aspath" | "path" => {
+                let kind = words
+                    .next()
+                    .context("`aspath` requires at least one argument.")?;
+                match kind {
+                    "prepend" => Ok(RouteMapSet::PrependASPath(
+                        words
+                            .map(|x| {
+                                x.parse::<u32>()
+                                    .context(format!("Cannot parse `{x}` as a number"))
+                                    .map(ASN)
+                            })
+                            .collect::<Result<Vec<_>, String>>()?,
+                    )),
+                    s => Err(format!(
+                        "Invalid first argument for `aspath`: `{s}` (expecting `prepend`)"
+                    )),
+                }
+            }
+            s => Err(format!("Unsupported action kind: `{s}`")),
+        }
+    }
+
+    #[cfg(test)]
+    mod test {
+        use crate::types::Ipv4Prefix;
+
+        use super::*;
+
+        #[test]
+        fn test_parse_single_cond() {
+            // Test Prefix
+            // Note: Assumes a concrete type P that implements Prefix
+            assert!(parse_single_cond::<Ipv4Prefix>("prefix 192.168.1.0/24").is_ok());
+
+            // Test Community variants
+            assert!(parse_single_cond::<Ipv4Prefix>("community 65000:1").is_ok());
+            assert!(parse_single_cond::<Ipv4Prefix>("comm 65000:1").is_ok());
+            assert!(parse_single_cond::<Ipv4Prefix>("community not 65000:1").is_ok());
+
+            // Test AS Path
+            assert!(parse_single_cond::<Ipv4Prefix>("path contains 65000").is_ok());
+            assert!(parse_single_cond::<Ipv4Prefix>("aspath contains 65000").is_ok());
+        }
+
+        #[test]
+        fn test_parse_single_cond_errors() {
+            assert!(parse_single_cond::<Ipv4Prefix>("prefix invalid_ip").is_err());
+            assert!(parse_single_cond::<Ipv4Prefix>("community").is_err()); // Missing community value
+            assert!(parse_single_cond::<Ipv4Prefix>("aspath somethingelse 65000").is_err());
+            assert!(parse_single_cond::<Ipv4Prefix>("unknown_kind 123").is_err());
+        }
+
+        #[test]
+        fn test_parse_single_action_valid() {
+            // Test LP/Med numeric values
+            assert!(parse_single_action("lp 100").is_ok());
+            assert!(parse_single_action("med 50").is_ok());
+
+            // Test Community operations
+            assert!(parse_single_action("comm set 65000:100").is_ok());
+            assert!(parse_single_action("comm set BLACKHOLE").is_ok());
+            assert!(parse_single_action("community del 65000:100").is_ok());
+
+            // Test AS Path Prepend
+            assert!(parse_single_action("aspath prepend 65001 65002").is_ok());
+        }
+
+        #[test]
+        fn test_parse_single_action_errors() {
+            assert!(parse_single_action("lp not_a_number").is_err());
+            assert!(parse_single_action("med").is_err()); // Missing value
+            assert!(parse_single_action("comm replace 65000:1").is_err()); // 'replace' is invalid
+            assert!(parse_single_action("comm set 65000").is_err()); // 'replace' is invalid
+            assert!(parse_single_action("comm set foo").is_err()); // 'replace' is invalid
+            assert!(parse_single_action("aspath append 65000").is_err()); // 'append' is invalid
+            assert!(parse_single_action("aspath prepend foo 5441").is_err());
+        }
+    }
+}

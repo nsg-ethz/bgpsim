@@ -487,6 +487,7 @@ mod t {
                 vec![
                     format!("deny  Community {cust_asn}:502."),
                     format!("deny  Community {cust_asn}:503."),
+                    format!("allow *."),
                 ],
             );
         }
@@ -509,6 +510,7 @@ mod t {
                 vec![
                     format!("deny  Community {asn}:502."),
                     format!("deny  Community {asn}:503."),
+                    format!("allow *."),
                 ],
             );
         }

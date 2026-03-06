@@ -555,6 +555,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
                     .allow()
                     .set_community(kind.community(asn))
                     .set_local_pref(kind.local_pref())
+                    .exit()
                     .build();
 
                 let out_rms = match kind {
@@ -570,6 +571,7 @@ impl<P: Prefix, Q: EventQueue<P>, Ospf: OspfImpl> NetworkBuilder<P, Q, Ospf>
                             .deny()
                             .match_community(GaoRexfordPeerType::Provider.community(asn))
                             .build(),
+                        RouteMapBuilder::new().order(30).allow().build(),
                     ],
                 };
 
