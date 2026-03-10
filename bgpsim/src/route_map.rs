@@ -25,7 +25,7 @@ use crate::{
 
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
-use std::{cmp::Ordering, fmt};
+use std::{cmp::Ordering, collections::BTreeSet, fmt};
 
 /// # Main RouteMap structure
 /// A route map can match on a BGP route, to change some value of the route, or to bock it. Use the
@@ -317,6 +317,18 @@ impl<P: Prefix> RouteMapBuilder<P> {
         self
     }
 
+    /// Add a match condition to match on *one of* the given communities (disjunction).
+    pub fn match_community_list<I>(&mut self, communities: I) -> &mut Self
+    where
+        I: IntoIterator,
+        I::Item: Into<Community>,
+    {
+        self.conds.push(RouteMapMatch::CommunityList(
+            communities.into_iter().map(|x| x.into()).collect(),
+        ));
+        self
+    }
+
     /// Add a match condition to the Route-Map, matching on the absence of a community.
     pub fn match_deny_community(&mut self, community: impl Into<Community>) -> &mut Self {
         self.conds
@@ -527,6 +539,8 @@ pub enum RouteMapMatch<P: Prefix> {
     AsPath(RouteMapMatchAsPath),
     /// Matches on the Next Hop (exact value)
     NextHop(RouterId),
+    /// Matches if any of the given communities are present.
+    CommunityList(BTreeSet<Community>),
     /// Matches on the community (either not set, or set and matches a value or a range)
     Community(Community),
     /// Match on the absence of a given community.
@@ -545,6 +559,7 @@ impl<P: Prefix> IntoIpv4Prefix for RouteMapMatch<P> {
             RouteMapMatch::NextHop(x) => RouteMapMatch::NextHop(x),
             RouteMapMatch::Community(x) => RouteMapMatch::Community(x),
             RouteMapMatch::DenyCommunity(x) => RouteMapMatch::DenyCommunity(x),
+            RouteMapMatch::CommunityList(x) => RouteMapMatch::CommunityList(x),
         }
     }
 }
@@ -558,6 +573,7 @@ impl<P: Prefix> RouteMapMatch<P> {
             Self::NextHop(nh) => entry.route.next_hop == *nh,
             Self::Community(com) => entry.route.community.contains(com),
             Self::DenyCommunity(com) => !entry.route.community.contains(com),
+            Self::CommunityList(list) => entry.route.community.iter().any(|c| list.contains(c)),
         }
     }
 }

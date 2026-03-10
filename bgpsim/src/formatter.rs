@@ -652,6 +652,7 @@ impl<'n, P: Prefix, Q, Ospf: OspfImpl> NetworkFormatter<'n, P, Q, Ospf> for Rout
             RouteMapMatch::NextHop(nh) => format!("NextHop == {}", nh.fmt(net)),
             RouteMapMatch::Community(c) => format!("Community {c}"),
             RouteMapMatch::DenyCommunity(c) => format!("Deny Community {c}"),
+            RouteMapMatch::CommunityList(c) => format!("Community-list {{{}}}", c.iter().join(" ")),
         }
     }
 }
