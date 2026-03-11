@@ -23,6 +23,7 @@ use crate::{
     types::{IntoIpv4Prefix, Ipv4Prefix, Prefix, PrefixSet, RouterId, ASN},
 };
 
+use itertools::Itertools;
 use ordered_float::NotNan;
 use serde::{Deserialize, Serialize};
 use std::{cmp::Ordering, collections::BTreeSet, fmt};
@@ -623,6 +624,8 @@ where
 pub enum RouteMapMatchAsPath {
     /// Contains a specific AsId
     Contains(ASN),
+    /// Contains at least one of the given ASes in the list
+    AccessList(BTreeSet<ASN>),
     /// Match on the length of the As Path
     Length(RouteMapMatchClause<usize>),
 }
@@ -632,6 +635,7 @@ impl RouteMapMatchAsPath {
     pub fn matches(&self, path: &[ASN]) -> bool {
         match self {
             Self::Contains(as_id) => path.contains(as_id),
+            Self::AccessList(ases) => path.iter().any(|x| ases.contains(x)),
             Self::Length(clause) => clause.matches(&path.len()),
         }
     }
@@ -643,6 +647,10 @@ impl fmt::Display for RouteMapMatchAsPath {
             RouteMapMatchAsPath::Contains(as_id) => {
                 f.write_fmt(format_args!("{} in AsPath", as_id.0))
             }
+            RouteMapMatchAsPath::AccessList(ases) => f.write_fmt(format_args!(
+                "AsPath access-list [{}]",
+                ases.iter().join(", ")
+            )),
             RouteMapMatchAsPath::Length(c) => f.write_fmt(format_args!("len(AsPath) {c}")),
         }
     }
