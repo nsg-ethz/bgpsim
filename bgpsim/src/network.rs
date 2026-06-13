@@ -371,6 +371,16 @@ impl<P: Prefix, Q, Ospf: OspfImpl> Network<P, Q, Ospf> {
             .ok_or_else(|| NetworkError::DeviceNameNotFound(name.as_ref().to_string()))
     }
 
+    /// Clear all BGP routes known in the network.
+    pub fn clear_bgp(&mut self) {
+        for r in self.routers.values_mut() {
+            match r {
+                NetworkDevice::InternalRouter(r) => r.bgp.clear(),
+                NetworkDevice::ExternalRouter(r) => r.clear_bgp(),
+            }
+        }
+    }
+
     // ********************
     // * Helper Functions *
     // ********************

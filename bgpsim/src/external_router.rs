@@ -101,6 +101,10 @@ impl<P: Prefix> ExternalRouter<P> {
         }
     }
 
+    pub(crate) fn clear_bgp(&mut self) {
+        self.active_routes.clear();
+    }
+
     /// Handle an `Event` and produce the necessary result. Always returns Ok((false, vec![])), to
     /// tell that the forwarding state has not changed.
     pub(crate) fn handle_event<T>(

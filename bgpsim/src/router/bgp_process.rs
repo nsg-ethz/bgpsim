@@ -103,6 +103,14 @@ impl<P: Prefix> BgpProcess<P> {
         }
     }
 
+    /// Clear the BGP table (without emitting messages)
+    pub(crate) fn clear(&mut self) {
+        self.rib_in.clear();
+        self.rib.clear();
+        self.rib_out.clear();
+        self.known_prefixes.clear();
+    }
+
     /*
      * Getter Functions
      */
